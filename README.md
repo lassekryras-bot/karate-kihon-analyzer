@@ -248,6 +248,36 @@ Every punch produces an annotated image showing:
 
 ---
 
+Development Setup
+
+Create and activate a Python 3.12 virtual environment:
+
+```bash
+python3.12 -m venv .venv
+source .venv/bin/activate
+python -m pip install --upgrade pip
+```
+
+Install project dependencies once packaging files exist:
+
+```bash
+python -m pip install -e .
+```
+
+Run the analyzer CLI:
+
+```bash
+python -m karate_analyzer analyze input/kihon-test.mp4 --output output/
+```
+
+Run the test suite:
+
+```bash
+python -m pytest
+```
+
+---
+
 Running the Analyzer
 
 Planned command:
