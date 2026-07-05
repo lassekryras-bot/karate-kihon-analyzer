@@ -1,0 +1,33 @@
+[build-system]
+requires = ["setuptools>=69"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "karate-kihon-analyzer"
+version = "0.1.0"
+description = "Offline Python engine for analyzing karate kihon videos using MediaPipe Pose."
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "mediapipe",
+    "opencv-python",
+    "numpy",
+    "pillow",
+    "typer",
+    "pydantic",
+    "tqdm",
+]
+
+[project.optional-dependencies]
+test = [
+    "pytest",
+]
+
+[project.scripts]
+karate-analyzer = "karate_analyzer.main:app"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
