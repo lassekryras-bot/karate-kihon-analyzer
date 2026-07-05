@@ -123,6 +123,14 @@ Active Shoulder → Active Wrist
 
 The angular difference determines the score.
 
+`deviation_degrees` uses a signed value to show direction relative to the ideal shoulder-to-chin line:
+
+- Positive values mean the actual punch line is above the ideal line, so the punch is too high.
+- Negative values mean the actual punch line is below the ideal line, so the punch is too low.
+- `0` means the actual punch line matches the ideal line.
+
+The scoring thresholds use the absolute value of `deviation_degrees`, while the sign preserves whether the punch was high or low.
+
 Scoring Thresholds
 
 Deviation| Result
@@ -248,8 +256,8 @@ python -m karate_analyzer analyze input/kihon-test.mp4 --output output/
 
 Example output:
 
-Punch 1: Right Jodan - Good (4° low)
-Punch 2: Left Jodan - Perfect (2° high)
+Punch 1: Right Jodan - Good (-4° low)
+Punch 2: Left Jodan - Perfect (+2° high)
 ...
 
 Session complete
@@ -302,4 +310,4 @@ The MVP is considered successful if it can reliably:
 
 License
 
-MIT License
+MIT License.
