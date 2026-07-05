@@ -134,10 +134,10 @@ The scoring thresholds use the absolute value of `deviation_degrees`, while the 
 Scoring Thresholds
 
 Deviation| Result
-0–3°| Perfect
-3–7°| Good
-7–12°| Acceptable
-12°+| Miss
+0° <= deviation <= 3°| Perfect
+3° < deviation <= 7°| Good
+7° < deviation <= 12°| Acceptable
+deviation > 12°| Miss
 
 The analysis also determines whether the punch was:
 
