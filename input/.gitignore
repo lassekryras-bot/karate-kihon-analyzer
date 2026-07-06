@@ -1,0 +1,8 @@
+# Local media for manual MediaPipe spike testing.
+# Keep placeholders so the directory structure exists in git.
+*
+!.gitignore
+!images/
+!videos/
+!images/.gitkeep
+!videos/.gitkeep

@@ -1,0 +1,6 @@
+# Generated analyzer output and MediaPipe debug artifacts.
+# Keep placeholders so the directory structure exists in git.
+*
+!.gitignore
+!mediapipe-debug/
+!mediapipe-debug/.gitkeep
