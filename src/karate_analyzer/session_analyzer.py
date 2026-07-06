@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections import OrderedDict
 from dataclasses import dataclass
 
-from karate_analyzer.angle_analyzer import ScoreResult, analyze_jodan_deviation
+from karate_analyzer.angle_analyzer import Point2D, ScoreResult, analyze_jodan_deviation
 from karate_analyzer.impact_frame_selector import ExtensionSample, select_impact_frame
 from karate_analyzer.punch_sequence import ExpectedPunch, build_mvp_sequence
 from karate_analyzer.synthetic_session import SyntheticFrame
@@ -19,6 +19,9 @@ class PunchAnalysis:
     expected: ExpectedPunch
     impact_frame_number: int
     impact_timestamp_seconds: float
+    shoulder: Point2D
+    chin: Point2D
+    wrist: Point2D
     score: ScoreResult
 
 
@@ -136,5 +139,8 @@ def _analyze_punch(
         expected=expected,
         impact_frame_number=impact_frame.frame_number,
         impact_timestamp_seconds=impact_frame.timestamp_seconds,
+        shoulder=selected_frame.shoulder,
+        chin=selected_frame.chin,
+        wrist=selected_frame.wrist,
         score=score,
     )
