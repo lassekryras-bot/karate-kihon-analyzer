@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import pytest
 
+from karate_analyzer.angle_analyzer import Point2D
 from karate_analyzer.punch_sequence import build_mvp_sequence
 from karate_analyzer.session_analyzer import _analyze_punch, analyze_session
 from karate_analyzer.synthetic_session import generate_synthetic_mvp_session
@@ -38,6 +39,17 @@ def test_analyze_session_happy_path_returns_expected_punch_analyses() -> None:
         "perfect",
         "perfect",
     ]
+
+    first_punch = analysis.punches[0]
+    first_impact_frame = next(
+        frame for frame in frames if frame.frame_number == first_punch.impact_frame_number
+    )
+    assert first_punch.shoulder == Point2D(0, 0)
+    assert first_punch.chin == Point2D(1, 0)
+    assert first_punch.wrist == first_impact_frame.wrist
+    assert all(punch.shoulder is not None for punch in analysis.punches)
+    assert all(punch.chin is not None for punch in analysis.punches)
+    assert all(punch.wrist is not None for punch in analysis.punches)
 
 
 def test_analyze_session_rejects_empty_session() -> None:
