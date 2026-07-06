@@ -34,6 +34,8 @@ DEFAULT_SMOOTHING_WINDOW = 5
 DEFAULT_GROUP_THRESHOLD = 0.90
 DEFAULT_MERGE_GAP_FRAMES = 3
 DEFAULT_GROUP_MIN_VISIBILITY = 0.5
+DEFAULT_EXPECTED_PUNCH_COUNT = 10
+EXPECTED_PUNCH_SEQUENCE_START_SIDE = "right"
 
 
 def analyze_extension_json(
@@ -90,6 +92,13 @@ def analyze_extension_json(
             {"side": "right", "grouped_peaks": right_grouped_peaks},
         ]
     }
+    punch_event_payload = _extract_punch_event_candidates(
+        left_grouped_peaks,
+        right_grouped_peaks,
+        expected_count=DEFAULT_EXPECTED_PUNCH_COUNT,
+        expected_start_side=EXPECTED_PUNCH_SEQUENCE_START_SIDE,
+    )
+
     summary = {
         "frame_count": payload.get("frame_count", len(extension_frames)),
         "detected_frame_count": payload.get(
@@ -100,22 +109,106 @@ def analyze_extension_json(
         "right_candidate_peak_count": len(right_peaks),
         "grouped_left_peak_count": len(left_grouped_peaks),
         "grouped_right_peak_count": len(right_grouped_peaks),
+        "punch_event_candidate_count": len(punch_event_payload["punch_event_candidates"]),
+        "expected_punch_count": DEFAULT_EXPECTED_PUNCH_COUNT,
         "output_files": [
             "extension_by_frame.json",
             "extension_by_frame.csv",
             "candidate_peak_frames.json",
             "grouped_peak_frames.json",
+            "punch_event_candidates.json",
         ],
         "candidate_peak_frames": candidate_peak_payload,
         "grouped_peak_frames": grouped_peak_payload,
+        "punch_event_candidates": punch_event_payload,
     }
 
     _write_json(output_directory / "extension_by_frame.json", extension_payload)
     _write_csv(output_directory / "extension_by_frame.csv", extension_frames)
     _write_json(output_directory / "candidate_peak_frames.json", candidate_peak_payload)
     _write_json(output_directory / "grouped_peak_frames.json", grouped_peak_payload)
+    _write_json(output_directory / "punch_event_candidates.json", punch_event_payload)
 
     return summary
+
+
+
+def _extract_punch_event_candidates(
+    left_grouped_peaks: list[dict[str, Any]],
+    right_grouped_peaks: list[dict[str, Any]],
+    *,
+    expected_count: int,
+    expected_start_side: str,
+) -> dict[str, Any]:
+    """Convert raw grouped extension regions into karate punch event candidates.
+
+    A high-extension region that starts on frame 0 is treated as the initial
+    kamae/guard position rather than a punch. Remaining regions are ordered by
+    time and annotated with the expected kihon alternation.
+    """
+
+    if expected_count < 0:
+        raise ValueError("expected_count must be non-negative")
+    if expected_start_side not in {"left", "right"}:
+        raise ValueError("expected_start_side must be 'left' or 'right'")
+
+    ignored_initial_regions = []
+    punch_like_regions = []
+    for side, grouped_peaks in (("left", left_grouped_peaks), ("right", right_grouped_peaks)):
+        for grouped_peak in grouped_peaks:
+            event = {"side": side, **grouped_peak}
+            if grouped_peak.get("start_frame") == 0:
+                ignored_initial_regions.append(
+                    {
+                        **event,
+                        "ignore_reason": "initial_extended_arm_region",
+                    }
+                )
+            else:
+                punch_like_regions.append(event)
+
+    punch_like_regions.sort(
+        key=lambda event: (
+            _sortable_timestamp(event.get("timestamp_seconds")),
+            _sortable_frame(event.get("peak_frame_number")),
+            event["side"],
+        )
+    )
+
+    expected_sequence = _expected_alternating_sides(expected_start_side, expected_count)
+    candidates = []
+    for index, event in enumerate(punch_like_regions[:expected_count]):
+        expected_side = expected_sequence[index]
+        candidates.append(
+            {
+                "event_index": index + 1,
+                "expected_side": expected_side,
+                "observed_side": event["side"],
+                "matches_expected_side": event["side"] == expected_side,
+                **event,
+            }
+        )
+
+    return {
+        "expected_punch_count": expected_count,
+        "expected_start_side": expected_start_side,
+        "expected_sequence": expected_sequence,
+        "ignored_initial_regions": ignored_initial_regions,
+        "punch_event_candidates": candidates,
+    }
+
+
+def _expected_alternating_sides(start_side: str, count: int) -> list[str]:
+    sides = [start_side, "left" if start_side == "right" else "right"]
+    return [sides[index % 2] for index in range(count)]
+
+
+def _sortable_timestamp(timestamp: Any) -> float:
+    return float(timestamp) if timestamp is not None else float("inf")
+
+
+def _sortable_frame(frame_number: Any) -> int:
+    return int(frame_number) if frame_number is not None else 10**12
 
 
 def _analyze_frame(frame: dict[str, Any]) -> dict[str, Any]:

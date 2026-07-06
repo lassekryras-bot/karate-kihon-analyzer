@@ -16,6 +16,7 @@ from karate_analyzer.mediapipe_extension_explorer import (
     RIGHT_SHOULDER,
     RIGHT_WRIST,
     _add_smoothed_extension_ratios,
+    _extract_punch_event_candidates,
     _find_grouped_peaks,
     analyze_extension_json,
 )
@@ -40,12 +41,15 @@ def test_analyze_extension_json_writes_outputs_and_calculates_values(tmp_path: P
     assert (output_directory / "extension_by_frame.csv").exists()
     assert (output_directory / "candidate_peak_frames.json").exists()
     assert (output_directory / "grouped_peak_frames.json").exists()
+    assert (output_directory / "punch_event_candidates.json").exists()
     assert summary["frame_count"] == 3
     assert summary["detected_frame_count"] == 3
     assert summary["left_candidate_peak_count"] == 1
     assert "grouped_left_peak_count" in summary
     assert "grouped_right_peak_count" in summary
+    assert summary["expected_punch_count"] == 10
     assert "grouped_peak_frames.json" in summary["output_files"]
+    assert "punch_event_candidates.json" in summary["output_files"]
 
     extension_payload = json.loads((output_directory / "extension_by_frame.json").read_text())
     peak_left = extension_payload["frames"][1]["left"]
@@ -169,6 +173,68 @@ def test_grouped_peak_frames_json_is_written_and_contains_grouped_peaks(tmp_path
     assert grouped_payload["sides"][0]["grouped_peaks"][0]["peak_frame_number"] == 1
 
 
+
+def test_punch_event_candidates_ignore_initial_region_and_alternate_expected_sides() -> None:
+    left_grouped_peaks = [
+        _grouped_peak(start_frame=0, peak_frame_number=0, timestamp_seconds=0.0),
+        _grouped_peak(start_frame=20, peak_frame_number=25, timestamp_seconds=2.5),
+    ]
+    right_grouped_peaks = [
+        _grouped_peak(start_frame=10, peak_frame_number=15, timestamp_seconds=1.5),
+        _grouped_peak(start_frame=30, peak_frame_number=35, timestamp_seconds=3.5),
+    ]
+
+    payload = _extract_punch_event_candidates(
+        left_grouped_peaks, right_grouped_peaks, expected_count=10, expected_start_side="right"
+    )
+
+    assert payload["expected_sequence"] == [
+        "right",
+        "left",
+        "right",
+        "left",
+        "right",
+        "left",
+        "right",
+        "left",
+        "right",
+        "left",
+    ]
+    assert payload["ignored_initial_regions"] == [
+        {
+            **left_grouped_peaks[0],
+            "side": "left",
+            "ignore_reason": "initial_extended_arm_region",
+        }
+    ]
+    assert [event["observed_side"] for event in payload["punch_event_candidates"]] == [
+        "right",
+        "left",
+        "right",
+    ]
+    assert [event["expected_side"] for event in payload["punch_event_candidates"]] == [
+        "right",
+        "left",
+        "right",
+    ]
+    assert all(event["matches_expected_side"] for event in payload["punch_event_candidates"])
+
+
+def test_punch_event_candidates_keep_first_ten_after_sorting() -> None:
+    right_grouped_peaks = [
+        _grouped_peak(start_frame=frame, peak_frame_number=frame, timestamp_seconds=frame / 10)
+        for frame in range(11, 0, -1)
+    ]
+
+    payload = _extract_punch_event_candidates(
+        [], right_grouped_peaks, expected_count=10, expected_start_side="right"
+    )
+
+    assert [event["peak_frame_number"] for event in payload["punch_event_candidates"]] == list(
+        range(1, 11)
+    )
+
+
 def _video_payload(_peak_visibility: float) -> dict[str, object]:
     return {
         "frame_count": 3,
@@ -231,3 +297,19 @@ def _extension_frames(
             }
         )
     return frames
+
+
+def _grouped_peak(
+    *, start_frame: int, peak_frame_number: int, timestamp_seconds: float
+) -> dict[str, float | int]:
+    return {
+        "start_frame": start_frame,
+        "end_frame": peak_frame_number + 2,
+        "peak_frame_number": peak_frame_number,
+        "timestamp_seconds": timestamp_seconds,
+        "extension": 1.0,
+        "extension_ratio": 1.0,
+        "smoothed_extension_ratio": 0.95,
+        "min_visibility": 0.9,
+        "region_frame_count": 3,
+    }

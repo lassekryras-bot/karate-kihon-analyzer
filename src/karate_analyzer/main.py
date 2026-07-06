@@ -105,6 +105,11 @@ def explore_extension(
     typer.echo(f"Grouped left peaks: {summary['grouped_left_peak_count']}")
     typer.echo(f"Grouped right peaks: {summary['grouped_right_peak_count']}")
     typer.echo("")
+    typer.echo(
+        f"Punch event candidates: {summary['punch_event_candidate_count']} "
+        f"of expected {summary['expected_punch_count']}"
+    )
+    typer.echo("")
     typer.echo("Wrote:")
     for filename in summary["output_files"]:
         typer.echo(f"- {filename}")
