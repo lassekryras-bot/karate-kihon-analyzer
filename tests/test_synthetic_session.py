@@ -2,11 +2,11 @@ from __future__ import annotations
 
 import pytest
 
+from karate_analyzer.angle_analyzer import analyze_jodan_deviation
 from karate_analyzer.impact_frame_selector import ExtensionSample, select_impact_frame
 from karate_analyzer.punch_sequence import PunchSide, build_mvp_sequence
 from karate_analyzer.synthetic_session import (
     SyntheticFrame,
-    analyze_synthetic_impact_frame,
     generate_synthetic_jodan_punch,
     generate_synthetic_mvp_session,
 )
@@ -24,6 +24,10 @@ def impact_frame_for(frames: list[SyntheticFrame]) -> SyntheticFrame:
         ]
     )
     return next(frame for frame in frames if frame.frame_number == impact.frame_number)
+
+def analyze_impact(frames: list[SyntheticFrame]):
+    frame = impact_frame_for(frames)
+    return analyze_jodan_deviation(frame.shoulder, frame.chin, frame.wrist)
 
 
 def test_single_punch_returns_6_frames() -> None:
@@ -66,26 +70,20 @@ def test_single_punch_impact_frame_is_local_frame_4() -> None:
 
 
 def test_zero_deviation_analyzes_as_perfect_and_on_target() -> None:
-    result = analyze_synthetic_impact_frame(
-        generate_synthetic_jodan_punch(1, PunchSide.RIGHT, 0.0)
-    )
+    result = analyze_impact(generate_synthetic_jodan_punch(1, PunchSide.RIGHT, 0.0))
 
     assert result.classification == "perfect"
     assert result.direction == "on_target"
 
 
 def test_positive_deviation_analyzes_as_too_high() -> None:
-    result = analyze_synthetic_impact_frame(
-        generate_synthetic_jodan_punch(1, PunchSide.RIGHT, 5.0)
-    )
+    result = analyze_impact(generate_synthetic_jodan_punch(1, PunchSide.RIGHT, 5.0))
 
     assert result.direction == "too_high"
 
 
 def test_negative_deviation_analyzes_as_too_low() -> None:
-    result = analyze_synthetic_impact_frame(
-        generate_synthetic_jodan_punch(1, PunchSide.RIGHT, -5.0)
-    )
+    result = analyze_impact(generate_synthetic_jodan_punch(1, PunchSide.RIGHT, -5.0))
 
     assert result.direction == "too_low"
 
@@ -130,7 +128,4 @@ def test_full_mvp_session_expected_classifications_match_deviation_list() -> Non
 
     for punch_number, expected_classification in expected_classifications.items():
         punch_frames = [frame for frame in frames if frame.punch_number == punch_number]
-        assert (
-            analyze_synthetic_impact_frame(punch_frames).classification
-            == expected_classification
-        )
+        assert analyze_impact(punch_frames).classification == expected_classification
