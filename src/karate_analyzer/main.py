@@ -53,5 +53,36 @@ def mediapipe_spike(
         raise typer.Exit(code=1) from exc
 
 
+@app.command("explore-extension")
+def explore_extension(
+    input_path: Annotated[
+        Path,
+        typer.Option("--input", help="Path to MediaPipe spike video_landmarks.json."),
+    ] = Path("output/mediapipe-debug/video_landmarks.json"),
+    output: Annotated[
+        Path,
+        typer.Option("--output", "-o", help="Directory for extension debug files."),
+    ] = Path("output/mediapipe-debug"),
+) -> None:
+    """Explore wrist-extension signals in MediaPipe spike landmark JSON."""
+    from karate_analyzer.mediapipe_extension_explorer import analyze_extension_json
+
+    try:
+        summary = analyze_extension_json(input_path, output)
+    except FileNotFoundError as exc:
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(code=1) from exc
+
+    typer.echo(f"Loaded {summary['frame_count']} frames.")
+    typer.echo(f"Detected pose in {summary['detected_frame_count']} frames.")
+    typer.echo("")
+    typer.echo(f"Left candidate peaks: {summary['left_candidate_peak_count']}")
+    typer.echo(f"Right candidate peaks: {summary['right_candidate_peak_count']}")
+    typer.echo("")
+    typer.echo("Wrote:")
+    for filename in summary["output_files"]:
+        typer.echo(f"- {filename}")
+
+
 if __name__ == "__main__":
     app()
