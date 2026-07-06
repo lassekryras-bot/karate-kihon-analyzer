@@ -17,6 +17,7 @@ from karate_analyzer.mediapipe_extension_explorer import (
     RIGHT_WRIST,
     _add_smoothed_extension_ratios,
     _extract_punch_event_candidates,
+    _extract_punch_event_landmarks,
     _find_grouped_peaks,
     analyze_extension_json,
 )
@@ -42,6 +43,7 @@ def test_analyze_extension_json_writes_outputs_and_calculates_values(tmp_path: P
     assert (output_directory / "candidate_peak_frames.json").exists()
     assert (output_directory / "grouped_peak_frames.json").exists()
     assert (output_directory / "punch_event_candidates.json").exists()
+    assert (output_directory / "punch_event_landmarks.json").exists()
     assert summary["frame_count"] == 3
     assert summary["detected_frame_count"] == 3
     assert summary["left_candidate_peak_count"] == 1
@@ -50,6 +52,7 @@ def test_analyze_extension_json_writes_outputs_and_calculates_values(tmp_path: P
     assert summary["expected_punch_count"] == 10
     assert "grouped_peak_frames.json" in summary["output_files"]
     assert "punch_event_candidates.json" in summary["output_files"]
+    assert "punch_event_landmarks.json" in summary["output_files"]
 
     extension_payload = json.loads((output_directory / "extension_by_frame.json").read_text())
     peak_left = extension_payload["frames"][1]["left"]
@@ -235,6 +238,81 @@ def test_punch_event_candidates_keep_first_ten_after_sorting() -> None:
     )
 
 
+def test_punch_event_landmarks_copy_peak_frame_analysis_landmarks() -> None:
+    raw_frames = [
+        _frame(0, 0.0, left_wrist=(0.5, 0.5), visibility=0.9),
+        _frame(5, 0.5, left_wrist=(1.0, 0.0), visibility=0.8),
+    ]
+    events = [
+        {
+            "event_index": 1,
+            "expected_side": "left",
+            "observed_side": "left",
+            "peak_frame_number": 5,
+            "timestamp_seconds": 0.5,
+        }
+    ]
+
+    payload = _extract_punch_event_landmarks(raw_frames, events)
+
+    assert payload["head_reference_candidate"] == {
+        "status": "experimental",
+        "strategy": "nose_then_mouth_midpoint",
+    }
+    assert payload["punch_event_landmarks"] == [
+        {
+            "event_index": 1,
+            "expected_side": "left",
+            "observed_side": "left",
+            "peak_frame_number": 5,
+            "timestamp_seconds": 0.5,
+            "shoulder": {"x": 0.0, "y": 0.0, "visibility": 0.8},
+            "elbow": {"x": 0.5, "y": 0.0, "visibility": 0.8},
+            "wrist": {"x": 1.0, "y": 0.0, "visibility": 0.8},
+            "head_reference_candidate": {
+                "source": "nose",
+                "x": 0.1,
+                "y": 0.2,
+                "visibility": 0.7,
+            },
+            "visibility": {
+                "shoulder": 0.8,
+                "elbow": 0.8,
+                "wrist": 0.8,
+                "head_reference_candidate": 0.7,
+                "minimum_required_landmark_visibility": 0.7,
+            },
+        }
+    ]
+
+
+def test_punch_event_landmarks_fall_back_to_mouth_midpoint_when_nose_is_missing() -> None:
+    raw_frame = _frame(5, 0.5, left_wrist=(1.0, 0.0), visibility=0.8)
+    raw_frame["poses"][0] = [
+        landmark for landmark in raw_frame["poses"][0] if landmark["index"] != 0
+    ]
+
+    payload = _extract_punch_event_landmarks(
+        [raw_frame],
+        [
+            {
+                "event_index": 1,
+                "expected_side": "left",
+                "observed_side": "left",
+                "peak_frame_number": 5,
+                "timestamp_seconds": 0.5,
+            }
+        ],
+    )
+
+    assert payload["punch_event_landmarks"][0]["head_reference_candidate"] == {
+        "source": "mouth_midpoint",
+        "x": 0.2,
+        "y": 0.4,
+        "visibility": 0.6,
+    }
+
+
 def _video_payload(_peak_visibility: float) -> dict[str, object]:
     return {
         "frame_count": 3,
@@ -262,6 +340,9 @@ def _frame(
                 _landmark(LEFT_SHOULDER, 0.0, 0.0, visibility),
                 _landmark(LEFT_ELBOW, 0.5, 0.0, visibility),
                 _landmark(LEFT_WRIST, left_wrist[0], left_wrist[1], visibility),
+                _landmark(0, 0.1, 0.2, 0.7),
+                _landmark(9, 0.1, 0.4, 0.6),
+                _landmark(10, 0.3, 0.4, 0.65),
                 _landmark(RIGHT_SHOULDER, 2.0, 0.0, 0.9),
                 _landmark(RIGHT_ELBOW, 2.5, 0.0, 0.9),
                 _landmark(RIGHT_WRIST, 2.5, 0.5, 0.9),
