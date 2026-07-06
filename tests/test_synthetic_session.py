@@ -25,7 +25,6 @@ def impact_frame_for(frames: list[SyntheticFrame]) -> SyntheticFrame:
     )
     return next(frame for frame in frames if frame.frame_number == impact.frame_number)
 
-
 def analyze_impact(frames: list[SyntheticFrame]):
     frame = impact_frame_for(frames)
     return analyze_jodan_deviation(frame.shoulder, frame.chin, frame.wrist)
