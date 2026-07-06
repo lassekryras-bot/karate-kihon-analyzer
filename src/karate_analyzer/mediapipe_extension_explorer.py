@@ -13,6 +13,9 @@ import math
 from pathlib import Path
 from typing import Any
 
+NOSE = 0
+MOUTH_LEFT = 9
+MOUTH_RIGHT = 10
 LEFT_SHOULDER = 11
 RIGHT_SHOULDER = 12
 LEFT_ELBOW = 13
@@ -98,6 +101,10 @@ def analyze_extension_json(
         expected_count=DEFAULT_EXPECTED_PUNCH_COUNT,
         expected_start_side=EXPECTED_PUNCH_SEQUENCE_START_SIDE,
     )
+    punch_event_landmark_payload = _extract_punch_event_landmarks(
+        payload.get("frames", []),
+        punch_event_payload["punch_event_candidates"],
+    )
 
     summary = {
         "frame_count": payload.get("frame_count", len(extension_frames)),
@@ -117,10 +124,12 @@ def analyze_extension_json(
             "candidate_peak_frames.json",
             "grouped_peak_frames.json",
             "punch_event_candidates.json",
+            "punch_event_landmarks.json",
         ],
         "candidate_peak_frames": candidate_peak_payload,
         "grouped_peak_frames": grouped_peak_payload,
         "punch_event_candidates": punch_event_payload,
+        "punch_event_landmarks": punch_event_landmark_payload,
     }
 
     _write_json(output_directory / "extension_by_frame.json", extension_payload)
@@ -128,6 +137,7 @@ def analyze_extension_json(
     _write_json(output_directory / "candidate_peak_frames.json", candidate_peak_payload)
     _write_json(output_directory / "grouped_peak_frames.json", grouped_peak_payload)
     _write_json(output_directory / "punch_event_candidates.json", punch_event_payload)
+    _write_json(output_directory / "punch_event_landmarks.json", punch_event_landmark_payload)
 
     return summary
 
@@ -198,6 +208,63 @@ def _extract_punch_event_candidates(
     }
 
 
+def _extract_punch_event_landmarks(
+    raw_frames: list[dict[str, Any]], punch_event_candidates: list[dict[str, Any]]
+) -> dict[str, Any]:
+    """Copy peak-frame landmarks needed for later Jodan punch analysis.
+
+    The head reference is intentionally experimental. It uses the nose when
+    available and falls back to the mouth midpoint when both mouth landmarks
+    are present.
+    """
+
+    frames_by_number = {frame.get("frame_number"): frame for frame in raw_frames}
+    events = []
+    for candidate in punch_event_candidates:
+        observed_side = candidate["observed_side"]
+        peak_frame_number = candidate.get("peak_frame_number")
+        frame = frames_by_number.get(peak_frame_number, {})
+        pose_landmarks = {landmark.get("index"): landmark for landmark in _first_pose(frame)}
+        shoulder_index, elbow_index, wrist_index = _side_landmark_indices(observed_side)
+        shoulder = _landmark_payload(pose_landmarks.get(shoulder_index))
+        elbow = _landmark_payload(pose_landmarks.get(elbow_index))
+        wrist = _landmark_payload(pose_landmarks.get(wrist_index))
+        head_reference = _head_reference_candidate(pose_landmarks)
+
+        events.append(
+            {
+                "event_index": candidate["event_index"],
+                "expected_side": candidate["expected_side"],
+                "observed_side": observed_side,
+                "peak_frame_number": peak_frame_number,
+                "timestamp_seconds": candidate.get("timestamp_seconds"),
+                "shoulder": shoulder,
+                "elbow": elbow,
+                "wrist": wrist,
+                "head_reference_candidate": head_reference,
+                "visibility": {
+                    "shoulder": _visibility(shoulder),
+                    "elbow": _visibility(elbow),
+                    "wrist": _visibility(wrist),
+                    "head_reference_candidate": (
+                        None if head_reference is None else head_reference["visibility"]
+                    ),
+                    "minimum_required_landmark_visibility": _min_visibility(
+                        shoulder, elbow, wrist, head_reference
+                    ),
+                },
+            }
+        )
+
+    return {
+        "head_reference_candidate": {
+            "status": "experimental",
+            "strategy": "nose_then_mouth_midpoint",
+        },
+        "punch_event_landmarks": events,
+    }
+
+
 def _expected_alternating_sides(start_side: str, count: int) -> list[str]:
     sides = [start_side, "left" if start_side == "right" else "right"]
     return [sides[index % 2] for index in range(count)]
@@ -260,6 +327,34 @@ def _analyze_side(
     }
 
 
+def _side_landmark_indices(side: str) -> tuple[int, int, int]:
+    if side == "left":
+        return LEFT_SHOULDER, LEFT_ELBOW, LEFT_WRIST
+    if side == "right":
+        return RIGHT_SHOULDER, RIGHT_ELBOW, RIGHT_WRIST
+    raise ValueError("side must be 'left' or 'right'")
+
+
+def _head_reference_candidate(
+    landmarks: dict[Any, dict[str, Any]]
+) -> dict[str, float | str] | None:
+    nose = _landmark_payload(landmarks.get(NOSE))
+    if nose is not None:
+        return {"source": "nose", **nose}
+
+    mouth_left = _landmark_payload(landmarks.get(MOUTH_LEFT))
+    mouth_right = _landmark_payload(landmarks.get(MOUTH_RIGHT))
+    if mouth_left is None or mouth_right is None:
+        return None
+
+    return {
+        "source": "mouth_midpoint",
+        "x": (mouth_left["x"] + mouth_right["x"]) / 2,
+        "y": (mouth_left["y"] + mouth_right["y"]) / 2,
+        "visibility": min(mouth_left["visibility"], mouth_right["visibility"]),
+    }
+
+
 def _landmark_payload(landmark: dict[str, Any] | None) -> dict[str, float] | None:
     if landmark is None:
         return None
@@ -271,6 +366,10 @@ def _landmark_payload(landmark: dict[str, Any] | None) -> dict[str, float] | Non
         }
     except KeyError:
         return None
+
+
+def _visibility(landmark: dict[str, float] | None) -> float | None:
+    return None if landmark is None else landmark["visibility"]
 
 
 def _distance_2d(a: dict[str, float] | None, b: dict[str, float] | None) -> float | None:
