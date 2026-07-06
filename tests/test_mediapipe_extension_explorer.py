@@ -15,6 +15,8 @@ from karate_analyzer.mediapipe_extension_explorer import (
     RIGHT_ELBOW,
     RIGHT_SHOULDER,
     RIGHT_WRIST,
+    _add_smoothed_extension_ratios,
+    _find_grouped_peaks,
     analyze_extension_json,
 )
 
@@ -37,9 +39,13 @@ def test_analyze_extension_json_writes_outputs_and_calculates_values(tmp_path: P
     assert (output_directory / "extension_by_frame.json").exists()
     assert (output_directory / "extension_by_frame.csv").exists()
     assert (output_directory / "candidate_peak_frames.json").exists()
+    assert (output_directory / "grouped_peak_frames.json").exists()
     assert summary["frame_count"] == 3
     assert summary["detected_frame_count"] == 3
     assert summary["left_candidate_peak_count"] == 1
+    assert "grouped_left_peak_count" in summary
+    assert "grouped_right_peak_count" in summary
+    assert "grouped_peak_frames.json" in summary["output_files"]
 
     extension_payload = json.loads((output_directory / "extension_by_frame.json").read_text())
     peak_left = extension_payload["frames"][1]["left"]
@@ -81,6 +87,88 @@ def test_low_visibility_frame_is_not_selected_as_peak(tmp_path: Path) -> None:
     assert peak_payload["sides"][0]["candidate_peaks"] == []
 
 
+def test_moving_average_is_calculated() -> None:
+    frames = _extension_frames([0.0, 1.0, None, 0.5, 1.0])
+
+    _add_smoothed_extension_ratios(frames, 3)
+
+    assert frames[0]["left"]["smoothed_extension_ratio"] == pytest.approx(0.5)
+    assert frames[1]["left"]["smoothed_extension_ratio"] == pytest.approx(0.5)
+    assert frames[2]["left"]["smoothed_extension_ratio"] == pytest.approx(0.75)
+    assert frames[3]["left"]["smoothed_extension_ratio"] == pytest.approx(0.75)
+    assert frames[4]["left"]["smoothed_extension_ratio"] == pytest.approx(0.75)
+
+
+def test_one_clean_high_region_produces_one_grouped_peak() -> None:
+    frames = _extension_frames([0.5, 0.91, 0.95, 0.93, 0.5])
+
+    grouped_peaks = _find_grouped_peaks(
+        frames, "left", threshold=0.90, min_visibility=0.5, merge_gap_frames=0
+    )
+
+    assert len(grouped_peaks) == 1
+    assert grouped_peaks[0]["start_frame"] == 1
+    assert grouped_peaks[0]["end_frame"] == 3
+    assert grouped_peaks[0]["peak_frame_number"] == 2
+
+
+def test_multiple_local_maxima_inside_one_region_produce_only_one_grouped_peak() -> None:
+    frames = _extension_frames([0.91, 0.96, 0.93, 0.97, 0.92])
+
+    grouped_peaks = _find_grouped_peaks(
+        frames, "left", threshold=0.90, min_visibility=0.5, merge_gap_frames=0
+    )
+
+    assert len(grouped_peaks) == 1
+    assert grouped_peaks[0]["peak_frame_number"] == 3
+
+
+def test_two_regions_separated_by_large_gap_produce_two_grouped_peaks() -> None:
+    frames = _extension_frames([0.92, 0.95, 0.4, 0.4, 0.4, 0.93, 0.96])
+
+    grouped_peaks = _find_grouped_peaks(
+        frames, "left", threshold=0.90, min_visibility=0.5, merge_gap_frames=1
+    )
+
+    assert [peak["peak_frame_number"] for peak in grouped_peaks] == [1, 6]
+
+
+def test_short_gap_inside_region_is_merged() -> None:
+    frames = _extension_frames([0.92, 0.95, 0.4, 0.93, 0.96])
+
+    grouped_peaks = _find_grouped_peaks(
+        frames, "left", threshold=0.90, min_visibility=0.5, merge_gap_frames=1
+    )
+
+    assert len(grouped_peaks) == 1
+    assert grouped_peaks[0]["start_frame"] == 0
+    assert grouped_peaks[0]["end_frame"] == 4
+    assert grouped_peaks[0]["region_frame_count"] == 5
+
+
+def test_low_visibility_frames_are_ignored_for_grouped_peaks() -> None:
+    frames = _extension_frames([0.92, 0.96, 0.93], visibility=0.49)
+
+    grouped_peaks = _find_grouped_peaks(
+        frames, "left", threshold=0.90, min_visibility=0.5, merge_gap_frames=1
+    )
+
+    assert grouped_peaks == []
+
+
+def test_grouped_peak_frames_json_is_written_and_contains_grouped_peaks(tmp_path: Path) -> None:
+    input_path = tmp_path / "video_landmarks.json"
+    output_directory = tmp_path / "debug"
+    input_path.write_text(json.dumps(_video_payload(_peak_visibility=0.9)), encoding="utf-8")
+
+    summary = analyze_extension_json(input_path, output_directory, smoothing_window=1)
+
+    grouped_payload = json.loads((output_directory / "grouped_peak_frames.json").read_text())
+    assert summary["grouped_left_peak_count"] == 1
+    assert grouped_payload["sides"][0]["side"] == "left"
+    assert grouped_payload["sides"][0]["grouped_peaks"][0]["peak_frame_number"] == 1
+
+
 def _video_payload(_peak_visibility: float) -> dict[str, object]:
     return {
         "frame_count": 3,
@@ -120,3 +208,26 @@ def _landmark(index: int, x: float, y: float, visibility: float) -> dict[str, fl
     assert math.isfinite(x)
     assert math.isfinite(y)
     return {"index": index, "x": x, "y": y, "visibility": visibility}
+
+
+def _extension_frames(
+    ratios: list[float | None], visibility: float = 0.9
+) -> list[dict[str, object]]:
+    frames: list[dict[str, object]] = []
+    for frame_number, ratio in enumerate(ratios):
+        side_payload = {
+            "extension": ratio,
+            "extension_ratio": ratio,
+            "smoothed_extension_ratio": ratio,
+            "min_visibility": visibility,
+        }
+        frames.append(
+            {
+                "frame_number": frame_number,
+                "timestamp_seconds": frame_number / 10,
+                "pose_detected": True,
+                "left": dict(side_payload),
+                "right": dict(side_payload),
+            }
+        )
+    return frames

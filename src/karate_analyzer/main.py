@@ -63,21 +63,47 @@ def explore_extension(
         Path,
         typer.Option("--output", "-o", help="Directory for extension debug files."),
     ] = Path("output/mediapipe-debug"),
+    smoothing_window: Annotated[
+        int,
+        typer.Option("--smoothing-window", help="Moving-average window for extension ratios."),
+    ] = 5,
+    group_threshold: Annotated[
+        float,
+        typer.Option("--group-threshold", help="Smoothed extension ratio required for grouping."),
+    ] = 0.90,
+    merge_gap_frames: Annotated[
+        int,
+        typer.Option("--merge-gap-frames", help="Short below-threshold gaps to merge into a region."),
+    ] = 3,
+    min_visibility: Annotated[
+        float,
+        typer.Option("--min-visibility", help="Minimum landmark visibility for grouped regions."),
+    ] = 0.5,
 ) -> None:
     """Explore wrist-extension signals in MediaPipe spike landmark JSON."""
     from karate_analyzer.mediapipe_extension_explorer import analyze_extension_json
 
     try:
-        summary = analyze_extension_json(input_path, output)
-    except FileNotFoundError as exc:
+        summary = analyze_extension_json(
+            input_path,
+            output,
+            smoothing_window=smoothing_window,
+            group_threshold=group_threshold,
+            merge_gap_frames=merge_gap_frames,
+            min_visibility=min_visibility,
+        )
+    except (FileNotFoundError, ValueError) as exc:
         typer.echo(str(exc), err=True)
         raise typer.Exit(code=1) from exc
 
     typer.echo(f"Loaded {summary['frame_count']} frames.")
     typer.echo(f"Detected pose in {summary['detected_frame_count']} frames.")
     typer.echo("")
-    typer.echo(f"Left candidate peaks: {summary['left_candidate_peak_count']}")
-    typer.echo(f"Right candidate peaks: {summary['right_candidate_peak_count']}")
+    typer.echo(f"Simple left candidate peaks: {summary['left_candidate_peak_count']}")
+    typer.echo(f"Simple right candidate peaks: {summary['right_candidate_peak_count']}")
+    typer.echo("")
+    typer.echo(f"Grouped left peaks: {summary['grouped_left_peak_count']}")
+    typer.echo(f"Grouped right peaks: {summary['grouped_right_peak_count']}")
     typer.echo("")
     typer.echo("Wrote:")
     for filename in summary["output_files"]:
