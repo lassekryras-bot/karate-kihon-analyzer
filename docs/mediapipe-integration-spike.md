@@ -146,6 +146,46 @@ The adapter should eventually provide frame-level data containing:
 
 The adapter's most important responsibility is to hide MediaPipe-specific details from the rest of the analysis engine. Downstream modules should not know MediaPipe landmark indexes, names, visibility semantics, or image-coordinate conventions.
 
+## Input-Agnostic Frame Model
+
+The project should eventually introduce a common internal frame object that represents the pose information needed by the analysis engine regardless of where that data came from. The model may be named `PoseFrame` or another similarly descriptive name once the project is ready to refactor toward it.
+
+An example internal shape:
+
+```text
+PoseFrame
+├── frame_number
+├── timestamp_seconds
+├── side
+├── shoulder: Point2D
+├── chin_or_head_reference: Point2D
+├── wrist: Point2D
+├── extension
+└── confidence / visibility metadata
+```
+
+This frame model should become the boundary between input providers and karate-specific analysis. Synthetic data and MediaPipe data should both be converted into the same internal shape before reaching downstream modules.
+
+Recommended design direction:
+
+```text
+Synthetic Generator ─┐
+                     │
+MediaPipe Adapter ───┤
+                     ▼
+                PoseFrame
+                     ▼
+          Impact Frame Selector
+                     ▼
+            Session Analyzer
+                     ▼
+           Snapshot Renderer
+```
+
+After conversion, downstream modules should not care whether a frame originated from synthetic test data or from real video processed through MediaPipe. This keeps the analyzer reusable, easier to test, and less coupled to any one input source.
+
+The current `SyntheticFrame` already acts like an early prototype of this model because it carries the frame-level points and timing data needed by the existing synthetic pipeline. This document does not require any code refactor yet. Future refactoring may introduce `PoseFrame`, or a similarly named internal model, when the project is ready to formalize the shared frame boundary.
+
 ### Side Selection
 
 The adapter should accept or derive the punch side as a `PunchSide`.
