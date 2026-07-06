@@ -2,7 +2,7 @@
 
 Karate Kihon Analyzer is the beginning of a reusable computer-vision analysis engine for karate training.
 
-It currently starts as an offline Python analyzer for a deliberately narrow kihon drill: recorded side-view video of 10 alternating Jodan punches. The goal of this MVP is to validate the core idea first: pose landmarks can be processed into reliable punch detection, impact-frame selection, angle-based scoring, and eventually snapshots and reports.
+It currently starts as a pure Python analysis-engine prototype for a deliberately narrow kihon drill: 10 alternating Jodan punches represented by synthetic landmark data. The current code validates core angle analysis, punch sequencing, impact-frame selection, and session analysis without requiring video files, cameras, MediaPipe, or OpenCV. Full recorded-video analysis, snapshot rendering, and report writing are planned next steps.
 
 All processing is intended to run locally on the user's computer.
 
@@ -41,12 +41,13 @@ The MVP supports or targets:
 - Side-view video only
 - Single practitioner
 - Fixed camera position
-- Offline analysis of recorded videos
+- Pure analysis of synthetic landmark sessions now
+- Offline analysis of recorded videos later
 - 10 alternating punches
-- Left/right arm detection
-- Impact frame extraction
+- Left/right arm sequence validation
+- Impact frame extraction from landmark sequences
 - Angle-based scoring
-- Annotated snapshot generation
+- Annotated snapshot generation later
 
 The MVP intentionally excludes:
 
@@ -69,13 +70,14 @@ The project is organized around two conceptual layers: the Analysis Engine and t
 
 The Analysis Engine owns karate-specific computer-vision and scoring behavior. Its responsibilities include:
 
-- Pose and landmark processing
-- Punch detection
-- Impact-frame selection
 - Angle-based scoring
+- Punch sequence validation
+- Impact-frame selection
+- Synthetic session generation
 - Session analysis
-- Snapshot rendering
-- JSON/report generation
+- Pose and landmark processing later
+- Snapshot rendering later
+- JSON/report generation later
 
 Important rule: **the Analysis Engine must stay independent of UI technology.**
 
@@ -101,10 +103,11 @@ Important rule: **the Product Layer must not contain karate analysis logic.** It
 ### Architecture Diagram
 
 ```text
-Video / Camera
+Synthetic Landmarks now
+Recorded Video / Camera later
       │
       ▼
-Pose Detection / Landmark Extraction
+Pose Detection / Landmark Extraction later
       │
       ▼
 Karate Analysis Engine
@@ -237,18 +240,20 @@ This keeps the core engine easy to test in local development, CI, and AI-assiste
 Implemented:
 
 - Angle analyzer
-- Punch sequence
+- MVP punch sequence
 - Impact frame selector
 - Synthetic session generator
 - Session analyzer
+- Placeholder CLI
 
-Next planned:
+Not yet implemented:
 
 - Snapshot renderer
 - JSON report writer
 - Video reader
-- MediaPipe integration
-- CLI pipeline
+- MediaPipe pose extraction
+- Real recorded video pipeline
+- Full CLI pipeline
 
 ---
 
@@ -268,41 +273,52 @@ Next planned:
 
 ## Project Structure
 
+### Current active implementation
+
+These are the modules and tests that contain the current working pure analysis-engine prototype.
+
 ```text
 karate-kihon-analyzer/
-├── input/
-│   └── kihon-test.mp4
-├── output/
-│   ├── session.json
-│   └── snapshots/
-│       ├── punch-001-right-jodan.png
-│       └── ...
+├── README.md
+├── pyproject.toml
 ├── src/
 │   └── karate_analyzer/
 │       ├── main.py
-│       ├── video_reader.py
-│       ├── pose_engine.py
-│       ├── landmark_model.py
-│       ├── punch_detector.py
+│       ├── angle_analyzer.py
 │       ├── punch_sequence.py
 │       ├── impact_frame_selector.py
-│       ├── angle_analyzer.py
-│       ├── session_analyzer.py
 │       ├── synthetic_session.py
-│       ├── snapshot_renderer.py
-│       └── report_writer.py
+│       └── session_analyzer.py
 └── tests/
     ├── test_angle_analyzer.py
-    ├── test_impact_frame_selector.py
-    ├── test_punch_detector.py
     ├── test_punch_sequence.py
-    ├── test_session_analyzer.py
-    └── test_synthetic_session.py
+    ├── test_impact_frame_selector.py
+    ├── test_synthetic_session.py
+    └── test_session_analyzer.py
+```
+
+`main.py` currently contains a placeholder CLI command. It does not run the full analysis pipeline yet.
+
+### Planned later
+
+These files and capabilities are planned for future implementation and should not be treated as complete product behavior yet. Some may exist only as placeholders.
+
+```text
+src/karate_analyzer/
+├── snapshot_renderer.py
+├── report_writer.py
+├── video_reader.py
+├── pose_engine.py
+├── landmark_model.py
+└── punch_detector.py
+
+tests/
+└── test_punch_detector.py
 ```
 
 ---
 
-## Planned Output
+## Planned Output Layer
 
 ### Session Report
 
@@ -362,9 +378,15 @@ python -m pytest
 
 ## Running the Analyzer
 
-The CLI exists, but the full video-analysis pipeline is still planned.
+The CLI exists, but the full recorded-video pipeline is not implemented yet.
 
-Planned command:
+Current useful command:
+
+```bash
+python -m pytest
+```
+
+Planned future command:
 
 ```bash
 python -m karate_analyzer analyze input/kihon-test.mp4 --output output/
@@ -389,42 +411,75 @@ Miss: 0
 
 ## Development Roadmap
 
-### Phase 1: Current MVP
+### Phase 1A: Pure Analysis Engine - Current
 
-- Offline video analysis
-- 10 alternating Jodan punches
-- Impact frame extraction
-- Angle-based scoring
-- Snapshot generation
-- JSON report generation
+Implemented or in progress:
 
-### Phase 2: Expanded kihon analysis
+- Angle analyzer
+- Punch sequence
+- Impact frame selector
+- Synthetic session generator
+- Session analyzer
+
+Goal:
+
+Prove that the core analysis logic works without camera, video files, MediaPipe, or OpenCV.
+
+### Phase 1B: Output Layer - Next
+
+Planned:
+
+- Snapshot renderer
+- JSON report writer
+- CLI command that runs a synthetic session and writes output
+
+Goal:
+
+Create visible/debuggable outputs from the existing pure analysis engine.
+
+### Phase 1C: Real Video Input
+
+Planned:
+
+- Video reader
+- MediaPipe pose engine
+- Landmark extraction
+- Real recorded video analysis
+
+Goal:
+
+Replace synthetic input with real pose landmarks from recorded side-view karate videos.
+
+### Phase 2: Expanded Kihon Analysis
+
+Planned:
 
 - Chudan support
 - Gedan support
-- Random targets
+- Random target calls
 - Speed drills
 
-### Phase 3: Product experiences
+### Phase 3: Product Experiences
 
-- Real-time webcam analysis
-- Desktop application
-- Mobile application
+Planned:
+
+- Desktop/webcam trainer
+- Mobile app
 - Live coaching workflows
 
 ---
 
 ## Success Criteria
 
-The MVP is considered successful if it can reliably:
+The current pure analysis-engine milestone is considered successful if it can reliably:
 
-1. Detect 10 alternating Jodan punches.
-2. Identify the correct punching arm.
-3. Capture the impact frame at maximum extension.
+1. Validate a 10-punch alternating Jodan sequence from synthetic landmarks.
+2. Identify the expected punching arm for each punch.
+3. Select the impact frame at maximum extension.
 4. Calculate angular deviation from the ideal punch line.
-5. Generate annotated snapshots.
-6. Produce a complete session report.
-7. Run entirely offline.
+5. Run entirely offline without camera, video files, MediaPipe, or OpenCV.
+
+Future MVP milestones add annotated snapshots, complete session reports, and recorded-video analysis.
 
 ---
 
