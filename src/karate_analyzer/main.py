@@ -43,9 +43,9 @@ def analyze(
     ] = 0.5,
 ) -> None:
     """Run the end-to-end MVP karate kihon analysis pipeline."""
-    from karate_analyzer.analysis_pipeline import run_analysis_pipeline
+    from karate_analyzer.pipeline.analysis_pipeline import run_analysis_pipeline
     from karate_analyzer.frame_extractor import FrameExtractionError
-    from karate_analyzer.mediapipe_pose_spike import MediaPipeSpikeError
+    from karate_analyzer.vision.mediapipe_pose_spike import MediaPipeSpikeError
 
     try:
         result = run_analysis_pipeline(
@@ -141,7 +141,7 @@ def render_strike_snapshots_command(
 ) -> None:
     """Extract peak frames and render annotated strike snapshots."""
     from karate_analyzer.frame_extractor import FrameExtractionError
-    from karate_analyzer.snapshot_renderer import render_strike_snapshots_from_analysis
+    from karate_analyzer.rendering.snapshot_renderer import render_strike_snapshots_from_analysis
 
     try:
         rendered_paths = render_strike_snapshots_from_analysis(
@@ -180,7 +180,7 @@ def mediapipe_spike(
     ] = Path("output/mediapipe-debug"),
 ) -> None:
     """Run the experimental MediaPipe Pose debug spike."""
-    from karate_analyzer.mediapipe_pose_spike import (
+    from karate_analyzer.vision.mediapipe_pose_spike import (
         MediaPipeSpikeError,
         run_default_workflow,
     )
@@ -231,7 +231,7 @@ def explore_extension(
     ] = 0.5,
 ) -> None:
     """Explore wrist-extension signals in MediaPipe spike landmark JSON."""
-    from karate_analyzer.mediapipe_extension_explorer import analyze_extension_json
+    from karate_analyzer.detection.mediapipe_extension_explorer import analyze_extension_json
 
     try:
         summary = analyze_extension_json(

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pytest
 
-from karate_analyzer.jodan_reference import calculate_jodan_reference
+from karate_analyzer.references.jodan_reference import calculate_jodan_reference
 
 
 def test_eye_nose_projection_with_full_eye_landmarks_and_nose() -> None:

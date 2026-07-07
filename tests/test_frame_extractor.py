@@ -183,7 +183,7 @@ def test_render_strike_snapshots_cli_renders_deterministic_output(
         return [rendered]
 
     monkeypatch.setattr(
-        "karate_analyzer.snapshot_renderer.render_strike_snapshots_from_analysis",
+        "karate_analyzer.rendering.snapshot_renderer.render_strike_snapshots_from_analysis",
         fake_render_pipeline,
     )
 

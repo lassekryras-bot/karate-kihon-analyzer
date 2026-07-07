@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 
-from karate_analyzer import mediapipe_pose_spike as spike
+from karate_analyzer.vision import mediapipe_pose_spike as spike
 
 
 def test_analyze_image_rejects_missing_path(tmp_path: Path) -> None:

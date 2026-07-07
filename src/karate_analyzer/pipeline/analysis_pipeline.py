@@ -6,9 +6,9 @@ import json
 from pathlib import Path
 from typing import Any
 
-from karate_analyzer.mediapipe_extension_explorer import analyze_extension_json
-from karate_analyzer.mediapipe_pose_spike import analyze_video
-from karate_analyzer.snapshot_renderer import render_strike_snapshots_from_analysis
+from karate_analyzer.detection.mediapipe_extension_explorer import analyze_extension_json
+from karate_analyzer.vision.mediapipe_pose_spike import analyze_video
+from karate_analyzer.rendering.snapshot_renderer import render_strike_snapshots_from_analysis
 
 JODAN_STATUSES = ("good", "too_low", "too_high", "unknown")
 

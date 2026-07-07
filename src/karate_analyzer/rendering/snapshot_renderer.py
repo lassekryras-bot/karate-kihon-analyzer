@@ -11,7 +11,7 @@ from PIL import Image, ImageDraw, ImageFont
 
 from karate_analyzer.angle_analyzer import Point2D
 from karate_analyzer.frame_extractor import ExtractedFrameMetadata, extract_frame
-from karate_analyzer.jodan_height_analyzer import attach_jodan_height_analysis
+from karate_analyzer.analyzers.jodan_height_analyzer import attach_jodan_height_analysis
 from karate_analyzer.session_analyzer import PunchAnalysis
 
 _BACKGROUND_COLOR = "white"

@@ -13,10 +13,10 @@ import math
 from pathlib import Path
 from typing import Any
 
-from karate_analyzer.chin_reference import calculate_chin_reference
-from karate_analyzer.hand_impact_reference import calculate_striking_hand_impact_point
-from karate_analyzer.jodan_height_analyzer import analyze_strike_event_jodan_height
-from karate_analyzer.jodan_reference import calculate_jodan_reference
+from karate_analyzer.references.chin_reference import calculate_chin_reference
+from karate_analyzer.references.hand_impact_reference import calculate_striking_hand_impact_point
+from karate_analyzer.analyzers.jodan_height_analyzer import analyze_strike_event_jodan_height
+from karate_analyzer.references.jodan_reference import calculate_jodan_reference
 
 NOSE = 0
 MOUTH_LEFT = 9

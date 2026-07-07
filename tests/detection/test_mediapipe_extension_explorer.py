@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-from karate_analyzer.mediapipe_extension_explorer import (
+from karate_analyzer.detection.mediapipe_extension_explorer import (
     LEFT_ELBOW,
     LEFT_SHOULDER,
     LEFT_WRIST,

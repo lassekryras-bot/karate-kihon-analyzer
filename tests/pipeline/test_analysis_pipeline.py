@@ -6,7 +6,7 @@ from pathlib import Path
 import pytest
 from typer.testing import CliRunner
 
-from karate_analyzer.analysis_pipeline import run_analysis_pipeline
+from karate_analyzer.pipeline.analysis_pipeline import run_analysis_pipeline
 from karate_analyzer.main import app
 
 
@@ -102,7 +102,7 @@ def test_cli_calls_pipeline(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> 
         }
 
     monkeypatch.setattr(
-        "karate_analyzer.analysis_pipeline.run_analysis_pipeline",
+        "karate_analyzer.pipeline.analysis_pipeline.run_analysis_pipeline",
         fake_run_analysis_pipeline,
     )
 
@@ -169,14 +169,14 @@ def _install_pipeline_fakes(
         return paths
 
     monkeypatch.setattr(
-        "karate_analyzer.analysis_pipeline.analyze_video", fake_analyze_video
+        "karate_analyzer.pipeline.analysis_pipeline.analyze_video", fake_analyze_video
     )
     monkeypatch.setattr(
-        "karate_analyzer.analysis_pipeline.analyze_extension_json",
+        "karate_analyzer.pipeline.analysis_pipeline.analyze_extension_json",
         fake_analyze_extension_json,
     )
     monkeypatch.setattr(
-        "karate_analyzer.analysis_pipeline.render_strike_snapshots_from_analysis",
+        "karate_analyzer.pipeline.analysis_pipeline.render_strike_snapshots_from_analysis",
         fake_render_strike_snapshots_from_analysis,
     )
 

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pytest
 
-from karate_analyzer.hand_impact_reference import (
+from karate_analyzer.references.hand_impact_reference import (
     calculate_impact_point,
     calculate_striking_hand_impact_point,
 )

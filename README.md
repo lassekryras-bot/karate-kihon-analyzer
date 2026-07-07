@@ -244,26 +244,28 @@ Implemented:
 - Impact frame selector
 - Synthetic session generator
 - Session analyzer
-- Placeholder CLI
+- MediaPipe landmark extraction spike
+- Strike extension explorer
+- Snapshot renderer
+- JSON/Markdown report output
+- End-to-end recorded-video CLI pipeline
 
 Not yet implemented:
 
-- Snapshot renderer
-- JSON report writer
-- Video reader
-- MediaPipe pose extraction
-- Real recorded video pipeline
-- Full CLI pipeline
+- Stabilized strike event selection
+- Straight punch path analysis
+- Hikite / opposite arm analysis
+- Redesigned output JSON schema
 
 ---
 
 ## Technology Stack
 
 - **Language:** Python 3.12+
-- **Computer Vision:** MediaPipe Pose planned for real video landmark extraction
+- **Computer Vision:** MediaPipe Pose/Hands for real video landmark extraction
 - **Video Processing:** OpenCV planned for video input
 - **Mathematical Operations:** NumPy
-- **Image Rendering:** Pillow planned for annotated snapshots
+- **Image Rendering:** Pillow for annotated snapshots
 - **CLI:** Typer
 - **Data Models:** Pydantic
 - **Progress Bars:** tqdm
@@ -271,49 +273,30 @@ Not yet implemented:
 
 ---
 
-## Project Structure
+## Project structure
 
-### Current active implementation
+The source package is grouped by architecture layer so the recorded-video MVP follows the pipeline described in `docs/architecture.md`:
 
-These are the modules and tests that contain the current working pure analysis-engine prototype.
+- `vision/` – low-level landmark extraction from video/image input.
+- `detection/` – strike and peak detection from landmark timelines.
+- `references/` – karate-facing reference points such as impact point and Jodan target.
+- `analyzers/` – technique analyzers that classify or explain karate quality.
+- `rendering/` – snapshot rendering and visual debugging.
+- `pipeline/` – orchestration of end-to-end analysis runs.
+- `reports/` – human-readable and machine-readable output generation.
 
-```text
-karate-kihon-analyzer/
-├── README.md
-├── pyproject.toml
-├── src/
-│   └── karate_analyzer/
-│       ├── main.py
-│       ├── angle_analyzer.py
-│       ├── punch_sequence.py
-│       ├── impact_frame_selector.py
-│       ├── synthetic_session.py
-│       └── session_analyzer.py
-└── tests/
-    ├── test_angle_analyzer.py
-    ├── test_punch_sequence.py
-    ├── test_impact_frame_selector.py
-    ├── test_synthetic_session.py
-    └── test_session_analyzer.py
-```
-
-`main.py` currently contains a placeholder CLI command. It does not run the full analysis pipeline yet.
-
-### Planned later
-
-These files and capabilities are planned for future implementation and should not be treated as complete product behavior yet. Some may exist only as placeholders.
+Supporting pure-analysis modules such as `angle_analyzer.py`, `punch_sequence.py`, `impact_frame_selector.py`, `synthetic_session.py`, and `session_analyzer.py` remain at the package root until they are folded into a later domain-model cleanup.
 
 ```text
 src/karate_analyzer/
-├── snapshot_renderer.py
-├── report_writer.py
-├── video_reader.py
-├── pose_engine.py
-├── landmark_model.py
-└── punch_detector.py
-
-tests/
-└── test_punch_detector.py
+├── main.py
+├── pipeline/
+├── vision/
+├── detection/
+├── references/
+├── analyzers/
+├── rendering/
+└── reports/
 ```
 
 ---
@@ -378,18 +361,16 @@ python -m pytest
 
 ## Running the Analyzer
 
-The CLI exists, but the full recorded-video pipeline is not implemented yet.
-
-Current useful command:
+Current useful test command:
 
 ```bash
 python -m pytest
 ```
 
-Planned future command:
+Current recorded-video analysis command:
 
 ```bash
-python -m karate_analyzer analyze input/kihon-test.mp4 --output output/
+python -m karate_analyzer.main analyze input/videos/kihon-test.mp4 --output output/run-001
 ```
 
 Example future output:

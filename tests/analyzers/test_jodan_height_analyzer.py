@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pytest
 
-from karate_analyzer.jodan_height_analyzer import (
+from karate_analyzer.analyzers.jodan_height_analyzer import (
     analyze_jodan_height,
     analyze_strike_event_jodan_height,
     attach_jodan_height_analysis,
