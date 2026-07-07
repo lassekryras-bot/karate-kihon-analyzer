@@ -94,6 +94,20 @@ def _strike_instructions():
     )
 
 
+def _jodan_geometry(status="too_low", angle=-20.0):
+    return {
+        "status": status,
+        "target_point": {"x": 0.40, "y": 0.40, "visibility": 0.95},
+        "actual_line_start": {"x": 0.20, "y": 0.70, "visibility": 0.95},
+        "actual_line_end": {"x": 0.80, "y": 0.70, "visibility": 0.95},
+        "ideal_line_start": {"x": 0.20, "y": 0.70, "visibility": 0.95},
+        "ideal_line_end": {"x": 0.72, "y": 0.40},
+        "signed_angle_degrees": angle,
+        "reference_source": "same-frame chin",
+        "reference_confidence": "high",
+    }
+
+
 def _analysis_payload():
     return {
         "punch_event_landmarks": [
@@ -291,17 +305,23 @@ def test_render_strike_snapshot_draws_punch_line_to_impact_point_not_wrist() -> 
         _strike_instructions(),
         jodan_reference={"x": 0.40, "y": 0.40, "visibility": 0.95},
         impact_point={"x": 0.80, "y": 0.70, "visibility": 0.95},
-        jodan_height_analysis={"status": "too_high"},
+        jodan_height_analysis=_jodan_geometry("too_high", 30.0),
     )
 
     image = render_strike_snapshot(background, landmarks, instructions)
 
-    assert image.getpixel((150, 210)) == (255, 90, 31)
-    assert image.getpixel((150, 165)) == (255, 210, 63)
+    assert _has_pixel(
+        image, (255, 90, 31), x_range=range(80, 241), y_range=range(206, 214)
+    )
+    assert _has_pixel(
+        image, (255, 210, 63), x_range=range(80, 220), y_range=range(118, 210)
+    )
     assert image.getpixel((270, 270)) != (255, 210, 63)
 
 
-def test_render_strike_snapshot_draws_actual_punch_line_when_impact_point_exists() -> None:
+def test_render_strike_snapshot_draws_actual_punch_line_when_impact_point_exists() -> (
+    None
+):
     background = Image.new("RGB", (300, 300), "gray")
     landmarks = [
         {"index": 12, "x": 0.20, "y": 0.70, "visibility": 0.95},
@@ -312,25 +332,33 @@ def test_render_strike_snapshot_draws_actual_punch_line_when_impact_point_exists
         _strike_instructions(),
         jodan_reference={"x": 0.40, "y": 0.40, "visibility": 0.95},
         impact_point={"x": 0.80, "y": 0.70, "visibility": 0.95},
+        jodan_height_analysis=_jodan_geometry(),
     )
 
     image = render_strike_snapshot(background, landmarks, instructions)
 
-    assert image.getpixel((150, 210)) == (255, 90, 31)
+    assert _has_pixel(
+        image, (255, 90, 31), x_range=range(80, 241), y_range=range(206, 214)
+    )
 
 
-def test_render_strike_snapshot_draws_ideal_target_line_when_jodan_reference_exists() -> None:
+def test_render_strike_snapshot_draws_ideal_target_line_when_jodan_reference_exists() -> (
+    None
+):
     background = Image.new("RGB", (300, 300), "gray")
     landmarks = [{"index": 12, "x": 0.20, "y": 0.70, "visibility": 0.95}]
     instructions = replace(
         _strike_instructions(),
         jodan_reference={"x": 0.40, "y": 0.40, "visibility": 0.95},
         impact_point={"x": 0.80, "y": 0.70, "visibility": 0.95},
+        jodan_height_analysis=_jodan_geometry(),
     )
 
     image = render_strike_snapshot(background, landmarks, instructions)
 
-    assert image.getpixel((150, 165)) == (255, 210, 63)
+    assert _has_pixel(
+        image, (255, 210, 63), x_range=range(80, 220), y_range=range(118, 210)
+    )
 
 
 def test_render_strike_snapshot_succeeds_when_actual_and_ideal_lines_overlap() -> None:
@@ -340,16 +368,25 @@ def test_render_strike_snapshot_succeeds_when_actual_and_ideal_lines_overlap() -
         _strike_instructions(),
         jodan_reference={"x": 0.40, "y": 0.70, "visibility": 0.95},
         impact_point={"x": 0.80, "y": 0.70, "visibility": 0.95},
-        jodan_height_analysis={"status": "good"},
+        jodan_height_analysis={
+            **_jodan_geometry("good", 0.0),
+            "ideal_line_end": {"x": 0.80, "y": 0.70},
+        },
     )
 
     image = render_strike_snapshot(background, landmarks, instructions)
 
-    assert image.getpixel((150, 210)) == (255, 90, 31)
-    assert image.getpixel((150, 207)) == (255, 210, 63)
+    assert _has_pixel(
+        image, (255, 90, 31), x_range=range(80, 241), y_range=range(206, 214)
+    )
+    assert _has_pixel(
+        image, (255, 210, 63), x_range=range(80, 241), y_range=range(206, 214)
+    )
 
 
-def test_render_strike_snapshot_text_panel_labels_actual_and_ideal_lines(monkeypatch) -> None:
+def test_render_strike_snapshot_text_panel_labels_actual_and_ideal_lines(
+    monkeypatch,
+) -> None:
     drawn_text: list[str] = []
     original_text = ImageDraw.ImageDraw.text
 
@@ -365,8 +402,9 @@ def test_render_strike_snapshot_text_panel_labels_actual_and_ideal_lines(monkeyp
         _strike_instructions(),
     )
 
-    assert "Red actual punch line" in drawn_text
-    assert "Yellow ideal punch line" in drawn_text
+    assert "Actual punch line" in drawn_text
+    assert "Ideal punch line" in drawn_text
+    assert "Jodan reference height" in drawn_text
 
 
 def test_render_strike_snapshot_missing_impact_point_does_not_fall_back_to_wrist_line() -> (
@@ -416,9 +454,15 @@ def test_chin_marker_is_drawn_separately_from_jodan_marker() -> None:
 
     image = render_strike_snapshot(background, _strike_landmarks(), instructions)
 
-    assert _has_pixel(image, (0, 229, 255), x_range=range(220, 236), y_range=range(220, 236))
-    assert _has_pixel(image, (176, 38, 255), x_range=range(145, 156), y_range=range(235, 246))
+    assert _has_pixel(
+        image, (0, 229, 255), x_range=range(220, 236), y_range=range(220, 236)
+    )
+    assert _has_pixel(
+        image, (176, 38, 255), x_range=range(145, 156), y_range=range(235, 246)
+    )
 
 
-def _has_pixel(image: Image.Image, color: tuple[int, int, int], *, x_range: range, y_range: range) -> bool:
+def _has_pixel(
+    image: Image.Image, color: tuple[int, int, int], *, x_range: range, y_range: range
+) -> bool:
     return any(image.getpixel((x, y)) == color for x in x_range for y in y_range)
