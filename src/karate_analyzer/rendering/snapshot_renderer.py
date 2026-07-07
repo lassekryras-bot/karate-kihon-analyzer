@@ -32,6 +32,7 @@ _STRIKE_ARM_COLOR = "#FF5A1F"
 _ACTUAL_PUNCH_LINE_COLOR = "#FF5A1F"
 _HEAD_COLOR = "#B026FF"
 _JODAN_COLOR = "#B026FF"
+_JODAN_REFERENCE_LINE_COLOR = (176, 38, 255, 150)
 _CHIN_REFERENCE_COLOR = "#00E5FF"
 _OPTIMAL_PUNCH_LINE_COLOR = "#FFD23F"
 _IDEAL_TARGET_POINT_COLOR = "#FFD23F"
@@ -284,88 +285,59 @@ def _draw_jodan_guides(
     instructions: StrikeSnapshotRenderInstructions,
     image_size: tuple[int, int],
 ) -> None:
-    jodan_reference = instructions.jodan_reference
-    if (
-        not jodan_reference
-        or jodan_reference.get("x") is None
-        or jodan_reference.get("y") is None
-    ):
-        return
-
-    indices = _SIDE_LANDMARK_INDICES.get(instructions.strike_side.lower())
-    if not indices:
-        return
-
-    shoulder = points.get(indices["shoulder"])
-    impact_point = _normalized_point_to_pixels(instructions.impact_point, image_size)
-    if shoulder is None or impact_point is None:
-        return
-
-    width, height = image_size
-    jodan_point = (
-        round(float(jodan_reference["x"]) * width),
-        round(float(jodan_reference["y"]) * height),
-    )
-    ideal_target = (impact_point[0], jodan_point[1])
-
-    reach_padding = max(12, round(width * 0.08))
-    line_start_x = max(0, min(jodan_point[0], impact_point[0]) - reach_padding)
-    line_end_x = min(width, max(jodan_point[0], impact_point[0]) + reach_padding)
-
     analysis = instructions.jodan_height_analysis or {}
-    status = str(analysis.get("status", "unknown"))
-    tolerance_px = analysis.get("tolerance_px")
-    if tolerance_px is not None:
-        tolerance = max(1, round(float(tolerance_px)))
-        draw.rectangle(
-            (
-                line_start_x,
-                jodan_point[1] - tolerance,
-                line_end_x,
-                jodan_point[1] + tolerance,
-            ),
-            fill=_TOLERANCE_BAND_COLOR,
-        )
-        draw.line(
-            (
-                (line_start_x, jodan_point[1] - tolerance),
-                (line_end_x, jodan_point[1] - tolerance),
-            ),
-            fill=_JODAN_COLOR,
-            width=1,
-        )
-        draw.line(
-            (
-                (line_start_x, jodan_point[1] + tolerance),
-                (line_end_x, jodan_point[1] + tolerance),
-            ),
-            fill=_JODAN_COLOR,
-            width=1,
-        )
+    jodan_reference = instructions.jodan_reference
+    target_point = analysis.get("target_point") or jodan_reference
+    jodan_point = _normalized_point_to_pixels(target_point, image_size)
+    if jodan_point is None:
+        return
+
+    width, _height = image_size
     draw.line(
-        ((line_start_x, jodan_point[1]), (line_end_x, jodan_point[1])),
-        fill=_JODAN_COLOR,
-        width=_BONE_WIDTH,
+        ((0, jodan_point[1]), (width, jodan_point[1])),
+        fill=_JODAN_REFERENCE_LINE_COLOR,
+        width=1,
     )
-    _draw_wide_line(draw, shoulder, ideal_target, fill=_OPTIMAL_PUNCH_LINE_COLOR)
-    draw.line(
-        (shoulder, impact_point), fill=_ACTUAL_PUNCH_LINE_COLOR, width=_LINE_WIDTH
+
+    actual_start = _normalized_point_to_pixels(
+        analysis.get("actual_line_start"), image_size
     )
-    _draw_height_error_marker(draw, impact_point, ideal_target, status)
-    _draw_point(draw, jodan_point, _JODAN_COLOR, radius=_POINT_RADIUS + 1)
-    _draw_point(draw, ideal_target, _IDEAL_TARGET_POINT_COLOR, radius=_POINT_RADIUS)
-    if analysis:
-        result_color = _jodan_height_color(status)
-        _draw_point(draw, impact_point, result_color, radius=_POINT_RADIUS + 2)
-        draw.text(
-            (impact_point[0] + 8, max(0, impact_point[1] - 14)),
-            status.replace("_", " ").upper(),
-            fill=result_color,
-            font=ImageFont.load_default(),
+    actual_end = _normalized_point_to_pixels(
+        analysis.get("actual_line_end"), image_size
+    )
+    ideal_start = _normalized_point_to_pixels(
+        analysis.get("ideal_line_start"), image_size
+    )
+    ideal_end = _normalized_point_to_pixels(analysis.get("ideal_line_end"), image_size)
+
+    if ideal_start is not None and ideal_end is not None:
+        _draw_wide_line(draw, ideal_start, ideal_end, fill=_OPTIMAL_PUNCH_LINE_COLOR)
+        _draw_point(draw, ideal_end, _IDEAL_TARGET_POINT_COLOR, radius=_POINT_RADIUS)
+
+    if actual_start is not None and actual_end is not None:
+        draw.line(
+            (actual_start, actual_end), fill=_ACTUAL_PUNCH_LINE_COLOR, width=_LINE_WIDTH
         )
+        _draw_point(
+            draw,
+            actual_end,
+            _jodan_height_color(str(analysis.get("status", "unknown"))),
+            radius=_POINT_RADIUS + 2,
+        )
+
+    if actual_start is not None and actual_end is not None and ideal_end is not None:
+        _draw_angle_marker(
+            draw,
+            actual_start,
+            actual_end,
+            ideal_end,
+            str(analysis.get("status", "unknown")),
+        )
+
+    _draw_point(draw, jodan_point, _JODAN_COLOR, radius=_POINT_RADIUS)
     draw.text(
         (jodan_point[0] + 8, max(0, jodan_point[1] - 14)),
-        "Jodan",
+        "Jodan reference height",
         fill=_TEXT_COLOR,
         font=ImageFont.load_default(),
     )
@@ -381,21 +353,33 @@ def _draw_wide_line(
     draw.line((start, end), fill=fill, width=_LINE_WIDTH + 4)
 
 
-def _draw_height_error_marker(
+def _draw_angle_marker(
     draw: ImageDraw.ImageDraw,
-    impact_point: tuple[int, int],
-    ideal_target: tuple[int, int],
+    shoulder: tuple[int, int],
+    actual_end: tuple[int, int] | None,
+    ideal_end: tuple[int, int],
     status: str,
 ) -> None:
-    if impact_point == ideal_target:
-        marker_end = (ideal_target[0], ideal_target[1] + max(4, _LINE_WIDTH + 1))
-    else:
-        marker_end = ideal_target
+    if actual_end is None:
+        return
+    marker_radius = 24
+    actual_marker = _point_on_segment(shoulder, actual_end, marker_radius)
+    ideal_marker = _point_on_segment(shoulder, ideal_end, marker_radius)
     draw.line(
-        (impact_point, marker_end),
+        (actual_marker, shoulder, ideal_marker),
         fill=_jodan_height_color(status),
-        width=max(2, _LINE_WIDTH - 1),
+        width=2,
     )
+
+
+def _point_on_segment(
+    start: tuple[int, int], end: tuple[int, int], distance: float
+) -> tuple[int, int]:
+    dx = end[0] - start[0]
+    dy = end[1] - start[1]
+    length = max(1.0, (dx * dx + dy * dy) ** 0.5)
+    scale = min(1.0, distance / length)
+    return round(start[0] + (dx * scale)), round(start[1] + (dy * scale))
 
 
 def _normalized_point_to_pixels(
@@ -467,21 +451,31 @@ def _draw_strike_text_panel(
         f"Timestamp: {_format_timestamp(instructions.timestamp_seconds)}",
         f"Confidence: {_format_confidence(instructions.confidence)}",
     ]
-    if instructions.jodan_reference is not None:
+    analysis = instructions.jodan_height_analysis or {}
+    if (
+        instructions.jodan_reference is not None
+        or analysis.get("target_point") is not None
+    ):
         lines.extend(
             [
-                "Red actual punch line",
-                "Yellow ideal punch line",
-                "Purple Jodan target band",
+                "Actual punch line",
+                "Ideal punch line",
+                "Jodan reference height",
             ]
         )
     if instructions.jodan_height_analysis is not None:
-        result = (
-            str(instructions.jodan_height_analysis.get("status", "unknown"))
-            .replace("_", " ")
-            .upper()
-        )
-        lines.append(f"Jodan Height: {result}")
+        result = str(analysis.get("status", "unknown")).replace("_", " ")
+        angle = analysis.get("signed_angle_degrees")
+        if angle is None:
+            lines.append(f"Jodan angle: Unknown ({result})")
+        else:
+            lines.append(
+                f"Jodan angle: {float(angle):+.1f}° {result.replace('_', ' ')}"
+            )
+        lines.append(f"Reference: {_format_reference_source(analysis)}")
+        lines.append(f"Reference confidence: {_format_reference_confidence(analysis)}")
+        if analysis.get("unknown_reason"):
+            lines.append(f"Unknown reason: {analysis['unknown_reason']}")
     x, y = _TEXT_ORIGIN
     line_height = _TEXT_LINE_SPACING
     panel_width = max(_text_length(font, line) for line in lines) + 20
@@ -513,6 +507,14 @@ def _format_timestamp(value: float | None) -> str:
 
 def _format_confidence(value: float | None) -> str:
     return "Unknown" if value is None else f"{value:.2f}"
+
+
+def _format_reference_source(analysis: dict[str, Any]) -> str:
+    return str(analysis.get("reference_source") or "unknown")
+
+
+def _format_reference_confidence(analysis: dict[str, Any]) -> str:
+    return str(analysis.get("reference_confidence") or "unknown")
 
 
 def _load_strike_landmark_events(analysis_path: str | Path) -> list[dict[str, Any]]:

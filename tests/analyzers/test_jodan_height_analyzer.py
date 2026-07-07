@@ -117,3 +117,58 @@ def test_wrist_on_event_does_not_affect_jodan_height_result() -> None:
     }
 
     assert analyze_strike_event_jodan_height(event)["status"] == "good"
+
+
+def test_ideal_endpoint_uses_same_punch_length_on_jodan_height() -> None:
+    result = analyze_jodan_height(
+        impact_point=_point(0.80, 0.70),
+        shoulder_point=_point(0.20, 0.70),
+        jodan_reference=_point(0.40, 0.40),
+    )
+
+    assert result.actual_line_start == _point(0.20, 0.70)
+    assert result.actual_line_end == _point(0.80, 0.70)
+    assert result.ideal_line_start == _point(0.20, 0.70)
+    assert result.ideal_line_end is not None
+    assert result.ideal_line_end["y"] == pytest.approx(0.40)
+    actual_length = ((0.80 - 0.20) ** 2 + (0.70 - 0.70) ** 2) ** 0.5
+    ideal_length = (
+        (result.ideal_line_end["x"] - 0.20) ** 2
+        + (result.ideal_line_end["y"] - 0.70) ** 2
+    ) ** 0.5
+    assert ideal_length == pytest.approx(actual_length)
+
+
+def test_signed_angle_is_positive_when_actual_line_is_above_ideal_line() -> None:
+    result = analyze_jodan_height(
+        impact_point=_point(0.80, 0.30),
+        shoulder_point=_point(0.20, 0.70),
+        jodan_reference=_point(0.40, 0.40),
+    )
+
+    assert result.signed_angle_degrees is not None
+    assert result.signed_angle_degrees > 0
+    assert result.status == "too_high"
+
+
+def test_signed_angle_is_negative_when_actual_line_is_below_ideal_line() -> None:
+    result = analyze_jodan_height(
+        impact_point=_point(0.80, 0.55),
+        shoulder_point=_point(0.20, 0.70),
+        jodan_reference=_point(0.40, 0.40),
+    )
+
+    assert result.signed_angle_degrees is not None
+    assert result.signed_angle_degrees < 0
+    assert result.status == "too_low"
+
+
+def test_small_signed_angle_is_good_with_current_threshold() -> None:
+    result = analyze_jodan_height(
+        impact_point=_point(0.80, 0.39),
+        shoulder_point=_point(0.20, 0.70),
+        jodan_reference=_point(0.40, 0.40),
+    )
+
+    assert result.signed_angle_degrees == pytest.approx(0.9, abs=0.1)
+    assert result.status == "good"
