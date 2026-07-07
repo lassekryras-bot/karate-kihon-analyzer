@@ -305,6 +305,7 @@ def test_punch_event_landmarks_copy_peak_frame_analysis_landmarks() -> None:
             "shoulder": {"x": 0.0, "y": 0.0, "visibility": 0.8},
             "elbow": {"x": 0.5, "y": 0.0, "visibility": 0.8},
             "wrist": {"x": 1.0, "y": 0.0, "visibility": 0.8},
+            "impact_point": None,
             "head_reference_candidate": {
                 "source": "nose",
                 "x": 0.1,
@@ -325,18 +326,19 @@ def test_punch_event_landmarks_copy_peak_frame_analysis_landmarks() -> None:
             },
             "analysis": {
                 "jodan_height": {
-                    "status": "too_high",
-                    "wrist_point": {"x": 1.0, "y": 0.0, "visibility": 0.8},
+                    "status": "unknown",
+                    "impact_point": None,
                     "target_point": {"x": 0.2, "y": 0.4, "visibility": 0.6},
-                    "tolerance_px": 0.0670820393249937,
-                    "vertical_offset_px": -0.4,
-                    "message": "Punch is too high for Jodan.",
+                    "tolerance_px": None,
+                    "vertical_offset_px": None,
+                    "message": "Could not evaluate Jodan height.",
                 }
             },
             "visibility": {
                 "shoulder": 0.8,
                 "elbow": 0.8,
                 "wrist": 0.8,
+                "impact_point": None,
                 "head_reference_candidate": 0.7,
                 "jodan_reference": 0.6,
                 "minimum_required_landmark_visibility": 0.7,
@@ -458,3 +460,36 @@ def _grouped_peak(
         "min_visibility": 0.9,
         "region_frame_count": 3,
     }
+
+
+def test_punch_event_landmarks_contains_impact_point_when_hand_landmarks_available() -> (
+    None
+):
+    frame = _frame(5, 0.5, left_wrist=(1.0, 0.0), visibility=0.8)
+    frame["hands"] = [
+        {
+            "landmarks": [
+                _landmark(0, 1.0, 0.0, 0.9),
+                _landmark(5, 0.9, 0.38, 0.9),
+                _landmark(9, 1.1, 0.42, 0.8),
+            ]
+        }
+    ]
+
+    payload = _extract_punch_event_landmarks(
+        [frame],
+        [
+            {
+                "event_index": 1,
+                "expected_side": "left",
+                "observed_side": "left",
+                "peak_frame_number": 5,
+                "timestamp_seconds": 0.5,
+            }
+        ],
+    )
+
+    event = payload["punch_event_landmarks"][0]
+    assert event["impact_point"]["x"] == pytest.approx(1.0)
+    assert event["impact_point"]["y"] == pytest.approx(0.4)
+    assert event["analysis"]["jodan_height"]["status"] == "good"

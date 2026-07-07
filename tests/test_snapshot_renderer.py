@@ -278,3 +278,45 @@ def test_render_strike_snapshots_from_analysis_extracts_renders_and_names_files(
     assert rendered_paths == [output_dir / "strike-006-right.png"]
     assert (output_dir / "strike-006-right.png").exists()
     assert (output_dir / "extracted-frames" / "frame-000185.png").exists()
+
+
+def test_render_strike_snapshot_draws_punch_line_to_impact_point_not_wrist() -> None:
+    background = Image.new("RGB", (300, 300), "gray")
+    landmarks = [
+        {"index": 12, "x": 0.20, "y": 0.70, "visibility": 0.95},
+        {"index": 14, "x": 0.25, "y": 0.75, "visibility": 0.95},
+        {"index": 16, "x": 0.90, "y": 0.90, "visibility": 0.95},
+    ]
+    instructions = replace(
+        _strike_instructions(),
+        jodan_reference={"x": 0.40, "y": 0.40, "visibility": 0.95},
+        impact_point={"x": 0.80, "y": 0.70, "visibility": 0.95},
+        jodan_height_analysis={"status": "too_high"},
+    )
+
+    image = render_strike_snapshot(background, landmarks, instructions)
+
+    assert image.getpixel((150, 210)) == (255, 210, 63)
+    assert image.getpixel((270, 270)) != (255, 210, 63)
+
+
+def test_render_strike_snapshot_missing_impact_point_does_not_fall_back_to_wrist_line() -> (
+    None
+):
+    background = Image.new("RGB", (300, 300), "gray")
+    landmarks = [
+        {"index": 12, "x": 0.20, "y": 0.70, "visibility": 0.95},
+        {"index": 14, "x": 0.25, "y": 0.75, "visibility": 0.95},
+        {"index": 16, "x": 0.80, "y": 0.70, "visibility": 0.95},
+    ]
+    instructions = replace(
+        _strike_instructions(),
+        jodan_reference={"x": 0.40, "y": 0.40, "visibility": 0.95},
+        impact_point=None,
+        jodan_height_analysis={"status": "unknown"},
+    )
+
+    image = render_strike_snapshot(background, landmarks, instructions)
+
+    assert image.getpixel((150, 210)) != (255, 210, 63)
+    assert image.getpixel((240, 210)) == (255, 90, 31)
