@@ -90,6 +90,7 @@ def _strike_instructions():
         peak_frame_number=185,
         timestamp_seconds=6.167,
         confidence=0.91,
+        jodan_reference={"x": 0.50, "y": 0.20, "visibility": 0.96},
     )
 
 
@@ -111,6 +112,7 @@ def _analysis_payload():
                     "y": 0.20,
                     "visibility": 0.96,
                 },
+                "jodan_reference": {"x": 0.50, "y": 0.20, "visibility": 0.96},
                 "visibility": {"minimum_required_landmark_visibility": 0.91},
             }
         ]
@@ -125,6 +127,36 @@ def test_render_strike_snapshot_accepts_real_extracted_frame() -> None:
     assert isinstance(image, Image.Image)
     assert image.size == (160, 120)
     assert image.mode == "RGB"
+
+
+def test_render_strike_snapshot_succeeds_with_jodan_reference() -> None:
+    background = Image.new("RGB", (160, 120), "gray")
+
+    image = render_strike_snapshot(background, _strike_landmarks(), _strike_instructions())
+
+    assert isinstance(image, Image.Image)
+    assert image.size == (160, 120)
+
+
+def test_render_strike_snapshot_succeeds_without_jodan_reference() -> None:
+    background = Image.new("RGB", (160, 120), "gray")
+    instructions = replace(_strike_instructions(), jodan_reference=None)
+
+    image = render_strike_snapshot(background, _strike_landmarks(), instructions)
+
+    assert isinstance(image, Image.Image)
+    assert image.size == (160, 120)
+
+
+def test_render_strike_snapshot_overlay_does_not_require_mediapipe(monkeypatch) -> None:
+    import sys
+
+    monkeypatch.setitem(sys.modules, "mediapipe", None)
+    background = Image.new("RGB", (160, 120), "gray")
+
+    image = render_strike_snapshot(background, _strike_landmarks(), _strike_instructions())
+
+    assert isinstance(image, Image.Image)
 
 
 def test_save_strike_snapshot_produces_png_and_creates_output_directory(tmp_path: Path) -> None:
