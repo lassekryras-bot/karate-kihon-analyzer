@@ -327,10 +327,7 @@ def test_punch_event_landmarks_copy_peak_frame_analysis_landmarks() -> None:
     event = payload["punch_event_landmarks"][0]
     assert event["elbow_angle_degrees"] == pytest.approx(180.0)
     assert event["extension_distance"] == pytest.approx(1.0)
-    assert (
-        event["impact_frame_selection_strategy"]
-        == "elbow_extension_then_extension_plateau_v1"
-    )
+    assert event["impact_frame_selection_strategy"] == "correlated_turning_point"
     assert event["strike_region_start_frame"] == 5
     assert event["strike_region_end_frame"] == 5
     assert {
@@ -340,8 +337,20 @@ def test_punch_event_landmarks_copy_peak_frame_analysis_landmarks() -> None:
         not in {
             "elbow_angle_degrees",
             "extension_distance",
+            "extension_delta",
             "extension_velocity",
+            "angle_delta_degrees",
+            "max_elbow_angle_degrees_in_region",
+            "max_extension_distance_in_region",
+            "angle_is_near_peak",
+            "extension_is_near_peak",
+            "angle_is_plateauing",
+            "extension_is_plateauing",
+            "angle_is_turning_point",
+            "extension_is_turning_point",
+            "peak_alignment_window_frames",
             "impact_frame_selection_strategy",
+            "impact_frame_confidence",
             "impact_frame_reason",
             "strike_region_start_frame",
             "strike_region_end_frame",

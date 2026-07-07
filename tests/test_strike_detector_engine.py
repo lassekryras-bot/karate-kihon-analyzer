@@ -90,7 +90,47 @@ def test_halfway_frame_and_first_threshold_crossing_are_not_selected() -> None:
     assert selection["analysis_frame_number"] != 10
     assert 10 <= selection["analysis_frame_number"] <= 15
     assert selection["elbow_angle_degrees"] >= 160
-    assert (
-        selection["impact_frame_selection_strategy"]
-        == "elbow_extension_then_extension_plateau_v1"
+    assert selection["impact_frame_selection_strategy"] == "correlated_plateau"
+
+
+def test_fast_strike_selects_turning_point_without_long_plateau() -> None:
+    engine = StrikeDetectorEngine()
+    frames = [
+        _frame(20, (0.50, 0.28)),
+        _frame(21, (0.80, 0.12)),
+        _frame(22, (1.00, 0.00)),
+        _frame(23, (0.88, 0.08)),
+    ]
+
+    selection = engine.select_impact_frame(
+        frames,
+        {"start_frame": 20, "end_frame": 23, "peak_frame_number": 21},
+        "left",
     )
+
+    assert selection["analysis_frame_number"] == 23
+    assert selection["impact_frame_selection_strategy"] == "correlated_turning_point"
+    assert selection["angle_is_turning_point"] is True
+    assert selection["extension_is_turning_point"] is True
+
+
+def test_peak_mismatch_gets_lower_confidence_reason() -> None:
+    engine = StrikeDetectorEngine()
+    frames = [
+        _frame(30, (0.75, 0.10)),
+        _frame(31, (1.30, 0.20)),  # extension peak
+        _frame(32, (1.25, 0.20)),
+        _frame(33, (0.86, 0.00)),
+        _frame(34, (0.98, 0.00)),  # angle peak far from extension peak
+        _frame(35, (0.98, 0.00)),
+    ]
+
+    selection = engine.select_impact_frame(
+        frames,
+        {"start_frame": 30, "end_frame": 35, "peak_frame_number": 31},
+        "left",
+    )
+
+    assert selection["impact_frame_confidence"] in {"medium", "low"}
+    if selection["impact_frame_confidence"] == "low":
+        assert "mismatch" in selection["impact_frame_reason"]

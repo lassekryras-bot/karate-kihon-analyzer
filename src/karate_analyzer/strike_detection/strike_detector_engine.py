@@ -33,7 +33,13 @@ class StrikeEvent:
 class StrikeDetectorEngine:
     """Single engine for strike-region selection and impact-frame selection."""
 
-    impact_frame_selection_strategy = "elbow_extension_then_extension_plateau_v1"
+    minimum_elbow_extension_angle_degrees = 160.0
+    angle_near_peak_tolerance_degrees = 5.0
+    extension_near_peak_ratio = 0.97
+    angle_plateau_delta_degrees = 2.0
+    extension_plateau_delta = 0.01
+    peak_alignment_window_frames = 3
+    max_hand_to_wrist_match_distance = 0.08
 
     def extract_strike_event_candidates(
         self,
@@ -136,13 +142,26 @@ class StrikeDetectorEngine:
         base = {
             "peak_frame_number": peak,
             "analysis_frame_number": peak,
-            "impact_frame_selection_strategy": self.impact_frame_selection_strategy,
+            "impact_frame_selection_strategy": "fallback_peak_frame",
+            "impact_frame_confidence": "low",
             "impact_frame_reason": "fallback_peak_frame",
             "strike_region_start_frame": start,
             "strike_region_end_frame": end,
             "elbow_angle_degrees": None,
+            "angle_delta_degrees": None,
+            "max_elbow_angle_degrees_in_region": None,
             "extension_distance": None,
+            "extension_delta": None,
             "extension_velocity": None,
+            "max_extension_distance_in_region": None,
+            "angle_is_near_peak": False,
+            "extension_is_near_peak": False,
+            "angle_is_plateauing": False,
+            "extension_is_plateauing": False,
+            "angle_is_turning_point": False,
+            "extension_is_turning_point": False,
+            "peak_alignment_window_frames": self.peak_alignment_window_frames,
+            "impact_frame_score": None,
         }
         if peak is None:
             return {
@@ -162,7 +181,16 @@ class StrikeDetectorEngine:
         metrics = [self._frame_metrics(f, side) for f in region_frames]
         self._smooth_metrics(metrics, "elbow_angle_degrees")
         self._smooth_metrics(metrics, "extension_distance")
-        self._smooth_metrics(metrics, "extension_velocity")
+        self._add_deltas(metrics, "elbow_angle_degrees_smoothed", "angle_delta_degrees")
+        self._add_deltas(metrics, "extension_distance_smoothed", "extension_delta")
+        max_angle = max(
+            (
+                m["elbow_angle_degrees_smoothed"]
+                for m in metrics
+                if m["elbow_angle_degrees_smoothed"] is not None
+            ),
+            default=None,
+        )
         max_extension = max(
             (
                 m["extension_distance_smoothed"]
@@ -171,55 +199,100 @@ class StrikeDetectorEngine:
             ),
             default=None,
         )
-        cutoff = (
-            int(float(start) + (float(end) - float(start)) * 0.30)
-            if start is not None and end is not None
-            else None
+        self._classify_metrics(metrics, max_angle, max_extension)
+        best_angle_peak = self._best_peak_frame(metrics, "elbow_angle_degrees_smoothed")
+        best_extension_peak = self._best_peak_frame(
+            metrics, "extension_distance_smoothed"
         )
-        eligible = [
+        for m in metrics:
+            m["score"] = self._impact_score(
+                m,
+                metrics,
+                start,
+                end,
+                max_angle,
+                max_extension,
+                best_angle_peak,
+                best_extension_peak,
+            )
+        plateaus = [
+            m
+            for i, m in enumerate(metrics)
+            if m["angle_is_near_peak"]
+            and m["extension_is_near_peak"]
+            and m["angle_is_plateauing"]
+            and m["extension_is_plateauing"]
+            and self._next_is_plateauing(metrics, i)
+            and not self._still_extending_quickly(m)
+        ]
+        turns = [
             m
             for m in metrics
-            if (cutoff is None or int(m["frame_number"]) >= cutoff)
-            and (m["elbow_angle_degrees_smoothed"] or 0) >= 160
+            if m["angle_is_near_peak"]
+            and m["extension_is_near_peak"]
+            and (m["angle_is_turning_point"] or m["extension_is_turning_point"])
+            and not self._still_extending_quickly(m)
         ]
-        if not eligible:
+        if plateaus:
+            best = max(plateaus, key=lambda m: (m["score"], int(m["frame_number"])))
+            strategy = "correlated_plateau"
+            confidence = (
+                "high"
+                if self._peaks_aligned(best_angle_peak, best_extension_peak)
+                else "medium"
+            )
+            reason = "angle and extension are near peak and plateauing"
+        elif turns:
+            best = max(turns, key=lambda m: (m["score"], -int(m["frame_number"])))
+            strategy = "correlated_turning_point"
+            confidence = (
+                "high"
+                if self._peaks_aligned(best_angle_peak, best_extension_peak)
+                else "medium"
+            )
+            reason = "fast strike turning point selected from correlated local maximum"
+        else:
             eligible = [
-                m for m in metrics if cutoff is None or int(m["frame_number"]) >= cutoff
-            ] or metrics
-        span = max(1.0, float(end or peak) - float(start or peak))
-
-        def score(m: dict[str, Any]) -> tuple[float, int]:
-            angle = m["elbow_angle_degrees_smoothed"]
-            dist = m["extension_distance_smoothed"]
-            vel = m["extension_velocity_smoothed"]
-            angle_score = (
-                max(0.0, 1.0 - abs(180.0 - angle) / 20.0) if angle is not None else 0.0
+                m
+                for m in metrics
+                if m["angle_is_near_peak"]
+                and m["extension_is_near_peak"]
+                and not self._still_extending_quickly(m)
+            ]
+            if not eligible:
+                eligible = metrics
+            best = max(eligible, key=lambda m: (m["score"], int(m["frame_number"])))
+            strategy = "best_available_correlated_score"
+            confidence = (
+                "medium"
+                if self._peaks_aligned(best_angle_peak, best_extension_peak)
+                else "low"
             )
-            extension_score = (
-                (dist / max_extension) if dist is not None and max_extension else 0.0
+            reason = (
+                "best correlated score; peak/stop mismatch"
+                if confidence == "low"
+                else "best correlated score"
             )
-            stop_score = max(0.0, 1.0 - abs(vel or 0.0) / 0.05)
-            hand_visible_score = 0.25 if m["has_impact_point"] else 0.0
-            late_region_score = (
-                float(m["frame_number"]) - float(start or m["frame_number"])
-            ) / span
-            return (
-                angle_score * 4
-                + extension_score * 3
-                + stop_score * 2
-                + hand_visible_score
-                + late_region_score,
-                int(m["frame_number"]),
-            )
-
-        best = max(eligible, key=score)
         return {
             **base,
             "analysis_frame_number": best["frame_number"],
-            "impact_frame_reason": "selected_highest_scoring_full_extension_frame",
+            "impact_frame_selection_strategy": strategy,
+            "impact_frame_confidence": confidence,
+            "impact_frame_reason": reason,
             "elbow_angle_degrees": best["elbow_angle_degrees_smoothed"],
+            "angle_delta_degrees": best["angle_delta_degrees"],
+            "max_elbow_angle_degrees_in_region": max_angle,
             "extension_distance": best["extension_distance_smoothed"],
-            "extension_velocity": best["extension_velocity_smoothed"],
+            "extension_delta": best["extension_delta"],
+            "extension_velocity": best["extension_delta"],
+            "max_extension_distance_in_region": max_extension,
+            "angle_is_near_peak": best["angle_is_near_peak"],
+            "extension_is_near_peak": best["extension_is_near_peak"],
+            "angle_is_plateauing": best["angle_is_plateauing"],
+            "extension_is_plateauing": best["extension_is_plateauing"],
+            "angle_is_turning_point": best["angle_is_turning_point"],
+            "extension_is_turning_point": best["extension_is_turning_point"],
+            "impact_frame_score": best["score"],
         }
 
     def _frame_metrics(self, frame: dict[str, Any], side: str) -> dict[str, Any]:
@@ -233,12 +306,26 @@ class StrikeDetectorEngine:
             "frame_number": frame.get("frame_number"),
             "elbow_angle_degrees": self._elbow_angle(shoulder, elbow, wrist),
             "extension_distance": extension,
-            "extension_velocity": None,
-            "has_impact_point": calculate_striking_hand_impact_point(
-                self._frame_hands(frame), wrist
-            )
+            "has_impact_point": self.validated_impact_point(frame, wrist)[0]
             is not None,
         }
+
+    def validated_impact_point(
+        self, frame: dict[str, Any], wrist: dict[str, Any] | None
+    ) -> tuple[dict[str, Any] | None, str | None]:
+        point = calculate_striking_hand_impact_point(self._frame_hands(frame), wrist)
+        if point is None:
+            return None, "no_matching_hand_impact_point"
+        distance = point.get("match_distance_to_pose_wrist")
+        if (
+            distance is not None
+            and float(distance) > self.max_hand_to_wrist_match_distance
+        ):
+            return (
+                None,
+                f"hand_to_wrist_match_distance_exceeds_{self.max_hand_to_wrist_match_distance}",
+            )
+        return point, None
 
     def _smooth_metrics(
         self, metrics: list[dict[str, Any]], key: str, window: int = 3
@@ -258,6 +345,156 @@ class StrikeDetectorEngine:
                 if x[key] is not None
             ]
             m[f"{key}_smoothed"] = median(vals) if vals else None
+
+    @staticmethod
+    def _add_deltas(metrics, value_key, delta_key):
+        prev = None
+        for m in metrics:
+            cur = m.get(value_key)
+            m[delta_key] = None if prev is None or cur is None else cur - prev
+            if cur is not None:
+                prev = cur
+
+    def _classify_metrics(self, metrics, max_angle, max_extension):
+        for i, m in enumerate(metrics):
+            angle = m.get("elbow_angle_degrees_smoothed")
+            ext = m.get("extension_distance_smoothed")
+            ad = m.get("angle_delta_degrees")
+            ed = m.get("extension_delta")
+            m["angle_is_near_peak"] = bool(
+                angle is not None
+                and max_angle is not None
+                and angle
+                >= max(
+                    self.minimum_elbow_extension_angle_degrees,
+                    max_angle - self.angle_near_peak_tolerance_degrees,
+                )
+            )
+            m["extension_is_near_peak"] = bool(
+                ext is not None
+                and max_extension is not None
+                and ext >= max_extension * self.extension_near_peak_ratio
+            )
+            m["angle_is_plateauing"] = bool(
+                ad is not None and abs(ad) <= self.angle_plateau_delta_degrees
+            )
+            m["extension_is_plateauing"] = bool(
+                ed is not None and abs(ed) <= self.extension_plateau_delta
+            )
+            prev = metrics[i - 1] if i else None
+            nxt = metrics[i + 1] if i + 1 < len(metrics) else None
+            m["angle_is_turning_point"] = self._local_peak(
+                m,
+                prev,
+                nxt,
+                "elbow_angle_degrees_smoothed",
+                "angle_delta_degrees",
+                self.angle_plateau_delta_degrees,
+            )
+            m["extension_is_turning_point"] = self._local_peak(
+                m,
+                prev,
+                nxt,
+                "extension_distance_smoothed",
+                "extension_delta",
+                self.extension_plateau_delta,
+            )
+
+    @staticmethod
+    def _local_peak(m, prev, nxt, key, delta_key, tol):
+        cur = m.get(key)
+        if cur is None:
+            return False
+        local = (prev is None or prev.get(key) is None or cur >= prev[key]) and (
+            nxt is None or nxt.get(key) is None or cur >= nxt[key]
+        )
+        d = m.get(delta_key)
+        return bool(local or (d is not None and d <= tol))
+
+    def _impact_score(
+        self,
+        m,
+        metrics,
+        start,
+        end,
+        max_angle,
+        max_extension,
+        angle_peak,
+        extension_peak,
+    ):
+        angle = m.get("elbow_angle_degrees_smoothed")
+        ext = m.get("extension_distance_smoothed")
+        angle_peak_score = (
+            0
+            if angle is None or max_angle in (None, 0)
+            else max(
+                0,
+                1
+                - abs(max_angle - angle)
+                / max(self.angle_near_peak_tolerance_degrees, 1),
+            )
+        )
+        ext_peak_score = (
+            0 if ext is None or not max_extension else min(1, ext / max_extension)
+        )
+        angle_stop = 1 if m["angle_is_plateauing"] or m["angle_is_turning_point"] else 0
+        ext_stop = (
+            1 if m["extension_is_plateauing"] or m["extension_is_turning_point"] else 0
+        )
+        align = 1 if self._peaks_aligned(angle_peak, extension_peak) else 0
+        hand = 1 if m["has_impact_point"] else 0
+        span = max(
+            1, float(end or m["frame_number"]) - float(start or m["frame_number"])
+        )
+        late = (float(m["frame_number"]) - float(start or m["frame_number"])) / span
+        penalty = -3 if self._still_extending_quickly(m) else 0
+        return (
+            angle_peak_score
+            + angle_stop
+            + ext_peak_score
+            + ext_stop
+            + align
+            + (0.25 * hand)
+            + late
+            + penalty
+        )
+
+    def _still_extending_quickly(self, m):
+        if m.get("angle_is_turning_point") and m.get("extension_is_turning_point"):
+            return False
+        ad = m.get("angle_delta_degrees")
+        ed = m.get("extension_delta")
+        return bool(
+            (ad is not None and ad > self.angle_plateau_delta_degrees)
+            or (ed is not None and ed > self.extension_plateau_delta)
+        )
+
+    def _next_is_plateauing(self, metrics, index):
+        if index + 1 >= len(metrics):
+            return True
+        nxt = metrics[index + 1]
+        return bool(
+            nxt.get("angle_is_plateauing") and nxt.get("extension_is_plateauing")
+        )
+
+    def _best_peak_frame(self, metrics, key):
+        vals = [m for m in metrics if m.get(key) is not None]
+        return (
+            None
+            if not vals
+            else int(
+                max(vals, key=lambda m: (m[key], int(m["frame_number"])))[
+                    "frame_number"
+                ]
+            )
+        )
+
+    def _peaks_aligned(self, a, b):
+        return (
+            a is not None
+            and b is not None
+            and abs(int(a) - int(b)) <= self.peak_alignment_window_frames
+        )
 
     @staticmethod
     def _elbow_angle(shoulder, elbow, wrist):
