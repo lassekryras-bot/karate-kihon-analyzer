@@ -69,6 +69,27 @@ def test_snapshot_paths_are_added_to_analysis_results(
     ]
 
 
+def test_summary_includes_detector_backends_and_face_diagnostics(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    video = _write_video(tmp_path / "kihon.mp4")
+    output = tmp_path / "run-001"
+    _install_pipeline_fakes(monkeypatch, face_detected_frame_count=0)
+
+    result = run_analysis_pipeline(input_video=video, output_directory=output)
+
+    summary = result["summary"]
+    assert summary["pose_detector_backend"] == "tasks_pose_landmarker"
+    assert summary["hand_detector_backend"] == "tasks_hand_landmarker"
+    assert summary["face_detector_backend"] == "tasks_face_landmarker"
+    assert summary["diagnostics"] == [
+        "No face landmarks were detected. If using MediaPipe Tasks, place "
+        "face_landmarker.task in input/ or input/models/, or set "
+        "MEDIAPIPE_FACE_MODEL_PATH."
+    ]
+    assert "No face landmarks were detected" in (output / "report.md").read_text()
+
+
 def test_empty_strike_events_fail_clearly(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -120,6 +141,7 @@ def _install_pipeline_fakes(
     *,
     events: list[dict] | None = None,
     rendered_names: list[str] | None = None,
+    face_detected_frame_count: int = 1,
 ) -> None:
     events = (
         [_event(1, "right", "good"), _event(2, "left", "too_low")]
@@ -134,7 +156,10 @@ def _install_pipeline_fakes(
             "frame_count": 4,
             "detected_frame_count": 3,
             "hand_detected_frame_count": 2,
-            "face_detected_frame_count": 1,
+            "face_detected_frame_count": face_detected_frame_count,
+            "pose_detector_backend": "tasks_pose_landmarker",
+            "hand_detector_backend": "tasks_hand_landmarker",
+            "face_detector_backend": "tasks_face_landmarker",
             "frames": [],
         }
         (output_directory / "video_landmarks.json").write_text(json.dumps(payload))

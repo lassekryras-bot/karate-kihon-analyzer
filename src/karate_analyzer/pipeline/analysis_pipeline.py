@@ -174,6 +174,17 @@ def _build_summary(
         )
         counts[status if status in counts else "unknown"] += 1
     frames = video_payload.get("frames", [])
+    face_count = video_payload.get(
+        "face_detected_frame_count",
+        sum(1 for frame in frames if frame.get("face_detected")),
+    )
+    diagnostics = []
+    if face_count == 0:
+        diagnostics.append(
+            "No face landmarks were detected. If using MediaPipe Tasks, place "
+            "face_landmarker.task in input/ or input/models/, or set "
+            "MEDIAPIPE_FACE_MODEL_PATH."
+        )
     return {
         "source_video": str(input_video),
         "frame_count": video_payload.get("frame_count", len(frames)),
@@ -185,10 +196,11 @@ def _build_summary(
             "hand_detected_frame_count",
             sum(1 for frame in frames if frame.get("hand_detected")),
         ),
-        "face_detected_frame_count": video_payload.get(
-            "face_detected_frame_count",
-            sum(1 for frame in frames if frame.get("face_detected")),
-        ),
+        "face_detected_frame_count": face_count,
+        "pose_detector_backend": video_payload.get("pose_detector_backend"),
+        "hand_detector_backend": video_payload.get("hand_detector_backend"),
+        "face_detector_backend": video_payload.get("face_detector_backend"),
+        "diagnostics": diagnostics,
         "expected_punch_count": extension_summary.get("expected_punch_count", 10),
         "detected_punch_count": analysis_results["detected_punch_count"],
         "jodan_height": counts,
@@ -217,6 +229,11 @@ def _build_report(summary: dict[str, Any], analysis_results: dict[str, Any]) -> 
         f"- Too low: {counts['too_low']}",
         f"- Too high: {counts['too_high']}",
         f"- Unknown: {counts['unknown']}",
+        "",
+        "## Diagnostics",
+        "",
+        *(f"- {message}" for message in summary.get("diagnostics", [])),
+        "" if summary.get("diagnostics") else "- None",
         "",
         "## Strike Events",
         "",
