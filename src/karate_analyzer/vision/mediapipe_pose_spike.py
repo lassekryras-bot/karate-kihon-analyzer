@@ -26,6 +26,10 @@ DEFAULT_HAND_MODEL_CANDIDATES = (
     Path("input/hand_landmarker.task"),
     Path("input/models/hand_landmarker.task"),
 )
+DEFAULT_FACE_MODEL_CANDIDATES = (
+    Path("input/face_landmarker.task"),
+    Path("input/models/face_landmarker.task"),
+)
 
 
 class MediaPipeSpikeError(RuntimeError):
@@ -80,6 +84,9 @@ def analyze_image(image_path: Path, output_directory: Path) -> dict[str, Any]:
         "world_poses": detection.pose_world_landmarks,
         "hands": detection.hand_landmarks,
         "faces": detection.face_landmarks,
+        "pose_detector_backend": _runner_backend(runner, "pose"),
+        "hand_detector_backend": _runner_backend(runner, "hand"),
+        "face_detector_backend": _runner_backend(runner, "face"),
     }
     _write_json(output_directory / "image_landmarks.json", payload)
 
@@ -157,6 +164,9 @@ def analyze_video(video_path: Path, output_directory: Path) -> dict[str, Any]:
             1 for frame in frames if frame["face_detected"]
         ),
         "frames": frames,
+        "pose_detector_backend": _runner_backend(runner, "pose"),
+        "hand_detector_backend": _runner_backend(runner, "hand"),
+        "face_detector_backend": _runner_backend(runner, "face"),
     }
     _write_json(output_directory / "video_landmarks.json", payload)
 
@@ -196,6 +206,10 @@ def run_default_workflow(
     if video_path is not None:
         analyze_video(video_path, output_directory)
         print(f"Wrote video MediaPipe debug output to {output_directory}")
+
+
+def _runner_backend(runner: Any, detector: str) -> str:
+    return str(getattr(runner, f"{detector}_detector_backend", "unknown"))
 
 
 def _ensure_output_directory(output_directory: Path) -> Path:
@@ -279,11 +293,31 @@ def _serialize_landmark_groups(
 
 
 def _serialize_faces(results: Any) -> list[dict[str, Any]]:
+    if results is None:
+        return []
+    task_face_groups = getattr(results, "face_landmarks", None)
+    if task_face_groups is not None:
+        return [
+            {"landmarks": _serialize_face_landmark_group(face_landmarks)}
+            for face_landmarks in task_face_groups
+        ]
     face_groups = getattr(results, "multi_face_landmarks", None) or []
     return [
-        {"landmarks": _serialize_landmark_groups([face_landmarks.landmark])[0]}
+        {"landmarks": _serialize_face_landmark_group(face_landmarks.landmark)}
         for face_landmarks in face_groups
     ]
+
+
+def _serialize_face_landmark_group(
+    landmarks: Iterable[Any],
+) -> list[dict[str, float | int]]:
+    serialized = []
+    for index, landmark in enumerate(landmarks):
+        payload = _landmark_to_dict(landmark, index)
+        if "visibility" not in payload:
+            payload["visibility"] = float(payload.get("presence", 1.0))
+        serialized.append(payload)
+    return serialized
 
 
 def _serialize_hands(results: Any) -> list[dict[str, Any]]:
@@ -369,7 +403,21 @@ class _TasksPoseRunner:
         )
         self._landmarker = vision.PoseLandmarker.create_from_options(options)
         self._hand_landmarker = self._create_hand_landmarker(python, vision, mode)
-        self._face_mesh = self._create_optional_face_mesh(mp)
+        self._face_landmarker = self._create_face_landmarker(python, vision, mode)
+        self._face_mesh = (
+            None
+            if self._face_landmarker is not None
+            else self._create_optional_face_mesh(mp)
+        )
+        self.pose_detector_backend = "tasks_pose_landmarker"
+        self.hand_detector_backend = (
+            "tasks_hand_landmarker" if self._hand_landmarker is not None else "none"
+        )
+        self.face_detector_backend = (
+            "tasks_face_landmarker"
+            if self._face_landmarker is not None
+            else "solutions_face_mesh" if self._face_mesh is not None else "none"
+        )
 
     def __enter__(self) -> "_TasksPoseRunner":
         return self
@@ -378,6 +426,8 @@ class _TasksPoseRunner:
         self._landmarker.close()
         if self._hand_landmarker is not None:
             self._hand_landmarker.close()
+        if self._face_landmarker is not None:
+            self._face_landmarker.close()
         if self._face_mesh is not None:
             self._face_mesh.close()
 
@@ -387,7 +437,7 @@ class _TasksPoseRunner:
         return self._serialize(
             self._landmarker.detect(mp_image),
             self._detect_hands(mp_image),
-            self._detect_face(rgb),
+            self._detect_face(mp_image, rgb),
             None,
         )
 
@@ -397,7 +447,7 @@ class _TasksPoseRunner:
         return self._serialize(
             self._landmarker.detect_for_video(mp_image, timestamp_ms),
             self._detect_hands_for_video(mp_image, timestamp_ms),
-            self._detect_face(rgb),
+            self._detect_face_for_video(mp_image, rgb, timestamp_ms),
             timestamp_ms,
         )
 
@@ -431,6 +481,21 @@ class _TasksPoseRunner:
         )
         return vision.HandLandmarker.create_from_options(options)
 
+    def _create_face_landmarker(
+        self, python: Any, vision: Any, mode: Any
+    ) -> Any | None:
+        face_model_path = _face_model_path()
+        if face_model_path is None or not hasattr(vision, "FaceLandmarker"):
+            return None
+        options = vision.FaceLandmarkerOptions(
+            base_options=python.BaseOptions(model_asset_path=str(face_model_path)),
+            running_mode=mode,
+            num_faces=1,
+            output_face_blendshapes=False,
+            output_facial_transformation_matrixes=False,
+        )
+        return vision.FaceLandmarker.create_from_options(options)
+
     def _create_optional_face_mesh(self, mp: Any) -> Any | None:
         solutions = getattr(mp, "solutions", None)
         face_mesh = getattr(solutions, "face_mesh", None) if solutions else None
@@ -450,10 +515,21 @@ class _TasksPoseRunner:
             return None
         return self._hand_landmarker.detect_for_video(mp_image, timestamp_ms)
 
-    def _detect_face(self, rgb: Any) -> Any | None:
-        if self._face_mesh is None:
-            return None
-        return self._face_mesh.process(rgb)
+    def _detect_face(self, mp_image: Any, rgb: Any) -> Any | None:
+        if self._face_landmarker is not None:
+            return self._face_landmarker.detect(mp_image)
+        if self._face_mesh is not None:
+            return self._face_mesh.process(rgb)
+        return None
+
+    def _detect_face_for_video(
+        self, mp_image: Any, rgb: Any, timestamp_ms: int
+    ) -> Any | None:
+        if self._face_landmarker is not None:
+            return self._face_landmarker.detect_for_video(mp_image, timestamp_ms)
+        if self._face_mesh is not None:
+            return self._face_mesh.process(rgb)
+        return None
 
 
 class _SolutionsPoseRunner:
@@ -475,6 +551,11 @@ class _SolutionsPoseRunner:
             else face_mesh.FaceMesh(
                 static_image_mode=False, max_num_faces=1, refine_landmarks=False
             )
+        )
+        self.pose_detector_backend = "solutions_pose"
+        self.hand_detector_backend = "solutions_hands"
+        self.face_detector_backend = (
+            "solutions_face_mesh" if self._face_mesh is not None else "none"
         )
 
     def __enter__(self) -> "_SolutionsPoseRunner":
@@ -533,6 +614,14 @@ def _hand_model_path() -> Path | None:
         ),
         None,
     )
+
+
+def _face_model_path() -> Path | None:
+    configured = os.environ.get("MEDIAPIPE_FACE_MODEL_PATH")
+    candidates = ([Path(configured)] if configured else []) + list(
+        DEFAULT_FACE_MODEL_CANDIDATES
+    )
+    return next((candidate for candidate in candidates if candidate.exists()), None)
 
 
 def _bgr_to_rgb(image_bgr: Any) -> Any:
