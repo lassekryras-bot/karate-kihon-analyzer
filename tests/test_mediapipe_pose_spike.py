@@ -72,3 +72,161 @@ def test_run_default_workflow_prints_helpful_message_when_no_inputs(
     captured = capsys.readouterr()
     assert "Place a test image in input/images/" in captured.out
     assert "test video in input/videos/" in captured.out
+
+
+def test_tasks_runner_does_not_require_mediapipe_solutions(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import sys
+    import types
+
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / "input").mkdir()
+    (tmp_path / "input" / "pose_landmarker.task").write_bytes(b"pose model")
+
+    class Landmark:
+        x = 0.5
+        y = 0.25
+        z = 0.0
+        visibility = 0.9
+
+    class PoseResult:
+        pose_landmarks = [[Landmark()]]
+        pose_world_landmarks = [[]]
+
+    class FakePoseLandmarker:
+        @classmethod
+        def create_from_options(cls, options: object) -> "FakePoseLandmarker":
+            return cls()
+
+        def detect(self, image: object) -> PoseResult:
+            return PoseResult()
+
+        def close(self) -> None:
+            pass
+
+    class FakeImageFormat:
+        SRGB = "SRGB"
+
+    class FakeImage:
+        def __init__(self, image_format: object, data: object) -> None:
+            self.image_format = image_format
+            self.data = data
+
+    class FakeBaseOptions:
+        def __init__(self, model_asset_path: str) -> None:
+            self.model_asset_path = model_asset_path
+
+    class FakePoseLandmarkerOptions:
+        def __init__(self, **kwargs: object) -> None:
+            self.kwargs = kwargs
+
+    fake_mp = types.ModuleType("mediapipe")
+    fake_mp.Image = FakeImage
+    fake_mp.ImageFormat = FakeImageFormat
+
+    fake_tasks = types.ModuleType("mediapipe.tasks")
+    fake_python = types.ModuleType("mediapipe.tasks.python")
+    fake_python.BaseOptions = FakeBaseOptions
+    fake_vision = types.ModuleType("mediapipe.tasks.python.vision")
+    fake_vision.RunningMode = types.SimpleNamespace(IMAGE="IMAGE", VIDEO="VIDEO")
+    fake_vision.PoseLandmarker = FakePoseLandmarker
+    fake_vision.PoseLandmarkerOptions = FakePoseLandmarkerOptions
+    fake_python.vision = fake_vision
+    fake_tasks.python = fake_python
+
+    monkeypatch.setitem(sys.modules, "mediapipe", fake_mp)
+    monkeypatch.setitem(sys.modules, "mediapipe.tasks", fake_tasks)
+    monkeypatch.setitem(sys.modules, "mediapipe.tasks.python", fake_python)
+    monkeypatch.setitem(sys.modules, "mediapipe.tasks.python.vision", fake_vision)
+    monkeypatch.setattr(spike, "_bgr_to_rgb", lambda image: image)
+
+    with spike._TasksPoseRunner("IMAGE") as runner:
+        detection = runner.detect_image(object())
+
+    assert detection.pose_landmarks[0][0]["visibility"] == 0.9
+    assert detection.hand_landmarks == []
+    assert detection.face_landmarks == []
+
+
+def test_tasks_runner_uses_hand_landmarker_when_model_exists(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import sys
+    import types
+
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / "input").mkdir()
+    (tmp_path / "input" / "pose_landmarker.task").write_bytes(b"pose model")
+    (tmp_path / "input" / "hand_landmarker.task").write_bytes(b"hand model")
+
+    class Landmark:
+        x = 0.1
+        y = 0.2
+        visibility = 0.8
+
+    class PoseResult:
+        pose_landmarks = [[Landmark()]]
+        pose_world_landmarks = [[]]
+
+    class HandResult:
+        hand_landmarks = [[Landmark()]]
+        handedness = [[types.SimpleNamespace(category_name="Right", score=0.99)]]
+
+    class FakePoseLandmarker:
+        @classmethod
+        def create_from_options(cls, options: object) -> "FakePoseLandmarker":
+            return cls()
+
+        def detect(self, image: object) -> PoseResult:
+            return PoseResult()
+
+        def close(self) -> None:
+            pass
+
+    class FakeHandLandmarker:
+        @classmethod
+        def create_from_options(cls, options: object) -> "FakeHandLandmarker":
+            return cls()
+
+        def detect(self, image: object) -> HandResult:
+            return HandResult()
+
+        def close(self) -> None:
+            pass
+
+    class FakeOptions:
+        def __init__(self, **kwargs: object) -> None:
+            self.kwargs = kwargs
+
+    fake_mp = types.ModuleType("mediapipe")
+    fake_mp.Image = lambda image_format, data: data
+    fake_mp.ImageFormat = types.SimpleNamespace(SRGB="SRGB")
+    fake_tasks = types.ModuleType("mediapipe.tasks")
+    fake_python = types.ModuleType("mediapipe.tasks.python")
+    fake_python.BaseOptions = lambda model_asset_path: model_asset_path
+    fake_vision = types.ModuleType("mediapipe.tasks.python.vision")
+    fake_vision.RunningMode = types.SimpleNamespace(IMAGE="IMAGE", VIDEO="VIDEO")
+    fake_vision.PoseLandmarker = FakePoseLandmarker
+    fake_vision.PoseLandmarkerOptions = FakeOptions
+    fake_vision.HandLandmarker = FakeHandLandmarker
+    fake_vision.HandLandmarkerOptions = FakeOptions
+    fake_python.vision = fake_vision
+    fake_tasks.python = fake_python
+
+    monkeypatch.setitem(sys.modules, "mediapipe", fake_mp)
+    monkeypatch.setitem(sys.modules, "mediapipe.tasks", fake_tasks)
+    monkeypatch.setitem(sys.modules, "mediapipe.tasks.python", fake_python)
+    monkeypatch.setitem(sys.modules, "mediapipe.tasks.python.vision", fake_vision)
+    monkeypatch.setattr(spike, "_bgr_to_rgb", lambda image: image)
+
+    with spike._TasksPoseRunner("IMAGE") as runner:
+        detection = runner.detect_image(object())
+
+    assert detection.hand_landmarks == [
+        {
+            "landmarks": [{"index": 0, "x": 0.1, "y": 0.2, "visibility": 0.8}],
+            "handedness": {"label": "Right", "score": 0.99},
+        }
+    ]
+    assert detection.face_landmarks == []

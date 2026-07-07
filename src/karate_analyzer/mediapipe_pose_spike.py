@@ -22,6 +22,10 @@ DEFAULT_MODEL_CANDIDATES = (
     Path("input/pose_landmarker.task"),
     Path("input/models/pose_landmarker.task"),
 )
+DEFAULT_HAND_MODEL_CANDIDATES = (
+    Path("input/hand_landmarker.task"),
+    Path("input/models/hand_landmarker.task"),
+)
 
 
 class MediaPipeSpikeError(RuntimeError):
@@ -301,6 +305,32 @@ def _serialize_hands(results: Any) -> list[dict[str, Any]]:
     return hands
 
 
+def _serialize_task_hands(result: Any) -> list[dict[str, Any]]:
+    if result is None:
+        return []
+    hand_groups = getattr(result, "hand_landmarks", None) or []
+    handedness_groups = getattr(result, "handedness", None) or []
+    hands = []
+    for index, hand_landmarks in enumerate(hand_groups):
+        hand: dict[str, Any] = {
+            "landmarks": _serialize_landmark_groups([hand_landmarks])[0]
+        }
+        if index < len(handedness_groups) and handedness_groups[index]:
+            category = handedness_groups[index][0]
+            label = getattr(category, "category_name", None) or getattr(
+                category, "display_name", None
+            )
+            score = getattr(category, "score", None)
+            if label is not None or score is not None:
+                hand["handedness"] = {}
+                if label is not None:
+                    hand["handedness"]["label"] = label
+                if score is not None:
+                    hand["handedness"]["score"] = float(score)
+        hands.append(hand)
+    return hands
+
+
 def _draw_landmarks(image_bgr: Any, landmarks: list[dict[str, float | int]]) -> Any:
     cv2 = _import_cv2()
     image = image_bgr.copy()
@@ -338,26 +368,26 @@ class _TasksPoseRunner:
             num_poses=1,
         )
         self._landmarker = vision.PoseLandmarker.create_from_options(options)
-        self._hands = mp.solutions.hands.Hands(static_image_mode=False, max_num_hands=2)
-        self._face_mesh = mp.solutions.face_mesh.FaceMesh(
-            static_image_mode=False, max_num_faces=1, refine_landmarks=False
-        )
+        self._hand_landmarker = self._create_hand_landmarker(python, vision, mode)
+        self._face_mesh = self._create_optional_face_mesh(mp)
 
     def __enter__(self) -> "_TasksPoseRunner":
         return self
 
     def __exit__(self, *_args: object) -> None:
         self._landmarker.close()
-        self._hands.close()
-        self._face_mesh.close()
+        if self._hand_landmarker is not None:
+            self._hand_landmarker.close()
+        if self._face_mesh is not None:
+            self._face_mesh.close()
 
     def detect_image(self, image_bgr: Any) -> DetectionResult:
         rgb = _bgr_to_rgb(image_bgr)
         mp_image = self._mp.Image(image_format=self._mp.ImageFormat.SRGB, data=rgb)
         return self._serialize(
             self._landmarker.detect(mp_image),
-            self._hands.process(rgb),
-            self._face_mesh.process(rgb),
+            self._detect_hands(mp_image),
+            self._detect_face(rgb),
             None,
         )
 
@@ -366,13 +396,17 @@ class _TasksPoseRunner:
         mp_image = self._mp.Image(image_format=self._mp.ImageFormat.SRGB, data=rgb)
         return self._serialize(
             self._landmarker.detect_for_video(mp_image, timestamp_ms),
-            self._hands.process(rgb),
-            self._face_mesh.process(rgb),
+            self._detect_hands_for_video(mp_image, timestamp_ms),
+            self._detect_face(rgb),
             timestamp_ms,
         )
 
     def _serialize(
-        self, result: Any, hand_results: Any, face_results: Any, timestamp_ms: int | None
+        self,
+        result: Any,
+        hand_results: Any,
+        face_results: Any,
+        timestamp_ms: int | None,
     ) -> DetectionResult:
         return DetectionResult(
             timestamp_ms=timestamp_ms,
@@ -380,9 +414,46 @@ class _TasksPoseRunner:
             pose_world_landmarks=_serialize_landmark_groups(
                 result.pose_world_landmarks
             ),
-            hand_landmarks=_serialize_hands(hand_results),
+            hand_landmarks=_serialize_task_hands(hand_results),
             face_landmarks=_serialize_faces(face_results),
         )
+
+    def _create_hand_landmarker(
+        self, python: Any, vision: Any, mode: Any
+    ) -> Any | None:
+        hand_model_path = _hand_model_path()
+        if hand_model_path is None or not hasattr(vision, "HandLandmarker"):
+            return None
+        options = vision.HandLandmarkerOptions(
+            base_options=python.BaseOptions(model_asset_path=str(hand_model_path)),
+            running_mode=mode,
+            num_hands=2,
+        )
+        return vision.HandLandmarker.create_from_options(options)
+
+    def _create_optional_face_mesh(self, mp: Any) -> Any | None:
+        solutions = getattr(mp, "solutions", None)
+        face_mesh = getattr(solutions, "face_mesh", None) if solutions else None
+        if face_mesh is None:
+            return None
+        return face_mesh.FaceMesh(
+            static_image_mode=False, max_num_faces=1, refine_landmarks=False
+        )
+
+    def _detect_hands(self, mp_image: Any) -> Any | None:
+        if self._hand_landmarker is None:
+            return None
+        return self._hand_landmarker.detect(mp_image)
+
+    def _detect_hands_for_video(self, mp_image: Any, timestamp_ms: int) -> Any | None:
+        if self._hand_landmarker is None:
+            return None
+        return self._hand_landmarker.detect_for_video(mp_image, timestamp_ms)
+
+    def _detect_face(self, rgb: Any) -> Any | None:
+        if self._face_mesh is None:
+            return None
+        return self._face_mesh.process(rgb)
 
 
 class _SolutionsPoseRunner:
@@ -392,10 +463,18 @@ class _SolutionsPoseRunner:
         except ImportError as exc:
             raise MediaPipeSpikeError("MediaPipe is not available.") from exc
         self._mp = mp
-        self._pose = mp.solutions.pose.Pose(static_image_mode=False, model_complexity=1)
-        self._hands = mp.solutions.hands.Hands(static_image_mode=False, max_num_hands=2)
-        self._face_mesh = mp.solutions.face_mesh.FaceMesh(
-            static_image_mode=False, max_num_faces=1, refine_landmarks=False
+        solutions = getattr(mp, "solutions", None)
+        if solutions is None:
+            raise MediaPipeSpikeError("MediaPipe Solutions is not available.")
+        self._pose = solutions.pose.Pose(static_image_mode=False, model_complexity=1)
+        self._hands = solutions.hands.Hands(static_image_mode=False, max_num_hands=2)
+        face_mesh = getattr(solutions, "face_mesh", None)
+        self._face_mesh = (
+            None
+            if face_mesh is None
+            else face_mesh.FaceMesh(
+                static_image_mode=False, max_num_faces=1, refine_landmarks=False
+            )
         )
 
     def __enter__(self) -> "_SolutionsPoseRunner":
@@ -404,7 +483,8 @@ class _SolutionsPoseRunner:
     def __exit__(self, *_args: object) -> None:
         self._pose.close()
         self._hands.close()
-        self._face_mesh.close()
+        if self._face_mesh is not None:
+            self._face_mesh.close()
 
     def detect_image(self, image_bgr: Any) -> DetectionResult:
         return self._detect(image_bgr, None)
@@ -416,7 +496,7 @@ class _SolutionsPoseRunner:
         rgb = _bgr_to_rgb(image_bgr)
         results = self._pose.process(rgb)
         hand_results = self._hands.process(rgb)
-        face_results = self._face_mesh.process(rgb)
+        face_results = None if self._face_mesh is None else self._face_mesh.process(rgb)
         landmarks = (
             [] if results.pose_landmarks is None else [results.pose_landmarks.landmark]
         )
@@ -442,6 +522,17 @@ def _model_path() -> Path | None:
         DEFAULT_MODEL_CANDIDATES
     )
     return next((candidate for candidate in candidates if candidate.exists()), None)
+
+
+def _hand_model_path() -> Path | None:
+    return next(
+        (
+            candidate
+            for candidate in DEFAULT_HAND_MODEL_CANDIDATES
+            if candidate.exists()
+        ),
+        None,
+    )
 
 
 def _bgr_to_rgb(image_bgr: Any) -> Any:
