@@ -118,11 +118,29 @@ def _build_analysis_results(
                 "peak_frame_number": event.get("peak_frame_number"),
                 "analysis_frame_number": event.get("analysis_frame_number"),
                 "elbow_angle_degrees": event.get("elbow_angle_degrees"),
+                "angle_delta_degrees": event.get("angle_delta_degrees"),
+                "max_elbow_angle_degrees_in_region": event.get(
+                    "max_elbow_angle_degrees_in_region"
+                ),
                 "extension_distance": event.get("extension_distance"),
+                "extension_delta": event.get("extension_delta"),
                 "extension_velocity": event.get("extension_velocity"),
+                "max_extension_distance_in_region": event.get(
+                    "max_extension_distance_in_region"
+                ),
+                "angle_is_near_peak": event.get("angle_is_near_peak"),
+                "extension_is_near_peak": event.get("extension_is_near_peak"),
+                "angle_is_plateauing": event.get("angle_is_plateauing"),
+                "extension_is_plateauing": event.get("extension_is_plateauing"),
+                "angle_is_turning_point": event.get("angle_is_turning_point"),
+                "extension_is_turning_point": event.get("extension_is_turning_point"),
+                "peak_alignment_window_frames": event.get(
+                    "peak_alignment_window_frames"
+                ),
                 "impact_frame_selection_strategy": event.get(
                     "impact_frame_selection_strategy"
                 ),
+                "impact_frame_confidence": event.get("impact_frame_confidence"),
                 "impact_frame_reason": event.get("impact_frame_reason"),
                 "strike_region_start_frame": event.get("strike_region_start_frame"),
                 "strike_region_end_frame": event.get("strike_region_end_frame"),

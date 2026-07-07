@@ -15,9 +15,6 @@ from typing import Any
 
 from karate_analyzer.references.chin_reference import calculate_chin_reference
 from karate_analyzer.strike_detection import StrikeDetectorEngine
-from karate_analyzer.references.hand_impact_reference import (
-    calculate_striking_hand_impact_point,
-)
 from karate_analyzer.analyzers.jodan_height_analyzer import (
     analyze_strike_event_jodan_height,
 )
@@ -188,46 +185,6 @@ def _extract_punch_event_candidates(
     )
 
 
-def _region_sort_key(event: dict[str, Any]) -> tuple[float, int, str]:
-    return (
-        _sortable_timestamp(event.get("timestamp_seconds")),
-        _sortable_frame(event.get("peak_frame_number")),
-        event["side"],
-    )
-
-
-def _region_quality_ignore_reason(
-    event: dict[str, Any],
-    *,
-    min_region_frame_count: int,
-    min_region_visibility: float,
-    min_smoothed_extension_ratio: float,
-) -> str | None:
-    frame_count = event.get("region_frame_count")
-    if frame_count is None or int(frame_count) < min_region_frame_count:
-        return "region_too_short"
-    visibility = event.get("min_visibility")
-    if visibility is None or float(visibility) < min_region_visibility:
-        return "low_confidence_region"
-    smoothed_ratio = event.get("smoothed_extension_ratio")
-    if smoothed_ratio is None or float(smoothed_ratio) < min_smoothed_extension_ratio:
-        return "low_confidence_region"
-    return None
-
-
-def _ignored_region(
-    event: dict[str, Any], event_index: int, expected_side: str, reason: str
-) -> dict[str, Any]:
-    return {
-        "event_index": event_index,
-        "expected_side": expected_side,
-        "observed_side": event["side"],
-        "matches_expected_side": event["side"] == expected_side,
-        "ignore_reason": reason,
-        **event,
-    }
-
-
 def _extract_punch_event_landmarks(
     raw_frames: list[dict[str, Any]], punch_event_candidates: list[dict[str, Any]]
 ) -> dict[str, Any]:
@@ -243,7 +200,8 @@ def _extract_punch_event_landmarks(
     for candidate in punch_event_candidates:
         observed_side = candidate.get("observed_side") or candidate["expected_side"]
         peak_frame_number = candidate.get("peak_frame_number")
-        impact_selection = StrikeDetectorEngine().select_impact_frame(
+        strike_detector = StrikeDetectorEngine()
+        impact_selection = strike_detector.select_impact_frame(
             raw_frames, candidate, observed_side
         )
         analysis_frame_number = impact_selection["analysis_frame_number"]
@@ -260,7 +218,12 @@ def _extract_punch_event_landmarks(
         jodan_reference = calculate_jodan_reference(
             chin_reference=chin_reference, analysis_frame_number=analysis_frame_number
         )
-        impact_point = calculate_striking_hand_impact_point(_frame_hands(frame), wrist)
+        impact_point, impact_point_reason = strike_detector.validated_impact_point(
+            frame, wrist
+        )
+        impact_reason = impact_selection["impact_frame_reason"]
+        if impact_point_reason is not None:
+            impact_reason = f"{impact_reason}; {impact_point_reason}"
 
         event = {
             "event_index": candidate["event_index"],
@@ -269,12 +232,32 @@ def _extract_punch_event_landmarks(
             "peak_frame_number": peak_frame_number,
             "analysis_frame_number": analysis_frame_number,
             "elbow_angle_degrees": impact_selection["elbow_angle_degrees"],
+            "angle_delta_degrees": impact_selection["angle_delta_degrees"],
+            "max_elbow_angle_degrees_in_region": impact_selection[
+                "max_elbow_angle_degrees_in_region"
+            ],
             "extension_distance": impact_selection["extension_distance"],
+            "extension_delta": impact_selection["extension_delta"],
             "extension_velocity": impact_selection["extension_velocity"],
+            "max_extension_distance_in_region": impact_selection[
+                "max_extension_distance_in_region"
+            ],
+            "angle_is_near_peak": impact_selection["angle_is_near_peak"],
+            "extension_is_near_peak": impact_selection["extension_is_near_peak"],
+            "angle_is_plateauing": impact_selection["angle_is_plateauing"],
+            "extension_is_plateauing": impact_selection["extension_is_plateauing"],
+            "angle_is_turning_point": impact_selection["angle_is_turning_point"],
+            "extension_is_turning_point": impact_selection[
+                "extension_is_turning_point"
+            ],
+            "peak_alignment_window_frames": impact_selection[
+                "peak_alignment_window_frames"
+            ],
             "impact_frame_selection_strategy": impact_selection[
                 "impact_frame_selection_strategy"
             ],
-            "impact_frame_reason": impact_selection["impact_frame_reason"],
+            "impact_frame_confidence": impact_selection["impact_frame_confidence"],
+            "impact_frame_reason": impact_reason,
             "strike_region_start_frame": impact_selection["strike_region_start_frame"],
             "strike_region_end_frame": impact_selection["strike_region_end_frame"],
             "timestamp_seconds": frame.get(
@@ -338,26 +321,6 @@ def _extract_punch_event_landmarks(
         },
         "punch_event_landmarks": events,
     }
-
-
-def _frame_in_region(frame_number: Any, start_frame: Any, end_frame: Any) -> bool:
-    if frame_number is None or start_frame is None or end_frame is None:
-        return False
-    frame = int(frame_number)
-    return int(start_frame) <= frame <= int(end_frame)
-
-
-def _expected_alternating_sides(start_side: str, count: int) -> list[str]:
-    sides = [start_side, "left" if start_side == "right" else "right"]
-    return [sides[index % 2] for index in range(count)]
-
-
-def _sortable_timestamp(timestamp: Any) -> float:
-    return float(timestamp) if timestamp is not None else float("inf")
-
-
-def _sortable_frame(frame_number: Any) -> int:
-    return int(frame_number) if frame_number is not None else 10**12
 
 
 def _analyze_frame(frame: dict[str, Any]) -> dict[str, Any]:
