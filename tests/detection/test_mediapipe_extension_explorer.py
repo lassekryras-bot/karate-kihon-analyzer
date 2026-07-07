@@ -324,63 +324,83 @@ def test_punch_event_landmarks_copy_peak_frame_analysis_landmarks() -> None:
         payload["jodan_reference"]["strategy"]
         == "same_frame_chin_then_head_cluster_projected_chin"
     )
-    assert payload["punch_event_landmarks"] == [
-        {
-            "event_index": 1,
-            "expected_side": "left",
-            "observed_side": "left",
-            "peak_frame_number": 5,
+    event = payload["punch_event_landmarks"][0]
+    assert event["elbow_angle_degrees"] == pytest.approx(180.0)
+    assert event["extension_distance"] == pytest.approx(1.0)
+    assert (
+        event["impact_frame_selection_strategy"]
+        == "elbow_extension_then_extension_plateau_v1"
+    )
+    assert event["strike_region_start_frame"] == 5
+    assert event["strike_region_end_frame"] == 5
+    assert {
+        k: v
+        for k, v in event.items()
+        if k
+        not in {
+            "elbow_angle_degrees",
+            "extension_distance",
+            "extension_velocity",
+            "impact_frame_selection_strategy",
+            "impact_frame_reason",
+            "strike_region_start_frame",
+            "strike_region_end_frame",
+        }
+    } == {
+        "event_index": 1,
+        "expected_side": "left",
+        "observed_side": "left",
+        "peak_frame_number": 5,
+        "analysis_frame_number": 5,
+        "timestamp_seconds": 0.5,
+        "shoulder": {"x": 0.0, "y": 0.0, "visibility": 0.8},
+        "elbow": {"x": 0.5, "y": 0.0, "visibility": 0.8},
+        "wrist": {"x": 1.0, "y": 0.0, "visibility": 0.8},
+        "impact_point": None,
+        "head_reference_candidate": {
+            "source": "nose",
+            "x": 0.1,
+            "y": 0.2,
+            "visibility": 0.7,
+        },
+        "chin_reference": None,
+        "jodan_reference": None,
+        "jodan_reference_status": {
+            "source": "unknown",
+            "x": None,
+            "y": None,
+            "visibility": None,
+            "confidence": "unknown",
+            "source_frame_number": None,
             "analysis_frame_number": 5,
-            "timestamp_seconds": 0.5,
-            "shoulder": {"x": 0.0, "y": 0.0, "visibility": 0.8},
-            "elbow": {"x": 0.5, "y": 0.0, "visibility": 0.8},
-            "wrist": {"x": 1.0, "y": 0.0, "visibility": 0.8},
+            "frame_offset": None,
+            "matched_head_anchor_count": 0,
+            "head_cluster_motion_y": None,
+            "projection_direction": "none",
+            "reason": "no_future_valid_jodan_reference",
+            "used_landmarks": [],
+        },
+        "analysis": {
+            "jodan_height": {
+                "status": "unknown",
+                "impact_point": None,
+                "target_point": None,
+                "tolerance_px": None,
+                "vertical_offset_px": None,
+                "message": "Could not evaluate Jodan height.",
+            }
+        },
+        "visibility": {
+            "shoulder": 0.8,
+            "elbow": 0.8,
+            "wrist": 0.8,
             "impact_point": None,
-            "head_reference_candidate": {
-                "source": "nose",
-                "x": 0.1,
-                "y": 0.2,
-                "visibility": 0.7,
-            },
+            "head_reference_candidate": 0.7,
             "chin_reference": None,
             "jodan_reference": None,
-            "jodan_reference_status": {
-                "source": "unknown",
-                "x": None,
-                "y": None,
-                "visibility": None,
-                "confidence": "unknown",
-                "source_frame_number": None,
-                "analysis_frame_number": 5,
-                "frame_offset": None,
-                "matched_head_anchor_count": 0,
-                "head_cluster_motion_y": None,
-                "projection_direction": "none",
-                "reason": "no_future_valid_jodan_reference",
-                "used_landmarks": [],
-            },
-            "analysis": {
-                "jodan_height": {
-                    "status": "unknown",
-                    "impact_point": None,
-                    "target_point": None,
-                    "tolerance_px": None,
-                    "vertical_offset_px": None,
-                    "message": "Could not evaluate Jodan height.",
-                }
-            },
-            "visibility": {
-                "shoulder": 0.8,
-                "elbow": 0.8,
-                "wrist": 0.8,
-                "impact_point": None,
-                "head_reference_candidate": 0.7,
-                "chin_reference": None,
-                "jodan_reference": None,
-                "minimum_required_landmark_visibility": 0.7,
-            },
-        }
-    ]
+            "minimum_required_landmark_visibility": 0.7,
+        },
+    }
 
 
 def test_punch_event_landmarks_add_jodan_reference_and_fall_back_to_mouth_midpoint_when_nose_is_missing() -> (

@@ -14,6 +14,7 @@ from pathlib import Path
 from typing import Any
 
 from karate_analyzer.references.chin_reference import calculate_chin_reference
+from karate_analyzer.strike_detection import StrikeDetectorEngine
 from karate_analyzer.references.hand_impact_reference import (
     calculate_striking_hand_impact_point,
 )
@@ -174,94 +175,17 @@ def _extract_punch_event_candidates(
     min_region_visibility: float = DEFAULT_GROUP_MIN_VISIBILITY,
     min_smoothed_extension_ratio: float = DEFAULT_GROUP_THRESHOLD,
 ) -> dict[str, Any]:
-    """Convert grouped extension regions into expected-side punch candidates.
+    """Convert grouped extension regions into expected-side strike candidates."""
 
-    A high-extension region that starts on frame 0 is treated as the initial
-    kamae/guard position rather than a punch. Remaining regions are scanned
-    forward once for each expected kihon side so wrong-side or noisy regions are
-    reported as ignored diagnostics instead of consuming the next event slot.
-    """
-
-    if expected_count < 0:
-        raise ValueError("expected_count must be non-negative")
-    if expected_start_side not in {"left", "right"}:
-        raise ValueError("expected_start_side must be 'left' or 'right'")
-    if min_region_frame_count < 1:
-        raise ValueError("min_region_frame_count must be at least 1")
-
-    ignored_initial_regions = []
-    punch_like_regions = []
-    for side, grouped_peaks in (
-        ("left", left_grouped_peaks),
-        ("right", right_grouped_peaks),
-    ):
-        for grouped_peak in grouped_peaks:
-            event = {"side": side, **grouped_peak}
-            if grouped_peak.get("start_frame") == 0:
-                ignored_initial_regions.append(
-                    {
-                        **event,
-                        "ignore_reason": "initial_extended_arm_region",
-                    }
-                )
-            else:
-                punch_like_regions.append(event)
-
-    punch_like_regions.sort(key=_region_sort_key)
-
-    expected_sequence = _expected_alternating_sides(expected_start_side, expected_count)
-    candidates = []
-    ignored_regions = []
-    search_index = 0
-    for event_index, expected_side in enumerate(expected_sequence, start=1):
-        while search_index < len(punch_like_regions):
-            event = punch_like_regions[search_index]
-            search_index += 1
-            if event["side"] != expected_side:
-                ignored_regions.append(
-                    _ignored_region(
-                        event, event_index, expected_side, "unexpected_side"
-                    )
-                )
-                continue
-
-            quality_reason = _region_quality_ignore_reason(
-                event,
-                min_region_frame_count=min_region_frame_count,
-                min_region_visibility=min_region_visibility,
-                min_smoothed_extension_ratio=min_smoothed_extension_ratio,
-            )
-            if quality_reason is not None:
-                ignored_regions.append(
-                    _ignored_region(event, event_index, expected_side, quality_reason)
-                )
-                continue
-
-            candidates.append(
-                {
-                    "event_index": event_index,
-                    "expected_side": expected_side,
-                    "observed_side": event["side"],
-                    "matches_expected_side": True,
-                    **event,
-                }
-            )
-            break
-        else:
-            break
-
-    return {
-        "expected_punch_count": expected_count,
-        "expected_start_side": expected_start_side,
-        "expected_sequence": expected_sequence,
-        "min_region_frame_count": min_region_frame_count,
-        "min_region_visibility": min_region_visibility,
-        "min_smoothed_extension_ratio": min_smoothed_extension_ratio,
-        "ignored_initial_regions": ignored_initial_regions,
-        "ignored_regions": ignored_regions,
-        "selected_regions": candidates,
-        "punch_event_candidates": candidates,
-    }
+    return StrikeDetectorEngine().extract_strike_event_candidates(
+        left_grouped_peaks,
+        right_grouped_peaks,
+        expected_count=expected_count,
+        expected_start_side=expected_start_side,
+        min_region_frame_count=min_region_frame_count,
+        min_region_visibility=min_region_visibility,
+        min_smoothed_extension_ratio=min_smoothed_extension_ratio,
+    )
 
 
 def _region_sort_key(event: dict[str, Any]) -> tuple[float, int, str]:
@@ -319,9 +243,10 @@ def _extract_punch_event_landmarks(
     for candidate in punch_event_candidates:
         observed_side = candidate.get("observed_side") or candidate["expected_side"]
         peak_frame_number = candidate.get("peak_frame_number")
-        analysis_frame_number = _select_analysis_frame_number(
+        impact_selection = StrikeDetectorEngine().select_impact_frame(
             raw_frames, candidate, observed_side
         )
+        analysis_frame_number = impact_selection["analysis_frame_number"]
         frame = frames_by_number.get(analysis_frame_number, {})
         pose_landmarks = {
             landmark.get("index"): landmark for landmark in _first_pose(frame)
@@ -343,6 +268,15 @@ def _extract_punch_event_landmarks(
             "observed_side": observed_side,
             "peak_frame_number": peak_frame_number,
             "analysis_frame_number": analysis_frame_number,
+            "elbow_angle_degrees": impact_selection["elbow_angle_degrees"],
+            "extension_distance": impact_selection["extension_distance"],
+            "extension_velocity": impact_selection["extension_velocity"],
+            "impact_frame_selection_strategy": impact_selection[
+                "impact_frame_selection_strategy"
+            ],
+            "impact_frame_reason": impact_selection["impact_frame_reason"],
+            "strike_region_start_frame": impact_selection["strike_region_start_frame"],
+            "strike_region_end_frame": impact_selection["strike_region_end_frame"],
             "timestamp_seconds": frame.get(
                 "timestamp_seconds", candidate.get("timestamp_seconds")
             ),
@@ -406,51 +340,11 @@ def _extract_punch_event_landmarks(
     }
 
 
-def _select_analysis_frame_number(
-    raw_frames: list[dict[str, Any]], candidate: dict[str, Any], side: str
-) -> int | None:
-    peak_frame_number = candidate.get("peak_frame_number")
-    start_frame = candidate.get("start_frame", peak_frame_number)
-    end_frame = candidate.get("end_frame", peak_frame_number)
-    if peak_frame_number is None:
-        return None
-
-    region_frames = [
-        frame
-        for frame in raw_frames
-        if _frame_in_region(frame.get("frame_number"), start_frame, end_frame)
-        and _first_pose(frame)
-    ]
-    if not region_frames:
-        return peak_frame_number
-
-    def distance_from_peak(frame: dict[str, Any]) -> int:
-        return abs(
-            int(frame.get("frame_number", peak_frame_number)) - int(peak_frame_number)
-        )
-
-    frames_with_impact = [
-        frame for frame in region_frames if _frame_has_hand_impact_point(frame, side)
-    ]
-    if frames_with_impact:
-        return min(frames_with_impact, key=distance_from_peak).get("frame_number")
-    return min(region_frames, key=distance_from_peak).get("frame_number")
-
-
 def _frame_in_region(frame_number: Any, start_frame: Any, end_frame: Any) -> bool:
     if frame_number is None or start_frame is None or end_frame is None:
         return False
     frame = int(frame_number)
     return int(start_frame) <= frame <= int(end_frame)
-
-
-def _frame_has_hand_impact_point(frame: dict[str, Any], side: str) -> bool:
-    pose_landmarks = {
-        landmark.get("index"): landmark for landmark in _first_pose(frame)
-    }
-    _, _, wrist_index = _side_landmark_indices(side)
-    wrist = _landmark_payload(pose_landmarks.get(wrist_index))
-    return calculate_striking_hand_impact_point(_frame_hands(frame), wrist) is not None
 
 
 def _expected_alternating_sides(start_side: str, count: int) -> list[str]:

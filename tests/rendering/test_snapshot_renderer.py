@@ -116,6 +116,7 @@ def _analysis_payload():
                 "expected_side": "right",
                 "observed_side": "right",
                 "peak_frame_number": 185,
+                "analysis_frame_number": 190,
                 "timestamp_seconds": None,
                 "shoulder": {"x": 0.62, "y": 0.42, "visibility": 0.95},
                 "elbow": {"x": 0.70, "y": 0.45, "visibility": 0.92},
@@ -291,7 +292,8 @@ def test_render_strike_snapshots_from_analysis_extracts_renders_and_names_files(
 
     assert rendered_paths == [output_dir / "strike-006-right.png"]
     assert (output_dir / "strike-006-right.png").exists()
-    assert (output_dir / "extracted-frames" / "frame-000185.png").exists()
+    assert (output_dir / "extracted-frames" / "frame-000190.png").exists()
+    assert not (output_dir / "extracted-frames" / "frame-000185.png").exists()
 
 
 def test_render_strike_snapshot_draws_punch_line_to_impact_point_not_wrist() -> None:
