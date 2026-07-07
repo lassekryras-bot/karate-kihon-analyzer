@@ -319,10 +319,11 @@ def test_punch_event_landmarks_copy_peak_frame_analysis_landmarks() -> None:
         "status": "experimental",
         "strategy": "nose_then_mouth_midpoint",
     }
-    assert payload["jodan_reference"] == {
-        "status": "experimental",
-        "strategy": "chin_reference_then_eye_nose_projection_with_fallbacks",
-    }
+    assert payload["jodan_reference"]["status"] == "chin_first_temporal"
+    assert (
+        payload["jodan_reference"]["strategy"]
+        == "same_frame_chin_then_head_cluster_projected_chin"
+    )
     assert payload["punch_event_landmarks"] == [
         {
             "event_index": 1,
@@ -342,23 +343,27 @@ def test_punch_event_landmarks_copy_peak_frame_analysis_landmarks() -> None:
                 "visibility": 0.7,
             },
             "chin_reference": None,
-            "jodan_reference": {
-                "source": "nose_mouth_projection",
-                "x": 0.2,
-                "y": 0.4,
-                "visibility": 0.6,
-                "confidence": "fallback",
-                "used_landmarks": [0, 9, 10],
-                "notes": (
-                    "Approximate experimental Jodan target reference for karate analysis; "
-                    "not a medical or anatomical chin estimate."
-                ),
+            "jodan_reference": None,
+            "jodan_reference_status": {
+                "source": "unknown",
+                "x": None,
+                "y": None,
+                "visibility": None,
+                "confidence": "unknown",
+                "source_frame_number": None,
+                "analysis_frame_number": 5,
+                "frame_offset": None,
+                "matched_head_anchor_count": 0,
+                "head_cluster_motion_y": None,
+                "projection_direction": "none",
+                "reason": "no_future_valid_jodan_reference",
+                "used_landmarks": [],
             },
             "analysis": {
                 "jodan_height": {
                     "status": "unknown",
                     "impact_point": None,
-                    "target_point": {"x": 0.2, "y": 0.4, "visibility": 0.6},
+                    "target_point": None,
                     "tolerance_px": None,
                     "vertical_offset_px": None,
                     "message": "Could not evaluate Jodan height.",
@@ -371,7 +376,7 @@ def test_punch_event_landmarks_copy_peak_frame_analysis_landmarks() -> None:
                 "impact_point": None,
                 "head_reference_candidate": 0.7,
                 "chin_reference": None,
-                "jodan_reference": 0.6,
+                "jodan_reference": None,
                 "minimum_required_landmark_visibility": 0.7,
             },
         }
@@ -562,7 +567,7 @@ def test_punch_event_landmarks_contains_impact_point_when_hand_landmarks_availab
     event = payload["punch_event_landmarks"][0]
     assert event["impact_point"]["x"] == pytest.approx(1.0)
     assert event["impact_point"]["y"] == pytest.approx(0.4)
-    assert event["analysis"]["jodan_height"]["status"] == "good"
+    assert event["analysis"]["jodan_height"]["status"] == "unknown"
 
 
 def test_punch_event_landmarks_falls_back_to_expected_side_for_impact_matching() -> (
@@ -618,7 +623,7 @@ def test_punch_event_contains_chin_reference_when_face_landmarks_are_present() -
     event = payload["punch_event_landmarks"][0]
     assert event["chin_reference"]["source"] == "face_mesh_chin_152"
     assert event["visibility"]["chin_reference"] == pytest.approx(1.0)
-    assert event["jodan_reference"]["source"] == "face_mesh_chin_reference"
+    assert event["jodan_reference"]["source"] == "same_frame_chin"
     assert event["jodan_reference"]["y"] == pytest.approx(0.38)
 
 
@@ -638,4 +643,5 @@ def test_punch_event_still_works_without_face_landmarks() -> None:
 
     event = payload["punch_event_landmarks"][0]
     assert event["chin_reference"] is None
-    assert event["jodan_reference"]["source"] == "nose_mouth_projection"
+    assert event["jodan_reference"] is None
+    assert event["jodan_reference_status"]["source"] == "unknown"

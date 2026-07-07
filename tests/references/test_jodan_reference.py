@@ -1,118 +1,108 @@
-from __future__ import annotations
-
-import pytest
-
-from karate_analyzer.references.jodan_reference import calculate_jodan_reference
-
-
-def test_eye_nose_projection_with_full_eye_landmarks_and_nose() -> None:
-    landmarks = [
-        _landmark(0, 0.50, 0.30, 0.90),
-        _landmark(1, 0.40, 0.10, 0.80),
-        _landmark(2, 0.45, 0.10, 0.70),
-        _landmark(3, 0.50, 0.10, 0.60),
-        _landmark(4, 0.55, 0.10, 0.85),
-        _landmark(5, 0.60, 0.10, 0.75),
-        _landmark(6, 0.50, 0.10, 0.65),
-    ]
-
-    reference = calculate_jodan_reference(landmarks)
-
-    assert reference is not None
-    assert reference["source"] == "eye_nose_projection"
-    assert reference["x"] == pytest.approx(0.50)
-    assert reference["y"] == pytest.approx(0.50)
-    assert reference["visibility"] == pytest.approx(0.60)
-    assert reference["confidence"] == "experimental"
-    assert reference["used_landmarks"] == [1, 2, 3, 4, 5, 6, 0]
-    assert "not a medical or anatomical chin estimate" in reference["notes"]
+from karate_analyzer.references.jodan_reference import (
+    calculate_jodan_reference,
+    resolve_jodan_references,
+)
 
 
-def test_eye_reference_averages_multiple_available_eye_points() -> None:
-    reference = calculate_jodan_reference(
-        {
-            0: {"x": 0.50, "y": 0.30, "visibility": 0.90},
-            1: {"x": 0.30, "y": 0.20, "visibility": 0.80},
-            6: {"x": 0.70, "y": 0.10, "visibility": 0.70},
-        }
-    )
-
-    assert reference is not None
-    assert reference["source"] == "eye_nose_projection"
-    assert reference["x"] == pytest.approx(0.50)
-    assert reference["y"] == pytest.approx(0.45)
-    assert reference["visibility"] == pytest.approx(0.70)
-    assert reference["used_landmarks"] == [1, 6, 0]
-
-
-def test_fallback_to_nose_mouth_projection_when_eyes_are_missing() -> None:
-    reference = calculate_jodan_reference(
-        [
-            _landmark(0, 0.50, 0.30, 0.90),
-            _landmark(9, 0.40, 0.60, 0.60),
-            _landmark(10, 0.60, 0.70, 0.70),
-        ]
-    )
-
-    assert reference is not None
-    assert reference["source"] == "nose_mouth_projection"
-    assert reference["x"] == pytest.approx(0.50)
-    assert reference["y"] == pytest.approx(0.65)
-    assert reference["visibility"] == pytest.approx(0.60)
-    assert reference["confidence"] == "fallback"
-    assert reference["used_landmarks"] == [0, 9, 10]
-
-
-def test_fallback_to_nose_only() -> None:
-    reference = calculate_jodan_reference([_landmark(0, 0.50, 0.30, 0.90)])
-
-    assert reference == {
-        "source": "nose",
-        "x": 0.50,
-        "y": 0.30,
-        "visibility": 0.90,
-        "confidence": "low",
-        "used_landmarks": [0],
-        "notes": (
-            "Approximate experimental Jodan target reference for karate analysis; "
-            "not a medical or anatomical chin estimate."
-        ),
-    }
-
-
-def test_no_usable_head_landmarks_returns_none() -> None:
-    assert calculate_jodan_reference([_landmark(11, 0.1, 0.2, 0.9)]) is None
-
-
-def test_visibility_is_minimum_from_source_landmarks() -> None:
-    reference = calculate_jodan_reference(
-        [_landmark(0, 0.5, 0.3, 0.4), _landmark(2, 0.5, 0.1, 0.9)]
-    )
-
-    assert reference is not None
-    assert reference["visibility"] == pytest.approx(0.4)
-
-
-def _landmark(index: int, x: float, y: float, visibility: float) -> dict[str, float | int]:
+def _landmark(index, x, y, visibility=0.95):
     return {"index": index, "x": x, "y": y, "visibility": visibility}
 
 
-def test_chin_reference_is_preferred_when_supplied() -> None:
+def _face(frame_number, chin_y=None, dy=0.0, outlier=False):
+    anchors = [33, 133, 362, 263, 70, 105]
+    landmarks = [
+        _landmark(i, 0.1 + n * 0.02, 0.20 + dy, 0.9) for n, i in enumerate(anchors)
+    ]
+    if outlier:
+        landmarks[-1]["y"] += 0.30
+    if chin_y is not None:
+        landmarks.append(_landmark(152, 0.50, chin_y, 0.98))
+    return {"frame_number": frame_number, "faces": [{"landmarks": landmarks}]}
+
+
+def _event(index, frame, start=None, end=None):
+    return {
+        "event_index": index,
+        "analysis_frame_number": frame,
+        "start_frame": frame if start is None else start,
+        "end_frame": frame if end is None else end,
+    }
+
+
+def test_same_frame_chin_is_preferred_when_available():
     reference = calculate_jodan_reference(
-        [_landmark(0, 0.1, 0.2, 0.3)],
         chin_reference={
-            "x": 0.51,
-            "y": 0.38,
-            "visibility": 0.99,
+            "x": 0.5,
+            "y": 0.4,
+            "visibility": 0.9,
             "source": "face_mesh_chin_152",
+            "used_landmarks": [152],
         },
+        analysis_frame_number=12,
     )
 
-    assert reference is not None
-    assert reference["source"] == "face_mesh_chin_reference"
-    assert reference["strategy"] == "jodan_target_from_chin_reference"
-    assert reference["target_zone"] == "jodan_lower_face_chin_height"
-    assert reference["chin_reference_source"] == "face_mesh_chin_152"
-    assert reference["used_references"] == ["chin_reference"]
-    assert reference["x"] == pytest.approx(0.51)
-    assert reference["y"] == pytest.approx(0.38)
+    assert reference["source"] == "same_frame_chin"
+    assert reference["confidence"] == "high"
+    assert reference["source_frame_number"] == 12
+    assert reference["analysis_frame_number"] == 12
+
+
+def test_previous_chin_is_projected_using_multiple_head_cluster_anchors():
+    frames = [_face(9, chin_y=0.40, dy=0.0), _face(10, chin_y=None, dy=0.03)]
+    [event] = resolve_jodan_references(frames, [_event(0, 10, 9, 10)])
+
+    reference = event["jodan_reference"]
+    assert reference["source"] == "backward_projected_chin"
+    assert reference["matched_head_anchor_count"] >= 3
+    assert reference["head_cluster_motion_y"] == 0.03
+    assert reference["y"] == 0.43 or abs(reference["y"] - 0.43) < 1e-9
+
+
+def test_outlier_anchor_movement_does_not_dominate_projection():
+    frames = [_face(1, chin_y=0.40), _face(2, chin_y=None, dy=0.02, outlier=True)]
+    [event] = resolve_jodan_references(frames, [_event(0, 2, 1, 2)])
+
+    assert event["jodan_reference"]["source"] == "backward_projected_chin"
+    assert abs(event["jodan_reference"]["head_cluster_motion_y"] - 0.02) < 1e-9
+
+
+def test_disagreeing_head_cluster_anchors_make_reference_unknown():
+    source = _face(1, chin_y=0.40)
+    target = _face(2, chin_y=None)
+    for i, lm in enumerate(target["faces"][0]["landmarks"]):
+        lm["y"] += i * 0.10
+    [event] = resolve_jodan_references([source, target], [_event(0, 2, 1, 2)])
+
+    assert event["jodan_reference"] is None
+    assert event["jodan_reference_status"]["source"] == "unknown"
+
+
+def test_previous_valid_jodan_reference_can_be_projected_forward():
+    frames = [
+        _face(1, chin_y=0.40),
+        _face(2, chin_y=None, dy=0.02),
+        _face(3, chin_y=None, dy=0.04),
+    ]
+    events = resolve_jodan_references(frames, [_event(0, 1), _event(1, 3, 3, 3)])
+
+    assert events[1]["jodan_reference"]["source"] == "previous_jodan_projected"
+    assert events[1]["jodan_reference"]["confidence"] == "low"
+
+
+def test_future_valid_jodan_reference_can_be_projected_backward_with_low_confidence():
+    frames = [_face(1, chin_y=None, dy=0.0), _face(2, chin_y=0.42, dy=0.02)]
+    events = resolve_jodan_references(frames, [_event(0, 1), _event(1, 2)])
+
+    assert events[0]["jodan_reference"]["source"] == "future_jodan_projected"
+    assert events[0]["jodan_reference"]["confidence"] == "low"
+    assert events[0]["jodan_reference"]["source_frame_number"] == 2
+
+
+def test_old_fallback_sources_are_not_produced():
+    reference = calculate_jodan_reference([_landmark(0, 0.5, 0.2)])
+    assert reference is None
+
+    frames = [_face(1, chin_y=None)]
+    [event] = resolve_jodan_references(frames, [_event(0, 1)])
+    assert event["jodan_reference"] is None
+    assert event["jodan_reference_status"]["source"] == "unknown"
