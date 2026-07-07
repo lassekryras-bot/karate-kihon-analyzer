@@ -22,10 +22,10 @@ _MESSAGES: dict[JodanHeightStatus, str] = {
 
 @dataclass(frozen=True)
 class JodanHeightAnalysisResult:
-    """Explainable result from comparing a striking wrist to Jodan height."""
+    """Explainable result from comparing a fist impact point to Jodan height."""
 
     status: JodanHeightStatus
-    wrist_point: dict[str, float] | None
+    impact_point: dict[str, float] | None
     target_point: dict[str, float] | None
     tolerance_px: float | None
     vertical_offset_px: float | None
@@ -39,7 +39,7 @@ class JodanHeightAnalysisResult:
 
 def analyze_jodan_height(
     *,
-    wrist_point: dict[str, Any] | None,
+    impact_point: dict[str, Any] | None,
     shoulder_point: dict[str, Any] | None,
     jodan_reference: dict[str, Any] | None,
     image_height: int | float | None = None,
@@ -52,18 +52,18 @@ def analyze_jodan_height(
     MediaPipe landmark indices or call MediaPipe directly.
     """
 
-    wrist = _point_payload(wrist_point)
+    impact = _point_payload(impact_point)
     shoulder = _point_payload(shoulder_point)
     target = _point_payload(jodan_reference)
     if (
-        wrist is None
+        impact is None
         or shoulder is None
         or target is None
-        or _confidence(wrist) < min_confidence
+        or _confidence(impact) < min_confidence
         or _confidence(shoulder) < min_confidence
         or _confidence(target) < min_confidence
     ):
-        return _result("unknown", wrist, target, None, None)
+        return _result("unknown", impact, target, None, None)
 
     height_scale = _height_scale(image_height)
     body_scale = math.hypot(shoulder["x"] - target["x"], shoulder["y"] - target["y"])
@@ -72,7 +72,7 @@ def analyze_jodan_height(
     else:
         tolerance = _FALLBACK_IMAGE_TOLERANCE_RATIO
 
-    vertical_offset = wrist["y"] - target["y"]
+    vertical_offset = impact["y"] - target["y"]
     if vertical_offset > tolerance:
         status: JodanHeightStatus = "too_low"
     elif vertical_offset < -tolerance:
@@ -81,7 +81,7 @@ def analyze_jodan_height(
         status = "good"
 
     return _result(
-        status, wrist, target, tolerance * height_scale, vertical_offset * height_scale
+        status, impact, target, tolerance * height_scale, vertical_offset * height_scale
     )
 
 
@@ -91,7 +91,7 @@ def analyze_strike_event_jodan_height(
     """Return a Jodan height analysis dictionary for one strike event."""
 
     return analyze_jodan_height(
-        wrist_point=event.get("wrist"),
+        impact_point=event.get("impact_point"),
         shoulder_point=event.get("shoulder"),
         jodan_reference=event.get("jodan_reference"),
         image_height=image_height,
@@ -116,14 +116,14 @@ def attach_jodan_height_analysis(
 
 def _result(
     status: JodanHeightStatus,
-    wrist: dict[str, float] | None,
+    impact: dict[str, float] | None,
     target: dict[str, float] | None,
     tolerance_px: float | None,
     vertical_offset_px: float | None,
 ) -> JodanHeightAnalysisResult:
     return JodanHeightAnalysisResult(
         status=status,
-        wrist_point=wrist,
+        impact_point=impact,
         target_point=target,
         tolerance_px=tolerance_px,
         vertical_offset_px=vertical_offset_px,

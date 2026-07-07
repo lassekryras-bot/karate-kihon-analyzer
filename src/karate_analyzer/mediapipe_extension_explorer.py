@@ -13,6 +13,7 @@ import math
 from pathlib import Path
 from typing import Any
 
+from karate_analyzer.hand_impact_reference import calculate_striking_hand_impact_point
 from karate_analyzer.jodan_height_analyzer import analyze_strike_event_jodan_height
 from karate_analyzer.jodan_reference import calculate_jodan_reference
 
@@ -244,6 +245,7 @@ def _extract_punch_event_landmarks(
         wrist = _landmark_payload(pose_landmarks.get(wrist_index))
         head_reference = _head_reference_candidate(pose_landmarks)
         jodan_reference = calculate_jodan_reference(pose_landmarks)
+        impact_point = calculate_striking_hand_impact_point(_frame_hands(frame), wrist)
 
         event = {
             "event_index": candidate["event_index"],
@@ -254,12 +256,14 @@ def _extract_punch_event_landmarks(
             "shoulder": shoulder,
             "elbow": elbow,
             "wrist": wrist,
+            "impact_point": impact_point,
             "head_reference_candidate": head_reference,
             "jodan_reference": jodan_reference,
             "visibility": {
                 "shoulder": _visibility(shoulder),
                 "elbow": _visibility(elbow),
                 "wrist": _visibility(wrist),
+                "impact_point": _visibility(impact_point),
                 "head_reference_candidate": (
                     None if head_reference is None else head_reference["visibility"]
                 ),
@@ -310,6 +314,19 @@ def _analyze_frame(frame: dict[str, Any]) -> dict[str, Any]:
         "left": _analyze_side(landmarks, LEFT_SHOULDER, LEFT_ELBOW, LEFT_WRIST),
         "right": _analyze_side(landmarks, RIGHT_SHOULDER, RIGHT_ELBOW, RIGHT_WRIST),
     }
+
+
+def _frame_hands(frame: dict[str, Any]) -> list[dict[str, Any]]:
+    hands = frame.get("hands") or frame.get("hand_landmarks") or []
+    if not hands:
+        return []
+    normalized = []
+    for hand in hands:
+        if isinstance(hand, dict):
+            normalized.append(hand)
+        else:
+            normalized.append({"landmarks": hand})
+    return normalized
 
 
 def _first_pose(frame: dict[str, Any]) -> list[dict[str, Any]]:

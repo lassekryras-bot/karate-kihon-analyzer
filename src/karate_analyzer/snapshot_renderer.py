@@ -80,6 +80,7 @@ class StrikeSnapshotRenderInstructions:
     confidence: float | None = None
     jodan_reference: dict[str, Any] | None = None
     jodan_height_analysis: dict[str, Any] | None = None
+    impact_point: dict[str, Any] | None = None
 
 
 def render_punch_snapshot(
@@ -269,8 +270,8 @@ def _draw_jodan_guides(
         return
 
     shoulder = points.get(indices["shoulder"])
-    wrist = points.get(indices["wrist"])
-    if shoulder is None or wrist is None:
+    impact_point = _normalized_point_to_pixels(instructions.impact_point, image_size)
+    if shoulder is None or impact_point is None:
         return
 
     width, height = image_size
@@ -278,11 +279,11 @@ def _draw_jodan_guides(
         round(float(jodan_reference["x"]) * width),
         round(float(jodan_reference["y"]) * height),
     )
-    ideal_target = (wrist[0], jodan_point[1])
+    ideal_target = impact_point
 
     reach_padding = max(12, round(width * 0.08))
-    line_start_x = max(0, min(jodan_point[0], wrist[0]) - reach_padding)
-    line_end_x = min(width, max(jodan_point[0], wrist[0]) + reach_padding)
+    line_start_x = max(0, min(jodan_point[0], impact_point[0]) - reach_padding)
+    line_end_x = min(width, max(jodan_point[0], impact_point[0]) + reach_padding)
 
     analysis = instructions.jodan_height_analysis or {}
     tolerance_px = analysis.get("tolerance_px")
@@ -326,9 +327,9 @@ def _draw_jodan_guides(
     status = str(analysis.get("status", "unknown"))
     if analysis:
         result_color = _jodan_height_color(status)
-        _draw_point(draw, wrist, result_color, radius=_POINT_RADIUS + 2)
+        _draw_point(draw, impact_point, result_color, radius=_POINT_RADIUS + 2)
         draw.text(
-            (wrist[0] + 8, max(0, wrist[1] - 14)),
+            (impact_point[0] + 8, max(0, impact_point[1] - 14)),
             status.replace("_", " ").upper(),
             fill=result_color,
             font=ImageFont.load_default(),
@@ -339,6 +340,15 @@ def _draw_jodan_guides(
         fill=_TEXT_COLOR,
         font=ImageFont.load_default(),
     )
+
+
+def _normalized_point_to_pixels(
+    point: dict[str, Any] | None, image_size: tuple[int, int]
+) -> tuple[int, int] | None:
+    if not point or point.get("x") is None or point.get("y") is None:
+        return None
+    width, height = image_size
+    return round(float(point["x"]) * width), round(float(point["y"]) * height)
 
 
 def _jodan_height_color(status: str) -> str:
@@ -404,8 +414,8 @@ def _draw_strike_text_panel(
         lines.extend(
             [
                 "Purple Jodan target",
-                "Yellow optimal punch line",
-                "Orange actual strike arm",
+                "Yellow impact punch line",
+                "Orange skeleton strike arm",
             ]
         )
     if instructions.jodan_height_analysis is not None:
@@ -474,6 +484,7 @@ def _instructions_from_event(event: dict[str, Any]) -> StrikeSnapshotRenderInstr
         confidence=None if confidence is None else float(confidence),
         jodan_reference=event.get("jodan_reference"),
         jodan_height_analysis=(event.get("analysis") or {}).get("jodan_height"),
+        impact_point=event.get("impact_point"),
     )
 
 
@@ -490,6 +501,7 @@ def _with_timestamp_from_metadata(
         confidence=instructions.confidence,
         jodan_reference=instructions.jodan_reference,
         jodan_height_analysis=instructions.jodan_height_analysis,
+        impact_point=instructions.impact_point,
     )
 
 
@@ -501,6 +513,9 @@ def _landmarks_from_event(event: dict[str, Any]) -> list[dict[str, Any]]:
         landmark = event.get(name)
         if landmark is not None:
             landmarks.append({"index": indices.get(name), **landmark})
+    impact = event.get("impact_point")
+    if impact is not None:
+        landmarks.append({"index": None, **impact})
     head = event.get("head_reference_candidate")
     if head is not None:
         head_index = 0 if head.get("source") == "nose" else None

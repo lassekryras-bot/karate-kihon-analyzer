@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import json
 import os
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Iterable
 
@@ -35,10 +35,15 @@ class DetectionResult:
     timestamp_ms: int | None
     pose_landmarks: list[list[dict[str, float | int]]]
     pose_world_landmarks: list[list[dict[str, float | int]]]
+    hand_landmarks: list[dict[str, Any]] = field(default_factory=list)
 
     @property
     def has_pose(self) -> bool:
         return bool(self.pose_landmarks)
+
+    @property
+    def has_hands(self) -> bool:
+        return bool(self.hand_landmarks)
 
 
 def analyze_image(image_path: Path, output_directory: Path) -> dict[str, Any]:
@@ -60,8 +65,10 @@ def analyze_image(image_path: Path, output_directory: Path) -> dict[str, Any]:
         "source": str(image_path),
         "kind": "image",
         "pose_detected": detection.has_pose,
+        "hand_detected": detection.has_hands,
         "poses": detection.pose_landmarks,
         "world_poses": detection.pose_world_landmarks,
+        "hands": detection.hand_landmarks,
     }
     _write_json(output_directory / "image_landmarks.json", payload)
 
@@ -104,13 +111,19 @@ def analyze_video(video_path: Path, output_directory: Path) -> dict[str, Any]:
                     "timestamp_ms": timestamp_ms,
                     "timestamp_seconds": timestamp_ms / 1000,
                     "pose_detected": detection.has_pose,
+                    "hand_detected": detection.has_hands,
                     "poses": detection.pose_landmarks,
                     "world_poses": detection.pose_world_landmarks,
+                    "hands": detection.hand_landmarks,
                 }
                 frames.append(frame_payload)
                 if detection.has_pose:
-                    debug_image = _draw_landmarks(frame_bgr, detection.pose_landmarks[0])
-                    first_debug = first_debug if first_debug is not None else debug_image
+                    debug_image = _draw_landmarks(
+                        frame_bgr, detection.pose_landmarks[0]
+                    )
+                    first_debug = (
+                        first_debug if first_debug is not None else debug_image
+                    )
                     last_debug = debug_image
                 frame_number += 1
     finally:
@@ -124,6 +137,9 @@ def analyze_video(video_path: Path, output_directory: Path) -> dict[str, Any]:
         "kind": "video",
         "frame_count": len(frames),
         "detected_frame_count": sum(1 for frame in frames if frame["pose_detected"]),
+        "hand_detected_frame_count": sum(
+            1 for frame in frames if frame["hand_detected"]
+        ),
         "frames": frames,
     }
     _write_json(output_directory / "video_landmarks.json", payload)
@@ -144,8 +160,12 @@ def run_default_workflow(
 ) -> None:
     """Run the spike from explicit paths or the default input directories."""
 
-    image_path = image_path or _first_existing_file(DEFAULT_IMAGE_INPUT, IMAGE_EXTENSIONS)
-    video_path = video_path or _first_existing_file(DEFAULT_VIDEO_INPUT, VIDEO_EXTENSIONS)
+    image_path = image_path or _first_existing_file(
+        DEFAULT_IMAGE_INPUT, IMAGE_EXTENSIONS
+    )
+    video_path = video_path or _first_existing_file(
+        DEFAULT_VIDEO_INPUT, VIDEO_EXTENSIONS
+    )
 
     if image_path is None and video_path is None:
         print(
@@ -176,7 +196,9 @@ def _require_file(path: Path, description: str) -> None:
 
 
 def _write_json(path: Path, payload: dict[str, Any]) -> None:
-    path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    path.write_text(
+        json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+    )
 
 
 def _first_existing_file(directory: Path, extensions: Iterable[str]) -> Path | None:
@@ -201,7 +223,9 @@ def _import_cv2() -> Any:
     try:
         import cv2
     except ImportError as exc:
-        raise MediaPipeSpikeError("OpenCV is required for the MediaPipe spike.") from exc
+        raise MediaPipeSpikeError(
+            "OpenCV is required for the MediaPipe spike."
+        ) from exc
     return cv2
 
 
@@ -238,6 +262,25 @@ def _serialize_landmark_groups(
     ]
 
 
+def _serialize_hands(results: Any) -> list[dict[str, Any]]:
+    hand_groups = getattr(results, "multi_hand_landmarks", None) or []
+    handedness_groups = getattr(results, "multi_handedness", None) or []
+    hands = []
+    for index, hand_landmarks in enumerate(hand_groups):
+        hand: dict[str, Any] = {
+            "landmarks": _serialize_landmark_groups([hand_landmarks.landmark])[0]
+        }
+        if index < len(handedness_groups):
+            classifications = getattr(handedness_groups[index], "classification", [])
+            if classifications:
+                hand["handedness"] = {
+                    "label": classifications[0].label,
+                    "score": float(classifications[0].score),
+                }
+        hands.append(hand)
+    return hands
+
+
 def _draw_landmarks(image_bgr: Any, landmarks: list[dict[str, float | int]]) -> Any:
     cv2 = _import_cv2()
     image = image_bgr.copy()
@@ -262,7 +305,9 @@ class _TasksPoseRunner:
             from mediapipe.tasks import python
             from mediapipe.tasks.python import vision
         except ImportError as exc:
-            raise MediaPipeSpikeError("MediaPipe Tasks Vision is not available.") from exc
+            raise MediaPipeSpikeError(
+                "MediaPipe Tasks Vision is not available."
+            ) from exc
 
         self._mp = mp
         self._vision = vision
@@ -273,32 +318,41 @@ class _TasksPoseRunner:
             num_poses=1,
         )
         self._landmarker = vision.PoseLandmarker.create_from_options(options)
+        self._hands = mp.solutions.hands.Hands(static_image_mode=False, max_num_hands=2)
 
     def __enter__(self) -> "_TasksPoseRunner":
         return self
 
     def __exit__(self, *_args: object) -> None:
         self._landmarker.close()
+        self._hands.close()
 
     def detect_image(self, image_bgr: Any) -> DetectionResult:
-        mp_image = self._mp.Image(
-            image_format=self._mp.ImageFormat.SRGB, data=_bgr_to_rgb(image_bgr)
+        rgb = _bgr_to_rgb(image_bgr)
+        mp_image = self._mp.Image(image_format=self._mp.ImageFormat.SRGB, data=rgb)
+        return self._serialize(
+            self._landmarker.detect(mp_image), self._hands.process(rgb), None
         )
-        return self._serialize(self._landmarker.detect(mp_image), None)
 
     def detect_video(self, image_bgr: Any, timestamp_ms: int) -> DetectionResult:
-        mp_image = self._mp.Image(
-            image_format=self._mp.ImageFormat.SRGB, data=_bgr_to_rgb(image_bgr)
-        )
+        rgb = _bgr_to_rgb(image_bgr)
+        mp_image = self._mp.Image(image_format=self._mp.ImageFormat.SRGB, data=rgb)
         return self._serialize(
-            self._landmarker.detect_for_video(mp_image, timestamp_ms), timestamp_ms
+            self._landmarker.detect_for_video(mp_image, timestamp_ms),
+            self._hands.process(rgb),
+            timestamp_ms,
         )
 
-    def _serialize(self, result: Any, timestamp_ms: int | None) -> DetectionResult:
+    def _serialize(
+        self, result: Any, hand_results: Any, timestamp_ms: int | None
+    ) -> DetectionResult:
         return DetectionResult(
             timestamp_ms=timestamp_ms,
             pose_landmarks=_serialize_landmark_groups(result.pose_landmarks),
-            pose_world_landmarks=_serialize_landmark_groups(result.pose_world_landmarks),
+            pose_world_landmarks=_serialize_landmark_groups(
+                result.pose_world_landmarks
+            ),
+            hand_landmarks=_serialize_hands(hand_results),
         )
 
 
@@ -310,12 +364,14 @@ class _SolutionsPoseRunner:
             raise MediaPipeSpikeError("MediaPipe is not available.") from exc
         self._mp = mp
         self._pose = mp.solutions.pose.Pose(static_image_mode=False, model_complexity=1)
+        self._hands = mp.solutions.hands.Hands(static_image_mode=False, max_num_hands=2)
 
     def __enter__(self) -> "_SolutionsPoseRunner":
         return self
 
     def __exit__(self, *_args: object) -> None:
         self._pose.close()
+        self._hands.close()
 
     def detect_image(self, image_bgr: Any) -> DetectionResult:
         return self._detect(image_bgr, None)
@@ -324,19 +380,31 @@ class _SolutionsPoseRunner:
         return self._detect(image_bgr, timestamp_ms)
 
     def _detect(self, image_bgr: Any, timestamp_ms: int | None) -> DetectionResult:
-        results = self._pose.process(_bgr_to_rgb(image_bgr))
-        landmarks = [] if results.pose_landmarks is None else [results.pose_landmarks.landmark]
-        world = [] if results.pose_world_landmarks is None else [results.pose_world_landmarks.landmark]
+        rgb = _bgr_to_rgb(image_bgr)
+        results = self._pose.process(rgb)
+        hand_results = self._hands.process(rgb)
+        landmarks = (
+            [] if results.pose_landmarks is None else [results.pose_landmarks.landmark]
+        )
+        world = (
+            []
+            if results.pose_world_landmarks is None
+            else [results.pose_world_landmarks.landmark]
+        )
+        hands = _serialize_hands(hand_results)
         return DetectionResult(
             timestamp_ms,
             _serialize_landmark_groups(landmarks),
             _serialize_landmark_groups(world),
+            hands,
         )
 
 
 def _model_path() -> Path | None:
     configured = os.environ.get("MEDIAPIPE_POSE_MODEL_PATH")
-    candidates = ([Path(configured)] if configured else []) + list(DEFAULT_MODEL_CANDIDATES)
+    candidates = ([Path(configured)] if configured else []) + list(
+        DEFAULT_MODEL_CANDIDATES
+    )
     return next((candidate for candidate in candidates if candidate.exists()), None)
 
 
