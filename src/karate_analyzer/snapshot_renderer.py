@@ -1,12 +1,16 @@
-"""Deterministic PNG snapshot rendering for completed punch analyses."""
+"""Deterministic PNG snapshot rendering for completed punch analyses and strike events."""
 
 from __future__ import annotations
 
+import json
+from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 
 from PIL import Image, ImageDraw, ImageFont
 
 from karate_analyzer.angle_analyzer import Point2D
+from karate_analyzer.frame_extractor import ExtractedFrameMetadata, extract_frame
 from karate_analyzer.session_analyzer import PunchAnalysis
 
 _BACKGROUND_COLOR = "white"
@@ -17,6 +21,13 @@ _CHIN_POINT_COLOR = "purple"
 _WRIST_POINT_COLOR = "black"
 _TEXT_COLOR = "black"
 
+_LANDMARK_COLOR = "#00D084"
+_BONE_COLOR = "#00A3FF"
+_STRIKE_ARM_COLOR = "#FF5A1F"
+_HEAD_COLOR = "#B026FF"
+_PANEL_FILL = (255, 255, 255, 218)
+_PANEL_OUTLINE = "#222222"
+
 _LOGICAL_X_MIN = -0.2
 _LOGICAL_X_MAX = 1.2
 _LOGICAL_Y_MIN = -0.6
@@ -24,9 +35,41 @@ _LOGICAL_Y_MAX = 0.6
 _MARGIN_RATIO = 0.1
 _MIN_MARGIN = 20
 _POINT_RADIUS = 5
+_LANDMARK_RADIUS = 4
 _LINE_WIDTH = 3
+_BONE_WIDTH = 2
 _TEXT_ORIGIN = (16, 16)
 _TEXT_LINE_SPACING = 16
+
+_BODY_CONNECTIONS = (
+    (11, 12),
+    (11, 13),
+    (13, 15),
+    (12, 14),
+    (14, 16),
+    (11, 23),
+    (12, 24),
+    (23, 24),
+    (23, 25),
+    (25, 27),
+    (24, 26),
+    (26, 28),
+)
+_SIDE_LANDMARK_INDICES = {
+    "left": {"shoulder": 11, "elbow": 13, "wrist": 15},
+    "right": {"shoulder": 12, "elbow": 14, "wrist": 16},
+}
+
+
+@dataclass(frozen=True)
+class StrikeSnapshotRenderInstructions:
+    """Presentation-only instructions for one strike snapshot."""
+
+    strike_number: int
+    strike_side: str
+    peak_frame_number: int | None = None
+    timestamp_seconds: float | None = None
+    confidence: float | None = None
 
 
 def render_punch_snapshot(
@@ -66,6 +109,254 @@ def save_punch_snapshot(
 
     image = render_punch_snapshot(punch, width=width, height=height)
     image.save(output_path, format="PNG")
+
+
+def render_strike_snapshot(
+    background_image: str | Path | Image.Image,
+    landmarks: list[dict[str, Any]],
+    instructions: StrikeSnapshotRenderInstructions,
+) -> Image.Image:
+    """Render strike-event overlays on an extracted video frame.
+
+    This function is deliberately presentation-only. It consumes a background
+    image, landmark dictionaries, and render instructions; it does not decode
+    video, call MediaPipe, detect strikes, or score karate technique.
+    """
+
+    image = _load_background_image(background_image).convert("RGBA")
+    overlay = Image.new("RGBA", image.size, (0, 0, 0, 0))
+    draw = ImageDraw.Draw(overlay)
+
+    points = _landmark_points(landmarks, image.size)
+    _draw_body_connections(draw, points)
+    _draw_all_landmarks(draw, points)
+    _draw_strike_landmarks(draw, points, instructions.strike_side)
+    _draw_head_reference(draw, points, landmarks, image.size)
+    _draw_strike_text_panel(draw, instructions)
+
+    return Image.alpha_composite(image, overlay).convert("RGB")
+
+
+def save_strike_snapshot(
+    background_image: str | Path | Image.Image,
+    landmarks: list[dict[str, Any]],
+    instructions: StrikeSnapshotRenderInstructions,
+    output_path: str | Path,
+) -> None:
+    """Render one strike snapshot and save it as PNG."""
+
+    output = Path(output_path)
+    output.parent.mkdir(parents=True, exist_ok=True)
+    render_strike_snapshot(background_image, landmarks, instructions).save(output, format="PNG")
+
+
+def strike_snapshot_filename(strike_number: int, strike_side: str) -> str:
+    """Return the deterministic PNG filename for a rendered strike event."""
+
+    return f"strike-{strike_number:03d}-{strike_side.lower()}.png"
+
+
+def render_strike_snapshots_from_analysis(
+    *,
+    video_path: str | Path,
+    analysis_path: str | Path,
+    output_directory: str | Path,
+    frame_directory: str | Path | None = None,
+) -> list[Path]:
+    """Extract peak frames and render one annotated PNG for each strike event."""
+
+    video = Path(video_path)
+    analysis = _load_strike_landmark_events(analysis_path)
+    output = Path(output_directory)
+    frames = Path(frame_directory) if frame_directory else output / "extracted-frames"
+    output.mkdir(parents=True, exist_ok=True)
+    frames.mkdir(parents=True, exist_ok=True)
+
+    rendered_paths = []
+    for event in analysis:
+        instructions = _instructions_from_event(event)
+        if instructions.peak_frame_number is None:
+            raise ValueError(f"Strike {instructions.strike_number} is missing peak_frame_number")
+        frame_path = frames / f"frame-{instructions.peak_frame_number:06d}.png"
+        metadata = extract_frame(video, instructions.peak_frame_number, frame_path)
+        instructions = _with_timestamp_from_metadata(instructions, metadata)
+        output_path = output / strike_snapshot_filename(
+            instructions.strike_number, instructions.strike_side
+        )
+        save_strike_snapshot(frame_path, _landmarks_from_event(event), instructions, output_path)
+        rendered_paths.append(output_path)
+
+    if not rendered_paths:
+        raise ValueError(f"No strike events found in analysis file: {analysis_path}")
+    return rendered_paths
+
+
+def _load_background_image(background_image: str | Path | Image.Image) -> Image.Image:
+    if isinstance(background_image, Image.Image):
+        return background_image.copy()
+    with Image.open(background_image) as image:
+        return image.copy()
+
+
+def _landmark_points(
+    landmarks: list[dict[str, Any]], image_size: tuple[int, int]
+) -> dict[int, tuple[int, int]]:
+    width, height = image_size
+    points = {}
+    for landmark in landmarks:
+        index = landmark.get("index")
+        if index is None or landmark.get("x") is None or landmark.get("y") is None:
+            continue
+        points[int(index)] = (
+            round(float(landmark["x"]) * width),
+            round(float(landmark["y"]) * height),
+        )
+    return points
+
+
+def _draw_body_connections(draw: ImageDraw.ImageDraw, points: dict[int, tuple[int, int]]) -> None:
+    for start, end in _BODY_CONNECTIONS:
+        if start in points and end in points:
+            draw.line((points[start], points[end]), fill=_BONE_COLOR, width=_BONE_WIDTH)
+
+
+def _draw_all_landmarks(draw: ImageDraw.ImageDraw, points: dict[int, tuple[int, int]]) -> None:
+    for point in points.values():
+        _draw_point(draw, point, _LANDMARK_COLOR, radius=_LANDMARK_RADIUS)
+
+
+def _draw_strike_landmarks(
+    draw: ImageDraw.ImageDraw, points: dict[int, tuple[int, int]], strike_side: str
+) -> None:
+    indices = _SIDE_LANDMARK_INDICES.get(strike_side.lower())
+    if not indices:
+        return
+    arm_points = [points[index] for index in indices.values() if index in points]
+    if len(arm_points) >= 2:
+        draw.line(arm_points, fill=_STRIKE_ARM_COLOR, width=_LINE_WIDTH)
+    for point in arm_points:
+        _draw_point(draw, point, _STRIKE_ARM_COLOR, radius=_POINT_RADIUS)
+
+
+def _draw_head_reference(
+    draw: ImageDraw.ImageDraw,
+    points: dict[int, tuple[int, int]],
+    landmarks: list[dict[str, Any]],
+    image_size: tuple[int, int],
+) -> None:
+    head_point = points.get(0)
+    if head_point is None:
+        width, height = image_size
+        head = next(
+            (landmark for landmark in landmarks if landmark.get("source") == "mouth_midpoint"),
+            None,
+        )
+        if head and head.get("x") is not None and head.get("y") is not None:
+            head_point = (
+                round(float(head["x"]) * width),
+                round(float(head["y"]) * height),
+            )
+    if head_point is not None:
+        _draw_point(draw, head_point, _HEAD_COLOR, radius=_POINT_RADIUS + 1)
+
+
+def _draw_strike_text_panel(
+    draw: ImageDraw.ImageDraw,
+    instructions: StrikeSnapshotRenderInstructions,
+) -> None:
+    font = ImageFont.load_default()
+    lines = [
+        f"Strike #{instructions.strike_number}",
+        f"Side: {instructions.strike_side.title()}",
+        f"Peak Frame: {_format_optional(instructions.peak_frame_number)}",
+        f"Timestamp: {_format_timestamp(instructions.timestamp_seconds)}",
+        f"Confidence: {_format_confidence(instructions.confidence)}",
+    ]
+    x, y = _TEXT_ORIGIN
+    line_height = _TEXT_LINE_SPACING
+    panel_width = max(_text_length(font, line) for line in lines) + 20
+    panel_height = (line_height * len(lines)) + 16
+    draw.rounded_rectangle(
+        (x - 8, y - 8, x - 8 + panel_width, y - 8 + panel_height),
+        radius=6,
+        fill=_PANEL_FILL,
+        outline=_PANEL_OUTLINE,
+    )
+    for index, line in enumerate(lines):
+        draw.text((x, y + (index * line_height)), line, fill=_TEXT_COLOR, font=font)
+
+
+def _text_length(font: ImageFont.ImageFont, line: str) -> int:
+    try:
+        return round(font.getlength(line))
+    except AttributeError:
+        return font.getsize(line)[0]
+
+
+def _format_optional(value: int | None) -> str:
+    return "Unknown" if value is None else str(value)
+
+
+def _format_timestamp(value: float | None) -> str:
+    return "Unknown" if value is None else f"{value:.3f}s"
+
+
+def _format_confidence(value: float | None) -> str:
+    return "Unknown" if value is None else f"{value:.2f}"
+
+
+def _load_strike_landmark_events(analysis_path: str | Path) -> list[dict[str, Any]]:
+    payload = json.loads(Path(analysis_path).read_text(encoding="utf-8"))
+    if isinstance(payload, list):
+        events = payload
+    elif isinstance(payload, dict):
+        events = payload.get("punch_event_landmarks", [])
+    else:
+        events = []
+    if not isinstance(events, list):
+        raise ValueError("Analysis file must contain a punch_event_landmarks list")
+    return events
+
+
+def _instructions_from_event(event: dict[str, Any]) -> StrikeSnapshotRenderInstructions:
+    visibility = event.get("visibility", {}) or {}
+    confidence = visibility.get("minimum_required_landmark_visibility")
+    return StrikeSnapshotRenderInstructions(
+        strike_number=int(event.get("event_index", 0)),
+        strike_side=str(event.get("observed_side") or event.get("expected_side") or "unknown"),
+        peak_frame_number=event.get("peak_frame_number"),
+        timestamp_seconds=event.get("timestamp_seconds"),
+        confidence=None if confidence is None else float(confidence),
+    )
+
+
+def _with_timestamp_from_metadata(
+    instructions: StrikeSnapshotRenderInstructions, metadata: ExtractedFrameMetadata
+) -> StrikeSnapshotRenderInstructions:
+    if instructions.timestamp_seconds is not None or metadata.timestamp_seconds is None:
+        return instructions
+    return StrikeSnapshotRenderInstructions(
+        strike_number=instructions.strike_number,
+        strike_side=instructions.strike_side,
+        peak_frame_number=instructions.peak_frame_number,
+        timestamp_seconds=metadata.timestamp_seconds,
+        confidence=instructions.confidence,
+    )
+
+
+def _landmarks_from_event(event: dict[str, Any]) -> list[dict[str, Any]]:
+    landmarks = []
+    side = str(event.get("observed_side") or event.get("expected_side") or "").lower()
+    indices = _SIDE_LANDMARK_INDICES.get(side, {})
+    for name in ("shoulder", "elbow", "wrist"):
+        landmark = event.get(name)
+        if landmark is not None:
+            landmarks.append({"index": indices.get(name), **landmark})
+    head = event.get("head_reference_candidate")
+    if head is not None:
+        head_index = 0 if head.get("source") == "nose" else None
+        landmarks.append({"index": head_index, **head})
+    return landmarks
 
 
 def _map_point(point: Point2D, width: int, height: int) -> tuple[int, int]:
@@ -116,14 +407,16 @@ def _draw_point(
     draw: ImageDraw.ImageDraw,
     point: tuple[int, int],
     color: str,
+    *,
+    radius: int = _POINT_RADIUS,
 ) -> None:
     x, y = point
     draw.ellipse(
         (
-            x - _POINT_RADIUS,
-            y - _POINT_RADIUS,
-            x + _POINT_RADIUS,
-            y + _POINT_RADIUS,
+            x - radius,
+            y - radius,
+            x + radius,
+            y + radius,
         ),
         fill=color,
     )
