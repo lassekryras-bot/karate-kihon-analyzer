@@ -233,7 +233,7 @@ def _extract_punch_event_landmarks(
     frames_by_number = {frame.get("frame_number"): frame for frame in raw_frames}
     events = []
     for candidate in punch_event_candidates:
-        observed_side = candidate["observed_side"]
+        observed_side = candidate.get("observed_side") or candidate["expected_side"]
         peak_frame_number = candidate.get("peak_frame_number")
         frame = frames_by_number.get(peak_frame_number, {})
         pose_landmarks = {

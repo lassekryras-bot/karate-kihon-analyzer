@@ -493,3 +493,34 @@ def test_punch_event_landmarks_contains_impact_point_when_hand_landmarks_availab
     assert event["impact_point"]["x"] == pytest.approx(1.0)
     assert event["impact_point"]["y"] == pytest.approx(0.4)
     assert event["analysis"]["jodan_height"]["status"] == "good"
+
+
+def test_punch_event_landmarks_falls_back_to_expected_side_for_impact_matching() -> None:
+    frame = _frame(5, 0.5, left_wrist=(1.0, 0.0), visibility=0.8)
+    frame["hands"] = [
+        {
+            "handedness": {"label": "Right", "score": 0.99},
+            "landmarks": [
+                _landmark(0, 1.0, 0.0, 0.9),
+                _landmark(5, 0.9, 0.38, 0.9),
+                _landmark(9, 1.1, 0.42, 0.8),
+            ],
+        }
+    ]
+
+    payload = _extract_punch_event_landmarks(
+        [frame],
+        [
+            {
+                "event_index": 1,
+                "expected_side": "left",
+                "peak_frame_number": 5,
+                "timestamp_seconds": 0.5,
+            }
+        ],
+    )
+
+    event = payload["punch_event_landmarks"][0]
+    assert event["observed_side"] == "left"
+    assert event["impact_point"]["x"] == pytest.approx(1.0)
+    assert event["impact_point"]["handedness"] == {"label": "Right", "score": 0.99}
