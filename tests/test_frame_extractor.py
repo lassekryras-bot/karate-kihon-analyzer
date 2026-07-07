@@ -156,3 +156,50 @@ def test_cli_uses_deterministic_default_output_path(
     assert result.exit_code == 0
     assert (tmp_path / "output" / "frames" / "frame-000001.png").exists()
     assert "output_path: output/frames/frame-000001.png" in result.stdout
+
+
+def test_render_strike_snapshots_cli_renders_deterministic_output(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    video_path = tmp_path / "tiny.mp4"
+    analysis_path = tmp_path / "punch_event_landmarks.json"
+    output_dir = tmp_path / "rendered"
+    _write_placeholder_video(video_path)
+    analysis_path.write_text(
+        '{"punch_event_landmarks":[{"event_index":1,"observed_side":"right",'
+        '"peak_frame_number":2,"shoulder":{"x":0.6,"y":0.4,"visibility":0.9},'
+        '"elbow":{"x":0.7,"y":0.4,"visibility":0.9},'
+        '"wrist":{"x":0.8,"y":0.4,"visibility":0.9},'
+        '"head_reference_candidate":{"source":"nose","x":0.5,"y":0.2,"visibility":0.9},'
+        '"visibility":{"minimum_required_landmark_visibility":0.9}}]}',
+        encoding="utf-8",
+    )
+
+    def fake_render_pipeline(*, video_path, analysis_path, output_directory, frame_directory=None):
+        output = Path(output_directory)
+        output.mkdir(parents=True, exist_ok=True)
+        rendered = output / "strike-001-right.png"
+        rendered.write_bytes(b"\x89PNG\r\n\x1a\nfake")
+        return [rendered]
+
+    monkeypatch.setattr(
+        "karate_analyzer.snapshot_renderer.render_strike_snapshots_from_analysis",
+        fake_render_pipeline,
+    )
+
+    result = CliRunner().invoke(
+        app,
+        [
+            "render-strike-snapshots",
+            "--video",
+            str(video_path),
+            "--analysis",
+            str(analysis_path),
+            "--output",
+            str(output_dir),
+        ],
+    )
+
+    assert result.exit_code == 0
+    assert (output_dir / "strike-001-right.png").exists()
+    assert "Rendered 1 strike snapshot(s)" in result.stdout

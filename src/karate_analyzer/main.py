@@ -61,6 +61,40 @@ def extract_frame_command(
         typer.echo(f"{key}: {value}")
 
 
+@app.command("render-strike-snapshots")
+def render_strike_snapshots_command(
+    video: Annotated[
+        Path,
+        typer.Option("--video", help="Path to the input video."),
+    ],
+    analysis: Annotated[
+        Path,
+        typer.Option("--analysis", help="Path to punch_event_landmarks.json."),
+    ],
+    output: Annotated[
+        Path,
+        typer.Option("--output", "-o", help="Directory for rendered strike PNG files."),
+    ] = Path("output/rendered-strikes"),
+) -> None:
+    """Extract peak frames and render annotated strike snapshots."""
+    from karate_analyzer.frame_extractor import FrameExtractionError
+    from karate_analyzer.snapshot_renderer import render_strike_snapshots_from_analysis
+
+    try:
+        rendered_paths = render_strike_snapshots_from_analysis(
+            video_path=video,
+            analysis_path=analysis,
+            output_directory=output,
+        )
+    except (FileNotFoundError, FrameExtractionError, ValueError) as exc:
+        typer.echo(f"Strike snapshot rendering failed: {exc}", err=True)
+        raise typer.Exit(code=1) from exc
+
+    typer.echo(f"Rendered {len(rendered_paths)} strike snapshot(s):")
+    for rendered_path in rendered_paths:
+        typer.echo(f"- {rendered_path}")
+
+
 @app.command("mediapipe-spike")
 def mediapipe_spike(
     image: Annotated[
