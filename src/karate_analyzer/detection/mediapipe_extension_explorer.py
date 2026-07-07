@@ -14,9 +14,16 @@ from pathlib import Path
 from typing import Any
 
 from karate_analyzer.references.chin_reference import calculate_chin_reference
-from karate_analyzer.references.hand_impact_reference import calculate_striking_hand_impact_point
-from karate_analyzer.analyzers.jodan_height_analyzer import analyze_strike_event_jodan_height
-from karate_analyzer.references.jodan_reference import calculate_jodan_reference
+from karate_analyzer.references.hand_impact_reference import (
+    calculate_striking_hand_impact_point,
+)
+from karate_analyzer.analyzers.jodan_height_analyzer import (
+    analyze_strike_event_jodan_height,
+)
+from karate_analyzer.references.jodan_reference import (
+    calculate_jodan_reference,
+    resolve_jodan_references,
+)
 
 NOSE = 0
 MOUTH_LEFT = 9
@@ -326,7 +333,7 @@ def _extract_punch_event_landmarks(
         head_reference = _head_reference_candidate(pose_landmarks)
         chin_reference = calculate_chin_reference(_first_face(frame))
         jodan_reference = calculate_jodan_reference(
-            pose_landmarks, chin_reference=chin_reference
+            chin_reference=chin_reference, analysis_frame_number=analysis_frame_number
         )
         impact_point = calculate_striking_hand_impact_point(_frame_hands(frame), wrist)
 
@@ -363,8 +370,17 @@ def _extract_punch_event_landmarks(
                 ),
             },
         }
-        event["analysis"] = {"jodan_height": analyze_strike_event_jodan_height(event)}
         events.append(event)
+
+    events = resolve_jodan_references(raw_frames, events)
+    for event in events:
+        event["visibility"]["chin_reference"] = _visibility(event.get("chin_reference"))
+        event["visibility"]["jodan_reference"] = (
+            None
+            if event.get("jodan_reference") is None
+            else event["jodan_reference"]["visibility"]
+        )
+        event["analysis"] = {"jodan_height": analyze_strike_event_jodan_height(event)}
 
     return {
         "head_reference_candidate": {
@@ -376,8 +392,15 @@ def _extract_punch_event_landmarks(
             "strategy": "face_mesh_chin_with_lower_jaw_fallbacks",
         },
         "jodan_reference": {
-            "status": "experimental",
-            "strategy": "chin_reference_then_eye_nose_projection_with_fallbacks",
+            "status": "chin_first_temporal",
+            "strategy": "same_frame_chin_then_head_cluster_projected_chin",
+            "valid_sources": [
+                "same_frame_chin",
+                "backward_projected_chin",
+                "previous_jodan_projected",
+                "future_jodan_projected",
+                "unknown",
+            ],
         },
         "punch_event_landmarks": events,
     }
