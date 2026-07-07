@@ -1,5 +1,6 @@
 """Command-line interface for the karate kihon analyzer."""
 
+from dataclasses import asdict
 from pathlib import Path
 from typing import Annotated
 
@@ -23,6 +24,41 @@ def analyze(
     typer.echo(f"Input video: {input_video}")
     typer.echo(f"Output directory: {output}")
     typer.echo("Analyzer pipeline is not implemented yet.")
+
+
+@app.command("extract-frame")
+def extract_frame_command(
+    video: Annotated[
+        Path,
+        typer.Option("--video", help="Path to the input video."),
+    ],
+    frame: Annotated[
+        int,
+        typer.Option("--frame", help="Zero-based frame number to extract."),
+    ],
+    output: Annotated[
+        Path | None,
+        typer.Option("--output", "-o", help="Path for the extracted image."),
+    ] = None,
+) -> None:
+    """Extract a single still frame from a video for debugging."""
+    from karate_analyzer.frame_extractor import (
+        FrameExtractionError,
+        default_frame_output_path,
+        extract_frame,
+    )
+
+    output_path = output if output is not None else default_frame_output_path(frame)
+
+    try:
+        metadata = extract_frame(video, frame, output_path)
+    except (FileNotFoundError, FrameExtractionError, ValueError) as exc:
+        typer.echo(f"Frame extraction failed: {exc}", err=True)
+        raise typer.Exit(code=1) from exc
+
+    typer.echo("Extracted frame:")
+    for key, value in asdict(metadata).items():
+        typer.echo(f"{key}: {value}")
 
 
 @app.command("mediapipe-spike")
