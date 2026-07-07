@@ -13,6 +13,8 @@ import math
 from pathlib import Path
 from typing import Any
 
+from karate_analyzer.jodan_reference import calculate_jodan_reference
+
 NOSE = 0
 MOUTH_LEFT = 9
 MOUTH_RIGHT = 10
@@ -213,9 +215,9 @@ def _extract_punch_event_landmarks(
 ) -> dict[str, Any]:
     """Copy peak-frame landmarks needed for later Jodan punch analysis.
 
-    The head reference is intentionally experimental. It uses the nose when
-    available and falls back to the mouth midpoint when both mouth landmarks
-    are present.
+    The legacy head reference is intentionally experimental. The karate-specific
+    Jodan reference is calculated separately so future technique analyzers can
+    consume a target reference without depending directly on raw face landmarks.
     """
 
     frames_by_number = {frame.get("frame_number"): frame for frame in raw_frames}
@@ -230,6 +232,7 @@ def _extract_punch_event_landmarks(
         elbow = _landmark_payload(pose_landmarks.get(elbow_index))
         wrist = _landmark_payload(pose_landmarks.get(wrist_index))
         head_reference = _head_reference_candidate(pose_landmarks)
+        jodan_reference = calculate_jodan_reference(pose_landmarks)
 
         events.append(
             {
@@ -242,12 +245,16 @@ def _extract_punch_event_landmarks(
                 "elbow": elbow,
                 "wrist": wrist,
                 "head_reference_candidate": head_reference,
+                "jodan_reference": jodan_reference,
                 "visibility": {
                     "shoulder": _visibility(shoulder),
                     "elbow": _visibility(elbow),
                     "wrist": _visibility(wrist),
                     "head_reference_candidate": (
                         None if head_reference is None else head_reference["visibility"]
+                    ),
+                    "jodan_reference": (
+                        None if jodan_reference is None else jodan_reference["visibility"]
                     ),
                     "minimum_required_landmark_visibility": _min_visibility(
                         shoulder, elbow, wrist, head_reference
@@ -260,6 +267,10 @@ def _extract_punch_event_landmarks(
         "head_reference_candidate": {
             "status": "experimental",
             "strategy": "nose_then_mouth_midpoint",
+        },
+        "jodan_reference": {
+            "status": "experimental",
+            "strategy": "eye_nose_projection_with_fallbacks",
         },
         "punch_event_landmarks": events,
     }
