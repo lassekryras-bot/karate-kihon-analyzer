@@ -263,3 +263,17 @@ Those concerns should be covered by separate design documents when the project i
 This document should be one of the primary architecture references for the project.
 
 Future contributors should understand that the project analyses Strike Events, not isolated frames. This abstraction is intended to support many martial arts techniques while remaining independent of the underlying computer vision implementation.
+
+## Experimental Jodan Reference Contract
+
+Future Jodan punch analysis should consume a karate-specific `jodan_reference` instead of directly selecting raw anatomical landmarks such as `nose` or `mouth`.
+
+The intended flow is:
+
+1. **Landmark Layer**: raw MediaPipe pose landmarks.
+2. **Body Reference Layer**: derived body/head points such as averaged eye or mouth references.
+3. **Karate Reference Layer**: karate-specific targets such as `jodan_reference`.
+4. **Technique Analysis Layer**: technique-specific evaluation, such as future Jodan height analysis.
+5. **Rendering Layer**: visual overlays for references and feedback.
+
+The first `jodan_reference` strategy is experimental. It prefers an eye-to-nose projection, falls back to a nose-to-mouth projection, then falls back to the nose alone when necessary. This value is an approximate karate target reference, not a medical or anatomical chin estimate.

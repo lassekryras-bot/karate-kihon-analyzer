@@ -259,6 +259,10 @@ def test_punch_event_landmarks_copy_peak_frame_analysis_landmarks() -> None:
         "status": "experimental",
         "strategy": "nose_then_mouth_midpoint",
     }
+    assert payload["jodan_reference"] == {
+        "status": "experimental",
+        "strategy": "eye_nose_projection_with_fallbacks",
+    }
     assert payload["punch_event_landmarks"] == [
         {
             "event_index": 1,
@@ -275,18 +279,31 @@ def test_punch_event_landmarks_copy_peak_frame_analysis_landmarks() -> None:
                 "y": 0.2,
                 "visibility": 0.7,
             },
+            "jodan_reference": {
+                "source": "nose_mouth_projection",
+                "x": 0.2,
+                "y": 0.4,
+                "visibility": 0.6,
+                "confidence": "fallback",
+                "used_landmarks": [0, 9, 10],
+                "notes": (
+                    "Approximate experimental Jodan target reference for karate analysis; "
+                    "not a medical or anatomical chin estimate."
+                ),
+            },
             "visibility": {
                 "shoulder": 0.8,
                 "elbow": 0.8,
                 "wrist": 0.8,
                 "head_reference_candidate": 0.7,
+                "jodan_reference": 0.6,
                 "minimum_required_landmark_visibility": 0.7,
             },
         }
     ]
 
 
-def test_punch_event_landmarks_fall_back_to_mouth_midpoint_when_nose_is_missing() -> None:
+def test_punch_event_landmarks_add_jodan_reference_and_fall_back_to_mouth_midpoint_when_nose_is_missing() -> None:
     raw_frame = _frame(5, 0.5, left_wrist=(1.0, 0.0), visibility=0.8)
     raw_frame["poses"][0] = [
         landmark for landmark in raw_frame["poses"][0] if landmark["index"] != 0
@@ -311,6 +328,7 @@ def test_punch_event_landmarks_fall_back_to_mouth_midpoint_when_nose_is_missing(
         "y": 0.4,
         "visibility": 0.6,
     }
+    assert payload["punch_event_landmarks"][0]["jodan_reference"] is None
 
 
 def _video_payload(_peak_visibility: float) -> dict[str, object]:
