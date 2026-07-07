@@ -320,3 +320,36 @@ def test_render_strike_snapshot_missing_impact_point_does_not_fall_back_to_wrist
 
     assert image.getpixel((150, 210)) != (255, 210, 63)
     assert image.getpixel((240, 210)) == (255, 90, 31)
+
+
+def test_render_strike_snapshot_succeeds_with_chin_reference() -> None:
+    background = Image.new("RGB", (160, 120), "gray")
+    instructions = replace(
+        _strike_instructions(),
+        chin_reference={"x": 0.52, "y": 0.38, "visibility": 1.0},
+        impact_point={"x": 0.80, "y": 0.40, "visibility": 0.9},
+    )
+
+    image = render_strike_snapshot(background, _strike_landmarks(), instructions)
+
+    assert isinstance(image, Image.Image)
+    assert image.size == (160, 120)
+
+
+def test_chin_marker_is_drawn_separately_from_jodan_marker() -> None:
+    background = Image.new("RGB", (300, 300), "gray")
+    instructions = replace(
+        _strike_instructions(),
+        jodan_reference={"x": 0.50, "y": 0.80, "visibility": 1.0},
+        chin_reference={"x": 0.75, "y": 0.75, "visibility": 1.0},
+        impact_point={"x": 0.80, "y": 0.80, "visibility": 0.9},
+    )
+
+    image = render_strike_snapshot(background, _strike_landmarks(), instructions)
+
+    assert _has_pixel(image, (0, 229, 255), x_range=range(220, 236), y_range=range(220, 236))
+    assert _has_pixel(image, (176, 38, 255), x_range=range(145, 156), y_range=range(235, 246))
+
+
+def _has_pixel(image: Image.Image, color: tuple[int, int, int], *, x_range: range, y_range: range) -> bool:
+    return any(image.getpixel((x, y)) == color for x in x_range for y in y_range)

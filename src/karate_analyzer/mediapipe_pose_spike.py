@@ -36,6 +36,7 @@ class DetectionResult:
     pose_landmarks: list[list[dict[str, float | int]]]
     pose_world_landmarks: list[list[dict[str, float | int]]]
     hand_landmarks: list[dict[str, Any]] = field(default_factory=list)
+    face_landmarks: list[dict[str, Any]] = field(default_factory=list)
 
     @property
     def has_pose(self) -> bool:
@@ -44,6 +45,10 @@ class DetectionResult:
     @property
     def has_hands(self) -> bool:
         return bool(self.hand_landmarks)
+
+    @property
+    def has_face(self) -> bool:
+        return bool(self.face_landmarks)
 
 
 def analyze_image(image_path: Path, output_directory: Path) -> dict[str, Any]:
@@ -66,9 +71,11 @@ def analyze_image(image_path: Path, output_directory: Path) -> dict[str, Any]:
         "kind": "image",
         "pose_detected": detection.has_pose,
         "hand_detected": detection.has_hands,
+        "face_detected": detection.has_face,
         "poses": detection.pose_landmarks,
         "world_poses": detection.pose_world_landmarks,
         "hands": detection.hand_landmarks,
+        "faces": detection.face_landmarks,
     }
     _write_json(output_directory / "image_landmarks.json", payload)
 
@@ -112,9 +119,11 @@ def analyze_video(video_path: Path, output_directory: Path) -> dict[str, Any]:
                     "timestamp_seconds": timestamp_ms / 1000,
                     "pose_detected": detection.has_pose,
                     "hand_detected": detection.has_hands,
+                    "face_detected": detection.has_face,
                     "poses": detection.pose_landmarks,
                     "world_poses": detection.pose_world_landmarks,
                     "hands": detection.hand_landmarks,
+                    "faces": detection.face_landmarks,
                 }
                 frames.append(frame_payload)
                 if detection.has_pose:
@@ -139,6 +148,9 @@ def analyze_video(video_path: Path, output_directory: Path) -> dict[str, Any]:
         "detected_frame_count": sum(1 for frame in frames if frame["pose_detected"]),
         "hand_detected_frame_count": sum(
             1 for frame in frames if frame["hand_detected"]
+        ),
+        "face_detected_frame_count": sum(
+            1 for frame in frames if frame["face_detected"]
         ),
         "frames": frames,
     }
@@ -262,6 +274,14 @@ def _serialize_landmark_groups(
     ]
 
 
+def _serialize_faces(results: Any) -> list[dict[str, Any]]:
+    face_groups = getattr(results, "multi_face_landmarks", None) or []
+    return [
+        {"landmarks": _serialize_landmark_groups([face_landmarks.landmark])[0]}
+        for face_landmarks in face_groups
+    ]
+
+
 def _serialize_hands(results: Any) -> list[dict[str, Any]]:
     hand_groups = getattr(results, "multi_hand_landmarks", None) or []
     handedness_groups = getattr(results, "multi_handedness", None) or []
@@ -319,6 +339,9 @@ class _TasksPoseRunner:
         )
         self._landmarker = vision.PoseLandmarker.create_from_options(options)
         self._hands = mp.solutions.hands.Hands(static_image_mode=False, max_num_hands=2)
+        self._face_mesh = mp.solutions.face_mesh.FaceMesh(
+            static_image_mode=False, max_num_faces=1, refine_landmarks=False
+        )
 
     def __enter__(self) -> "_TasksPoseRunner":
         return self
@@ -326,12 +349,16 @@ class _TasksPoseRunner:
     def __exit__(self, *_args: object) -> None:
         self._landmarker.close()
         self._hands.close()
+        self._face_mesh.close()
 
     def detect_image(self, image_bgr: Any) -> DetectionResult:
         rgb = _bgr_to_rgb(image_bgr)
         mp_image = self._mp.Image(image_format=self._mp.ImageFormat.SRGB, data=rgb)
         return self._serialize(
-            self._landmarker.detect(mp_image), self._hands.process(rgb), None
+            self._landmarker.detect(mp_image),
+            self._hands.process(rgb),
+            self._face_mesh.process(rgb),
+            None,
         )
 
     def detect_video(self, image_bgr: Any, timestamp_ms: int) -> DetectionResult:
@@ -340,11 +367,12 @@ class _TasksPoseRunner:
         return self._serialize(
             self._landmarker.detect_for_video(mp_image, timestamp_ms),
             self._hands.process(rgb),
+            self._face_mesh.process(rgb),
             timestamp_ms,
         )
 
     def _serialize(
-        self, result: Any, hand_results: Any, timestamp_ms: int | None
+        self, result: Any, hand_results: Any, face_results: Any, timestamp_ms: int | None
     ) -> DetectionResult:
         return DetectionResult(
             timestamp_ms=timestamp_ms,
@@ -353,6 +381,7 @@ class _TasksPoseRunner:
                 result.pose_world_landmarks
             ),
             hand_landmarks=_serialize_hands(hand_results),
+            face_landmarks=_serialize_faces(face_results),
         )
 
 
@@ -365,6 +394,9 @@ class _SolutionsPoseRunner:
         self._mp = mp
         self._pose = mp.solutions.pose.Pose(static_image_mode=False, model_complexity=1)
         self._hands = mp.solutions.hands.Hands(static_image_mode=False, max_num_hands=2)
+        self._face_mesh = mp.solutions.face_mesh.FaceMesh(
+            static_image_mode=False, max_num_faces=1, refine_landmarks=False
+        )
 
     def __enter__(self) -> "_SolutionsPoseRunner":
         return self
@@ -372,6 +404,7 @@ class _SolutionsPoseRunner:
     def __exit__(self, *_args: object) -> None:
         self._pose.close()
         self._hands.close()
+        self._face_mesh.close()
 
     def detect_image(self, image_bgr: Any) -> DetectionResult:
         return self._detect(image_bgr, None)
@@ -383,6 +416,7 @@ class _SolutionsPoseRunner:
         rgb = _bgr_to_rgb(image_bgr)
         results = self._pose.process(rgb)
         hand_results = self._hands.process(rgb)
+        face_results = self._face_mesh.process(rgb)
         landmarks = (
             [] if results.pose_landmarks is None else [results.pose_landmarks.landmark]
         )
@@ -392,11 +426,13 @@ class _SolutionsPoseRunner:
             else [results.pose_world_landmarks.landmark]
         )
         hands = _serialize_hands(hand_results)
+        faces = _serialize_faces(face_results)
         return DetectionResult(
             timestamp_ms,
             _serialize_landmark_groups(landmarks),
             _serialize_landmark_groups(world),
             hands,
+            faces,
         )
 
 

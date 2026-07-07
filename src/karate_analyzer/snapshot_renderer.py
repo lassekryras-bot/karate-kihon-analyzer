@@ -31,6 +31,7 @@ _BONE_COLOR = "#00A3FF"
 _STRIKE_ARM_COLOR = "#FF5A1F"
 _HEAD_COLOR = "#B026FF"
 _JODAN_COLOR = "#B026FF"
+_CHIN_REFERENCE_COLOR = "#00E5FF"
 _OPTIMAL_PUNCH_LINE_COLOR = "#FFD23F"
 _IDEAL_TARGET_POINT_COLOR = "#FFD23F"
 _PANEL_FILL = (255, 255, 255, 218)
@@ -81,6 +82,7 @@ class StrikeSnapshotRenderInstructions:
     jodan_reference: dict[str, Any] | None = None
     jodan_height_analysis: dict[str, Any] | None = None
     impact_point: dict[str, Any] | None = None
+    chin_reference: dict[str, Any] | None = None
 
 
 def render_punch_snapshot(
@@ -141,6 +143,7 @@ def render_strike_snapshot(
     points = _landmark_points(landmarks, image.size)
     _draw_body_connections(draw, points)
     _draw_all_landmarks(draw, points)
+    _draw_chin_reference(draw, instructions.chin_reference, image.size)
     _draw_jodan_guides(draw, points, instructions, image.size)
     _draw_strike_landmarks(draw, points, instructions.strike_side)
     if instructions.jodan_reference is None:
@@ -250,6 +253,23 @@ def _draw_all_landmarks(
     for point in points.values():
         _draw_point(draw, point, _LANDMARK_COLOR, radius=_LANDMARK_RADIUS)
 
+
+
+def _draw_chin_reference(
+    draw: ImageDraw.ImageDraw,
+    chin_reference: dict[str, Any] | None,
+    image_size: tuple[int, int],
+) -> None:
+    chin_point = _normalized_point_to_pixels(chin_reference, image_size)
+    if chin_point is None:
+        return
+    _draw_point(draw, chin_point, _CHIN_REFERENCE_COLOR, radius=_POINT_RADIUS)
+    draw.text(
+        (chin_point[0] + 8, max(0, chin_point[1] - 14)),
+        "Chin ref",
+        fill=_TEXT_COLOR,
+        font=ImageFont.load_default(),
+    )
 
 def _draw_jodan_guides(
     draw: ImageDraw.ImageDraw,
@@ -485,6 +505,7 @@ def _instructions_from_event(event: dict[str, Any]) -> StrikeSnapshotRenderInstr
         jodan_reference=event.get("jodan_reference"),
         jodan_height_analysis=(event.get("analysis") or {}).get("jodan_height"),
         impact_point=event.get("impact_point"),
+        chin_reference=event.get("chin_reference"),
     )
 
 
@@ -502,6 +523,7 @@ def _with_timestamp_from_metadata(
         jodan_reference=instructions.jodan_reference,
         jodan_height_analysis=instructions.jodan_height_analysis,
         impact_point=instructions.impact_point,
+        chin_reference=instructions.chin_reference,
     )
 
 
@@ -516,6 +538,9 @@ def _landmarks_from_event(event: dict[str, Any]) -> list[dict[str, Any]]:
     impact = event.get("impact_point")
     if impact is not None:
         landmarks.append({"index": None, **impact})
+    chin_reference = event.get("chin_reference")
+    if chin_reference is not None:
+        landmarks.append({"index": None, **chin_reference})
     head = event.get("head_reference_candidate")
     if head is not None:
         head_index = 0 if head.get("source") == "nose" else None

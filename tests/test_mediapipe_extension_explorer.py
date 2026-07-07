@@ -293,7 +293,7 @@ def test_punch_event_landmarks_copy_peak_frame_analysis_landmarks() -> None:
     }
     assert payload["jodan_reference"] == {
         "status": "experimental",
-        "strategy": "eye_nose_projection_with_fallbacks",
+        "strategy": "chin_reference_then_eye_nose_projection_with_fallbacks",
     }
     assert payload["punch_event_landmarks"] == [
         {
@@ -312,6 +312,7 @@ def test_punch_event_landmarks_copy_peak_frame_analysis_landmarks() -> None:
                 "y": 0.2,
                 "visibility": 0.7,
             },
+            "chin_reference": None,
             "jodan_reference": {
                 "source": "nose_mouth_projection",
                 "x": 0.2,
@@ -340,6 +341,7 @@ def test_punch_event_landmarks_copy_peak_frame_analysis_landmarks() -> None:
                 "wrist": 0.8,
                 "impact_point": None,
                 "head_reference_candidate": 0.7,
+                "chin_reference": None,
                 "jodan_reference": 0.6,
                 "minimum_required_landmark_visibility": 0.7,
             },
@@ -524,3 +526,46 @@ def test_punch_event_landmarks_falls_back_to_expected_side_for_impact_matching()
     assert event["observed_side"] == "left"
     assert event["impact_point"]["x"] == pytest.approx(1.0)
     assert event["impact_point"]["handedness"] == {"label": "Right", "score": 0.99}
+
+
+def test_punch_event_contains_chin_reference_when_face_landmarks_are_present() -> None:
+    frame = _frame(5, 0.5, left_wrist=(1.0, 0.0), visibility=0.8)
+    frame["faces"] = [{"landmarks": [{"index": 152, "x": 0.51, "y": 0.38, "z": -0.02}]}]
+
+    payload = _extract_punch_event_landmarks(
+        [frame],
+        [
+            {
+                "event_index": 1,
+                "expected_side": "left",
+                "observed_side": "left",
+                "peak_frame_number": 5,
+                "timestamp_seconds": 0.5,
+            }
+        ],
+    )
+
+    event = payload["punch_event_landmarks"][0]
+    assert event["chin_reference"]["source"] == "face_mesh_chin_152"
+    assert event["visibility"]["chin_reference"] == pytest.approx(1.0)
+    assert event["jodan_reference"]["source"] == "face_mesh_chin_reference"
+    assert event["jodan_reference"]["y"] == pytest.approx(0.38)
+
+
+def test_punch_event_still_works_without_face_landmarks() -> None:
+    payload = _extract_punch_event_landmarks(
+        [_frame(5, 0.5, left_wrist=(1.0, 0.0), visibility=0.8)],
+        [
+            {
+                "event_index": 1,
+                "expected_side": "left",
+                "observed_side": "left",
+                "peak_frame_number": 5,
+                "timestamp_seconds": 0.5,
+            }
+        ],
+    )
+
+    event = payload["punch_event_landmarks"][0]
+    assert event["chin_reference"] is None
+    assert event["jodan_reference"]["source"] == "nose_mouth_projection"
