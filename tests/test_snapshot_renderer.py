@@ -148,6 +148,39 @@ def test_render_strike_snapshot_succeeds_without_jodan_reference() -> None:
     assert image.size == (160, 120)
 
 
+def test_render_strike_snapshot_does_not_draw_legacy_head_reference_when_jodan_exists() -> None:
+    background = Image.new("RGB", (200, 240), "gray")
+    landmarks = [
+        {"index": 0, "x": 0.10, "y": 0.90, "visibility": 0.95},
+        {"index": 12, "x": 0.40, "y": 0.50, "visibility": 0.95},
+        {"index": 14, "x": 0.48, "y": 0.52, "visibility": 0.92},
+        {"index": 16, "x": 0.58, "y": 0.50, "visibility": 0.91},
+    ]
+    instructions = replace(
+        _strike_instructions(),
+        jodan_reference={"x": 0.25, "y": 0.35, "visibility": 0.96},
+    )
+
+    image = render_strike_snapshot(background, landmarks, instructions)
+
+    assert image.getpixel((20, 216)) == (0, 208, 132)
+
+
+def test_render_strike_snapshot_draws_legacy_head_reference_without_jodan() -> None:
+    background = Image.new("RGB", (200, 240), "gray")
+    landmarks = [
+        {"index": 0, "x": 0.10, "y": 0.90, "visibility": 0.95},
+        {"index": 12, "x": 0.40, "y": 0.50, "visibility": 0.95},
+        {"index": 14, "x": 0.48, "y": 0.52, "visibility": 0.92},
+        {"index": 16, "x": 0.58, "y": 0.50, "visibility": 0.91},
+    ]
+    instructions = replace(_strike_instructions(), jodan_reference=None)
+
+    image = render_strike_snapshot(background, landmarks, instructions)
+
+    assert image.getpixel((20, 216)) == (176, 38, 255)
+
+
 def test_render_strike_snapshot_overlay_does_not_require_mediapipe(monkeypatch) -> None:
     import sys
 

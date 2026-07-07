@@ -136,7 +136,8 @@ def render_strike_snapshot(
     _draw_all_landmarks(draw, points)
     _draw_jodan_guides(draw, points, instructions, image.size)
     _draw_strike_landmarks(draw, points, instructions.strike_side)
-    _draw_head_reference(draw, points, landmarks, image.size)
+    if instructions.jodan_reference is None:
+        _draw_head_reference(draw, points, landmarks, image.size)
     _draw_strike_text_panel(draw, instructions)
 
     return Image.alpha_composite(image, overlay).convert("RGB")
@@ -268,6 +269,12 @@ def _draw_jodan_guides(
     draw.line((shoulder, ideal_target), fill=_OPTIMAL_PUNCH_LINE_COLOR, width=_LINE_WIDTH)
     _draw_point(draw, jodan_point, _JODAN_COLOR, radius=_POINT_RADIUS + 1)
     _draw_point(draw, ideal_target, _IDEAL_TARGET_POINT_COLOR, radius=_POINT_RADIUS)
+    draw.text(
+        (jodan_point[0] + 8, max(0, jodan_point[1] - 14)),
+        "Jodan",
+        fill=_TEXT_COLOR,
+        font=ImageFont.load_default(),
+    )
 
 
 def _draw_strike_landmarks(
@@ -319,7 +326,7 @@ def _draw_strike_text_panel(
     ]
     if instructions.jodan_reference is not None:
         lines.extend(
-            ["Jodan line: purple", "Optimal punch line: yellow", "Actual strike arm: orange"]
+            ["Purple Jodan target", "Yellow optimal punch line", "Orange actual strike arm"]
         )
     x, y = _TEXT_ORIGIN
     line_height = _TEXT_LINE_SPACING
