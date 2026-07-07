@@ -11,19 +11,82 @@ app = typer.Typer(help="Analyze karate kihon videos.")
 
 @app.command()
 def analyze(
-    input_video: Annotated[
-        Path,
-        typer.Argument(help="Path to the input kihon video."),
-    ],
+    input_video: Annotated[Path, typer.Argument(help="Path to the input kihon video.")],
     output: Annotated[
         Path,
         typer.Option("--output", "-o", help="Directory for analyzer output files."),
     ] = Path("output"),
+    smoothing_window: Annotated[
+        int,
+        typer.Option(
+            "--smoothing-window", help="Moving-average window for extension ratios."
+        ),
+    ] = 5,
+    group_threshold: Annotated[
+        float,
+        typer.Option(
+            "--group-threshold", help="Smoothed extension ratio required for grouping."
+        ),
+    ] = 0.90,
+    merge_gap_frames: Annotated[
+        int,
+        typer.Option(
+            "--merge-gap-frames",
+            help="Short below-threshold gaps to merge into a region.",
+        ),
+    ] = 3,
+    min_visibility: Annotated[
+        float,
+        typer.Option(
+            "--min-visibility", help="Minimum landmark visibility for grouped regions."
+        ),
+    ] = 0.5,
 ) -> None:
-    """Placeholder command for the future analyzer pipeline."""
-    typer.echo(f"Input video: {input_video}")
-    typer.echo(f"Output directory: {output}")
-    typer.echo("Analyzer pipeline is not implemented yet.")
+    """Run the end-to-end MVP karate kihon analysis pipeline."""
+    from karate_analyzer.analysis_pipeline import run_analysis_pipeline
+    from karate_analyzer.frame_extractor import FrameExtractionError
+    from karate_analyzer.mediapipe_pose_spike import MediaPipeSpikeError
+
+    try:
+        result = run_analysis_pipeline(
+            input_video=input_video,
+            output_directory=output,
+            smoothing_window=smoothing_window,
+            group_threshold=group_threshold,
+            merge_gap_frames=merge_gap_frames,
+            min_visibility=min_visibility,
+        )
+    except (
+        FileNotFoundError,
+        ValueError,
+        MediaPipeSpikeError,
+        FrameExtractionError,
+    ) as exc:
+        typer.echo(f"Analysis failed: {exc}", err=True)
+        raise typer.Exit(code=1) from exc
+
+    summary = result["summary"]
+    counts = summary["jodan_height"]
+    typer.echo("Analysis complete.")
+    typer.echo("")
+    typer.echo(f"Source video: {summary['source_video']}")
+    typer.echo(f"Output directory: {result['output_directory']}")
+    typer.echo(
+        f"Detected punches: {summary['detected_punch_count']} "
+        f"of expected {summary['expected_punch_count']}"
+    )
+    typer.echo("")
+    typer.echo("Jodan height:")
+    typer.echo(f"- Good: {counts['good']}")
+    typer.echo(f"- Too low: {counts['too_low']}")
+    typer.echo(f"- Too high: {counts['too_high']}")
+    typer.echo(f"- Unknown: {counts['unknown']}")
+    typer.echo("")
+    typer.echo("Wrote:")
+    typer.echo("- summary.json")
+    typer.echo("- analysis_results.json")
+    typer.echo("- report.md")
+    typer.echo("- rendered-strikes/")
 
 
 @app.command("extract-frame")
@@ -99,15 +162,21 @@ def render_strike_snapshots_command(
 def mediapipe_spike(
     image: Annotated[
         Path | None,
-        typer.Option("--image", help="Optional image to process with the MediaPipe spike."),
+        typer.Option(
+            "--image", help="Optional image to process with the MediaPipe spike."
+        ),
     ] = None,
     video: Annotated[
         Path | None,
-        typer.Option("--video", help="Optional video to process with the MediaPipe spike."),
+        typer.Option(
+            "--video", help="Optional video to process with the MediaPipe spike."
+        ),
     ] = None,
     output: Annotated[
         Path,
-        typer.Option("--output", "-o", help="Directory for MediaPipe spike debug files."),
+        typer.Option(
+            "--output", "-o", help="Directory for MediaPipe spike debug files."
+        ),
     ] = Path("output/mediapipe-debug"),
 ) -> None:
     """Run the experimental MediaPipe Pose debug spike."""
@@ -117,7 +186,9 @@ def mediapipe_spike(
     )
 
     try:
-        run_default_workflow(image_path=image, video_path=video, output_directory=output)
+        run_default_workflow(
+            image_path=image, video_path=video, output_directory=output
+        )
     except (FileNotFoundError, MediaPipeSpikeError) as exc:
         typer.echo(f"MediaPipe spike failed: {exc}", err=True)
         raise typer.Exit(code=1) from exc
@@ -135,19 +206,28 @@ def explore_extension(
     ] = Path("output/mediapipe-debug"),
     smoothing_window: Annotated[
         int,
-        typer.Option("--smoothing-window", help="Moving-average window for extension ratios."),
+        typer.Option(
+            "--smoothing-window", help="Moving-average window for extension ratios."
+        ),
     ] = 5,
     group_threshold: Annotated[
         float,
-        typer.Option("--group-threshold", help="Smoothed extension ratio required for grouping."),
+        typer.Option(
+            "--group-threshold", help="Smoothed extension ratio required for grouping."
+        ),
     ] = 0.90,
     merge_gap_frames: Annotated[
         int,
-        typer.Option("--merge-gap-frames", help="Short below-threshold gaps to merge into a region."),
+        typer.Option(
+            "--merge-gap-frames",
+            help="Short below-threshold gaps to merge into a region.",
+        ),
     ] = 3,
     min_visibility: Annotated[
         float,
-        typer.Option("--min-visibility", help="Minimum landmark visibility for grouped regions."),
+        typer.Option(
+            "--min-visibility", help="Minimum landmark visibility for grouped regions."
+        ),
     ] = 0.5,
 ) -> None:
     """Explore wrist-extension signals in MediaPipe spike landmark JSON."""
