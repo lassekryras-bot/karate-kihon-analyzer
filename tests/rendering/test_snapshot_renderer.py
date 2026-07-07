@@ -8,7 +8,7 @@ from PIL import Image, ImageDraw
 
 from karate_analyzer.frame_extractor import ExtractedFrameMetadata
 from karate_analyzer.session_analyzer import analyze_session
-from karate_analyzer.snapshot_renderer import (
+from karate_analyzer.rendering.snapshot_renderer import (
     StrikeSnapshotRenderInstructions,
     render_punch_snapshot,
     render_strike_snapshot,
@@ -266,7 +266,7 @@ def test_render_strike_snapshots_from_analysis_extracts_renders_and_names_files(
         )
 
     monkeypatch.setattr(
-        "karate_analyzer.snapshot_renderer.extract_frame", fake_extract_frame
+        "karate_analyzer.rendering.snapshot_renderer.extract_frame", fake_extract_frame
     )
 
     rendered_paths = render_strike_snapshots_from_analysis(

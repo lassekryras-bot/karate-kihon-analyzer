@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pytest
 
-from karate_analyzer.chin_reference import calculate_chin_reference
+from karate_analyzer.references.chin_reference import calculate_chin_reference
 
 
 def test_uses_landmark_152_when_present() -> None:
