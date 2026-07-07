@@ -253,21 +253,49 @@ def test_punch_event_candidates_ignore_initial_region_and_alternate_expected_sid
     )
 
 
-def test_punch_event_candidates_keep_first_ten_after_sorting() -> None:
+def test_punch_event_candidates_build_by_expected_side_and_ignore_wrong_side_noise() -> (
+    None
+):
     right_grouped_peaks = [
+        _grouped_peak(start_frame=10, peak_frame_number=12, timestamp_seconds=1.2),
+        _grouped_peak(start_frame=30, peak_frame_number=32, timestamp_seconds=3.2),
+        _grouped_peak(start_frame=50, peak_frame_number=52, timestamp_seconds=5.2),
+    ]
+    left_grouped_peaks = [
         _grouped_peak(
-            start_frame=frame, peak_frame_number=frame, timestamp_seconds=frame / 10
-        )
-        for frame in range(11, 0, -1)
+            start_frame=20,
+            peak_frame_number=21,
+            timestamp_seconds=2.1,
+            region_frame_count=2,
+        ),
+        _grouped_peak(start_frame=40, peak_frame_number=42, timestamp_seconds=4.2),
+        _grouped_peak(start_frame=60, peak_frame_number=62, timestamp_seconds=6.2),
     ]
 
     payload = _extract_punch_event_candidates(
-        [], right_grouped_peaks, expected_count=10, expected_start_side="right"
+        left_grouped_peaks,
+        right_grouped_peaks,
+        expected_count=4,
+        expected_start_side="right",
     )
 
+    assert [event["expected_side"] for event in payload["punch_event_candidates"]] == [
+        "right",
+        "left",
+        "right",
+        "left",
+    ]
+    assert [event["observed_side"] for event in payload["punch_event_candidates"]] == [
+        "right",
+        "left",
+        "right",
+        "left",
+    ]
     assert [
         event["peak_frame_number"] for event in payload["punch_event_candidates"]
-    ] == list(range(1, 11))
+    ] == [12, 42, 52, 62]
+    assert payload["ignored_regions"][0]["observed_side"] == "left"
+    assert payload["ignored_regions"][0]["ignore_reason"] == "region_too_short"
 
 
 def test_punch_event_landmarks_copy_peak_frame_analysis_landmarks() -> None:
@@ -301,6 +329,7 @@ def test_punch_event_landmarks_copy_peak_frame_analysis_landmarks() -> None:
             "expected_side": "left",
             "observed_side": "left",
             "peak_frame_number": 5,
+            "analysis_frame_number": 5,
             "timestamp_seconds": 0.5,
             "shoulder": {"x": 0.0, "y": 0.0, "visibility": 0.8},
             "elbow": {"x": 0.5, "y": 0.0, "visibility": 0.8},
@@ -449,19 +478,58 @@ def _extension_frames(
 
 
 def _grouped_peak(
-    *, start_frame: int, peak_frame_number: int, timestamp_seconds: float
+    *,
+    start_frame: int,
+    peak_frame_number: int,
+    timestamp_seconds: float,
+    region_frame_count: int = 8,
 ) -> dict[str, float | int]:
     return {
         "start_frame": start_frame,
-        "end_frame": peak_frame_number + 2,
+        "end_frame": start_frame + region_frame_count - 1,
         "peak_frame_number": peak_frame_number,
         "timestamp_seconds": timestamp_seconds,
         "extension": 1.0,
         "extension_ratio": 1.0,
         "smoothed_extension_ratio": 0.95,
         "min_visibility": 0.9,
-        "region_frame_count": 3,
+        "region_frame_count": region_frame_count,
     }
+
+
+def test_punch_event_landmarks_choose_nearby_analysis_frame_with_hand_impact() -> None:
+    peak_frame = _frame(5, 0.5, left_wrist=(1.0, 0.0), visibility=0.8)
+    analysis_frame = _frame(6, 0.6, left_wrist=(1.0, 0.0), visibility=0.8)
+    analysis_frame["hands"] = [
+        {
+            "landmarks": [
+                _landmark(0, 1.0, 0.0, 0.9),
+                _landmark(5, 0.9, 0.38, 0.9),
+                _landmark(9, 1.1, 0.42, 0.8),
+            ]
+        }
+    ]
+
+    payload = _extract_punch_event_landmarks(
+        [peak_frame, analysis_frame],
+        [
+            {
+                "event_index": 1,
+                "expected_side": "left",
+                "observed_side": "left",
+                "start_frame": 5,
+                "end_frame": 7,
+                "peak_frame_number": 5,
+                "timestamp_seconds": 0.5,
+            }
+        ],
+    )
+
+    event = payload["punch_event_landmarks"][0]
+    assert event["peak_frame_number"] == 5
+    assert event["analysis_frame_number"] == 6
+    assert event["impact_point"] is not None
+    assert event["timestamp_seconds"] == pytest.approx(0.6)
 
 
 def test_punch_event_landmarks_contains_impact_point_when_hand_landmarks_available() -> (
@@ -497,7 +565,9 @@ def test_punch_event_landmarks_contains_impact_point_when_hand_landmarks_availab
     assert event["analysis"]["jodan_height"]["status"] == "good"
 
 
-def test_punch_event_landmarks_falls_back_to_expected_side_for_impact_matching() -> None:
+def test_punch_event_landmarks_falls_back_to_expected_side_for_impact_matching() -> (
+    None
+):
     frame = _frame(5, 0.5, left_wrist=(1.0, 0.0), visibility=0.8)
     frame["hands"] = [
         {
