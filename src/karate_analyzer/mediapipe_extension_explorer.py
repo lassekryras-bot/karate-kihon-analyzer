@@ -13,6 +13,7 @@ import math
 from pathlib import Path
 from typing import Any
 
+from karate_analyzer.jodan_height_analyzer import analyze_strike_event_jodan_height
 from karate_analyzer.jodan_reference import calculate_jodan_reference
 
 NOSE = 0
@@ -59,7 +60,9 @@ def analyze_extension_json(
     if not input_path.exists():
         raise FileNotFoundError(MISSING_INPUT_MESSAGE)
     if not input_path.is_file():
-        raise FileNotFoundError(f"Expected video_landmarks.json to be a file: {input_path}")
+        raise FileNotFoundError(
+            f"Expected video_landmarks.json to be a file: {input_path}"
+        )
 
     payload = json.loads(input_path.read_text(encoding="utf-8"))
     output_directory.mkdir(parents=True, exist_ok=True)
@@ -118,7 +121,9 @@ def analyze_extension_json(
         "right_candidate_peak_count": len(right_peaks),
         "grouped_left_peak_count": len(left_grouped_peaks),
         "grouped_right_peak_count": len(right_grouped_peaks),
-        "punch_event_candidate_count": len(punch_event_payload["punch_event_candidates"]),
+        "punch_event_candidate_count": len(
+            punch_event_payload["punch_event_candidates"]
+        ),
         "expected_punch_count": DEFAULT_EXPECTED_PUNCH_COUNT,
         "output_files": [
             "extension_by_frame.json",
@@ -139,10 +144,11 @@ def analyze_extension_json(
     _write_json(output_directory / "candidate_peak_frames.json", candidate_peak_payload)
     _write_json(output_directory / "grouped_peak_frames.json", grouped_peak_payload)
     _write_json(output_directory / "punch_event_candidates.json", punch_event_payload)
-    _write_json(output_directory / "punch_event_landmarks.json", punch_event_landmark_payload)
+    _write_json(
+        output_directory / "punch_event_landmarks.json", punch_event_landmark_payload
+    )
 
     return summary
-
 
 
 def _extract_punch_event_candidates(
@@ -166,7 +172,10 @@ def _extract_punch_event_candidates(
 
     ignored_initial_regions = []
     punch_like_regions = []
-    for side, grouped_peaks in (("left", left_grouped_peaks), ("right", right_grouped_peaks)):
+    for side, grouped_peaks in (
+        ("left", left_grouped_peaks),
+        ("right", right_grouped_peaks),
+    ):
         for grouped_peak in grouped_peaks:
             event = {"side": side, **grouped_peak}
             if grouped_peak.get("start_frame") == 0:
@@ -226,7 +235,9 @@ def _extract_punch_event_landmarks(
         observed_side = candidate["observed_side"]
         peak_frame_number = candidate.get("peak_frame_number")
         frame = frames_by_number.get(peak_frame_number, {})
-        pose_landmarks = {landmark.get("index"): landmark for landmark in _first_pose(frame)}
+        pose_landmarks = {
+            landmark.get("index"): landmark for landmark in _first_pose(frame)
+        }
         shoulder_index, elbow_index, wrist_index = _side_landmark_indices(observed_side)
         shoulder = _landmark_payload(pose_landmarks.get(shoulder_index))
         elbow = _landmark_payload(pose_landmarks.get(elbow_index))
@@ -234,34 +245,34 @@ def _extract_punch_event_landmarks(
         head_reference = _head_reference_candidate(pose_landmarks)
         jodan_reference = calculate_jodan_reference(pose_landmarks)
 
-        events.append(
-            {
-                "event_index": candidate["event_index"],
-                "expected_side": candidate["expected_side"],
-                "observed_side": observed_side,
-                "peak_frame_number": peak_frame_number,
-                "timestamp_seconds": candidate.get("timestamp_seconds"),
-                "shoulder": shoulder,
-                "elbow": elbow,
-                "wrist": wrist,
-                "head_reference_candidate": head_reference,
-                "jodan_reference": jodan_reference,
-                "visibility": {
-                    "shoulder": _visibility(shoulder),
-                    "elbow": _visibility(elbow),
-                    "wrist": _visibility(wrist),
-                    "head_reference_candidate": (
-                        None if head_reference is None else head_reference["visibility"]
-                    ),
-                    "jodan_reference": (
-                        None if jodan_reference is None else jodan_reference["visibility"]
-                    ),
-                    "minimum_required_landmark_visibility": _min_visibility(
-                        shoulder, elbow, wrist, head_reference
-                    ),
-                },
-            }
-        )
+        event = {
+            "event_index": candidate["event_index"],
+            "expected_side": candidate["expected_side"],
+            "observed_side": observed_side,
+            "peak_frame_number": peak_frame_number,
+            "timestamp_seconds": candidate.get("timestamp_seconds"),
+            "shoulder": shoulder,
+            "elbow": elbow,
+            "wrist": wrist,
+            "head_reference_candidate": head_reference,
+            "jodan_reference": jodan_reference,
+            "visibility": {
+                "shoulder": _visibility(shoulder),
+                "elbow": _visibility(elbow),
+                "wrist": _visibility(wrist),
+                "head_reference_candidate": (
+                    None if head_reference is None else head_reference["visibility"]
+                ),
+                "jodan_reference": (
+                    None if jodan_reference is None else jodan_reference["visibility"]
+                ),
+                "minimum_required_landmark_visibility": _min_visibility(
+                    shoulder, elbow, wrist, head_reference
+                ),
+            },
+        }
+        event["analysis"] = {"jodan_height": analyze_strike_event_jodan_height(event)}
+        events.append(event)
 
     return {
         "head_reference_candidate": {
@@ -309,7 +320,10 @@ def _first_pose(frame: dict[str, Any]) -> list[dict[str, Any]]:
 
 
 def _analyze_side(
-    landmarks: dict[Any, dict[str, Any]], shoulder_index: int, elbow_index: int, wrist_index: int
+    landmarks: dict[Any, dict[str, Any]],
+    shoulder_index: int,
+    elbow_index: int,
+    wrist_index: int,
 ) -> dict[str, Any]:
     shoulder = _landmark_payload(landmarks.get(shoulder_index))
     elbow = _landmark_payload(landmarks.get(elbow_index))
@@ -347,7 +361,7 @@ def _side_landmark_indices(side: str) -> tuple[int, int, int]:
 
 
 def _head_reference_candidate(
-    landmarks: dict[Any, dict[str, Any]]
+    landmarks: dict[Any, dict[str, Any]],
 ) -> dict[str, float | str] | None:
     nose = _landmark_payload(landmarks.get(NOSE))
     if nose is not None:
@@ -383,7 +397,9 @@ def _visibility(landmark: dict[str, float] | None) -> float | None:
     return None if landmark is None else landmark["visibility"]
 
 
-def _distance_2d(a: dict[str, float] | None, b: dict[str, float] | None) -> float | None:
+def _distance_2d(
+    a: dict[str, float] | None, b: dict[str, float] | None
+) -> float | None:
     if a is None or b is None:
         return None
     return math.hypot(a["x"] - b["x"], a["y"] - b["y"])
@@ -438,7 +454,11 @@ def _find_grouped_peaks(
             for candidate in region_candidates
             if candidate[side]["extension_ratio"] is not None
         ]
-        if region_start_index is not None and region_end_index is not None and peak_candidates:
+        if (
+            region_start_index is not None
+            and region_end_index is not None
+            and peak_candidates
+        ):
             best_frame = min(
                 peak_candidates,
                 key=lambda candidate: (
@@ -456,7 +476,9 @@ def _find_grouped_peaks(
                     "timestamp_seconds": best_frame["timestamp_seconds"],
                     "extension": side_payload["extension"],
                     "extension_ratio": side_payload["extension_ratio"],
-                    "smoothed_extension_ratio": side_payload["smoothed_extension_ratio"],
+                    "smoothed_extension_ratio": side_payload[
+                        "smoothed_extension_ratio"
+                    ],
                     "min_visibility": side_payload["min_visibility"],
                     "region_frame_count": region_end_index - region_start_index + 1,
                 }
@@ -492,7 +514,9 @@ def _find_grouped_peaks(
     return grouped_peaks
 
 
-def _find_candidate_peaks(frames: list[dict[str, Any]], side: str) -> list[dict[str, Any]]:
+def _find_candidate_peaks(
+    frames: list[dict[str, Any]], side: str
+) -> list[dict[str, Any]]:
     peaks: list[dict[str, Any]] = []
     for previous_frame, frame, next_frame in zip(frames, frames[1:], frames[2:]):
         side_payload = frame[side]
@@ -523,7 +547,9 @@ def _find_candidate_peaks(frames: list[dict[str, Any]], side: str) -> list[dict[
 
 
 def _write_json(path: Path, payload: dict[str, Any]) -> None:
-    path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    path.write_text(
+        json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+    )
 
 
 def _write_csv(path: Path, frames: list[dict[str, Any]]) -> None:
@@ -551,11 +577,15 @@ def _write_csv(path: Path, frames: list[dict[str, Any]]) -> None:
                     "pose_detected": frame["pose_detected"],
                     "left_extension": frame["left"]["extension"],
                     "left_extension_ratio": frame["left"]["extension_ratio"],
-                    "left_smoothed_extension_ratio": frame["left"]["smoothed_extension_ratio"],
+                    "left_smoothed_extension_ratio": frame["left"][
+                        "smoothed_extension_ratio"
+                    ],
                     "left_min_visibility": frame["left"]["min_visibility"],
                     "right_extension": frame["right"]["extension"],
                     "right_extension_ratio": frame["right"]["extension_ratio"],
-                    "right_smoothed_extension_ratio": frame["right"]["smoothed_extension_ratio"],
+                    "right_smoothed_extension_ratio": frame["right"][
+                        "smoothed_extension_ratio"
+                    ],
                     "right_min_visibility": frame["right"]["min_visibility"],
                 }
             )

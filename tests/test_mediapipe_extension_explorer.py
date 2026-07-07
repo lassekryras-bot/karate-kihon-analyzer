@@ -24,16 +24,22 @@ from karate_analyzer.mediapipe_extension_explorer import (
 
 
 def test_missing_input_file_raises_helpful_error(tmp_path: Path) -> None:
-    with pytest.raises(FileNotFoundError, match="Run the MediaPipe spike first") as exc_info:
+    with pytest.raises(
+        FileNotFoundError, match="Run the MediaPipe spike first"
+    ) as exc_info:
         analyze_extension_json(tmp_path / "video_landmarks.json", tmp_path / "out")
 
     assert str(exc_info.value) == MISSING_INPUT_MESSAGE
 
 
-def test_analyze_extension_json_writes_outputs_and_calculates_values(tmp_path: Path) -> None:
+def test_analyze_extension_json_writes_outputs_and_calculates_values(
+    tmp_path: Path,
+) -> None:
     input_path = tmp_path / "video_landmarks.json"
     output_directory = tmp_path / "nested" / "debug"
-    input_path.write_text(json.dumps(_video_payload(_peak_visibility=0.9)), encoding="utf-8")
+    input_path.write_text(
+        json.dumps(_video_payload(_peak_visibility=0.9)), encoding="utf-8"
+    )
 
     summary = analyze_extension_json(input_path, output_directory)
 
@@ -54,7 +60,9 @@ def test_analyze_extension_json_writes_outputs_and_calculates_values(tmp_path: P
     assert "punch_event_candidates.json" in summary["output_files"]
     assert "punch_event_landmarks.json" in summary["output_files"]
 
-    extension_payload = json.loads((output_directory / "extension_by_frame.json").read_text())
+    extension_payload = json.loads(
+        (output_directory / "extension_by_frame.json").read_text()
+    )
     peak_left = extension_payload["frames"][1]["left"]
     assert peak_left["extension"] == pytest.approx(1.0)
     assert peak_left["upper_arm_length"] == pytest.approx(0.5)
@@ -63,13 +71,17 @@ def test_analyze_extension_json_writes_outputs_and_calculates_values(tmp_path: P
     assert peak_left["extension_ratio"] == pytest.approx(1.0)
     assert peak_left["min_visibility"] == pytest.approx(0.9)
 
-    with (output_directory / "extension_by_frame.csv").open(encoding="utf-8") as csv_file:
+    with (output_directory / "extension_by_frame.csv").open(
+        encoding="utf-8"
+    ) as csv_file:
         rows = list(csv.DictReader(csv_file))
     assert rows[1]["frame_number"] == "1"
     assert float(rows[1]["left_extension"]) == pytest.approx(1.0)
     assert float(rows[1]["left_extension_ratio"]) == pytest.approx(1.0)
 
-    peak_payload = json.loads((output_directory / "candidate_peak_frames.json").read_text())
+    peak_payload = json.loads(
+        (output_directory / "candidate_peak_frames.json").read_text()
+    )
     left_peaks = peak_payload["sides"][0]["candidate_peaks"]
     assert left_peaks == [
         {
@@ -85,12 +97,16 @@ def test_analyze_extension_json_writes_outputs_and_calculates_values(tmp_path: P
 def test_low_visibility_frame_is_not_selected_as_peak(tmp_path: Path) -> None:
     input_path = tmp_path / "video_landmarks.json"
     output_directory = tmp_path / "debug"
-    input_path.write_text(json.dumps(_video_payload(_peak_visibility=0.49)), encoding="utf-8")
+    input_path.write_text(
+        json.dumps(_video_payload(_peak_visibility=0.49)), encoding="utf-8"
+    )
 
     summary = analyze_extension_json(input_path, output_directory)
 
     assert summary["left_candidate_peak_count"] == 0
-    peak_payload = json.loads((output_directory / "candidate_peak_frames.json").read_text())
+    peak_payload = json.loads(
+        (output_directory / "candidate_peak_frames.json").read_text()
+    )
     assert peak_payload["sides"][0]["candidate_peaks"] == []
 
 
@@ -119,7 +135,9 @@ def test_one_clean_high_region_produces_one_grouped_peak() -> None:
     assert grouped_peaks[0]["peak_frame_number"] == 2
 
 
-def test_multiple_local_maxima_inside_one_region_produce_only_one_grouped_peak() -> None:
+def test_multiple_local_maxima_inside_one_region_produce_only_one_grouped_peak() -> (
+    None
+):
     frames = _extension_frames([0.91, 0.96, 0.93, 0.97, 0.92])
 
     grouped_peaks = _find_grouped_peaks(
@@ -163,21 +181,28 @@ def test_low_visibility_frames_are_ignored_for_grouped_peaks() -> None:
     assert grouped_peaks == []
 
 
-def test_grouped_peak_frames_json_is_written_and_contains_grouped_peaks(tmp_path: Path) -> None:
+def test_grouped_peak_frames_json_is_written_and_contains_grouped_peaks(
+    tmp_path: Path,
+) -> None:
     input_path = tmp_path / "video_landmarks.json"
     output_directory = tmp_path / "debug"
-    input_path.write_text(json.dumps(_video_payload(_peak_visibility=0.9)), encoding="utf-8")
+    input_path.write_text(
+        json.dumps(_video_payload(_peak_visibility=0.9)), encoding="utf-8"
+    )
 
     summary = analyze_extension_json(input_path, output_directory, smoothing_window=1)
 
-    grouped_payload = json.loads((output_directory / "grouped_peak_frames.json").read_text())
+    grouped_payload = json.loads(
+        (output_directory / "grouped_peak_frames.json").read_text()
+    )
     assert summary["grouped_left_peak_count"] == 1
     assert grouped_payload["sides"][0]["side"] == "left"
     assert grouped_payload["sides"][0]["grouped_peaks"][0]["peak_frame_number"] == 1
 
 
-
-def test_punch_event_candidates_ignore_initial_region_and_alternate_expected_sides() -> None:
+def test_punch_event_candidates_ignore_initial_region_and_alternate_expected_sides() -> (
+    None
+):
     left_grouped_peaks = [
         _grouped_peak(start_frame=0, peak_frame_number=0, timestamp_seconds=0.0),
         _grouped_peak(start_frame=20, peak_frame_number=25, timestamp_seconds=2.5),
@@ -188,7 +213,10 @@ def test_punch_event_candidates_ignore_initial_region_and_alternate_expected_sid
     ]
 
     payload = _extract_punch_event_candidates(
-        left_grouped_peaks, right_grouped_peaks, expected_count=10, expected_start_side="right"
+        left_grouped_peaks,
+        right_grouped_peaks,
+        expected_count=10,
+        expected_start_side="right",
     )
 
     assert payload["expected_sequence"] == [
@@ -220,12 +248,16 @@ def test_punch_event_candidates_ignore_initial_region_and_alternate_expected_sid
         "left",
         "right",
     ]
-    assert all(event["matches_expected_side"] for event in payload["punch_event_candidates"])
+    assert all(
+        event["matches_expected_side"] for event in payload["punch_event_candidates"]
+    )
 
 
 def test_punch_event_candidates_keep_first_ten_after_sorting() -> None:
     right_grouped_peaks = [
-        _grouped_peak(start_frame=frame, peak_frame_number=frame, timestamp_seconds=frame / 10)
+        _grouped_peak(
+            start_frame=frame, peak_frame_number=frame, timestamp_seconds=frame / 10
+        )
         for frame in range(11, 0, -1)
     ]
 
@@ -233,9 +265,9 @@ def test_punch_event_candidates_keep_first_ten_after_sorting() -> None:
         [], right_grouped_peaks, expected_count=10, expected_start_side="right"
     )
 
-    assert [event["peak_frame_number"] for event in payload["punch_event_candidates"]] == list(
-        range(1, 11)
-    )
+    assert [
+        event["peak_frame_number"] for event in payload["punch_event_candidates"]
+    ] == list(range(1, 11))
 
 
 def test_punch_event_landmarks_copy_peak_frame_analysis_landmarks() -> None:
@@ -291,6 +323,16 @@ def test_punch_event_landmarks_copy_peak_frame_analysis_landmarks() -> None:
                     "not a medical or anatomical chin estimate."
                 ),
             },
+            "analysis": {
+                "jodan_height": {
+                    "status": "too_high",
+                    "wrist_point": {"x": 1.0, "y": 0.0, "visibility": 0.8},
+                    "target_point": {"x": 0.2, "y": 0.4, "visibility": 0.6},
+                    "tolerance_px": 0.0670820393249937,
+                    "vertical_offset_px": -0.4,
+                    "message": "Punch is too high for Jodan.",
+                }
+            },
             "visibility": {
                 "shoulder": 0.8,
                 "elbow": 0.8,
@@ -303,7 +345,9 @@ def test_punch_event_landmarks_copy_peak_frame_analysis_landmarks() -> None:
     ]
 
 
-def test_punch_event_landmarks_add_jodan_reference_and_fall_back_to_mouth_midpoint_when_nose_is_missing() -> None:
+def test_punch_event_landmarks_add_jodan_reference_and_fall_back_to_mouth_midpoint_when_nose_is_missing() -> (
+    None
+):
     raw_frame = _frame(5, 0.5, left_wrist=(1.0, 0.0), visibility=0.8)
     raw_frame["poses"][0] = [
         landmark for landmark in raw_frame["poses"][0] if landmark["index"] != 0
@@ -369,7 +413,9 @@ def _frame(
     }
 
 
-def _landmark(index: int, x: float, y: float, visibility: float) -> dict[str, float | int]:
+def _landmark(
+    index: int, x: float, y: float, visibility: float
+) -> dict[str, float | int]:
     assert math.isfinite(x)
     assert math.isfinite(y)
     return {"index": index, "x": x, "y": y, "visibility": visibility}

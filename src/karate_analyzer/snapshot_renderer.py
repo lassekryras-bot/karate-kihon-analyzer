@@ -11,6 +11,7 @@ from PIL import Image, ImageDraw, ImageFont
 
 from karate_analyzer.angle_analyzer import Point2D
 from karate_analyzer.frame_extractor import ExtractedFrameMetadata, extract_frame
+from karate_analyzer.jodan_height_analyzer import attach_jodan_height_analysis
 from karate_analyzer.session_analyzer import PunchAnalysis
 
 _BACKGROUND_COLOR = "white"
@@ -20,6 +21,10 @@ _SHOULDER_POINT_COLOR = "blue"
 _CHIN_POINT_COLOR = "purple"
 _WRIST_POINT_COLOR = "black"
 _TEXT_COLOR = "black"
+_JODAN_GOOD_COLOR = "#1EAD49"
+_JODAN_NEEDS_WORK_COLOR = "#FF5A1F"
+_JODAN_UNKNOWN_COLOR = "#777777"
+_TOLERANCE_BAND_COLOR = (176, 38, 255, 42)
 
 _LANDMARK_COLOR = "#00D084"
 _BONE_COLOR = "#00A3FF"
@@ -74,6 +79,7 @@ class StrikeSnapshotRenderInstructions:
     timestamp_seconds: float | None = None
     confidence: float | None = None
     jodan_reference: dict[str, Any] | None = None
+    jodan_height_analysis: dict[str, Any] | None = None
 
 
 def render_punch_snapshot(
@@ -153,7 +159,9 @@ def save_strike_snapshot(
 
     output = Path(output_path)
     output.parent.mkdir(parents=True, exist_ok=True)
-    render_strike_snapshot(background_image, landmarks, instructions).save(output, format="PNG")
+    render_strike_snapshot(background_image, landmarks, instructions).save(
+        output, format="PNG"
+    )
 
 
 def strike_snapshot_filename(strike_number: int, strike_side: str) -> str:
@@ -182,14 +190,21 @@ def render_strike_snapshots_from_analysis(
     for event in analysis:
         instructions = _instructions_from_event(event)
         if instructions.peak_frame_number is None:
-            raise ValueError(f"Strike {instructions.strike_number} is missing peak_frame_number")
+            raise ValueError(
+                f"Strike {instructions.strike_number} is missing peak_frame_number"
+            )
         frame_path = frames / f"frame-{instructions.peak_frame_number:06d}.png"
         metadata = extract_frame(video, instructions.peak_frame_number, frame_path)
-        instructions = _with_timestamp_from_metadata(instructions, metadata)
+        event = attach_jodan_height_analysis(event, image_height=metadata.frame_height)
+        instructions = _with_timestamp_from_metadata(
+            _instructions_from_event(event), metadata
+        )
         output_path = output / strike_snapshot_filename(
             instructions.strike_number, instructions.strike_side
         )
-        save_strike_snapshot(frame_path, _landmarks_from_event(event), instructions, output_path)
+        save_strike_snapshot(
+            frame_path, _landmarks_from_event(event), instructions, output_path
+        )
         rendered_paths.append(output_path)
 
     if not rendered_paths:
@@ -220,13 +235,17 @@ def _landmark_points(
     return points
 
 
-def _draw_body_connections(draw: ImageDraw.ImageDraw, points: dict[int, tuple[int, int]]) -> None:
+def _draw_body_connections(
+    draw: ImageDraw.ImageDraw, points: dict[int, tuple[int, int]]
+) -> None:
     for start, end in _BODY_CONNECTIONS:
         if start in points and end in points:
             draw.line((points[start], points[end]), fill=_BONE_COLOR, width=_BONE_WIDTH)
 
 
-def _draw_all_landmarks(draw: ImageDraw.ImageDraw, points: dict[int, tuple[int, int]]) -> None:
+def _draw_all_landmarks(
+    draw: ImageDraw.ImageDraw, points: dict[int, tuple[int, int]]
+) -> None:
     for point in points.values():
         _draw_point(draw, point, _LANDMARK_COLOR, radius=_LANDMARK_RADIUS)
 
@@ -238,7 +257,11 @@ def _draw_jodan_guides(
     image_size: tuple[int, int],
 ) -> None:
     jodan_reference = instructions.jodan_reference
-    if not jodan_reference or jodan_reference.get("x") is None or jodan_reference.get("y") is None:
+    if (
+        not jodan_reference
+        or jodan_reference.get("x") is None
+        or jodan_reference.get("y") is None
+    ):
         return
 
     indices = _SIDE_LANDMARK_INDICES.get(instructions.strike_side.lower())
@@ -261,20 +284,69 @@ def _draw_jodan_guides(
     line_start_x = max(0, min(jodan_point[0], wrist[0]) - reach_padding)
     line_end_x = min(width, max(jodan_point[0], wrist[0]) + reach_padding)
 
+    analysis = instructions.jodan_height_analysis or {}
+    tolerance_px = analysis.get("tolerance_px")
+    if tolerance_px is not None:
+        tolerance = max(1, round(float(tolerance_px)))
+        draw.rectangle(
+            (
+                line_start_x,
+                jodan_point[1] - tolerance,
+                line_end_x,
+                jodan_point[1] + tolerance,
+            ),
+            fill=_TOLERANCE_BAND_COLOR,
+        )
+        draw.line(
+            (
+                (line_start_x, jodan_point[1] - tolerance),
+                (line_end_x, jodan_point[1] - tolerance),
+            ),
+            fill=_JODAN_COLOR,
+            width=1,
+        )
+        draw.line(
+            (
+                (line_start_x, jodan_point[1] + tolerance),
+                (line_end_x, jodan_point[1] + tolerance),
+            ),
+            fill=_JODAN_COLOR,
+            width=1,
+        )
     draw.line(
         ((line_start_x, jodan_point[1]), (line_end_x, jodan_point[1])),
         fill=_JODAN_COLOR,
         width=_BONE_WIDTH,
     )
-    draw.line((shoulder, ideal_target), fill=_OPTIMAL_PUNCH_LINE_COLOR, width=_LINE_WIDTH)
+    draw.line(
+        (shoulder, ideal_target), fill=_OPTIMAL_PUNCH_LINE_COLOR, width=_LINE_WIDTH
+    )
     _draw_point(draw, jodan_point, _JODAN_COLOR, radius=_POINT_RADIUS + 1)
     _draw_point(draw, ideal_target, _IDEAL_TARGET_POINT_COLOR, radius=_POINT_RADIUS)
+    status = str(analysis.get("status", "unknown"))
+    if analysis:
+        result_color = _jodan_height_color(status)
+        _draw_point(draw, wrist, result_color, radius=_POINT_RADIUS + 2)
+        draw.text(
+            (wrist[0] + 8, max(0, wrist[1] - 14)),
+            status.replace("_", " ").upper(),
+            fill=result_color,
+            font=ImageFont.load_default(),
+        )
     draw.text(
         (jodan_point[0] + 8, max(0, jodan_point[1] - 14)),
         "Jodan",
         fill=_TEXT_COLOR,
         font=ImageFont.load_default(),
     )
+
+
+def _jodan_height_color(status: str) -> str:
+    if status == "good":
+        return _JODAN_GOOD_COLOR
+    if status in {"too_low", "too_high"}:
+        return _JODAN_NEEDS_WORK_COLOR
+    return _JODAN_UNKNOWN_COLOR
 
 
 def _draw_strike_landmarks(
@@ -300,7 +372,11 @@ def _draw_head_reference(
     if head_point is None:
         width, height = image_size
         head = next(
-            (landmark for landmark in landmarks if landmark.get("source") == "mouth_midpoint"),
+            (
+                landmark
+                for landmark in landmarks
+                if landmark.get("source") == "mouth_midpoint"
+            ),
             None,
         )
         if head and head.get("x") is not None and head.get("y") is not None:
@@ -326,8 +402,19 @@ def _draw_strike_text_panel(
     ]
     if instructions.jodan_reference is not None:
         lines.extend(
-            ["Purple Jodan target", "Yellow optimal punch line", "Orange actual strike arm"]
+            [
+                "Purple Jodan target",
+                "Yellow optimal punch line",
+                "Orange actual strike arm",
+            ]
         )
+    if instructions.jodan_height_analysis is not None:
+        result = (
+            str(instructions.jodan_height_analysis.get("status", "unknown"))
+            .replace("_", " ")
+            .upper()
+        )
+        lines.append(f"Jodan Height: {result}")
     x, y = _TEXT_ORIGIN
     line_height = _TEXT_LINE_SPACING
     panel_width = max(_text_length(font, line) for line in lines) + 20
@@ -379,11 +466,14 @@ def _instructions_from_event(event: dict[str, Any]) -> StrikeSnapshotRenderInstr
     confidence = visibility.get("minimum_required_landmark_visibility")
     return StrikeSnapshotRenderInstructions(
         strike_number=int(event.get("event_index", 0)),
-        strike_side=str(event.get("observed_side") or event.get("expected_side") or "unknown"),
+        strike_side=str(
+            event.get("observed_side") or event.get("expected_side") or "unknown"
+        ),
         peak_frame_number=event.get("peak_frame_number"),
         timestamp_seconds=event.get("timestamp_seconds"),
         confidence=None if confidence is None else float(confidence),
         jodan_reference=event.get("jodan_reference"),
+        jodan_height_analysis=(event.get("analysis") or {}).get("jodan_height"),
     )
 
 
@@ -399,6 +489,7 @@ def _with_timestamp_from_metadata(
         timestamp_seconds=metadata.timestamp_seconds,
         confidence=instructions.confidence,
         jodan_reference=instructions.jodan_reference,
+        jodan_height_analysis=instructions.jodan_height_analysis,
     )
 
 
