@@ -78,6 +78,7 @@ class StrikeSnapshotRenderInstructions:
     strike_number: int
     strike_side: str
     peak_frame_number: int | None = None
+    analysis_frame_number: int | None = None
     timestamp_seconds: float | None = None
     confidence: float | None = None
     jodan_reference: dict[str, Any] | None = None
@@ -194,12 +195,17 @@ def render_strike_snapshots_from_analysis(
     rendered_paths = []
     for event in analysis:
         instructions = _instructions_from_event(event)
-        if instructions.peak_frame_number is None:
+        render_frame_number = (
+            instructions.analysis_frame_number
+            if instructions.analysis_frame_number is not None
+            else instructions.peak_frame_number
+        )
+        if render_frame_number is None:
             raise ValueError(
-                f"Strike {instructions.strike_number} is missing peak_frame_number"
+                f"Strike {instructions.strike_number} is missing analysis_frame_number and peak_frame_number"
             )
-        frame_path = frames / f"frame-{instructions.peak_frame_number:06d}.png"
-        metadata = extract_frame(video, instructions.peak_frame_number, frame_path)
+        frame_path = frames / f"frame-{render_frame_number:06d}.png"
+        metadata = extract_frame(video, render_frame_number, frame_path)
         event = attach_jodan_height_analysis(event, image_height=metadata.frame_height)
         instructions = _with_timestamp_from_metadata(
             _instructions_from_event(event), metadata
@@ -255,7 +261,6 @@ def _draw_all_landmarks(
         _draw_point(draw, point, _LANDMARK_COLOR, radius=_LANDMARK_RADIUS)
 
 
-
 def _draw_chin_reference(
     draw: ImageDraw.ImageDraw,
     chin_reference: dict[str, Any] | None,
@@ -271,6 +276,7 @@ def _draw_chin_reference(
         fill=_TEXT_COLOR,
         font=ImageFont.load_default(),
     )
+
 
 def _draw_jodan_guides(
     draw: ImageDraw.ImageDraw,
@@ -457,6 +463,7 @@ def _draw_strike_text_panel(
         f"Strike #{instructions.strike_number}",
         f"Side: {instructions.strike_side.title()}",
         f"Peak Frame: {_format_optional(instructions.peak_frame_number)}",
+        f"Analysis Frame: {_format_optional(instructions.analysis_frame_number)}",
         f"Timestamp: {_format_timestamp(instructions.timestamp_seconds)}",
         f"Confidence: {_format_confidence(instructions.confidence)}",
     ]
@@ -530,6 +537,7 @@ def _instructions_from_event(event: dict[str, Any]) -> StrikeSnapshotRenderInstr
             event.get("observed_side") or event.get("expected_side") or "unknown"
         ),
         peak_frame_number=event.get("peak_frame_number"),
+        analysis_frame_number=event.get("analysis_frame_number"),
         timestamp_seconds=event.get("timestamp_seconds"),
         confidence=None if confidence is None else float(confidence),
         jodan_reference=event.get("jodan_reference"),
@@ -548,6 +556,7 @@ def _with_timestamp_from_metadata(
         strike_number=instructions.strike_number,
         strike_side=instructions.strike_side,
         peak_frame_number=instructions.peak_frame_number,
+        analysis_frame_number=instructions.analysis_frame_number,
         timestamp_seconds=metadata.timestamp_seconds,
         confidence=instructions.confidence,
         jodan_reference=instructions.jodan_reference,
