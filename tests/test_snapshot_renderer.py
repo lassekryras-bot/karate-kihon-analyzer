@@ -4,7 +4,7 @@ from dataclasses import replace
 import json
 from pathlib import Path
 
-from PIL import Image
+from PIL import Image, ImageDraw
 
 from karate_analyzer.frame_extractor import ExtractedFrameMetadata
 from karate_analyzer.session_analyzer import analyze_session
@@ -296,8 +296,77 @@ def test_render_strike_snapshot_draws_punch_line_to_impact_point_not_wrist() -> 
 
     image = render_strike_snapshot(background, landmarks, instructions)
 
-    assert image.getpixel((150, 210)) == (255, 210, 63)
+    assert image.getpixel((150, 210)) == (255, 90, 31)
+    assert image.getpixel((150, 165)) == (255, 210, 63)
     assert image.getpixel((270, 270)) != (255, 210, 63)
+
+
+def test_render_strike_snapshot_draws_actual_punch_line_when_impact_point_exists() -> None:
+    background = Image.new("RGB", (300, 300), "gray")
+    landmarks = [
+        {"index": 12, "x": 0.20, "y": 0.70, "visibility": 0.95},
+        {"index": 14, "x": 0.25, "y": 0.75, "visibility": 0.95},
+        {"index": 16, "x": 0.90, "y": 0.90, "visibility": 0.95},
+    ]
+    instructions = replace(
+        _strike_instructions(),
+        jodan_reference={"x": 0.40, "y": 0.40, "visibility": 0.95},
+        impact_point={"x": 0.80, "y": 0.70, "visibility": 0.95},
+    )
+
+    image = render_strike_snapshot(background, landmarks, instructions)
+
+    assert image.getpixel((150, 210)) == (255, 90, 31)
+
+
+def test_render_strike_snapshot_draws_ideal_target_line_when_jodan_reference_exists() -> None:
+    background = Image.new("RGB", (300, 300), "gray")
+    landmarks = [{"index": 12, "x": 0.20, "y": 0.70, "visibility": 0.95}]
+    instructions = replace(
+        _strike_instructions(),
+        jodan_reference={"x": 0.40, "y": 0.40, "visibility": 0.95},
+        impact_point={"x": 0.80, "y": 0.70, "visibility": 0.95},
+    )
+
+    image = render_strike_snapshot(background, landmarks, instructions)
+
+    assert image.getpixel((150, 165)) == (255, 210, 63)
+
+
+def test_render_strike_snapshot_succeeds_when_actual_and_ideal_lines_overlap() -> None:
+    background = Image.new("RGB", (300, 300), "gray")
+    landmarks = [{"index": 12, "x": 0.20, "y": 0.70, "visibility": 0.95}]
+    instructions = replace(
+        _strike_instructions(),
+        jodan_reference={"x": 0.40, "y": 0.70, "visibility": 0.95},
+        impact_point={"x": 0.80, "y": 0.70, "visibility": 0.95},
+        jodan_height_analysis={"status": "good"},
+    )
+
+    image = render_strike_snapshot(background, landmarks, instructions)
+
+    assert image.getpixel((150, 210)) == (255, 90, 31)
+    assert image.getpixel((150, 207)) == (255, 210, 63)
+
+
+def test_render_strike_snapshot_text_panel_labels_actual_and_ideal_lines(monkeypatch) -> None:
+    drawn_text: list[str] = []
+    original_text = ImageDraw.ImageDraw.text
+
+    def capture_text(self, xy, text, *args, **kwargs):
+        drawn_text.append(str(text))
+        return original_text(self, xy, text, *args, **kwargs)
+
+    monkeypatch.setattr(ImageDraw.ImageDraw, "text", capture_text)
+
+    render_strike_snapshot(
+        Image.new("RGB", (160, 120), "gray"),
+        _strike_landmarks(),
+        _strike_instructions(),
+    )
+
+    assert "Red actual punch line" in drawn_text
+    assert "Yellow ideal punch line" in drawn_text
 
 
 def test_render_strike_snapshot_missing_impact_point_does_not_fall_back_to_wrist_line() -> (
