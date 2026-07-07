@@ -113,6 +113,16 @@ def _analysis_payload():
                     "visibility": 0.96,
                 },
                 "jodan_reference": {"x": 0.50, "y": 0.20, "visibility": 0.96},
+                "analysis": {
+                    "jodan_height": {
+                        "status": "too_low",
+                        "wrist_point": {"x": 0.86, "y": 0.42, "visibility": 0.91},
+                        "target_point": {"x": 0.50, "y": 0.20, "visibility": 0.96},
+                        "tolerance_px": 6.0,
+                        "vertical_offset_px": 26.4,
+                        "message": "Punch is too low for Jodan.",
+                    }
+                },
                 "visibility": {"minimum_required_landmark_visibility": 0.91},
             }
         ]
@@ -122,7 +132,9 @@ def _analysis_payload():
 def test_render_strike_snapshot_accepts_real_extracted_frame() -> None:
     background = Image.new("RGB", (160, 120), "gray")
 
-    image = render_strike_snapshot(background, _strike_landmarks(), _strike_instructions())
+    image = render_strike_snapshot(
+        background, _strike_landmarks(), _strike_instructions()
+    )
 
     assert isinstance(image, Image.Image)
     assert image.size == (160, 120)
@@ -132,7 +144,9 @@ def test_render_strike_snapshot_accepts_real_extracted_frame() -> None:
 def test_render_strike_snapshot_succeeds_with_jodan_reference() -> None:
     background = Image.new("RGB", (160, 120), "gray")
 
-    image = render_strike_snapshot(background, _strike_landmarks(), _strike_instructions())
+    image = render_strike_snapshot(
+        background, _strike_landmarks(), _strike_instructions()
+    )
 
     assert isinstance(image, Image.Image)
     assert image.size == (160, 120)
@@ -148,7 +162,9 @@ def test_render_strike_snapshot_succeeds_without_jodan_reference() -> None:
     assert image.size == (160, 120)
 
 
-def test_render_strike_snapshot_does_not_draw_legacy_head_reference_when_jodan_exists() -> None:
+def test_render_strike_snapshot_does_not_draw_legacy_head_reference_when_jodan_exists() -> (
+    None
+):
     background = Image.new("RGB", (200, 240), "gray")
     landmarks = [
         {"index": 0, "x": 0.10, "y": 0.90, "visibility": 0.95},
@@ -187,17 +203,23 @@ def test_render_strike_snapshot_overlay_does_not_require_mediapipe(monkeypatch) 
     monkeypatch.setitem(sys.modules, "mediapipe", None)
     background = Image.new("RGB", (160, 120), "gray")
 
-    image = render_strike_snapshot(background, _strike_landmarks(), _strike_instructions())
+    image = render_strike_snapshot(
+        background, _strike_landmarks(), _strike_instructions()
+    )
 
     assert isinstance(image, Image.Image)
 
 
-def test_save_strike_snapshot_produces_png_and_creates_output_directory(tmp_path: Path) -> None:
+def test_save_strike_snapshot_produces_png_and_creates_output_directory(
+    tmp_path: Path,
+) -> None:
     background_path = tmp_path / "frame.png"
     output_path = tmp_path / "rendered" / "strike-006-right.png"
     Image.new("RGB", (160, 120), "gray").save(background_path)
 
-    save_strike_snapshot(background_path, _strike_landmarks(), _strike_instructions(), output_path)
+    save_strike_snapshot(
+        background_path, _strike_landmarks(), _strike_instructions(), output_path
+    )
 
     assert output_path.exists()
     assert output_path.read_bytes().startswith(b"\x89PNG\r\n\x1a\n")
@@ -213,7 +235,9 @@ def test_strike_snapshot_filename_is_deterministic() -> None:
 def test_strike_snapshot_text_panel_and_landmarks_change_background() -> None:
     background = Image.new("RGB", (200, 140), "gray")
 
-    image = render_strike_snapshot(background, _strike_landmarks(), _strike_instructions())
+    image = render_strike_snapshot(
+        background, _strike_landmarks(), _strike_instructions()
+    )
 
     assert image.getbbox() == background.getbbox()
     assert image.tobytes() != background.tobytes()
@@ -241,7 +265,9 @@ def test_render_strike_snapshots_from_analysis_extracts_renders_and_names_files(
             timestamp_seconds=frame_number / 30.0,
         )
 
-    monkeypatch.setattr("karate_analyzer.snapshot_renderer.extract_frame", fake_extract_frame)
+    monkeypatch.setattr(
+        "karate_analyzer.snapshot_renderer.extract_frame", fake_extract_frame
+    )
 
     rendered_paths = render_strike_snapshots_from_analysis(
         video_path=video_path,
