@@ -37,14 +37,21 @@ _EXPERIMENTAL_NOTE = (
 
 def calculate_jodan_reference(
     landmarks: list[dict[str, Any]] | dict[Any, Any],
+    *,
+    chin_reference: dict[str, Any] | None = None,
 ) -> dict[str, Any] | None:
-    """Return an experimental karate Jodan target reference from pose landmarks.
+    """Return an experimental karate Jodan target reference.
 
-    The preferred strategy projects from the averaged eye reference through the
+    A normalized Face Mesh chin reference is preferred when supplied. Otherwise,
+    the pose-only fallback projects from the averaged eye reference through the
     nose by the same vector length. If eye landmarks are unavailable, the
     fallback projects from the nose toward the averaged mouth reference. If only
     the nose is usable, the nose is returned as a low-confidence fallback.
     """
+
+    chin_payload = _chin_reference_payload(chin_reference)
+    if chin_payload is not None:
+        return chin_payload
 
     indexed_landmarks = _index_landmarks(landmarks)
     nose = _landmark_payload(indexed_landmarks.get(NOSE))
@@ -163,3 +170,22 @@ def _reference_payload(
         "used_landmarks": used_landmarks,
         "notes": _EXPERIMENTAL_NOTE,
     }
+
+
+def _chin_reference_payload(chin_reference: dict[str, Any] | None) -> dict[str, Any] | None:
+    if not isinstance(chin_reference, dict):
+        return None
+    try:
+        return {
+            "x": float(chin_reference["x"]),
+            "y": float(chin_reference["y"]),
+            "visibility": float(chin_reference.get("visibility", 1.0)),
+            "source": "face_mesh_chin_reference",
+            "strategy": "jodan_target_from_chin_reference",
+            "target_zone": "jodan_lower_face_chin_height",
+            "chin_reference_source": chin_reference["source"],
+            "used_references": ["chin_reference"],
+            "notes": "Jodan target height derived from Face Mesh chin / lower jaw reference.",
+        }
+    except (KeyError, TypeError, ValueError):
+        return None

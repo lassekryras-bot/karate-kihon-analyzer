@@ -13,6 +13,7 @@ import math
 from pathlib import Path
 from typing import Any
 
+from karate_analyzer.chin_reference import calculate_chin_reference
 from karate_analyzer.hand_impact_reference import calculate_striking_hand_impact_point
 from karate_analyzer.jodan_height_analyzer import analyze_strike_event_jodan_height
 from karate_analyzer.jodan_reference import calculate_jodan_reference
@@ -244,7 +245,10 @@ def _extract_punch_event_landmarks(
         elbow = _landmark_payload(pose_landmarks.get(elbow_index))
         wrist = _landmark_payload(pose_landmarks.get(wrist_index))
         head_reference = _head_reference_candidate(pose_landmarks)
-        jodan_reference = calculate_jodan_reference(pose_landmarks)
+        chin_reference = calculate_chin_reference(_first_face(frame))
+        jodan_reference = calculate_jodan_reference(
+            pose_landmarks, chin_reference=chin_reference
+        )
         impact_point = calculate_striking_hand_impact_point(_frame_hands(frame), wrist)
 
         event = {
@@ -258,6 +262,7 @@ def _extract_punch_event_landmarks(
             "wrist": wrist,
             "impact_point": impact_point,
             "head_reference_candidate": head_reference,
+            "chin_reference": chin_reference,
             "jodan_reference": jodan_reference,
             "visibility": {
                 "shoulder": _visibility(shoulder),
@@ -267,6 +272,7 @@ def _extract_punch_event_landmarks(
                 "head_reference_candidate": (
                     None if head_reference is None else head_reference["visibility"]
                 ),
+                "chin_reference": _visibility(chin_reference),
                 "jodan_reference": (
                     None if jodan_reference is None else jodan_reference["visibility"]
                 ),
@@ -283,9 +289,13 @@ def _extract_punch_event_landmarks(
             "status": "experimental",
             "strategy": "nose_then_mouth_midpoint",
         },
+        "chin_reference": {
+            "status": "optional",
+            "strategy": "face_mesh_chin_with_lower_jaw_fallbacks",
+        },
         "jodan_reference": {
             "status": "experimental",
-            "strategy": "eye_nose_projection_with_fallbacks",
+            "strategy": "chin_reference_then_eye_nose_projection_with_fallbacks",
         },
         "punch_event_landmarks": events,
     }
@@ -334,6 +344,16 @@ def _first_pose(frame: dict[str, Any]) -> list[dict[str, Any]]:
     if not poses:
         return []
     return poses[0]
+
+
+def _first_face(frame: dict[str, Any]) -> list[dict[str, Any]] | dict[Any, Any] | None:
+    faces = frame.get("faces") or frame.get("face_landmarks") or []
+    if not faces:
+        return None
+    first = faces[0]
+    if isinstance(first, dict):
+        return first.get("landmarks", first)
+    return first
 
 
 def _analyze_side(

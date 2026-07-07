@@ -95,3 +95,24 @@ def test_visibility_is_minimum_from_source_landmarks() -> None:
 
 def _landmark(index: int, x: float, y: float, visibility: float) -> dict[str, float | int]:
     return {"index": index, "x": x, "y": y, "visibility": visibility}
+
+
+def test_chin_reference_is_preferred_when_supplied() -> None:
+    reference = calculate_jodan_reference(
+        [_landmark(0, 0.1, 0.2, 0.3)],
+        chin_reference={
+            "x": 0.51,
+            "y": 0.38,
+            "visibility": 0.99,
+            "source": "face_mesh_chin_152",
+        },
+    )
+
+    assert reference is not None
+    assert reference["source"] == "face_mesh_chin_reference"
+    assert reference["strategy"] == "jodan_target_from_chin_reference"
+    assert reference["target_zone"] == "jodan_lower_face_chin_height"
+    assert reference["chin_reference_source"] == "face_mesh_chin_152"
+    assert reference["used_references"] == ["chin_reference"]
+    assert reference["x"] == pytest.approx(0.51)
+    assert reference["y"] == pytest.approx(0.38)
