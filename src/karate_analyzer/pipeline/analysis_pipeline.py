@@ -6,9 +6,13 @@ import json
 from pathlib import Path
 from typing import Any
 
-from karate_analyzer.detection.mediapipe_extension_explorer import analyze_extension_json
+from karate_analyzer.detection.mediapipe_extension_explorer import (
+    analyze_extension_json,
+)
 from karate_analyzer.vision.mediapipe_pose_spike import analyze_video
-from karate_analyzer.rendering.snapshot_renderer import render_strike_snapshots_from_analysis
+from karate_analyzer.rendering.snapshot_renderer import (
+    render_strike_snapshots_from_analysis,
+)
 
 JODAN_STATUSES = ("good", "too_low", "too_high", "unknown")
 
@@ -112,6 +116,16 @@ def _build_analysis_results(
                 "observed_side": event.get("observed_side"),
                 "matches_expected_side": event.get("matches_expected_side"),
                 "peak_frame_number": event.get("peak_frame_number"),
+                "analysis_frame_number": event.get("analysis_frame_number"),
+                "elbow_angle_degrees": event.get("elbow_angle_degrees"),
+                "extension_distance": event.get("extension_distance"),
+                "extension_velocity": event.get("extension_velocity"),
+                "impact_frame_selection_strategy": event.get(
+                    "impact_frame_selection_strategy"
+                ),
+                "impact_frame_reason": event.get("impact_frame_reason"),
+                "strike_region_start_frame": event.get("strike_region_start_frame"),
+                "strike_region_end_frame": event.get("strike_region_end_frame"),
                 "timestamp_seconds": event.get("timestamp_seconds"),
                 "impact_point": event.get("impact_point"),
                 "chin_reference": event.get("chin_reference"),

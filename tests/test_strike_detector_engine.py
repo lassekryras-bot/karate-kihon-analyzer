@@ -1,0 +1,96 @@
+from __future__ import annotations
+
+
+from karate_analyzer.strike_detection import StrikeDetectorEngine
+
+LS, LE, LW = 11, 13, 15
+
+
+def _landmark(index: int, x: float, y: float, visibility: float = 0.9):
+    return {"index": index, "x": x, "y": y, "visibility": visibility}
+
+
+def _frame(number: int, wrist: tuple[float, float]):
+    return {
+        "frame_number": number,
+        "timestamp_seconds": number / 10,
+        "pose_detected": True,
+        "poses": [
+            [
+                _landmark(LS, 0.0, 0.0),
+                _landmark(LE, 0.5, 0.0),
+                _landmark(LW, wrist[0], wrist[1]),
+            ]
+        ],
+    }
+
+
+def test_strike_detector_engine_exists_and_preserves_expected_sequence() -> None:
+    engine = StrikeDetectorEngine()
+    right = [
+        {
+            "start_frame": 10,
+            "end_frame": 18,
+            "peak_frame_number": 15,
+            "timestamp_seconds": 1.5,
+            "region_frame_count": 9,
+            "min_visibility": 0.9,
+            "smoothed_extension_ratio": 0.95,
+        }
+    ]
+    left = [
+        {
+            "start_frame": 20,
+            "end_frame": 28,
+            "peak_frame_number": 25,
+            "timestamp_seconds": 2.5,
+            "region_frame_count": 9,
+            "min_visibility": 0.9,
+            "smoothed_extension_ratio": 0.95,
+        }
+    ]
+
+    payload = engine.extract_strike_event_candidates(
+        left,
+        right,
+        expected_count=2,
+        expected_start_side="right",
+        min_region_frame_count=8,
+        min_region_visibility=0.5,
+        min_smoothed_extension_ratio=0.9,
+    )
+
+    assert [event["observed_side"] for event in payload["strike_event_candidates"]] == [
+        "right",
+        "left",
+    ]
+    assert [event["expected_side"] for event in payload["strike_event_candidates"]] == [
+        "right",
+        "left",
+    ]
+
+
+def test_halfway_frame_and_first_threshold_crossing_are_not_selected() -> None:
+    engine = StrikeDetectorEngine()
+    frames = [
+        _frame(10, (0.18, 0.38)),  # about 130 degrees, early threshold crossing
+        _frame(11, (0.35, 0.30)),
+        _frame(12, (0.82, 0.10)),
+        _frame(13, (0.98, 0.02)),
+        _frame(14, (1.00, 0.00)),
+        _frame(15, (1.00, 0.00)),  # plateau and later tie-breaker
+    ]
+    selection = engine.select_impact_frame(
+        frames,
+        {"start_frame": 10, "end_frame": 15, "peak_frame_number": 10},
+        "left",
+    )
+
+    assert selection["analysis_frame_number"] == 15
+    assert selection["analysis_frame_number"] != 10
+    assert 10 <= selection["analysis_frame_number"] <= 15
+    assert selection["elbow_angle_degrees"] >= 160
+    assert (
+        selection["impact_frame_selection_strategy"]
+        == "elbow_extension_then_extension_plateau_v1"
+    )
