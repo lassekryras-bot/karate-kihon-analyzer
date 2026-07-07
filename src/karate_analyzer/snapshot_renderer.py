@@ -25,6 +25,9 @@ _LANDMARK_COLOR = "#00D084"
 _BONE_COLOR = "#00A3FF"
 _STRIKE_ARM_COLOR = "#FF5A1F"
 _HEAD_COLOR = "#B026FF"
+_JODAN_COLOR = "#B026FF"
+_OPTIMAL_PUNCH_LINE_COLOR = "#FFD23F"
+_IDEAL_TARGET_POINT_COLOR = "#FFD23F"
 _PANEL_FILL = (255, 255, 255, 218)
 _PANEL_OUTLINE = "#222222"
 
@@ -70,6 +73,7 @@ class StrikeSnapshotRenderInstructions:
     peak_frame_number: int | None = None
     timestamp_seconds: float | None = None
     confidence: float | None = None
+    jodan_reference: dict[str, Any] | None = None
 
 
 def render_punch_snapshot(
@@ -130,6 +134,7 @@ def render_strike_snapshot(
     points = _landmark_points(landmarks, image.size)
     _draw_body_connections(draw, points)
     _draw_all_landmarks(draw, points)
+    _draw_jodan_guides(draw, points, instructions, image.size)
     _draw_strike_landmarks(draw, points, instructions.strike_side)
     _draw_head_reference(draw, points, landmarks, image.size)
     _draw_strike_text_panel(draw, instructions)
@@ -225,6 +230,46 @@ def _draw_all_landmarks(draw: ImageDraw.ImageDraw, points: dict[int, tuple[int, 
         _draw_point(draw, point, _LANDMARK_COLOR, radius=_LANDMARK_RADIUS)
 
 
+def _draw_jodan_guides(
+    draw: ImageDraw.ImageDraw,
+    points: dict[int, tuple[int, int]],
+    instructions: StrikeSnapshotRenderInstructions,
+    image_size: tuple[int, int],
+) -> None:
+    jodan_reference = instructions.jodan_reference
+    if not jodan_reference or jodan_reference.get("x") is None or jodan_reference.get("y") is None:
+        return
+
+    indices = _SIDE_LANDMARK_INDICES.get(instructions.strike_side.lower())
+    if not indices:
+        return
+
+    shoulder = points.get(indices["shoulder"])
+    wrist = points.get(indices["wrist"])
+    if shoulder is None or wrist is None:
+        return
+
+    width, height = image_size
+    jodan_point = (
+        round(float(jodan_reference["x"]) * width),
+        round(float(jodan_reference["y"]) * height),
+    )
+    ideal_target = (wrist[0], jodan_point[1])
+
+    reach_padding = max(12, round(width * 0.08))
+    line_start_x = max(0, min(jodan_point[0], wrist[0]) - reach_padding)
+    line_end_x = min(width, max(jodan_point[0], wrist[0]) + reach_padding)
+
+    draw.line(
+        ((line_start_x, jodan_point[1]), (line_end_x, jodan_point[1])),
+        fill=_JODAN_COLOR,
+        width=_BONE_WIDTH,
+    )
+    draw.line((shoulder, ideal_target), fill=_OPTIMAL_PUNCH_LINE_COLOR, width=_LINE_WIDTH)
+    _draw_point(draw, jodan_point, _JODAN_COLOR, radius=_POINT_RADIUS + 1)
+    _draw_point(draw, ideal_target, _IDEAL_TARGET_POINT_COLOR, radius=_POINT_RADIUS)
+
+
 def _draw_strike_landmarks(
     draw: ImageDraw.ImageDraw, points: dict[int, tuple[int, int]], strike_side: str
 ) -> None:
@@ -272,6 +317,10 @@ def _draw_strike_text_panel(
         f"Timestamp: {_format_timestamp(instructions.timestamp_seconds)}",
         f"Confidence: {_format_confidence(instructions.confidence)}",
     ]
+    if instructions.jodan_reference is not None:
+        lines.extend(
+            ["Jodan line: purple", "Optimal punch line: yellow", "Actual strike arm: orange"]
+        )
     x, y = _TEXT_ORIGIN
     line_height = _TEXT_LINE_SPACING
     panel_width = max(_text_length(font, line) for line in lines) + 20
@@ -327,6 +376,7 @@ def _instructions_from_event(event: dict[str, Any]) -> StrikeSnapshotRenderInstr
         peak_frame_number=event.get("peak_frame_number"),
         timestamp_seconds=event.get("timestamp_seconds"),
         confidence=None if confidence is None else float(confidence),
+        jodan_reference=event.get("jodan_reference"),
     )
 
 
@@ -341,6 +391,7 @@ def _with_timestamp_from_metadata(
         peak_frame_number=instructions.peak_frame_number,
         timestamp_seconds=metadata.timestamp_seconds,
         confidence=instructions.confidence,
+        jodan_reference=instructions.jodan_reference,
     )
 
 
