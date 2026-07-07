@@ -29,6 +29,7 @@ _TOLERANCE_BAND_COLOR = (176, 38, 255, 42)
 _LANDMARK_COLOR = "#00D084"
 _BONE_COLOR = "#00A3FF"
 _STRIKE_ARM_COLOR = "#FF5A1F"
+_ACTUAL_PUNCH_LINE_COLOR = "#FF5A1F"
 _HEAD_COLOR = "#B026FF"
 _JODAN_COLOR = "#B026FF"
 _CHIN_REFERENCE_COLOR = "#00E5FF"
@@ -299,13 +300,14 @@ def _draw_jodan_guides(
         round(float(jodan_reference["x"]) * width),
         round(float(jodan_reference["y"]) * height),
     )
-    ideal_target = impact_point
+    ideal_target = (impact_point[0], jodan_point[1])
 
     reach_padding = max(12, round(width * 0.08))
     line_start_x = max(0, min(jodan_point[0], impact_point[0]) - reach_padding)
     line_end_x = min(width, max(jodan_point[0], impact_point[0]) + reach_padding)
 
     analysis = instructions.jodan_height_analysis or {}
+    status = str(analysis.get("status", "unknown"))
     tolerance_px = analysis.get("tolerance_px")
     if tolerance_px is not None:
         tolerance = max(1, round(float(tolerance_px)))
@@ -339,12 +341,13 @@ def _draw_jodan_guides(
         fill=_JODAN_COLOR,
         width=_BONE_WIDTH,
     )
+    _draw_wide_line(draw, shoulder, ideal_target, fill=_OPTIMAL_PUNCH_LINE_COLOR)
     draw.line(
-        (shoulder, ideal_target), fill=_OPTIMAL_PUNCH_LINE_COLOR, width=_LINE_WIDTH
+        (shoulder, impact_point), fill=_ACTUAL_PUNCH_LINE_COLOR, width=_LINE_WIDTH
     )
+    _draw_height_error_marker(draw, impact_point, ideal_target, status)
     _draw_point(draw, jodan_point, _JODAN_COLOR, radius=_POINT_RADIUS + 1)
     _draw_point(draw, ideal_target, _IDEAL_TARGET_POINT_COLOR, radius=_POINT_RADIUS)
-    status = str(analysis.get("status", "unknown"))
     if analysis:
         result_color = _jodan_height_color(status)
         _draw_point(draw, impact_point, result_color, radius=_POINT_RADIUS + 2)
@@ -359,6 +362,33 @@ def _draw_jodan_guides(
         "Jodan",
         fill=_TEXT_COLOR,
         font=ImageFont.load_default(),
+    )
+
+
+def _draw_wide_line(
+    draw: ImageDraw.ImageDraw,
+    start: tuple[int, int],
+    end: tuple[int, int],
+    *,
+    fill: str,
+) -> None:
+    draw.line((start, end), fill=fill, width=_LINE_WIDTH + 4)
+
+
+def _draw_height_error_marker(
+    draw: ImageDraw.ImageDraw,
+    impact_point: tuple[int, int],
+    ideal_target: tuple[int, int],
+    status: str,
+) -> None:
+    if impact_point == ideal_target:
+        marker_end = (ideal_target[0], ideal_target[1] + max(4, _LINE_WIDTH + 1))
+    else:
+        marker_end = ideal_target
+    draw.line(
+        (impact_point, marker_end),
+        fill=_jodan_height_color(status),
+        width=max(2, _LINE_WIDTH - 1),
     )
 
 
@@ -433,9 +463,9 @@ def _draw_strike_text_panel(
     if instructions.jodan_reference is not None:
         lines.extend(
             [
-                "Purple Jodan target",
-                "Yellow impact punch line",
-                "Orange skeleton strike arm",
+                "Red actual punch line",
+                "Yellow ideal punch line",
+                "Purple Jodan target band",
             ]
         )
     if instructions.jodan_height_analysis is not None:
