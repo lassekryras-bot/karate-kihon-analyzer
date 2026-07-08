@@ -45,6 +45,15 @@ class GuidedSessionType(str, Enum):
     JODAN_CLIP_SESSION = "JODAN_CLIP_SESSION"
 
 
+class RecordingState(str, Enum):
+    IDLE = "IDLE"
+    PREPARING = "PREPARING"
+    RECORDING = "RECORDING"
+    SAVED = "SAVED"
+    CANCELLED = "CANCELLED"
+    FAILED = "FAILED"
+
+
 class CaptureAttemptOutcome(str, Enum):
     CLIP_READY = "CLIP_READY"
     NO_MOVEMENT_TIMEOUT = "NO_MOVEMENT_TIMEOUT"
