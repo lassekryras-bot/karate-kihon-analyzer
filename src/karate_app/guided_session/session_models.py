@@ -152,6 +152,7 @@ class StrikeCaptureResult:
 class StrikeCaptureConfig:
     capture_mode: CaptureMode = CaptureMode.FAKE
     fixed_clip_duration_ms: int = 4_000
+    max_retries_per_strike: int = 2
     waiting_for_movement_timeout_ms: int = 5_000
     active_strike_timeout_ms: int = 10_000
     progress_stall_timeout_ms: int = 2_000

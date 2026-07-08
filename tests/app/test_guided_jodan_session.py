@@ -207,6 +207,93 @@ def test_no_movement_timeout_retries_same_strike_without_stopping_session() -> N
     assert "Punch not detected. Try again." in speech.spoken_prompts
 
 
+
+def test_repeated_no_movement_timeout_does_not_infinite_loop() -> None:
+    speech = FakeSpeechPrompter()
+    recorder = FakeStrikeCaptureController(
+        scripted_results=[StrikeCaptureState.NO_MOVEMENT_TIMEOUT] * 30
+    )
+    metadata_writer = FakeSessionMetadataWriter()
+    orchestrator = GuidedJodanSessionOrchestrator(
+        speech_prompter=speech,
+        command_listener=FakeCommandListener(commands=[SessionCommand.OSU]),
+        clip_recorder=None,
+        capture_controller=recorder,
+        capture_config=StrikeCaptureConfig(max_retries_per_strike=2),
+        metadata_writer=metadata_writer,
+    )
+
+    result = orchestrator.start_session()
+
+    assert result.completed is True
+    assert len(recorder.results) == 30
+    assert result.clips == []
+    assert speech.spoken_prompts.count("Skipping this strike.") == 10
+
+
+def test_max_retries_per_strike_is_respected() -> None:
+    recorder = FakeStrikeCaptureController(
+        scripted_results=[StrikeCaptureState.NO_MOVEMENT_TIMEOUT] * 3
+    )
+    orchestrator = GuidedJodanSessionOrchestrator(
+        speech_prompter=FakeSpeechPrompter(),
+        command_listener=FakeCommandListener(commands=[SessionCommand.OSU]),
+        clip_recorder=None,
+        capture_controller=recorder,
+        capture_config=StrikeCaptureConfig(max_retries_per_strike=1),
+        metadata_writer=FakeSessionMetadataWriter(),
+    )
+
+    result = orchestrator.start_session()
+
+    assert result.completed is True
+    assert [capture.strike_index for capture in recorder.results[:3]] == [1, 1, 2]
+    assert len(result.clips) == 9
+
+
+def test_after_retry_limit_session_continues_to_next_strike() -> None:
+    speech = FakeSpeechPrompter()
+    recorder = FakeStrikeCaptureController(
+        scripted_results=[StrikeCaptureState.NO_MOVEMENT_TIMEOUT] * 3
+    )
+    orchestrator = GuidedJodanSessionOrchestrator(
+        speech_prompter=speech,
+        command_listener=FakeCommandListener(commands=[SessionCommand.OSU]),
+        clip_recorder=None,
+        capture_controller=recorder,
+        capture_config=StrikeCaptureConfig(max_retries_per_strike=2),
+        metadata_writer=FakeSessionMetadataWriter(),
+    )
+
+    result = orchestrator.start_session()
+
+    assert result.completed is True
+    assert len(result.clips) == 9
+    assert result.clips[0].strike_index == 2
+    assert "Skipping this strike." in speech.spoken_prompts
+    assert "Ni" in speech.spoken_prompts
+
+
+def test_successful_retry_saves_only_one_clip_for_that_strike() -> None:
+    recorder = FakeStrikeCaptureController(
+        scripted_results=[StrikeCaptureState.NO_MOVEMENT_TIMEOUT]
+    )
+    orchestrator = GuidedJodanSessionOrchestrator(
+        speech_prompter=FakeSpeechPrompter(),
+        command_listener=FakeCommandListener(commands=[SessionCommand.OSU]),
+        clip_recorder=None,
+        capture_controller=recorder,
+        capture_config=StrikeCaptureConfig(max_retries_per_strike=2),
+        metadata_writer=FakeSessionMetadataWriter(),
+    )
+
+    result = orchestrator.start_session()
+
+    assert result.completed is True
+    assert [capture.strike_index for capture in recorder.results[:2]] == [1, 1]
+    assert [clip.strike_index for clip in result.clips].count(1) == 1
+    assert len(result.clips) == 10
+
 def test_recording_failed_ends_session_without_user_stop_flag() -> None:
     speech = FakeSpeechPrompter()
     recorder = FakeStrikeCaptureController(scripted_results=[StrikeCaptureState.FAILED])
@@ -289,6 +376,7 @@ def test_default_strike_capture_config_values_are_correct() -> None:
 
     assert config.capture_mode == CaptureMode.FAKE
     assert config.fixed_clip_duration_ms == 4_000
+    assert config.max_retries_per_strike == 2
     assert config.waiting_for_movement_timeout_ms == 5_000
     assert config.active_strike_timeout_ms == 10_000
     assert config.progress_stall_timeout_ms == 2_000

@@ -67,6 +67,7 @@ class GuidedJodanSessionOrchestrator:
         self.state = SessionState.BASELINE_CAPTURE
 
         for strike_plan in self.session_plan:
+            retry_count = 0
             while True:
                 if self._received_stop_if_available():
                     self._cancel_capture_if_available()
@@ -87,8 +88,14 @@ class GuidedJodanSessionOrchestrator:
                     return self._stop(clips)
 
                 if self._is_retryable_capture_timeout(capture_result.state):
-                    self.speech_prompter.speak("Punch not detected. Try again.")
-                    continue
+                    retry_count += 1
+                    if retry_count <= self.capture_config.max_retries_per_strike:
+                        self.speech_prompter.speak("Punch not detected. Try again.")
+                        continue
+
+                    self.state = SessionState.STRIKE_COMPLETE
+                    self.speech_prompter.speak("Skipping this strike.")
+                    break
 
                 return self._capture_failed(clips, capture_result)
 
