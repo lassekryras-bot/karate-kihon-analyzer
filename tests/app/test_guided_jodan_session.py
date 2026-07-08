@@ -7,9 +7,15 @@ from karate_app.guided_session.fake_services import (
     FakeCommandListener,
     FakeSessionMetadataWriter,
     FakeSpeechPrompter,
-    FakeStrikeClipRecorder,
+    FakeStrikeCaptureController,
 )
-from karate_app.guided_session.session_models import SessionCommand, StrikeSide
+from karate_app.guided_session.session_models import (
+    CaptureMode,
+    SessionCommand,
+    StrikeCaptureConfig,
+    StrikeCaptureState,
+    StrikeSide,
+)
 from karate_app.guided_session.session_orchestrator import (
     SETUP_INSTRUCTION,
     GuidedJodanSessionOrchestrator,
@@ -22,16 +28,17 @@ def build_orchestrator(
 ) -> tuple[
     GuidedJodanSessionOrchestrator,
     FakeSpeechPrompter,
-    FakeStrikeClipRecorder,
+    FakeStrikeCaptureController,
     FakeSessionMetadataWriter,
 ]:
     speech = FakeSpeechPrompter()
-    recorder = FakeStrikeClipRecorder()
+    recorder = FakeStrikeCaptureController()
     metadata_writer = FakeSessionMetadataWriter()
     orchestrator = GuidedJodanSessionOrchestrator(
         speech_prompter=speech,
         command_listener=FakeCommandListener(commands=commands or [SessionCommand.OSU]),
-        clip_recorder=recorder,
+        clip_recorder=None,
+        capture_controller=recorder,
         metadata_writer=metadata_writer,
     )
     return orchestrator, speech, recorder, metadata_writer
@@ -136,15 +143,21 @@ def test_stop_before_osu_returns_stopped_result_with_0_clips() -> None:
 
 
 def test_stop_during_strike_flow_returns_stopped_result_with_partial_clips() -> None:
-    orchestrator, speech, _, _ = build_orchestrator(
-        commands=[
-            SessionCommand.OSU,
-            SessionCommand.CONTINUE,
-            SessionCommand.CONTINUE,
-            SessionCommand.CONTINUE,
-            SessionCommand.CONTINUE,
-            SessionCommand.STOP,
-        ]
+    speech = FakeSpeechPrompter()
+    recorder = FakeStrikeCaptureController(scripted_results=[
+        StrikeCaptureState.CLIP_READY,
+        StrikeCaptureState.CLIP_READY,
+        StrikeCaptureState.CLIP_READY,
+        StrikeCaptureState.CLIP_READY,
+        StrikeCaptureState.CANCELLED,
+    ])
+    metadata_writer = FakeSessionMetadataWriter()
+    orchestrator = GuidedJodanSessionOrchestrator(
+        speech_prompter=speech,
+        command_listener=FakeCommandListener(commands=[SessionCommand.OSU]),
+        clip_recorder=None,
+        capture_controller=recorder,
+        metadata_writer=metadata_writer,
     )
 
     result = orchestrator.start_session()
@@ -158,6 +171,7 @@ def test_stop_during_strike_flow_returns_stopped_result_with_partial_clips() -> 
         "strike_003_right.mp4",
         "strike_004_left.mp4",
     ]
+    assert recorder.results[-1].state == StrikeCaptureState.CANCELLED
     assert speech.spoken_prompts[-1] == "Session stopped. 4 clips saved."
 
 
@@ -204,3 +218,92 @@ def test_fake_speech_service_records_prompts_in_expected_order() -> None:
         "Clip 10 saved.",
         "Session complete. 10 clips saved.",
     ]
+
+
+def test_capture_controller_uses_fixed_duration_requests() -> None:
+    orchestrator, _, recorder, _ = build_orchestrator(commands=[SessionCommand.OSU])
+
+    orchestrator.start_session()
+
+    assert {result.capture_mode for result in recorder.results} == {CaptureMode.FAKE}
+    assert {result.clip_duration_ms for result in recorder.results} == {4_000}
+
+
+def test_default_strike_capture_config_values_are_correct() -> None:
+    config = StrikeCaptureConfig()
+
+    assert config.capture_mode == CaptureMode.FAKE
+    assert config.fixed_clip_duration_ms == 4_000
+    assert config.waiting_for_movement_timeout_ms == 5_000
+    assert config.active_strike_timeout_ms == 10_000
+    assert config.progress_stall_timeout_ms == 2_000
+    assert config.post_roll_ms == 500
+    assert config.minimum_elbow_extension_angle_degrees == 160
+
+
+def test_fake_capture_controller_returns_clip_ready_with_planned_filename() -> None:
+    strike = create_jodan_session_plan()[0]
+    recorder = FakeStrikeCaptureController()
+
+    result = recorder.capture_strike_clip(strike, StrikeCaptureConfig())
+
+    assert result.state == StrikeCaptureState.CLIP_READY
+    assert result.file_name == "strike_001_right.mp4"
+    assert result.cancelled is False
+
+
+def test_fake_capture_controller_includes_post_roll_and_completion_time() -> None:
+    strike = create_jodan_session_plan()[0]
+    recorder = FakeStrikeCaptureController()
+
+    result = recorder.capture_strike_clip(strike, StrikeCaptureConfig(post_roll_ms=750))
+
+    assert result.post_roll_ms == 750
+    assert result.rough_movement_start_ms == 1_000
+    assert result.rough_completion_time_ms == 2_500
+
+
+def test_fake_capture_controller_can_simulate_no_movement_timeout() -> None:
+    strike = create_jodan_session_plan()[0]
+    recorder = FakeStrikeCaptureController(
+        scripted_results=[StrikeCaptureState.NO_MOVEMENT_TIMEOUT]
+    )
+
+    result = recorder.capture_strike_clip(strike, StrikeCaptureConfig())
+
+    assert result.state == StrikeCaptureState.NO_MOVEMENT_TIMEOUT
+    assert result.timeout_ms == 5_000
+
+
+def test_fake_capture_controller_can_simulate_incomplete_strike_timeout() -> None:
+    strike = create_jodan_session_plan()[0]
+    recorder = FakeStrikeCaptureController(
+        scripted_results=[StrikeCaptureState.INCOMPLETE_STRIKE_TIMEOUT]
+    )
+
+    result = recorder.capture_strike_clip(strike, StrikeCaptureConfig())
+
+    assert result.state == StrikeCaptureState.INCOMPLETE_STRIKE_TIMEOUT
+    assert result.timeout_ms == 10_000
+
+
+def test_fake_capture_controller_can_simulate_cancelled_capture() -> None:
+    strike = create_jodan_session_plan()[0]
+    recorder = FakeStrikeCaptureController(scripted_results=[StrikeCaptureState.CANCELLED])
+
+    result = recorder.capture_strike_clip(strike, StrikeCaptureConfig())
+
+    assert result.state == StrikeCaptureState.CANCELLED
+    assert result.cancelled is True
+    assert result.capture_reason == "cancelled_by_user"
+
+
+def test_cancel_capture_sets_next_capture_to_cancelled() -> None:
+    strike = create_jodan_session_plan()[0]
+    recorder = FakeStrikeCaptureController()
+
+    recorder.cancel_capture()
+    result = recorder.capture_strike_clip(strike, StrikeCaptureConfig())
+
+    assert result.state == StrikeCaptureState.CANCELLED
+    assert result.cancelled is True
