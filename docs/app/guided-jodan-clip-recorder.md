@@ -177,3 +177,104 @@ to control clip boundaries:
     return `CLIP_READY`.
 
 The analyzer later finds the exact impact frame and Jodan result.
+
+## Session Metadata v2
+
+Session metadata v2 exists so phone testing, app debugging, and later analyzer
+processing can reconstruct the full guided-session flow. The app records every
+capture attempt, not only the final clips that were saved. This makes retries,
+timeouts, cancellation, failed attempts, and skipped strikes visible without
+requiring analyzer integration.
+
+The metadata is written as `guided_jodan_session_metadata_v2.json` by fake app
+services that are given an output folder. Its schema version is
+`guided-jodan-session-metadata-v2`.
+
+Metadata v2 includes:
+
+- session identity, including `session_id` and `session_type`
+- session configuration, including capture mode, timeout values, post-roll,
+  fixed clip duration, and retry budget
+- the planned 10-strike Jodan sequence
+- every capture attempt with outcome, retry number, planned file name, saved file
+  name when present, rough timing fields, cancellation flag, and diagnostics
+- `successful_clips` as a compact list the analyzer can consume later
+- summary counts for successful clips, failed attempts, retries, skipped strikes,
+  and total attempts
+
+The analyzer boundary remains clean: the app records flow, attempts, reasons,
+and clip file metadata. The analyzer later decides exact impact frame and
+technique result.
+
+Example excerpt:
+
+```json
+{
+  "schema_version": "guided-jodan-session-metadata-v2",
+  "session_id": "7f72b813-e585-4e5a-8fb0-e84fbfc8bf6b",
+  "session_type": "JODAN_CLIP_SESSION",
+  "config": {
+    "session_type": "JODAN_CLIP_SESSION",
+    "strike_type": "straight_punch",
+    "target": "jodan",
+    "expected_strike_count": 10,
+    "capture_mode": "FAKE",
+    "fixed_clip_duration_ms": 4000,
+    "waiting_for_movement_timeout_ms": 5000,
+    "active_strike_timeout_ms": 10000,
+    "progress_stall_timeout_ms": 2000,
+    "post_roll_ms": 500,
+    "minimum_elbow_extension_angle_degrees": 160,
+    "max_retries_per_strike": 2
+  },
+  "strike_plan": [
+    {
+      "strike_index": 1,
+      "japanese_count": "Ichi",
+      "expected_side": "right",
+      "planned_file_name": "strike_001_right.mp4"
+    }
+  ],
+  "attempts": [
+    {
+      "attempt_id": 1,
+      "strike_index": 1,
+      "expected_side": "right",
+      "japanese_count": "Ichi",
+      "planned_file_name": "strike_001_right.mp4",
+      "outcome": "CLIP_READY",
+      "capture_reason": "fixed_length_fake_capture",
+      "file_name": "strike_001_right.mp4",
+      "clip_saved": true,
+      "retry_number": 0,
+      "capture_mode": "FAKE",
+      "clip_duration_ms": 4000,
+      "rough_movement_start_ms": 1000,
+      "rough_completion_time_ms": 2500,
+      "post_roll_ms": 500,
+      "timeout_ms": null,
+      "cancelled": false,
+      "diagnostics": {}
+    }
+  ],
+  "successful_clips": [
+    {
+      "strike_index": 1,
+      "expected_side": "right",
+      "file_name": "strike_001_right.mp4",
+      "capture_reason": "fixed_length_fake_capture"
+    }
+  ],
+  "summary": {
+    "completed": true,
+    "stopped_by_user": false,
+    "expected_strike_count": 10,
+    "successful_clip_count": 10,
+    "failed_attempt_count": 0,
+    "retry_count": 0,
+    "skipped_strike_count": 0,
+    "total_attempt_count": 10,
+    "session_summary": "Session complete. 10 clips saved."
+  }
+}
+```
