@@ -1,0 +1,125 @@
+package dk.lasse.karatecliprecorder
+
+import android.content.Context
+import android.os.Environment
+import androidx.camera.core.CameraSelector
+import androidx.camera.core.Preview
+import androidx.camera.lifecycle.ProcessCameraProvider
+import androidx.camera.video.FallbackStrategy
+import androidx.camera.video.FileOutputOptions
+import androidx.camera.video.PendingRecording
+import androidx.camera.video.Quality
+import androidx.camera.video.QualitySelector
+import androidx.camera.video.Recorder
+import androidx.camera.video.Recording
+import androidx.camera.video.VideoCapture
+import androidx.camera.video.VideoRecordEvent
+import androidx.camera.view.PreviewView
+import androidx.core.content.ContextCompat
+import androidx.lifecycle.LifecycleOwner
+import java.io.File
+import java.util.Locale
+import java.util.concurrent.Executor
+
+class CameraXRecordingAdapter(
+    private val context: Context,
+    private val lifecycleOwner: LifecycleOwner,
+    private val previewView: PreviewView,
+    private val onStateChanged: (RecordingState) -> Unit,
+    private val onSaved: (RecordingResult) -> Unit,
+    private val onError: (String) -> Unit,
+) {
+    private var videoCapture: VideoCapture<Recorder>? = null
+    private var activeRecording: Recording? = null
+    private var nextClipNumber = 1
+    private val mainExecutor: Executor = ContextCompat.getMainExecutor(context)
+
+    fun bindCameraPreview() {
+        onStateChanged(RecordingState.PREPARING)
+        val providerFuture = ProcessCameraProvider.getInstance(context)
+        providerFuture.addListener({
+            try {
+                val cameraProvider = providerFuture.get()
+                val preview = Preview.Builder().build().also {
+                    it.setSurfaceProvider(previewView.surfaceProvider)
+                }
+                val recorder = Recorder.Builder()
+                    .setQualitySelector(QualitySelector.from(
+                        Quality.HD,
+                        FallbackStrategy.higherQualityOrLowerThan(Quality.HD),
+                    ))
+                    .build()
+                videoCapture = VideoCapture.withOutput(recorder)
+
+                cameraProvider.unbindAll()
+                cameraProvider.bindToLifecycle(
+                    lifecycleOwner,
+                    CameraSelector.DEFAULT_BACK_CAMERA,
+                    preview,
+                    videoCapture,
+                )
+                onStateChanged(RecordingState.IDLE)
+            } catch (error: Exception) {
+                onStateChanged(RecordingState.FAILED)
+                onError("Camera preview failed: ${error.message}")
+            }
+        }, mainExecutor)
+    }
+
+    fun startRecording() {
+        val capture = videoCapture
+        if (capture == null) {
+            onStateChanged(RecordingState.FAILED)
+            onError("Camera is not ready yet.")
+            return
+        }
+        if (activeRecording != null) {
+            return
+        }
+
+        val outputFile = createNextOutputFile()
+        val outputOptions = FileOutputOptions.Builder(outputFile).build()
+        val pendingRecording: PendingRecording = capture.output.prepareRecording(context, outputOptions)
+
+        onStateChanged(RecordingState.RECORDING)
+        activeRecording = pendingRecording.start(mainExecutor) { event ->
+            when (event) {
+                is VideoRecordEvent.Finalize -> {
+                    activeRecording = null
+                    if (event.hasError()) {
+                        onStateChanged(RecordingState.FAILED)
+                        onError("Recording failed: ${event.error}")
+                    } else {
+                        val result = RecordingResult(
+                            fileName = outputFile.name,
+                            absolutePath = outputFile.absolutePath,
+                            uri = event.outputResults.outputUri,
+                        )
+                        onStateChanged(RecordingState.SAVED)
+                        onSaved(result)
+                    }
+                }
+            }
+        }
+    }
+
+    fun stopRecording() {
+        activeRecording?.stop()
+    }
+
+    private fun createNextOutputFile(): File {
+        val moviesDir = context.getExternalFilesDir(Environment.DIRECTORY_MOVIES)
+            ?: context.filesDir
+        if (!moviesDir.exists()) {
+            moviesDir.mkdirs()
+        }
+
+        while (true) {
+            val fileName = String.format(Locale.US, "strike_test_%03d.mp4", nextClipNumber++)
+            val candidate = File(moviesDir, fileName)
+            if (!candidate.exists()) {
+                return candidate
+            }
+        }
+    }
+}
