@@ -132,6 +132,8 @@ class FakeStrikeCaptureController:
             self.events.append(StrikeCaptureEvent.NO_MOVEMENT_TIMEOUT)
         elif result.state == StrikeCaptureState.INCOMPLETE_STRIKE_TIMEOUT:
             self.events.append(StrikeCaptureEvent.INCOMPLETE_STRIKE_TIMEOUT)
+        elif result.state == StrikeCaptureState.ACTIVE_STRIKE_TIMEOUT:
+            self.events.append(StrikeCaptureEvent.ACTIVE_STRIKE_TIMEOUT)
         elif result.state == StrikeCaptureState.CANCELLED:
             self.events.append(StrikeCaptureEvent.CANCEL_REQUESTED)
         elif result.state == StrikeCaptureState.FAILED:
@@ -174,12 +176,14 @@ class FakeStrikeCaptureController:
         reason_by_state = {
             StrikeCaptureState.NO_MOVEMENT_TIMEOUT: "no_movement_timeout",
             StrikeCaptureState.INCOMPLETE_STRIKE_TIMEOUT: "incomplete_strike_timeout",
+            StrikeCaptureState.ACTIVE_STRIKE_TIMEOUT: "active_strike_timeout",
             StrikeCaptureState.CANCELLED: "cancelled_by_user",
             StrikeCaptureState.FAILED: "recording_failed",
         }
         timeout_by_state = {
             StrikeCaptureState.NO_MOVEMENT_TIMEOUT: config.waiting_for_movement_timeout_ms,
-            StrikeCaptureState.INCOMPLETE_STRIKE_TIMEOUT: config.active_strike_timeout_ms,
+            StrikeCaptureState.INCOMPLETE_STRIKE_TIMEOUT: config.progress_stall_timeout_ms,
+            StrikeCaptureState.ACTIVE_STRIKE_TIMEOUT: config.active_strike_timeout_ms,
         }
         if state == StrikeCaptureState.CLIP_READY:
             return self._successful_result(strike_plan, config)

@@ -67,19 +67,30 @@ class GuidedJodanSessionOrchestrator:
         self.state = SessionState.BASELINE_CAPTURE
 
         for strike_plan in self.session_plan:
-            if self._received_stop_if_available():
-                self._cancel_capture_if_available()
-                return self._stop(clips)
+            while True:
+                if self._received_stop_if_available():
+                    self._cancel_capture_if_available()
+                    return self._stop(clips)
 
-            self.state = SessionState.PROMPTING_STRIKE
-            self.speech_prompter.speak(strike_plan.japanese_count)
-            self.state = SessionState.CAPTURING_STRIKE
-            capture_result = self._capture_strike(strike_plan)
-            if capture_result.state != StrikeCaptureState.CLIP_READY:
-                return self._stop(clips)
-            clips.append(self._to_captured_clip(capture_result))
-            self.state = SessionState.STRIKE_COMPLETE
-            self.speech_prompter.speak(f"Clip {strike_plan.index} saved.")
+                self.state = SessionState.PROMPTING_STRIKE
+                self.speech_prompter.speak(strike_plan.japanese_count)
+                self.state = SessionState.CAPTURING_STRIKE
+                capture_result = self._capture_strike(strike_plan)
+
+                if capture_result.state == StrikeCaptureState.CLIP_READY:
+                    clips.append(self._to_captured_clip(capture_result))
+                    self.state = SessionState.STRIKE_COMPLETE
+                    self.speech_prompter.speak(f"Clip {strike_plan.index} saved.")
+                    break
+
+                if capture_result.state == StrikeCaptureState.CANCELLED:
+                    return self._stop(clips)
+
+                if self._is_retryable_capture_timeout(capture_result.state):
+                    self.speech_prompter.speak("Punch not detected. Try again.")
+                    continue
+
+                return self._capture_failed(clips, capture_result)
 
         self.state = SessionState.COMPLETE
         summary = f"Session complete. {len(clips)} clips saved."
@@ -120,6 +131,13 @@ class GuidedJodanSessionOrchestrator:
             cancelled=False,
         )
 
+    def _is_retryable_capture_timeout(self, state: StrikeCaptureState) -> bool:
+        return state in {
+            StrikeCaptureState.NO_MOVEMENT_TIMEOUT,
+            StrikeCaptureState.INCOMPLETE_STRIKE_TIMEOUT,
+            StrikeCaptureState.ACTIVE_STRIKE_TIMEOUT,
+        }
+
     def _cancel_capture_if_available(self) -> None:
         if self.capture_controller is not None:
             self.capture_controller.cancel_capture()
@@ -142,6 +160,26 @@ class GuidedJodanSessionOrchestrator:
         result = SessionResult(
             completed=False,
             stopped_by_user=True,
+            clips=clips,
+            session_summary=summary,
+        )
+        self._write_metadata(result)
+        return result
+
+    def _capture_failed(
+        self,
+        clips: list[CapturedStrikeClip],
+        capture_result: StrikeCaptureResult,
+    ) -> SessionResult:
+        self.state = SessionState.STOPPED
+        summary = (
+            "Session stopped because capture failed "
+            f"on strike {capture_result.strike_index}. {len(clips)} clips saved."
+        )
+        self.speech_prompter.speak(summary)
+        result = SessionResult(
+            completed=False,
+            stopped_by_user=False,
             clips=clips,
             session_summary=summary,
         )

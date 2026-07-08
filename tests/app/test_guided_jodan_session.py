@@ -175,6 +175,54 @@ def test_stop_during_strike_flow_returns_stopped_result_with_partial_clips() -> 
     assert speech.spoken_prompts[-1] == "Session stopped. 4 clips saved."
 
 
+def test_no_movement_timeout_retries_same_strike_without_stopping_session() -> None:
+    speech = FakeSpeechPrompter()
+    recorder = FakeStrikeCaptureController(
+        scripted_results=[StrikeCaptureState.NO_MOVEMENT_TIMEOUT]
+    )
+    metadata_writer = FakeSessionMetadataWriter()
+    orchestrator = GuidedJodanSessionOrchestrator(
+        speech_prompter=speech,
+        command_listener=FakeCommandListener(commands=[SessionCommand.OSU]),
+        clip_recorder=None,
+        capture_controller=recorder,
+        metadata_writer=metadata_writer,
+    )
+
+    result = orchestrator.start_session()
+
+    assert result.completed is True
+    assert result.stopped_by_user is False
+    assert len(result.clips) == 10
+    assert [capture.strike_index for capture in recorder.results[:2]] == [1, 1]
+    assert recorder.results[0].state == StrikeCaptureState.NO_MOVEMENT_TIMEOUT
+    assert recorder.results[1].state == StrikeCaptureState.CLIP_READY
+    assert "Punch not detected. Try again." in speech.spoken_prompts
+
+
+def test_recording_failed_ends_session_without_user_stop_flag() -> None:
+    speech = FakeSpeechPrompter()
+    recorder = FakeStrikeCaptureController(scripted_results=[StrikeCaptureState.FAILED])
+    metadata_writer = FakeSessionMetadataWriter()
+    orchestrator = GuidedJodanSessionOrchestrator(
+        speech_prompter=speech,
+        command_listener=FakeCommandListener(commands=[SessionCommand.OSU]),
+        clip_recorder=None,
+        capture_controller=recorder,
+        metadata_writer=metadata_writer,
+    )
+
+    result = orchestrator.start_session()
+
+    assert result.completed is False
+    assert result.stopped_by_user is False
+    assert result.clips == []
+    assert result.session_summary == (
+        "Session stopped because capture failed on strike 1. 0 clips saved."
+    )
+    assert metadata_writer.written_metadata[0].stopped_by_user is False
+
+
 def test_orchestrator_does_not_import_karate_analyzer() -> None:
     orchestrator_source = Path(
         "src/karate_app/guided_session/session_orchestrator.py"
@@ -284,6 +332,18 @@ def test_fake_capture_controller_can_simulate_incomplete_strike_timeout() -> Non
     result = recorder.capture_strike_clip(strike, StrikeCaptureConfig())
 
     assert result.state == StrikeCaptureState.INCOMPLETE_STRIKE_TIMEOUT
+    assert result.timeout_ms == 2_000
+
+
+def test_fake_capture_controller_can_simulate_active_strike_timeout() -> None:
+    strike = create_jodan_session_plan()[0]
+    recorder = FakeStrikeCaptureController(
+        scripted_results=[StrikeCaptureState.ACTIVE_STRIKE_TIMEOUT]
+    )
+
+    result = recorder.capture_strike_clip(strike, StrikeCaptureConfig())
+
+    assert result.state == StrikeCaptureState.ACTIVE_STRIKE_TIMEOUT
     assert result.timeout_ms == 10_000
 
 
