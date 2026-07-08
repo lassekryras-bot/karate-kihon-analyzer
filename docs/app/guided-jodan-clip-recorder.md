@@ -111,3 +111,62 @@ It must not decide:
 - exact impact frame
 - good / too high / too low
 - Jodan score
+
+## Strike Capture Controller
+
+The Strike Capture Controller is an app-side abstraction for recording one clean
+clip for each planned strike. It controls when recording starts, when the app is
+waiting for movement, when a strike appears to be progressing, when a likely
+completion candidate has been reached, how much post-roll to keep, and when to
+return a terminal capture result.
+
+The controller may decide when enough video has been captured. It must not decide
+the exact impact frame, Jodan height result, good / too high / too low result, or
+technique score. Those remain analyzer responsibilities.
+
+The controller contract models:
+
+- capture modes: `FIXED_DURATION`, `LIGHTWEIGHT_POSE`, `MANUAL`, and `FAKE`
+- capture states such as `RECORDING_PREROLL`, `WAITING_FOR_MOVEMENT`,
+  `STRIKE_IN_PROGRESS`, `POSSIBLE_IMPACT_DETECTED`, `POST_ROLL`, `CLIP_READY`,
+  `NO_MOVEMENT_TIMEOUT`, `INCOMPLETE_STRIKE_TIMEOUT`, `CANCELLED`, and `FAILED`
+- capture events such as `PROMPT_STARTED`, `RECORDING_STARTED`,
+  `MOVEMENT_STARTED`, `PROGRESS_DETECTED`, `POSSIBLE_IMPACT`,
+  `POST_ROLL_COMPLETE`, timeout events, cancel events, and failure events
+- capture configuration for fixed duration, movement timeout, active strike
+  timeout, progress stall timeout, post-roll, and the minimum elbow-extension
+  angle for future lightweight pose capture
+- capture results with rough timing metadata, cancellation status, and diagnostics
+
+For this milestone, fake services implement only fake/fixed-duration behavior.
+The fake capture controller returns `CLIP_READY` with `capture_reason =
+"fixed_length_fake_capture"` and can be scripted to return timeout, cancellation,
+or failure states in tests. No Android camera, CameraX, real MediaPipe, or
+analyzer integration is included.
+
+In the real Android app, `STOP` must be able to cancel an active capture. This is
+represented now by `cancel_capture()`, the `CANCELLED` capture state, and
+`capture_reason = "cancelled_by_user"`; it is not implemented as real async
+camera cancellation yet.
+
+### Future lightweight pose capture logic
+
+A future `LIGHTWEIGHT_POSE` app implementation can use coarse pose signals only
+to control clip boundaries:
+
+1. Start recording just before the count prompt.
+2. Say the count, such as “Ichi”.
+3. Wait for movement. Movement may be elbow angle increasing or wrist extension
+   increasing.
+4. If no movement starts within `waiting_for_movement_timeout_ms`, return
+   `NO_MOVEMENT_TIMEOUT`.
+5. Once movement starts, reset into the active strike timer and track progress.
+6. Progress means elbow angle increasing toward full extension or wrist extension
+   increasing.
+7. If progress stalls before completion, return `INCOMPLETE_STRIKE_TIMEOUT`.
+8. Treat completion as a candidate when elbow angle is near 160–180 degrees, wrist
+   extension is near peak, or there is a plateau / turning point.
+9. After the completion candidate, record `post_roll_ms`, stop the clip, and
+   return `CLIP_READY`.
+
+The analyzer later finds the exact impact frame and Jodan result.

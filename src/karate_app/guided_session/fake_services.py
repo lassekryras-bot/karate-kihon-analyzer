@@ -7,9 +7,14 @@ from dataclasses import asdict
 from pathlib import Path
 
 from karate_app.guided_session.session_models import (
+    CaptureMode,
     CapturedStrikeClip,
     SessionCommand,
     SessionMetadata,
+    StrikeCaptureConfig,
+    StrikeCaptureEvent,
+    StrikeCaptureResult,
+    StrikeCaptureState,
     StrikePlan,
 )
 
@@ -52,7 +57,7 @@ class FakeCommandListener:
 
 
 class FakeStrikeClipRecorder:
-    """Fake fixed-length clip recorder."""
+    """Legacy fake fixed-length clip recorder."""
 
     def __init__(self) -> None:
         self.recorded_file_names: list[str] = []
@@ -66,6 +71,130 @@ class FakeStrikeClipRecorder:
             file_name=strike_plan.file_name,
             capture_reason="fixed_length_fake_capture",
             rough_completion_time_ms=2000,
+        )
+
+
+class FakeStrikeCaptureController:
+    """Scriptable fake implementation of the strike capture controller."""
+
+    def __init__(
+        self,
+        scripted_results: list[StrikeCaptureState | StrikeCaptureResult] | None = None,
+    ) -> None:
+        self.scripted_results = list(scripted_results or [])
+        self.cancel_requested = False
+        self.events: list[StrikeCaptureEvent] = []
+        self.results: list[StrikeCaptureResult] = []
+        self.recorded_file_names: list[str] = []
+
+    def capture_strike_clip(
+        self,
+        strike_plan: StrikePlan,
+        config: StrikeCaptureConfig,
+    ) -> StrikeCaptureResult:
+        self.events.extend(
+            [
+                StrikeCaptureEvent.RECORDING_STARTED,
+                StrikeCaptureEvent.PROMPT_STARTED,
+                StrikeCaptureEvent.PROMPT_FINISHED,
+            ]
+        )
+        if self.cancel_requested:
+            result = self._result_for_state(
+                strike_plan=strike_plan,
+                config=config,
+                state=StrikeCaptureState.CANCELLED,
+            )
+        elif self.scripted_results:
+            scripted_result = self.scripted_results.pop(0)
+            if isinstance(scripted_result, StrikeCaptureResult):
+                result = scripted_result
+            else:
+                result = self._result_for_state(
+                    strike_plan=strike_plan,
+                    config=config,
+                    state=scripted_result,
+                )
+        else:
+            result = self._successful_result(strike_plan, config)
+
+        if result.state == StrikeCaptureState.CLIP_READY:
+            self.events.extend(
+                [
+                    StrikeCaptureEvent.MOVEMENT_STARTED,
+                    StrikeCaptureEvent.PROGRESS_DETECTED,
+                    StrikeCaptureEvent.POSSIBLE_IMPACT,
+                    StrikeCaptureEvent.POST_ROLL_COMPLETE,
+                ]
+            )
+            self.recorded_file_names.append(result.file_name)
+        elif result.state == StrikeCaptureState.NO_MOVEMENT_TIMEOUT:
+            self.events.append(StrikeCaptureEvent.NO_MOVEMENT_TIMEOUT)
+        elif result.state == StrikeCaptureState.INCOMPLETE_STRIKE_TIMEOUT:
+            self.events.append(StrikeCaptureEvent.INCOMPLETE_STRIKE_TIMEOUT)
+        elif result.state == StrikeCaptureState.CANCELLED:
+            self.events.append(StrikeCaptureEvent.CANCEL_REQUESTED)
+        elif result.state == StrikeCaptureState.FAILED:
+            self.events.append(StrikeCaptureEvent.RECORDING_FAILED)
+
+        self.results.append(result)
+        print(f"capture {result.file_name}")
+        print(f"capture reason: {result.capture_reason}")
+        return result
+
+    def cancel_capture(self) -> None:
+        self.cancel_requested = True
+
+    def _successful_result(
+        self,
+        strike_plan: StrikePlan,
+        config: StrikeCaptureConfig,
+    ) -> StrikeCaptureResult:
+        return StrikeCaptureResult(
+            strike_index=strike_plan.index,
+            expected_side=strike_plan.expected_side,
+            file_name=strike_plan.file_name,
+            state=StrikeCaptureState.CLIP_READY,
+            capture_mode=CaptureMode.FAKE,
+            capture_reason="fixed_length_fake_capture",
+            clip_duration_ms=config.fixed_clip_duration_ms,
+            rough_movement_start_ms=1_000,
+            rough_completion_time_ms=2_500,
+            post_roll_ms=config.post_roll_ms,
+            cancelled=False,
+            diagnostics={"configured_mode": config.capture_mode.value},
+        )
+
+    def _result_for_state(
+        self,
+        strike_plan: StrikePlan,
+        config: StrikeCaptureConfig,
+        state: StrikeCaptureState,
+    ) -> StrikeCaptureResult:
+        reason_by_state = {
+            StrikeCaptureState.NO_MOVEMENT_TIMEOUT: "no_movement_timeout",
+            StrikeCaptureState.INCOMPLETE_STRIKE_TIMEOUT: "incomplete_strike_timeout",
+            StrikeCaptureState.CANCELLED: "cancelled_by_user",
+            StrikeCaptureState.FAILED: "recording_failed",
+        }
+        timeout_by_state = {
+            StrikeCaptureState.NO_MOVEMENT_TIMEOUT: config.waiting_for_movement_timeout_ms,
+            StrikeCaptureState.INCOMPLETE_STRIKE_TIMEOUT: config.active_strike_timeout_ms,
+        }
+        if state == StrikeCaptureState.CLIP_READY:
+            return self._successful_result(strike_plan, config)
+
+        return StrikeCaptureResult(
+            strike_index=strike_plan.index,
+            expected_side=strike_plan.expected_side,
+            file_name=strike_plan.file_name,
+            state=state,
+            capture_mode=CaptureMode.FAKE,
+            capture_reason=reason_by_state.get(state, "scripted_capture_result"),
+            post_roll_ms=config.post_roll_ms,
+            timeout_ms=timeout_by_state.get(state),
+            cancelled=state == StrikeCaptureState.CANCELLED,
+            diagnostics={"scripted_state": state.value},
         )
 
 

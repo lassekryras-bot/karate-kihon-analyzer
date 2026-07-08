@@ -6,7 +6,7 @@ from karate_app.guided_session.fake_services import (
     FakeCommandListener,
     FakeSessionMetadataWriter,
     FakeSpeechPrompter,
-    FakeStrikeClipRecorder,
+    FakeStrikeCaptureController,
 )
 from karate_app.guided_session.session_models import SessionCommand
 from karate_app.guided_session.session_orchestrator import GuidedJodanSessionOrchestrator
@@ -15,12 +15,13 @@ from karate_app.guided_session.session_orchestrator import GuidedJodanSessionOrc
 def main() -> None:
     speech = FakeSpeechPrompter()
     command_listener = FakeCommandListener(commands=[SessionCommand.OSU])
-    recorder = FakeStrikeClipRecorder()
+    recorder = FakeStrikeCaptureController()
     metadata_writer = FakeSessionMetadataWriter()
     orchestrator = GuidedJodanSessionOrchestrator(
         speech_prompter=speech,
         command_listener=command_listener,
-        clip_recorder=recorder,
+        clip_recorder=None,
+        capture_controller=recorder,
         metadata_writer=metadata_writer,
     )
 
