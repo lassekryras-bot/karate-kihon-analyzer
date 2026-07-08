@@ -41,6 +41,16 @@ class CaptureMode(str, Enum):
     FAKE = "FAKE"
 
 
+class RecordingState(str, Enum):
+    IDLE = "IDLE"
+    PREPARING = "PREPARING"
+    RECORDING = "RECORDING"
+    STOPPING = "STOPPING"
+    SAVED = "SAVED"
+    CANCELLED = "CANCELLED"
+    FAILED = "FAILED"
+
+
 class StrikeCaptureState(str, Enum):
     IDLE = "IDLE"
     PREPARING = "PREPARING"
@@ -90,6 +100,35 @@ class CapturedStrikeClip:
     rough_completion_time_ms: int | None = None
     clip_duration_ms: int | None = None
     capture_diagnostics: dict[str, str | int | float | bool | None] = field(default_factory=dict)
+
+
+@dataclass(frozen=True)
+class RecordingStartRequest:
+    file_name: str
+    strike_index: int
+    expected_side: StrikeSide
+    japanese_count: str
+    capture_mode: CaptureMode
+    metadata: dict[str, str | int | float | bool | None] = field(default_factory=dict)
+
+
+@dataclass(frozen=True)
+class RecordingStopRequest:
+    reason: str
+    requested_at_ms: int | None = None
+
+
+@dataclass(frozen=True)
+class RecordingResult:
+    file_name: str
+    state: RecordingState
+    saved: bool
+    start_time_ms: int | None = None
+    stop_time_ms: int | None = None
+    duration_ms: int | None = None
+    cancel_reason: str | None = None
+    failure_reason: str | None = None
+    diagnostics: dict[str, str | int | float | bool | None] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)
