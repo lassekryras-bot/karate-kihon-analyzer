@@ -48,8 +48,9 @@ lives under `src/karate_app/` and must not import analyzer internals.
    - speak "Clip X saved."
 6. Speak a completion summary, such as "Session complete. 10 clips saved."
 7. On `STOP`, return a partial result and speak a stop summary, such as "Session stopped. 4 clips saved."
-8. On capture timeouts, speak "Punch not detected. Try again." and retry the same planned strike instead of ending the whole session.
-9. On technical capture failures, return an incomplete result with `stopped_by_user = false` so app UI can distinguish failure from a user stop.
+8. On capture timeouts, speak "Punch not detected. Try again." and retry the same planned strike up to `max_retries_per_strike` times. The default retry limit is 2.
+9. After the retry limit, speak "Skipping this strike.", save no clip for that planned strike, and continue deterministically to the next strike.
+10. On technical capture failures, return an incomplete result with `stopped_by_user = false` so app UI can distinguish failure from a user stop.
 
 ## Session commands
 
@@ -89,6 +90,34 @@ The Jodan MVP plan records 10 clips with alternating right/left expected sides:
 | 8 | Hachi | left | `strike_008_left.mp4` |
 | 9 | Ku | right | `strike_009_right.mp4` |
 | 10 | Ju | left | `strike_010_left.mp4` |
+
+## Recording Adapter Contract
+
+The app has three layers between the guided flow and a saved video file:
+
+1. **Guided session orchestrator**
+   Owns the session flow, setup prompt, Japanese counts, retry/stop behavior, and metadata writing.
+2. **Strike capture controller**
+   Owns clip boundary logic:
+   - fixed duration now
+   - later MediaPipe movement detection for app-side capture timing only
+3. **Recording adapter**
+   Owns actual video recording:
+   - CameraX later on Android
+   - fake adapter now in tests
+
+Text diagram:
+
+```text
+GuidedJodanSessionOrchestrator
+→ StrikeCaptureController
+→ RecordingAdapter
+→ MP4 file
+```
+
+`RecordingAdapter.start_recording(...)` will map to CameraX video capture start in the future Android app. `RecordingAdapter.stop_recording(...)` will map to CameraX stop/finalize recording. `RecordingAdapter.cancel_recording(...)` will map to cancel/discard the current recording.
+
+The `RecordingAdapter` is intentionally low-level and generic. It may start, stop, or cancel recording, report timestamps, and return saved file details. It does not analyze karate, detect an impact frame, evaluate Jodan height, score technique, use analyzer code, or know karate rules.
 
 ## Future real services
 
@@ -136,7 +165,7 @@ The controller contract models:
 - capture events such as `PROMPT_STARTED`, `RECORDING_STARTED`,
   `MOVEMENT_STARTED`, `PROGRESS_DETECTED`, `POSSIBLE_IMPACT`,
   `POST_ROLL_COMPLETE`, timeout events, cancel events, and failure events
-- capture configuration for fixed duration, movement timeout, active strike
+- capture configuration for fixed duration, per-strike retry limit, movement timeout, active strike
   safety timeout, progress stall timeout, post-roll, and the minimum elbow-extension
   angle for future lightweight pose capture
 - capture results with rough timing metadata, cancellation status, and diagnostics

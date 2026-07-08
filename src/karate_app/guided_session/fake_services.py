@@ -9,6 +9,10 @@ from pathlib import Path
 from karate_app.guided_session.session_models import (
     CaptureMode,
     CapturedStrikeClip,
+    RecordingResult,
+    RecordingStartRequest,
+    RecordingState,
+    RecordingStopRequest,
     SessionCommand,
     GuidedSessionMetadata,
     SessionMetadata,
@@ -55,6 +59,73 @@ class FakeCommandListener:
         if SessionCommand.OSU in allowed_commands and command == SessionCommand.CONTINUE:
             return SessionCommand.OSU
         return SessionCommand.UNKNOWN
+
+
+class FakeRecordingAdapter:
+    """Scriptable fake implementation of the low-level recording adapter."""
+
+    def __init__(
+        self,
+        fake_duration_ms: int = 4_000,
+        fail_on_start: bool = False,
+        fail_on_stop: bool = False,
+    ) -> None:
+        self.fake_duration_ms = fake_duration_ms
+        self.fail_on_start = fail_on_start
+        self.fail_on_stop = fail_on_stop
+        self.start_requests: list[RecordingStartRequest] = []
+        self.stop_requests: list[RecordingStopRequest] = []
+        self._state = RecordingState.IDLE
+        self._active_request: RecordingStartRequest | None = None
+
+    def start_recording(self, request: RecordingStartRequest) -> None:
+        self.start_requests.append(request)
+        if self.fail_on_start:
+            self._state = RecordingState.FAILED
+            raise RuntimeError("fake recording start failed")
+        self._active_request = request
+        self._state = RecordingState.RECORDING
+        print(f"recording start: {request.file_name}")
+
+    def stop_recording(self, request: RecordingStopRequest) -> RecordingResult:
+        self.stop_requests.append(request)
+        file_name = self._active_request.file_name if self._active_request else ""
+        if self.fail_on_stop:
+            self._state = RecordingState.FAILED
+            return RecordingResult(
+                file_name=file_name,
+                state=RecordingState.FAILED,
+                saved=False,
+                failure_reason="fake recording stop failed",
+                diagnostics={"stop_reason": request.reason},
+            )
+
+        self._state = RecordingState.SAVED
+        result = RecordingResult(
+            file_name=file_name,
+            state=RecordingState.SAVED,
+            saved=True,
+            start_time_ms=0,
+            stop_time_ms=self.fake_duration_ms,
+            duration_ms=self.fake_duration_ms,
+            diagnostics={"stop_reason": request.reason},
+        )
+        print(f"recording stop: {file_name}")
+        return result
+
+    def cancel_recording(self, reason: str) -> RecordingResult:
+        file_name = self._active_request.file_name if self._active_request else ""
+        self._state = RecordingState.CANCELLED
+        return RecordingResult(
+            file_name=file_name,
+            state=RecordingState.CANCELLED,
+            saved=False,
+            cancel_reason=reason,
+            diagnostics={"cancel_reason": reason},
+        )
+
+    def current_state(self) -> RecordingState:
+        return self._state
 
 
 class FakeStrikeClipRecorder:

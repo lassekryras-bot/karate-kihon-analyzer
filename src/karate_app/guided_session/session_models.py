@@ -107,6 +107,35 @@ class CapturedStrikeClip:
 
 
 @dataclass(frozen=True)
+class RecordingStartRequest:
+    file_name: str
+    strike_index: int
+    expected_side: StrikeSide
+    japanese_count: str
+    capture_mode: CaptureMode
+    metadata: dict[str, str | int | float | bool | None] = field(default_factory=dict)
+
+
+@dataclass(frozen=True)
+class RecordingStopRequest:
+    reason: str
+    requested_at_ms: int | None = None
+
+
+@dataclass(frozen=True)
+class RecordingResult:
+    file_name: str
+    state: RecordingState
+    saved: bool
+    start_time_ms: int | None = None
+    stop_time_ms: int | None = None
+    duration_ms: int | None = None
+    cancel_reason: str | None = None
+    failure_reason: str | None = None
+    diagnostics: dict[str, str | int | float | bool | None] = field(default_factory=dict)
+
+
+@dataclass(frozen=True)
 class StrikeCaptureResult:
     strike_index: int
     expected_side: StrikeSide
@@ -127,6 +156,7 @@ class StrikeCaptureResult:
 class StrikeCaptureConfig:
     capture_mode: CaptureMode = CaptureMode.FAKE
     fixed_clip_duration_ms: int = 4_000
+    max_retries_per_strike: int = 2
     waiting_for_movement_timeout_ms: int = 5_000
     active_strike_timeout_ms: int = 10_000
     progress_stall_timeout_ms: int = 2_000

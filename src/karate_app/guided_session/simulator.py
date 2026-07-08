@@ -1,15 +1,18 @@
-"""Command-line simulator for the fake guided Jodan clip recorder flow."""
+"""Command-line simulator for the guided Jodan clip recorder flow."""
 
 from __future__ import annotations
 
 from karate_app.guided_session.fake_services import (
     FakeCommandListener,
+    FakeRecordingAdapter,
     FakeSessionMetadataWriter,
     FakeSpeechPrompter,
-    FakeStrikeCaptureController,
 )
 from karate_app.guided_session.session_models import SessionCommand, StrikeCaptureState
 from karate_app.guided_session.session_orchestrator import GuidedJodanSessionOrchestrator
+from karate_app.guided_session.strike_capture_controller import (
+    FixedDurationStrikeCaptureController,
+)
 
 
 def main() -> None:
@@ -24,6 +27,7 @@ def main() -> None:
         command_listener=command_listener,
         clip_recorder=None,
         capture_controller=recorder,
+        capture_config=StrikeCaptureConfig(),
         metadata_writer=metadata_writer,
     )
 
