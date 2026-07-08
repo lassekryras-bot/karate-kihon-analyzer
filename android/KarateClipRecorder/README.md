@@ -85,3 +85,39 @@ This PR does not add:
 - Analyzer integration
 - Jodan scoring
 - Debug overlays
+
+## Confirmed phone test
+
+This Android MVP was confirmed running on a real phone:
+
+- Preview visible.
+- **Record 4 seconds** button works.
+- `strike_test_001.mp4` saved in the app-private Movies directory.
+
+## Troubleshooting
+
+### AndroidX property is not enabled
+
+If Gradle reports:
+
+```text
+Configuration ':app:debugRuntimeClasspath' contains AndroidX dependencies, but the android.useAndroidX property is not enabled
+```
+
+Fix it by creating `android/KarateClipRecorder/gradle.properties` with:
+
+```properties
+android.useAndroidX=true
+android.nonTransitiveRClass=true
+android.enableJetifier=false
+```
+
+### JVM target mismatch
+
+If Gradle reports:
+
+```text
+Inconsistent JVM-target compatibility detected for tasks compileDebugJavaWithJavac and compileDebugKotlin
+```
+
+Fix it by setting Java `compileOptions` and Kotlin `compilerOptions.jvmTarget` to JVM 17 in `app/build.gradle.kts`.
