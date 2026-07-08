@@ -144,13 +144,8 @@ def render_strike_snapshot(
     draw = ImageDraw.Draw(overlay)
 
     points = _landmark_points(landmarks, image.size)
-    _draw_body_connections(draw, points)
-    _draw_all_landmarks(draw, points)
     _draw_chin_reference(draw, instructions.chin_reference, image.size)
     _draw_jodan_guides(draw, points, instructions, image.size)
-    _draw_strike_landmarks(draw, points, instructions.strike_side)
-    if instructions.jodan_reference is None:
-        _draw_head_reference(draw, points, landmarks, image.size)
     _draw_strike_text_panel(draw, instructions)
 
     return Image.alpha_composite(image, overlay).convert("RGB")

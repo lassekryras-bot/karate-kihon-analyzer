@@ -16,6 +16,7 @@ from karate_analyzer.references.chin_reference import calculate_chin_reference
 VALID_SOURCES = {
     "same_frame_chin",
     "backward_projected_chin",
+    "nearest_temporal_chin",
     "previous_jodan_projected",
     "future_jodan_projected",
     "unknown",
@@ -45,6 +46,7 @@ MIN_ANCHOR_VISIBILITY = 0.5
 MIN_MATCHED_ANCHORS = 3
 MAX_ANCHOR_SPREAD_Y = 0.045
 MAX_FRAME_OFFSET = 90
+MAX_TEMPORAL_CHIN_MEDIAN_DEVIATION_Y = 0.025
 
 
 def calculate_jodan_reference(
@@ -74,6 +76,7 @@ def resolve_jodan_references(
         frame.get("frame_number"): calculate_chin_reference(_first_face(frame))
         for frame in ordered_frames
     }
+    stable_chin_band = _stable_chin_band(frame_chins.values())
 
     resolved: list[dict[str, Any]] = []
     pending: list[dict[str, Any]] = []
@@ -104,6 +107,13 @@ def resolve_jodan_references(
                 projected_from_chin=False,
             )
         if reference is None:
+            nearest = _nearest_temporal_chin(
+                event, ordered_frames, frames_by_number, frame_chins, stable_chin_band
+            )
+            if nearest is not None:
+                chin = nearest["chin"]
+                reference = nearest["reference"]
+        if reference is None:
             reference = _unknown_reference(
                 analysis_frame, "no_previous_valid_jodan_reference"
             )
@@ -131,6 +141,82 @@ def resolve_jodan_references(
             )
 
     return resolved
+
+
+def _nearest_temporal_chin(
+    event, ordered_frames, frames_by_number, frame_chins, stable_chin_band
+):
+    analysis = event.get("analysis_frame_number")
+    if analysis is None:
+        return None
+    target_frame = frames_by_number.get(analysis)
+    if _first_face(target_frame):
+        return None
+
+    candidates = []
+    for frame in ordered_frames:
+        frame_number = frame.get("frame_number")
+        if frame_number is None:
+            continue
+        offset = int(analysis) - int(frame_number)
+        if abs(offset) > MAX_FRAME_OFFSET:
+            continue
+        chin = frame_chins.get(frame_number)
+        if _valid_point(chin) and _within_stable_chin_band(chin, stable_chin_band):
+            candidates.append(
+                (abs(offset), int(frame_number) > int(analysis), frame, chin)
+            )
+
+    if not candidates:
+        return None
+
+    _gap, _future_bias, source_frame, source_chin = min(
+        candidates, key=lambda candidate: (candidate[0], candidate[1])
+    )
+    source_number = source_frame.get("frame_number")
+    offset = int(analysis) - int(source_number)
+    reference = {
+        "source": "nearest_temporal_chin",
+        "x": float(source_chin["x"]),
+        "y": float(source_chin["y"]),
+        "visibility": float(source_chin.get("visibility", 1.0)),
+        "confidence": "medium" if abs(offset) <= 5 else "low",
+        "source_frame_number": source_number,
+        "analysis_frame_number": analysis,
+        "frame_offset": offset,
+        "matched_head_anchor_count": 0,
+        "head_cluster_motion_y": None,
+        "projection_direction": "none",
+        "reason": "nearest_visible_face_landmarker_chin",
+        "used_landmarks": list(source_chin.get("used_landmarks", [])),
+        "source_reference_source": source_chin.get("source"),
+    }
+    chin = dict(source_chin)
+    chin["source_frame_number"] = source_number
+    chin["analysis_frame_number"] = analysis
+    chin["frame_offset"] = offset
+    return {"chin": chin, "reference": reference}
+
+
+def _stable_chin_band(chins):
+    y_values = [
+        float(chin["y"])
+        for chin in chins
+        if _valid_point(chin) and chin.get("y") is not None
+    ]
+    if len(y_values) < 3:
+        return None
+    center = median(y_values)
+    return (
+        center - MAX_TEMPORAL_CHIN_MEDIAN_DEVIATION_Y,
+        center + MAX_TEMPORAL_CHIN_MEDIAN_DEVIATION_Y,
+    )
+
+
+def _within_stable_chin_band(chin, stable_chin_band):
+    if stable_chin_band is None:
+        return True
+    return stable_chin_band[0] <= float(chin["y"]) <= stable_chin_band[1]
 
 
 def _same_frame_payload(

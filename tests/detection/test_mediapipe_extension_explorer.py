@@ -365,7 +365,13 @@ def test_punch_event_landmarks_copy_peak_frame_analysis_landmarks() -> None:
         "shoulder": {"x": 0.0, "y": 0.0, "visibility": 0.8},
         "elbow": {"x": 0.5, "y": 0.0, "visibility": 0.8},
         "wrist": {"x": 1.0, "y": 0.0, "visibility": 0.8},
-        "impact_point": None,
+        "impact_point": {
+            "x": 1.0,
+            "y": 0.0,
+            "visibility": 0.8,
+            "source": "pose_wrist_fallback",
+            "hand_match_strategy": "pose_wrist_when_hand_landmarks_missing",
+        },
         "head_reference_candidate": {
             "source": "nose",
             "x": 0.1,
@@ -392,18 +398,24 @@ def test_punch_event_landmarks_copy_peak_frame_analysis_landmarks() -> None:
         "analysis": {
             "jodan_height": {
                 "status": "unknown",
-                "impact_point": None,
-                "target_point": None,
-                "tolerance_px": None,
-                "vertical_offset_px": None,
-                "message": "Could not evaluate Jodan height.",
-            }
-        },
+                "impact_point": {"x": 1.0, "y": 0.0, "visibility": 0.8},
+                    "target_point": None,
+                    "tolerance_px": None,
+                    "vertical_offset_px": None,
+                    "message": "Could not evaluate Jodan height.",
+                    "actual_line_start": {"x": 0.0, "y": 0.0, "visibility": 0.8},
+                    "actual_line_end": {"x": 1.0, "y": 0.0, "visibility": 0.8},
+                    "unknown_reason": (
+                        "Missing or low-confidence shoulder, impact point, "
+                        "or Jodan reference."
+                    ),
+                }
+            },
         "visibility": {
             "shoulder": 0.8,
             "elbow": 0.8,
             "wrist": 0.8,
-            "impact_point": None,
+            "impact_point": 0.8,
             "head_reference_candidate": 0.7,
             "chin_reference": None,
             "jodan_reference": None,

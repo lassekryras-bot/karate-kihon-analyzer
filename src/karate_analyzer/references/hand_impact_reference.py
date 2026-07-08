@@ -43,6 +43,35 @@ def calculate_impact_point(
     return payload
 
 
+def calculate_highest_hand_point(
+    hand_landmarks: list[dict[str, Any]] | dict[Any, dict[str, Any]] | None,
+    *,
+    min_confidence: float = DEFAULT_MIN_CONFIDENCE,
+) -> dict[str, Any] | None:
+    """Return the topmost visible landmark for one detected hand."""
+
+    candidates = []
+    for index, landmark in _landmarks_by_index(hand_landmarks).items():
+        point = _point_payload(landmark)
+        if point is None or _confidence(point) < min_confidence:
+            continue
+        candidates.append((point["y"], int(index), point))
+    if not candidates:
+        return None
+
+    _y, index, point = min(candidates, key=lambda item: (item[0], item[1]))
+    payload: dict[str, Any] = {
+        "x": point["x"],
+        "y": point["y"],
+        "visibility": _confidence(point),
+        "source": "highest_visible_hand_landmark",
+        "landmark_index": index,
+    }
+    if point.get("z") is not None:
+        payload["z"] = point["z"]
+    return payload
+
+
 def match_hand_to_pose_wrist(
     hands: list[dict[str, Any]] | None,
     pose_wrist: dict[str, Any] | None,
@@ -88,6 +117,10 @@ def calculate_striking_hand_impact_point(
     point = calculate_impact_point(
         _hand_landmarks(match["hand"]), min_confidence=min_confidence
     )
+    if point is None:
+        point = calculate_highest_hand_point(
+            _hand_landmarks(match["hand"]), min_confidence=min_confidence
+        )
     if point is None:
         return None
     hand = match["hand"]

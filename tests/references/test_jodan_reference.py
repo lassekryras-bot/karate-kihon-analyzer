@@ -98,6 +98,32 @@ def test_future_valid_jodan_reference_can_be_projected_backward_with_low_confide
     assert events[0]["jodan_reference"]["source_frame_number"] == 2
 
 
+def test_nearby_visible_chin_can_seed_low_confidence_jodan_reference():
+    frames = [_face(10, chin_y=None), _face(14, chin_y=0.42)]
+    [event] = resolve_jodan_references(frames, [_event(0, 12, 12, 12)])
+
+    assert event["chin_reference"]["source_frame_number"] == 14
+    assert event["jodan_reference"]["source"] == "nearest_temporal_chin"
+    assert event["jodan_reference"]["source_frame_number"] == 14
+    assert event["jodan_reference"]["y"] == 0.42
+
+
+def test_nearby_temporal_chin_ignores_eye_level_outlier():
+    frames = [
+        _face(10, chin_y=0.42),
+        _face(14, chin_y=0.421),
+        _face(20, chin_y=0.20),
+        _face(30, chin_y=0.419),
+        _face(34, chin_y=0.422),
+        {"frame_number": 22, "faces": []},
+    ]
+    [event] = resolve_jodan_references(frames, [_event(0, 22, 22, 22)])
+
+    assert event["jodan_reference"]["source"] == "nearest_temporal_chin"
+    assert event["jodan_reference"]["source_frame_number"] == 14
+    assert event["jodan_reference"]["y"] == 0.421
+
+
 def test_old_fallback_sources_are_not_produced():
     reference = calculate_jodan_reference([_landmark(0, 0.5, 0.2)])
     assert reference is None

@@ -177,7 +177,7 @@ def test_render_strike_snapshot_succeeds_without_jodan_reference() -> None:
     assert image.size == (160, 120)
 
 
-def test_render_strike_snapshot_does_not_draw_legacy_head_reference_when_jodan_exists() -> (
+def test_render_strike_snapshot_does_not_draw_raw_nose_landmark_when_jodan_exists() -> (
     None
 ):
     background = Image.new("RGB", (200, 240), "gray")
@@ -194,10 +194,10 @@ def test_render_strike_snapshot_does_not_draw_legacy_head_reference_when_jodan_e
 
     image = render_strike_snapshot(background, landmarks, instructions)
 
-    assert image.getpixel((20, 216)) == (0, 208, 132)
+    assert image.getpixel((20, 216)) == (128, 128, 128)
 
 
-def test_render_strike_snapshot_draws_legacy_head_reference_without_jodan() -> None:
+def test_render_strike_snapshot_does_not_draw_legacy_head_reference_without_jodan() -> None:
     background = Image.new("RGB", (200, 240), "gray")
     landmarks = [
         {"index": 0, "x": 0.10, "y": 0.90, "visibility": 0.95},
@@ -209,7 +209,7 @@ def test_render_strike_snapshot_draws_legacy_head_reference_without_jodan() -> N
 
     image = render_strike_snapshot(background, landmarks, instructions)
 
-    assert image.getpixel((20, 216)) == (176, 38, 255)
+    assert image.getpixel((20, 216)) == (128, 128, 128)
 
 
 def test_render_strike_snapshot_overlay_does_not_require_mediapipe(monkeypatch) -> None:
@@ -428,7 +428,7 @@ def test_render_strike_snapshot_missing_impact_point_does_not_fall_back_to_wrist
     image = render_strike_snapshot(background, landmarks, instructions)
 
     assert image.getpixel((150, 210)) != (255, 210, 63)
-    assert image.getpixel((240, 210)) == (255, 90, 31)
+    assert image.getpixel((240, 210)) != (255, 90, 31)
 
 
 def test_render_strike_snapshot_succeeds_with_chin_reference() -> None:

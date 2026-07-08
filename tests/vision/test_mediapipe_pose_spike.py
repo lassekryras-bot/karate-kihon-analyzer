@@ -232,6 +232,87 @@ def test_tasks_runner_uses_hand_landmarker_when_model_exists(
     assert detection.face_landmarks == []
 
 
+def test_serialize_task_hands_maps_crop_coordinates_to_full_frame() -> None:
+    import types
+
+    landmark = types.SimpleNamespace(x=0.5, y=0.25, z=0.1, visibility=0.8)
+    result = types.SimpleNamespace(
+        hand_landmarks=[[landmark]],
+        handedness=[[types.SimpleNamespace(category_name="Right", score=0.99)]],
+    )
+
+    hands = spike._serialize_task_hands(
+        result,
+        spike._CoordinateTransform(
+            x_offset=0.60,
+            y_offset=0.10,
+            x_scale=0.20,
+            y_scale=0.30,
+        ),
+    )
+
+    assert hands == [
+        {
+            "landmarks": [
+                {
+                    "index": 0,
+                    "x": 0.70,
+                    "y": 0.175,
+                    "z": 0.020000000000000004,
+                    "visibility": 0.8,
+                }
+            ],
+            "handedness": {"label": "Right", "score": 0.99},
+        }
+    ]
+
+
+def test_hand_crop_bounds_center_on_pose_wrists() -> None:
+    import types
+
+    pose_landmarks = [types.SimpleNamespace(x=0.0, y=0.0, visibility=0.0) for _ in range(17)]
+    pose_landmarks[15] = types.SimpleNamespace(x=0.80, y=0.20, visibility=0.9)
+    pose_landmarks[16] = types.SimpleNamespace(x=0.20, y=0.40, visibility=0.9)
+
+    bounds = spike._hand_crop_bounds([pose_landmarks], 1000, 800, 0.25)
+
+    assert bounds == [(700, 60, 900, 260), (100, 220, 300, 420)]
+
+
+def test_full_frame_hand_far_from_pose_wrists_is_not_plausible() -> None:
+    import types
+
+    pose_landmarks = [types.SimpleNamespace(x=0.0, y=0.0, visibility=0.0) for _ in range(17)]
+    pose_landmarks[15] = types.SimpleNamespace(x=0.80, y=0.20, visibility=0.9)
+    pose_landmarks[16] = types.SimpleNamespace(x=0.35, y=0.35, visibility=0.9)
+    foot_false_positive = {
+        "landmarks": [
+            {"index": 0, "x": 0.45, "y": 0.90},
+            {"index": 5, "x": 0.48, "y": 0.88},
+            {"index": 9, "x": 0.50, "y": 0.89},
+        ]
+    }
+
+    assert spike._hands_are_near_pose_wrists(
+        [foot_false_positive], [pose_landmarks]
+    ) is False
+
+
+def test_full_frame_hand_near_pose_wrist_is_plausible() -> None:
+    import types
+
+    pose_landmarks = [types.SimpleNamespace(x=0.0, y=0.0, visibility=0.0) for _ in range(17)]
+    pose_landmarks[15] = types.SimpleNamespace(x=0.80, y=0.20, visibility=0.9)
+    hand = {
+        "landmarks": [
+            {"index": 0, "x": 0.79, "y": 0.21},
+            {"index": 5, "x": 0.82, "y": 0.19},
+        ]
+    }
+
+    assert spike._hands_are_near_pose_wrists([hand], [pose_landmarks]) is True
+
+
 def test_serialize_faces_supports_tasks_face_landmarker_output() -> None:
     import types
 
@@ -248,6 +329,35 @@ def test_serialize_faces_supports_tasks_face_landmarker_output() -> None:
                     "z": 0.3,
                     "presence": 0.7,
                     "visibility": 0.7,
+                }
+            ]
+        }
+    ]
+
+
+def test_serialize_faces_maps_pose_crop_coordinates_to_full_frame() -> None:
+    import types
+
+    landmark = types.SimpleNamespace(x=0.5, y=0.5, z=0.2)
+    result = types.SimpleNamespace(face_landmarks=[[landmark]])
+
+    assert spike._serialize_faces(
+        result,
+        spike._CoordinateTransform(
+            x_offset=0.25,
+            y_offset=0.10,
+            x_scale=0.50,
+            y_scale=0.40,
+        ),
+    ) == [
+        {
+            "landmarks": [
+                {
+                    "index": 0,
+                    "x": 0.5,
+                    "y": 0.30000000000000004,
+                    "z": 0.1,
+                    "visibility": 1.0,
                 }
             ]
         }
@@ -341,6 +451,75 @@ def test_tasks_runner_uses_face_landmarker_when_model_exists(
 
     assert runner.face_detector_backend == "tasks_face_landmarker"
     assert detection.face_landmarks[0]["landmarks"][0]["visibility"] == 1.0
+
+
+def test_tasks_runner_creates_face_landmarker_in_video_mode_from_model_candidate(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import sys
+    import types
+
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / "input").mkdir()
+    (tmp_path / "input" / "pose_landmarker.task").write_bytes(b"pose model")
+    (tmp_path / "input" / "face_landmarker.task").write_bytes(b"face model")
+
+    class FakePoseLandmarker:
+        @classmethod
+        def create_from_options(cls, options: object) -> "FakePoseLandmarker":
+            return cls()
+
+        def close(self) -> None:
+            pass
+
+    class FakeFaceLandmarker:
+        created_options: object | None = None
+
+        @classmethod
+        def create_from_options(cls, options: object) -> "FakeFaceLandmarker":
+            cls.created_options = options
+            return cls()
+
+        def close(self) -> None:
+            pass
+
+    class FakeBaseOptions:
+        def __init__(self, model_asset_path: str) -> None:
+            self.model_asset_path = model_asset_path
+
+    class FakeOptions:
+        def __init__(self, **kwargs: object) -> None:
+            self.kwargs = kwargs
+
+    fake_mp = types.ModuleType("mediapipe")
+    fake_mp.Image = lambda image_format, data: data
+    fake_mp.ImageFormat = types.SimpleNamespace(SRGB="SRGB")
+    fake_python = types.ModuleType("mediapipe.tasks.python")
+    fake_python.BaseOptions = FakeBaseOptions
+    fake_vision = types.ModuleType("mediapipe.tasks.python.vision")
+    fake_vision.RunningMode = types.SimpleNamespace(IMAGE="IMAGE", VIDEO="VIDEO")
+    fake_vision.PoseLandmarker = FakePoseLandmarker
+    fake_vision.PoseLandmarkerOptions = FakeOptions
+    fake_vision.FaceLandmarker = FakeFaceLandmarker
+    fake_vision.FaceLandmarkerOptions = FakeOptions
+    fake_tasks = types.ModuleType("mediapipe.tasks")
+    fake_tasks.python = fake_python
+    fake_python.vision = fake_vision
+
+    monkeypatch.setitem(sys.modules, "mediapipe", fake_mp)
+    monkeypatch.setitem(sys.modules, "mediapipe.tasks", fake_tasks)
+    monkeypatch.setitem(sys.modules, "mediapipe.tasks.python", fake_python)
+    monkeypatch.setitem(sys.modules, "mediapipe.tasks.python.vision", fake_vision)
+
+    with spike._TasksPoseRunner("VIDEO"):
+        pass
+
+    assert FakeFaceLandmarker.created_options is not None
+    kwargs = FakeFaceLandmarker.created_options.kwargs
+    assert kwargs["running_mode"] == "VIDEO"
+    assert kwargs["base_options"].model_asset_path == str(
+        Path("input/face_landmarker.task")
+    )
 
 
 def test_analyze_video_includes_tasks_face_backend_and_detected_faces(

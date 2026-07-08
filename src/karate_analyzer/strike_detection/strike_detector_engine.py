@@ -40,6 +40,8 @@ class StrikeDetectorEngine:
     extension_plateau_delta = 0.01
     peak_alignment_window_frames = 3
     max_hand_to_wrist_match_distance = 0.08
+    nearby_hand_search_window_frames = 3
+    max_nearby_hand_to_wrist_match_distance = 0.12
 
     def extract_strike_event_candidates(
         self,
@@ -315,7 +317,10 @@ class StrikeDetectorEngine:
     ) -> tuple[dict[str, Any] | None, str | None]:
         point = calculate_striking_hand_impact_point(self._frame_hands(frame), wrist)
         if point is None:
-            return None, "no_matching_hand_impact_point"
+            fallback = self._pose_wrist_impact_point(wrist)
+            if fallback is None:
+                return None, "no_matching_hand_impact_point"
+            return fallback, "pose_wrist_fallback_no_matching_hand_impact_point"
         distance = point.get("match_distance_to_pose_wrist")
         if (
             distance is not None
@@ -326,6 +331,70 @@ class StrikeDetectorEngine:
                 f"hand_to_wrist_match_distance_exceeds_{self.max_hand_to_wrist_match_distance}",
             )
         return point, None
+
+    @staticmethod
+    def _pose_wrist_impact_point(
+        wrist: dict[str, Any] | None
+    ) -> dict[str, Any] | None:
+        if wrist is None or wrist.get("x") is None or wrist.get("y") is None:
+            return None
+        payload: dict[str, Any] = {
+            "x": float(wrist["x"]),
+            "y": float(wrist["y"]),
+            "visibility": float(wrist.get("visibility", 1.0)),
+            "source": "pose_wrist_fallback",
+            "hand_match_strategy": "pose_wrist_when_hand_landmarks_missing",
+        }
+        if wrist.get("z") is not None:
+            payload["z"] = float(wrist["z"])
+        return payload
+
+    def validated_nearby_impact_point(
+        self,
+        raw_frames: list[dict[str, Any]],
+        analysis_frame_number: int | None,
+        wrist: dict[str, Any] | None,
+    ) -> tuple[dict[str, Any] | None, str | None]:
+        if analysis_frame_number is None:
+            return self._pose_wrist_impact_point(wrist), "pose_wrist_fallback_no_analysis_frame"
+
+        candidates = []
+        for frame in raw_frames:
+            frame_number = frame.get("frame_number")
+            if frame_number is None:
+                continue
+            offset = int(frame_number) - int(analysis_frame_number)
+            if abs(offset) > self.nearby_hand_search_window_frames:
+                continue
+            point = calculate_striking_hand_impact_point(self._frame_hands(frame), wrist)
+            if point is None:
+                continue
+            distance = point.get("match_distance_to_pose_wrist")
+            if (
+                distance is not None
+                and float(distance) <= self.max_nearby_hand_to_wrist_match_distance
+            ):
+                candidates.append((abs(offset), float(distance), offset, point))
+
+        if candidates:
+            _gap, _distance, offset, point = min(
+                candidates, key=lambda item: (item[0], item[1])
+            )
+            return (
+                {
+                    **point,
+                    "source_frame_offset": offset,
+                    "hand_match_strategy": (
+                        f"nearby_{point.get('hand_match_strategy', 'hand_match')}"
+                    ),
+                },
+                "nearby_hand_impact_point",
+            )
+
+        fallback = self._pose_wrist_impact_point(wrist)
+        if fallback is None:
+            return None, "no_matching_hand_impact_point"
+        return fallback, "pose_wrist_fallback_no_nearby_hand_impact_point"
 
     def _smooth_metrics(
         self, metrics: list[dict[str, Any]], key: str, window: int = 3
