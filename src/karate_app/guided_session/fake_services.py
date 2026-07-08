@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import json
-from dataclasses import asdict
+from dataclasses import asdict, is_dataclass
 from pathlib import Path
 
 from karate_app.guided_session.session_models import (
@@ -14,6 +14,7 @@ from karate_app.guided_session.session_models import (
     RecordingState,
     RecordingStopRequest,
     SessionCommand,
+    GuidedSessionMetadata,
     SessionMetadata,
     StrikeCaptureConfig,
     StrikeCaptureEvent,
@@ -279,6 +280,8 @@ class FakeSessionMetadataWriter:
     def __init__(self, output_folder: Path | None = None) -> None:
         self.output_folder = output_folder
         self.written_metadata: list[SessionMetadata] = []
+        self.written_guided_session_metadata: list[GuidedSessionMetadata] = []
+        self.last_metadata_path: Path | None = None
 
     def write_session_metadata(self, metadata: SessionMetadata) -> None:
         self.written_metadata.append(metadata)
@@ -287,4 +290,31 @@ class FakeSessionMetadataWriter:
 
         self.output_folder.mkdir(parents=True, exist_ok=True)
         metadata_path = self.output_folder / "guided_jodan_session_metadata.json"
-        metadata_path.write_text(json.dumps(asdict(metadata), indent=2), encoding="utf-8")
+        self.last_metadata_path = metadata_path
+        metadata_path.write_text(
+            json.dumps(_to_json_safe(metadata), indent=2), encoding="utf-8"
+        )
+
+    def write_guided_session_metadata(self, metadata: GuidedSessionMetadata) -> None:
+        self.written_guided_session_metadata.append(metadata)
+        if self.output_folder is None:
+            return
+
+        self.output_folder.mkdir(parents=True, exist_ok=True)
+        metadata_path = self.output_folder / "guided_jodan_session_metadata_v2.json"
+        self.last_metadata_path = metadata_path
+        metadata_path.write_text(
+            json.dumps(_to_json_safe(metadata), indent=2), encoding="utf-8"
+        )
+
+
+def _to_json_safe(value: object) -> object:
+    if is_dataclass(value) and not isinstance(value, type):
+        return {key: _to_json_safe(item) for key, item in asdict(value).items()}
+    if isinstance(value, dict):
+        return {str(key): _to_json_safe(item) for key, item in value.items()}
+    if isinstance(value, list):
+        return [_to_json_safe(item) for item in value]
+    if hasattr(value, "value"):
+        return value.value
+    return value

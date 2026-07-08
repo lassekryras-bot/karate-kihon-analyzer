@@ -41,14 +41,18 @@ class CaptureMode(str, Enum):
     FAKE = "FAKE"
 
 
-class RecordingState(str, Enum):
-    IDLE = "IDLE"
-    PREPARING = "PREPARING"
-    RECORDING = "RECORDING"
-    STOPPING = "STOPPING"
-    SAVED = "SAVED"
+class GuidedSessionType(str, Enum):
+    JODAN_CLIP_SESSION = "JODAN_CLIP_SESSION"
+
+
+class CaptureAttemptOutcome(str, Enum):
+    CLIP_READY = "CLIP_READY"
+    NO_MOVEMENT_TIMEOUT = "NO_MOVEMENT_TIMEOUT"
+    INCOMPLETE_STRIKE_TIMEOUT = "INCOMPLETE_STRIKE_TIMEOUT"
+    ACTIVE_STRIKE_TIMEOUT = "ACTIVE_STRIKE_TIMEOUT"
     CANCELLED = "CANCELLED"
     FAILED = "FAILED"
+    SKIPPED = "SKIPPED"
 
 
 class StrikeCaptureState(str, Enum):
@@ -158,6 +162,78 @@ class StrikeCaptureConfig:
     progress_stall_timeout_ms: int = 2_000
     post_roll_ms: int = 500
     minimum_elbow_extension_angle_degrees: int = 160
+    max_retries_per_strike: int = 2
+
+
+@dataclass(frozen=True)
+class CaptureAttemptMetadata:
+    attempt_id: int
+    strike_index: int
+    expected_side: StrikeSide
+    japanese_count: str
+    planned_file_name: str
+    outcome: CaptureAttemptOutcome
+    capture_reason: str
+    file_name: str | None
+    clip_saved: bool
+    retry_number: int
+    capture_mode: CaptureMode
+    clip_duration_ms: int | None
+    rough_movement_start_ms: int | None
+    rough_completion_time_ms: int | None
+    post_roll_ms: int | None
+    timeout_ms: int | None
+    cancelled: bool
+    diagnostics: dict[str, str | int | float | bool | None] = field(default_factory=dict)
+
+
+@dataclass(frozen=True)
+class GuidedSessionConfigMetadata:
+    session_type: GuidedSessionType
+    strike_type: str
+    target: str
+    expected_strike_count: int
+    capture_mode: CaptureMode
+    fixed_clip_duration_ms: int
+    waiting_for_movement_timeout_ms: int
+    active_strike_timeout_ms: int
+    progress_stall_timeout_ms: int
+    post_roll_ms: int
+    minimum_elbow_extension_angle_degrees: int
+    max_retries_per_strike: int
+
+
+@dataclass(frozen=True)
+class StrikePlanMetadata:
+    strike_index: int
+    japanese_count: str
+    expected_side: StrikeSide
+    planned_file_name: str
+
+
+@dataclass(frozen=True)
+class GuidedSessionSummary:
+    completed: bool
+    stopped_by_user: bool
+    expected_strike_count: int
+    successful_clip_count: int
+    failed_attempt_count: int
+    retry_count: int
+    skipped_strike_count: int
+    total_attempt_count: int
+    session_summary: str
+
+
+@dataclass(frozen=True)
+class GuidedSessionMetadata:
+    schema_version: str
+    session_id: str
+    session_type: GuidedSessionType
+    config: GuidedSessionConfigMetadata
+    strike_plan: list[StrikePlanMetadata]
+    attempts: list[CaptureAttemptMetadata]
+    successful_clips: list[CapturedStrikeClip]
+    summary: GuidedSessionSummary
 
 
 @dataclass(frozen=True)
@@ -195,4 +271,7 @@ class StrikeClipRecorder(Protocol):
 
 class SessionMetadataWriter(Protocol):
     def write_session_metadata(self, metadata: SessionMetadata) -> None:
-        """Persist structured metadata for a guided session."""
+        """Persist legacy structured metadata for a guided session."""
+
+    def write_guided_session_metadata(self, metadata: GuidedSessionMetadata) -> None:
+        """Persist metadata v2 for a guided session."""

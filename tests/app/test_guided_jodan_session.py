@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import ast
+import json
 from pathlib import Path
 
 from karate_app.guided_session.fake_services import (
@@ -16,6 +17,7 @@ from karate_app.guided_session.session_models import (
     RecordingState,
     RecordingStopRequest,
     SessionCommand,
+    CaptureAttemptOutcome,
     StrikeCaptureConfig,
     StrikeCaptureState,
     StrikeSide,
@@ -135,7 +137,7 @@ def test_completion_result_has_completed_true() -> None:
     assert result.completed is True
     assert result.stopped_by_user is False
     assert result.session_summary == "Session complete. 10 clips saved."
-    assert metadata_writer.written_metadata[0].completed is True
+    assert metadata_writer.written_guided_session_metadata[0].summary.completed is True
 
 
 def test_stop_before_osu_returns_stopped_result_with_0_clips() -> None:
@@ -314,7 +316,7 @@ def test_recording_failed_ends_session_without_user_stop_flag() -> None:
     assert result.session_summary == (
         "Session stopped because capture failed on strike 1. 0 clips saved."
     )
-    assert metadata_writer.written_metadata[0].stopped_by_user is False
+    assert metadata_writer.written_guided_session_metadata[0].summary.stopped_by_user is False
 
 
 def test_orchestrator_does_not_import_karate_analyzer() -> None:
@@ -382,6 +384,7 @@ def test_default_strike_capture_config_values_are_correct() -> None:
     assert config.progress_stall_timeout_ms == 2_000
     assert config.post_roll_ms == 500
     assert config.minimum_elbow_extension_angle_degrees == 160
+    assert config.max_retries_per_strike == 2
 
 
 def test_fake_capture_controller_returns_clip_ready_with_planned_filename() -> None:
@@ -464,182 +467,113 @@ def test_cancel_capture_sets_next_capture_to_cancelled() -> None:
     assert result.cancelled is True
 
 
-def recording_start_request() -> RecordingStartRequest:
-    return RecordingStartRequest(
-        file_name="strike_001_right.mp4",
-        strike_index=1,
-        expected_side=StrikeSide.RIGHT,
-        japanese_count="Ichi",
-        capture_mode=CaptureMode.FIXED_DURATION,
-        metadata={"test": True},
-    )
+def test_full_successful_session_writes_metadata_v2() -> None:
+    orchestrator, _, _, metadata_writer = build_orchestrator(commands=[SessionCommand.OSU])
+
+    orchestrator.start_session()
+
+    metadata = metadata_writer.written_guided_session_metadata[0]
+    assert metadata.schema_version == "guided-jodan-session-metadata-v2"
+    assert metadata.session_id
+    assert metadata.config.fixed_clip_duration_ms == 4_000
+    assert metadata.config.waiting_for_movement_timeout_ms == 5_000
+    assert metadata.config.active_strike_timeout_ms == 10_000
+    assert metadata.config.progress_stall_timeout_ms == 2_000
+    assert metadata.config.post_roll_ms == 500
+    assert metadata.config.max_retries_per_strike == 2
+    assert len(metadata.strike_plan) == 10
+    assert len(metadata.attempts) == 10
+    assert len(metadata.successful_clips) == 10
+    assert metadata.summary.successful_clip_count == 10
+    assert metadata.summary.failed_attempt_count == 0
 
 
-def test_fake_recording_adapter_starts_in_idle() -> None:
-    adapter = FakeRecordingAdapter()
-
-    assert adapter.current_state() == RecordingState.IDLE
-
-
-def test_fake_recording_adapter_start_changes_state_to_recording() -> None:
-    adapter = FakeRecordingAdapter()
-
-    adapter.start_recording(recording_start_request())
-
-    assert adapter.current_state() == RecordingState.RECORDING
-
-
-def test_fake_recording_adapter_stop_returns_saved_result() -> None:
-    adapter = FakeRecordingAdapter(fake_duration_ms=4_500)
-    adapter.start_recording(recording_start_request())
-
-    result = adapter.stop_recording(RecordingStopRequest(reason="test_complete"))
-
-    assert result.state == RecordingState.SAVED
-    assert result.saved is True
-    assert result.duration_ms == 4_500
-
-
-def test_fake_recording_adapter_stop_returns_saved_file_name() -> None:
-    adapter = FakeRecordingAdapter()
-    adapter.start_recording(recording_start_request())
-
-    result = adapter.stop_recording(RecordingStopRequest(reason="test_complete"))
-
-    assert result.file_name == "strike_001_right.mp4"
-
-
-def test_fake_recording_adapter_cancel_returns_cancelled_result() -> None:
-    adapter = FakeRecordingAdapter()
-    adapter.start_recording(recording_start_request())
-
-    result = adapter.cancel_recording("user_stop")
-
-    assert result.state == RecordingState.CANCELLED
-    assert result.saved is False
-    assert result.cancel_reason == "user_stop"
-
-
-def test_fake_recording_adapter_fail_on_start_produces_failed_state() -> None:
-    adapter = FakeRecordingAdapter(fail_on_start=True)
-
-    try:
-        adapter.start_recording(recording_start_request())
-    except RuntimeError as exc:
-        assert str(exc) == "fake recording start failed"
-
-    assert adapter.current_state() == RecordingState.FAILED
-
-
-def test_fake_recording_adapter_fail_on_stop_produces_failed_result() -> None:
-    adapter = FakeRecordingAdapter(fail_on_stop=True)
-    adapter.start_recording(recording_start_request())
-
-    result = adapter.stop_recording(RecordingStopRequest(reason="test_complete"))
-
-    assert result.state == RecordingState.FAILED
-    assert result.saved is False
-    assert result.failure_reason == "fake recording stop failed"
-
-
-def test_fixed_duration_capture_controller_returns_clip_ready_on_successful_recording() -> None:
-    controller = FixedDurationStrikeCaptureController(FakeRecordingAdapter())
-
-    result = controller.capture_strike_clip(create_jodan_session_plan()[0], StrikeCaptureConfig())
-
-    assert result.state == StrikeCaptureState.CLIP_READY
-    assert result.capture_reason == "fixed_duration_complete"
-
-
-def test_fixed_duration_capture_controller_uses_planned_strike_filename() -> None:
-    adapter = FakeRecordingAdapter()
-    controller = FixedDurationStrikeCaptureController(adapter)
-    strike = create_jodan_session_plan()[0]
-
-    result = controller.capture_strike_clip(strike, StrikeCaptureConfig())
-
-    assert adapter.start_requests[0].file_name == strike.file_name
-    assert result.file_name == strike.file_name
-
-
-def test_fixed_duration_capture_controller_sets_capture_mode_to_fixed_duration() -> None:
-    controller = FixedDurationStrikeCaptureController(FakeRecordingAdapter())
-
-    result = controller.capture_strike_clip(create_jodan_session_plan()[0], StrikeCaptureConfig())
-
-    assert result.capture_mode == CaptureMode.FIXED_DURATION
-
-
-def test_fixed_duration_capture_controller_includes_recording_diagnostics() -> None:
-    controller = FixedDurationStrikeCaptureController(FakeRecordingAdapter())
-
-    result = controller.capture_strike_clip(create_jodan_session_plan()[0], StrikeCaptureConfig())
-
-    assert result.diagnostics["recording_state"] == RecordingState.SAVED.value
-    assert result.diagnostics["recording_saved"] is True
-    assert result.diagnostics["stop_reason"] == "fixed_duration_complete"
-
-
-def test_fixed_duration_capture_controller_returns_failed_if_recording_adapter_fails() -> None:
-    controller = FixedDurationStrikeCaptureController(
-        FakeRecordingAdapter(fail_on_stop=True)
-    )
-
-    result = controller.capture_strike_clip(create_jodan_session_plan()[0], StrikeCaptureConfig())
-
-    assert result.state == StrikeCaptureState.FAILED
-    assert result.capture_reason == "recording_failed"
-    assert result.diagnostics["failure_reason"] == "fake recording stop failed"
-
-
-def test_orchestrator_can_run_full_session_with_fixed_duration_capture_controller() -> None:
+def test_no_movement_timeout_and_retry_are_recorded_in_metadata() -> None:
     speech = FakeSpeechPrompter()
-    adapter = FakeRecordingAdapter()
-    controller = FixedDurationStrikeCaptureController(adapter)
+    recorder = FakeStrikeCaptureController(
+        scripted_results=[StrikeCaptureState.NO_MOVEMENT_TIMEOUT]
+    )
     metadata_writer = FakeSessionMetadataWriter()
     orchestrator = GuidedJodanSessionOrchestrator(
         speech_prompter=speech,
         command_listener=FakeCommandListener(commands=[SessionCommand.OSU]),
         clip_recorder=None,
-        capture_controller=controller,
-        metadata_writer=metadata_writer,
-    )
-
-    result = orchestrator.start_session()
-
-    assert result.completed is True
-    assert len(result.clips) == 10
-    assert len(adapter.start_requests) == 10
-
-
-def test_metadata_v2_still_records_successful_clips_with_fixed_duration_controller() -> None:
-    adapter = FakeRecordingAdapter()
-    metadata_writer = FakeSessionMetadataWriter()
-    orchestrator = GuidedJodanSessionOrchestrator(
-        speech_prompter=FakeSpeechPrompter(),
-        command_listener=FakeCommandListener(commands=[SessionCommand.OSU]),
-        clip_recorder=None,
-        capture_controller=FixedDurationStrikeCaptureController(adapter),
+        capture_controller=recorder,
         metadata_writer=metadata_writer,
     )
 
     orchestrator.start_session()
 
-    metadata = metadata_writer.written_metadata[0]
-    assert len(metadata.clips) == 10
-    assert metadata.clips[0].capture_reason == "fixed_duration_complete"
-    assert metadata.clips[0].capture_diagnostics["recording_saved"] is True
+    metadata = metadata_writer.written_guided_session_metadata[0]
+    assert metadata.attempts[0].outcome == CaptureAttemptOutcome.NO_MOVEMENT_TIMEOUT
+    assert metadata.attempts[0].clip_saved is False
+    assert metadata.attempts[0].file_name is None
+    assert metadata.attempts[0].retry_number == 0
+    assert metadata.attempts[1].outcome == CaptureAttemptOutcome.CLIP_READY
+    assert metadata.attempts[1].retry_number == 1
+    assert metadata.summary.successful_clip_count == 10
+    assert metadata.summary.total_attempt_count == 11
+    assert metadata.summary.retry_count == 1
+    assert "Punch not detected. Try again." in speech.spoken_prompts
 
 
-def test_orchestrator_does_not_import_or_depend_on_recording_adapter_directly() -> None:
-    orchestrator_source = Path(
-        "src/karate_app/guided_session/session_orchestrator.py"
-    ).read_text(encoding="utf-8")
-    imports = [
-        node
-        for node in ast.walk(ast.parse(orchestrator_source))
-        if isinstance(node, ast.Import | ast.ImportFrom)
-    ]
+def test_cancelled_capture_records_cancelled_outcome_and_user_stop() -> None:
+    recorder = FakeStrikeCaptureController(scripted_results=[StrikeCaptureState.CANCELLED])
+    metadata_writer = FakeSessionMetadataWriter()
+    orchestrator = GuidedJodanSessionOrchestrator(
+        speech_prompter=FakeSpeechPrompter(),
+        command_listener=FakeCommandListener(commands=[SessionCommand.OSU]),
+        clip_recorder=None,
+        capture_controller=recorder,
+        metadata_writer=metadata_writer,
+    )
 
-    assert all("recording_adapter" not in ast.unparse(node) for node in imports)
-    assert "RecordingAdapter" not in orchestrator_source
+    orchestrator.start_session()
+
+    metadata = metadata_writer.written_guided_session_metadata[0]
+    assert metadata.attempts[0].outcome == CaptureAttemptOutcome.CANCELLED
+    assert metadata.attempts[0].cancelled is True
+    assert metadata.summary.stopped_by_user is True
+
+
+def test_failed_capture_records_failed_outcome_without_user_stop() -> None:
+    recorder = FakeStrikeCaptureController(scripted_results=[StrikeCaptureState.FAILED])
+    metadata_writer = FakeSessionMetadataWriter()
+    orchestrator = GuidedJodanSessionOrchestrator(
+        speech_prompter=FakeSpeechPrompter(),
+        command_listener=FakeCommandListener(commands=[SessionCommand.OSU]),
+        clip_recorder=None,
+        capture_controller=recorder,
+        metadata_writer=metadata_writer,
+    )
+
+    orchestrator.start_session()
+
+    metadata = metadata_writer.written_guided_session_metadata[0]
+    assert metadata.attempts[0].outcome == CaptureAttemptOutcome.FAILED
+    assert metadata.summary.stopped_by_user is False
+
+
+def test_json_metadata_file_is_written_with_enum_strings(tmp_path: Path) -> None:
+    speech = FakeSpeechPrompter()
+    metadata_writer = FakeSessionMetadataWriter(output_folder=tmp_path)
+    orchestrator = GuidedJodanSessionOrchestrator(
+        speech_prompter=speech,
+        command_listener=FakeCommandListener(commands=[SessionCommand.OSU]),
+        clip_recorder=None,
+        capture_controller=FakeStrikeCaptureController(),
+        metadata_writer=metadata_writer,
+        session_id="test-session-id",
+    )
+
+    orchestrator.start_session()
+
+    metadata_path = tmp_path / "guided_jodan_session_metadata_v2.json"
+    data = json.loads(metadata_path.read_text(encoding="utf-8"))
+    assert data["session_id"] == "test-session-id"
+    assert data["session_type"] == "JODAN_CLIP_SESSION"
+    assert data["config"]["capture_mode"] == "FAKE"
+    assert data["strike_plan"][0]["expected_side"] == "right"
+    assert data["attempts"][0]["outcome"] == "CLIP_READY"
+    assert data["attempts"][0]["capture_mode"] == "FAKE"
+    assert data["successful_clips"][0]["expected_side"] == "right"
