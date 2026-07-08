@@ -48,6 +48,8 @@ lives under `src/karate_app/` and must not import analyzer internals.
    - speak "Clip X saved."
 6. Speak a completion summary, such as "Session complete. 10 clips saved."
 7. On `STOP`, return a partial result and speak a stop summary, such as "Session stopped. 4 clips saved."
+8. On capture timeouts, speak "Punch not detected. Try again." and retry the same planned strike instead of ending the whole session.
+9. On technical capture failures, return an incomplete result with `stopped_by_user = false` so app UI can distinguish failure from a user stop.
 
 ## Session commands
 
@@ -129,12 +131,13 @@ The controller contract models:
 - capture modes: `FIXED_DURATION`, `LIGHTWEIGHT_POSE`, `MANUAL`, and `FAKE`
 - capture states such as `RECORDING_PREROLL`, `WAITING_FOR_MOVEMENT`,
   `STRIKE_IN_PROGRESS`, `POSSIBLE_IMPACT_DETECTED`, `POST_ROLL`, `CLIP_READY`,
-  `NO_MOVEMENT_TIMEOUT`, `INCOMPLETE_STRIKE_TIMEOUT`, `CANCELLED`, and `FAILED`
+  `NO_MOVEMENT_TIMEOUT`, `INCOMPLETE_STRIKE_TIMEOUT`,
+  `ACTIVE_STRIKE_TIMEOUT`, `CANCELLED`, and `FAILED`
 - capture events such as `PROMPT_STARTED`, `RECORDING_STARTED`,
   `MOVEMENT_STARTED`, `PROGRESS_DETECTED`, `POSSIBLE_IMPACT`,
   `POST_ROLL_COMPLETE`, timeout events, cancel events, and failure events
 - capture configuration for fixed duration, movement timeout, active strike
-  timeout, progress stall timeout, post-roll, and the minimum elbow-extension
+  safety timeout, progress stall timeout, post-roll, and the minimum elbow-extension
   angle for future lightweight pose capture
 - capture results with rough timing metadata, cancellation status, and diagnostics
 
@@ -163,10 +166,14 @@ to control clip boundaries:
 5. Once movement starts, reset into the active strike timer and track progress.
 6. Progress means elbow angle increasing toward full extension or wrist extension
    increasing.
-7. If progress stalls before completion, return `INCOMPLETE_STRIKE_TIMEOUT`.
-8. Treat completion as a candidate when elbow angle is near 160–180 degrees, wrist
+7. If progress stalls before completion, return `INCOMPLETE_STRIKE_TIMEOUT`
+   after `progress_stall_timeout_ms`.
+8. If the active strike never reaches completion before
+   `active_strike_timeout_ms`, return `ACTIVE_STRIKE_TIMEOUT` as an overall
+   safety timeout.
+9. Treat completion as a candidate when elbow angle is near 160–180 degrees, wrist
    extension is near peak, or there is a plateau / turning point.
-9. After the completion candidate, record `post_roll_ms`, stop the clip, and
-   return `CLIP_READY`.
+10. After the completion candidate, record `post_roll_ms`, stop the clip, and
+    return `CLIP_READY`.
 
 The analyzer later finds the exact impact frame and Jodan result.
