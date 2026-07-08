@@ -221,6 +221,18 @@ def _extract_punch_event_landmarks(
         impact_point, impact_point_reason = strike_detector.validated_impact_point(
             frame, wrist
         )
+        if (
+            impact_point is None
+            or impact_point.get("source") == "pose_wrist_fallback"
+        ):
+            nearby_impact_point, nearby_reason = (
+                strike_detector.validated_nearby_impact_point(
+                    raw_frames, analysis_frame_number, wrist
+                )
+            )
+            if nearby_impact_point is not None:
+                impact_point = nearby_impact_point
+                impact_point_reason = nearby_reason
         impact_reason = impact_selection["impact_frame_reason"]
         if impact_point_reason is not None:
             impact_reason = f"{impact_reason}; {impact_point_reason}"
@@ -314,6 +326,7 @@ def _extract_punch_event_landmarks(
             "valid_sources": [
                 "same_frame_chin",
                 "backward_projected_chin",
+                "nearest_temporal_chin",
                 "previous_jodan_projected",
                 "future_jodan_projected",
                 "unknown",

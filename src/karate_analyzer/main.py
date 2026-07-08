@@ -121,6 +121,8 @@ def extract_frame_command(
 
     typer.echo("Extracted frame:")
     for key, value in asdict(metadata).items():
+        if isinstance(value, Path):
+            value = value.as_posix()
         typer.echo(f"{key}: {value}")
 
 

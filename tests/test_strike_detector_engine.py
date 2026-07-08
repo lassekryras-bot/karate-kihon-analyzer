@@ -134,3 +134,68 @@ def test_peak_mismatch_gets_lower_confidence_reason() -> None:
     assert selection["impact_frame_confidence"] in {"medium", "low"}
     if selection["impact_frame_confidence"] == "low":
         assert "mismatch" in selection["impact_frame_reason"]
+
+
+def test_missing_hand_landmarks_fall_back_to_pose_wrist_impact_point() -> None:
+    engine = StrikeDetectorEngine()
+    frame = _frame(40, (0.86, 0.20))
+    pose_wrist = frame["poses"][0][2]
+
+    impact_point, reason = engine.validated_impact_point(frame, pose_wrist)
+
+    assert impact_point == {
+        "x": 0.86,
+        "y": 0.20,
+        "visibility": 0.9,
+        "source": "pose_wrist_fallback",
+        "hand_match_strategy": "pose_wrist_when_hand_landmarks_missing",
+    }
+    assert reason == "pose_wrist_fallback_no_matching_hand_impact_point"
+
+
+def test_nearby_hand_impact_point_beats_pose_wrist_fallback() -> None:
+    engine = StrikeDetectorEngine()
+    analysis = _frame(50, (0.86, 0.20))
+    nearby = _frame(52, (0.70, 0.20))
+    nearby["hands"] = [
+        {
+            "landmarks": [
+                _landmark(0, 0.84, 0.20),
+                _landmark(5, 0.86, 0.18),
+                _landmark(9, 0.88, 0.20),
+            ]
+        }
+    ]
+
+    impact_point, reason = engine.validated_nearby_impact_point(
+        [analysis, nearby], 50, analysis["poses"][0][2]
+    )
+
+    assert impact_point is not None
+    assert impact_point["source"] == "index_mcp_middle_mcp_midpoint"
+    assert impact_point["source_frame_offset"] == 2
+    assert impact_point["hand_match_strategy"] == "nearby_closest_hand_to_pose_wrist"
+    assert reason == "nearby_hand_impact_point"
+
+
+def test_distant_hand_frame_does_not_replace_pose_wrist_fallback() -> None:
+    engine = StrikeDetectorEngine()
+    analysis = _frame(50, (0.86, 0.20))
+    distant = _frame(65, (0.70, 0.20))
+    distant["hands"] = [
+        {
+            "landmarks": [
+                _landmark(0, 0.84, 0.20),
+                _landmark(5, 0.86, 0.18),
+                _landmark(9, 0.88, 0.20),
+            ]
+        }
+    ]
+
+    impact_point, reason = engine.validated_nearby_impact_point(
+        [analysis, distant], 50, analysis["poses"][0][2]
+    )
+
+    assert impact_point is not None
+    assert impact_point["source"] == "pose_wrist_fallback"
+    assert reason == "pose_wrist_fallback_no_nearby_hand_impact_point"

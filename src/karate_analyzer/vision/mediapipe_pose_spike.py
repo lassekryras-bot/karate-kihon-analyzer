@@ -30,6 +30,22 @@ DEFAULT_FACE_MODEL_CANDIDATES = (
     Path("input/face_landmarker.task"),
     Path("input/models/face_landmarker.task"),
 )
+FACE_LANDMARKER_CONFIDENCE_THRESHOLD = 0.05
+FACE_CROP_HEAD_INDICES = tuple(range(0, 11))
+FACE_CROP_SHOULDER_INDICES = (11, 12)
+FACE_CROP_MIN_IMAGE_RATIO = 0.45
+FACE_CROP_MIN_PIXELS = 240
+HAND_CROP_POSE_WRIST_INDICES = (15, 16)
+HAND_CROP_IMAGE_RATIOS = (0.22, 0.30, 0.40)
+MAX_HAND_ANCHOR_TO_POSE_WRIST_DISTANCE = 0.14
+
+
+@dataclass(frozen=True)
+class _CoordinateTransform:
+    x_offset: float
+    y_offset: float
+    x_scale: float
+    y_scale: float
 
 
 class MediaPipeSpikeError(RuntimeError):
@@ -292,32 +308,68 @@ def _serialize_landmark_groups(
     ]
 
 
-def _serialize_faces(results: Any) -> list[dict[str, Any]]:
+def _serialize_faces(
+    results: Any, coordinate_transform: _CoordinateTransform | None = None
+) -> list[dict[str, Any]]:
     if results is None:
         return []
     task_face_groups = getattr(results, "face_landmarks", None)
     if task_face_groups is not None:
+        groups = (
+            task_face_groups
+            if isinstance(task_face_groups, list)
+            else [task_face_groups]
+        )
         return [
-            {"landmarks": _serialize_face_landmark_group(face_landmarks)}
-            for face_landmarks in task_face_groups
+            {
+                "landmarks": _serialize_landmark_group(
+                    face_landmarks, coordinate_transform
+                )
+            }
+            for face_landmarks in groups
         ]
     face_groups = getattr(results, "multi_face_landmarks", None) or []
     return [
-        {"landmarks": _serialize_face_landmark_group(face_landmarks.landmark)}
+        {
+            "landmarks": _serialize_landmark_group(
+                face_landmarks.landmark, coordinate_transform
+            )
+        }
         for face_landmarks in face_groups
     ]
 
 
-def _serialize_face_landmark_group(
-    landmarks: Iterable[Any],
+def _serialize_landmark_group(
+    landmarks: Any, coordinate_transform: _CoordinateTransform | None = None
 ) -> list[dict[str, float | int]]:
     serialized = []
     for index, landmark in enumerate(landmarks):
         payload = _landmark_to_dict(landmark, index)
+        if coordinate_transform is not None:
+            payload = _transform_normalized_landmark(payload, coordinate_transform)
         if "visibility" not in payload:
             payload["visibility"] = float(payload.get("presence", 1.0))
         serialized.append(payload)
     return serialized
+
+
+def _transform_normalized_landmark(
+    landmark: dict[str, float | int], coordinate_transform: _CoordinateTransform
+) -> dict[str, float | int]:
+    transformed = dict(landmark)
+    if "x" in transformed:
+        transformed["x"] = (
+            float(transformed["x"]) * coordinate_transform.x_scale
+            + coordinate_transform.x_offset
+        )
+    if "y" in transformed:
+        transformed["y"] = (
+            float(transformed["y"]) * coordinate_transform.y_scale
+            + coordinate_transform.y_offset
+        )
+    if "z" in transformed:
+        transformed["z"] = float(transformed["z"]) * coordinate_transform.x_scale
+    return transformed
 
 
 def _serialize_hands(results: Any) -> list[dict[str, Any]]:
@@ -339,7 +391,9 @@ def _serialize_hands(results: Any) -> list[dict[str, Any]]:
     return hands
 
 
-def _serialize_task_hands(result: Any) -> list[dict[str, Any]]:
+def _serialize_task_hands(
+    result: Any, coordinate_transform: _CoordinateTransform | None = None
+) -> list[dict[str, Any]]:
     if result is None:
         return []
     hand_groups = getattr(result, "hand_landmarks", None) or []
@@ -347,7 +401,9 @@ def _serialize_task_hands(result: Any) -> list[dict[str, Any]]:
     hands = []
     for index, hand_landmarks in enumerate(hand_groups):
         hand: dict[str, Any] = {
-            "landmarks": _serialize_landmark_groups([hand_landmarks])[0]
+            "landmarks": _serialize_landmark_group(
+                hand_landmarks, coordinate_transform
+            )
         }
         if index < len(handedness_groups) and handedness_groups[index]:
             category = handedness_groups[index][0]
@@ -379,6 +435,165 @@ def _draw_landmarks(image_bgr: Any, landmarks: list[dict[str, float | int]]) -> 
     return image
 
 
+def _face_crop_bounds(
+    pose_landmark_groups: Any, image_width: int, image_height: int
+) -> tuple[int, int, int, int] | None:
+    if not pose_landmark_groups:
+        return None
+
+    pose_landmarks = pose_landmark_groups[0]
+    head_points = _pose_points(
+        pose_landmarks, FACE_CROP_HEAD_INDICES, image_width, image_height
+    )
+    if not head_points:
+        return None
+
+    shoulder_points = _pose_points(
+        pose_landmarks, FACE_CROP_SHOULDER_INDICES, image_width, image_height
+    )
+    x_values = [point[0] for point in head_points]
+    y_values = [point[1] for point in head_points]
+    center_x = (min(x_values) + max(x_values)) / 2
+    center_y = (min(y_values) + max(y_values)) / 2
+
+    head_width = max(x_values) - min(x_values)
+    head_height = max(y_values) - min(y_values)
+    shoulder_width = (
+        abs(shoulder_points[0][0] - shoulder_points[1][0])
+        if len(shoulder_points) >= 2
+        else 0
+    )
+    crop_size = max(
+        head_width * 4.0,
+        head_height * 4.0,
+        shoulder_width * 1.1,
+        min(image_width, image_height) * FACE_CROP_MIN_IMAGE_RATIO,
+        FACE_CROP_MIN_PIXELS,
+    )
+    return _clamped_square_bounds(
+        center_x, center_y, crop_size, image_width, image_height
+    )
+
+
+def _hand_crop_bounds(
+    pose_landmark_groups: Any,
+    image_width: int,
+    image_height: int,
+    size_ratio: float,
+) -> list[tuple[int, int, int, int]]:
+    if not pose_landmark_groups:
+        return []
+    pose_landmarks = pose_landmark_groups[0]
+    crop_size = min(image_width, image_height) * size_ratio
+    bounds = []
+    for index in HAND_CROP_POSE_WRIST_INDICES:
+        if index >= len(pose_landmarks):
+            continue
+        landmark = pose_landmarks[index]
+        if _landmark_confidence(landmark) < 0.2:
+            continue
+        bounds.append(
+            _clamped_square_bounds(
+                float(landmark.x) * image_width,
+                float(landmark.y) * image_height,
+                crop_size,
+                image_width,
+                image_height,
+            )
+        )
+    return bounds
+
+
+def _hands_are_near_pose_wrists(hands: list[dict[str, Any]], pose_landmarks: Any) -> bool:
+    wrist_points = _pose_wrist_points(pose_landmarks)
+    if not wrist_points:
+        return True
+    for hand in hands:
+        for hand_point in _hand_anchor_points(hand):
+            if any(
+                _normalized_distance(hand_point, wrist_point)
+                <= MAX_HAND_ANCHOR_TO_POSE_WRIST_DISTANCE
+                for wrist_point in wrist_points
+            ):
+                return True
+    return False
+
+
+def _pose_wrist_points(pose_landmark_groups: Any) -> list[dict[str, float]]:
+    if not pose_landmark_groups:
+        return []
+    pose_landmarks = pose_landmark_groups[0]
+    points = []
+    for index in HAND_CROP_POSE_WRIST_INDICES:
+        if index >= len(pose_landmarks):
+            continue
+        landmark = pose_landmarks[index]
+        if _landmark_confidence(landmark) < 0.2:
+            continue
+        points.append({"x": float(landmark.x), "y": float(landmark.y)})
+    return points
+
+
+def _hand_anchor_points(hand: dict[str, Any]) -> list[dict[str, float]]:
+    landmarks = {landmark.get("index"): landmark for landmark in hand.get("landmarks", [])}
+    anchors = []
+    for index in (0, 5, 9):
+        landmark = landmarks.get(index)
+        if not landmark:
+            continue
+        try:
+            anchors.append({"x": float(landmark["x"]), "y": float(landmark["y"])})
+        except (KeyError, TypeError, ValueError):
+            continue
+    return anchors
+
+
+def _normalized_distance(a: dict[str, float], b: dict[str, float]) -> float:
+    return ((a["x"] - b["x"]) ** 2 + (a["y"] - b["y"]) ** 2) ** 0.5
+
+
+def _pose_points(
+    landmarks: Any, indices: Iterable[int], image_width: int, image_height: int
+) -> list[tuple[float, float]]:
+    points = []
+    for index in indices:
+        if index >= len(landmarks):
+            continue
+        landmark = landmarks[index]
+        if _landmark_confidence(landmark) < 0.2:
+            continue
+        points.append(
+            (float(landmark.x) * image_width, float(landmark.y) * image_height)
+        )
+    return points
+
+
+def _landmark_confidence(landmark: Any) -> float:
+    for attr in ("visibility", "presence"):
+        if hasattr(landmark, attr):
+            value = getattr(landmark, attr)
+            if value is not None:
+                return float(value)
+    return 1.0
+
+
+def _clamped_square_bounds(
+    center_x: float,
+    center_y: float,
+    crop_size: float,
+    image_width: int,
+    image_height: int,
+) -> tuple[int, int, int, int]:
+    crop_size = min(crop_size, image_width, image_height)
+    x_min = int(round(center_x - crop_size / 2))
+    y_min = int(round(center_y - crop_size / 2))
+    x_min = max(0, min(x_min, image_width - int(round(crop_size))))
+    y_min = max(0, min(y_min, image_height - int(round(crop_size))))
+    x_max = min(image_width, x_min + int(round(crop_size)))
+    y_max = min(image_height, y_min + int(round(crop_size)))
+    return x_min, y_min, x_max, y_max
+
+
 class _TasksPoseRunner:
     def __init__(self, running_mode: str) -> None:
         model_path = _model_path()
@@ -403,12 +618,13 @@ class _TasksPoseRunner:
         )
         self._landmarker = vision.PoseLandmarker.create_from_options(options)
         self._hand_landmarker = self._create_hand_landmarker(python, vision, mode)
-        self._face_landmarker = self._create_face_landmarker(python, vision, mode)
-        self._face_mesh = (
-            None
-            if self._face_landmarker is not None
-            else self._create_optional_face_mesh(mp)
+        self._hand_crop_landmarker = self._create_hand_landmarker(
+            python, vision, getattr(vision.RunningMode, "IMAGE")
         )
+        self._face_landmarker = self._create_face_landmarker(python, vision, mode)
+        self._face_mesh = None
+        if self._face_landmarker is None:
+            self._face_mesh = self._create_optional_face_mesh(mp)
         self.pose_detector_backend = "tasks_pose_landmarker"
         self.hand_detector_backend = (
             "tasks_hand_landmarker" if self._hand_landmarker is not None else "none"
@@ -426,6 +642,8 @@ class _TasksPoseRunner:
         self._landmarker.close()
         if self._hand_landmarker is not None:
             self._hand_landmarker.close()
+        if self._hand_crop_landmarker is not None:
+            self._hand_crop_landmarker.close()
         if self._face_landmarker is not None:
             self._face_landmarker.close()
         if self._face_mesh is not None:
@@ -434,28 +652,34 @@ class _TasksPoseRunner:
     def detect_image(self, image_bgr: Any) -> DetectionResult:
         rgb = _bgr_to_rgb(image_bgr)
         mp_image = self._mp.Image(image_format=self._mp.ImageFormat.SRGB, data=rgb)
+        pose_result = self._landmarker.detect(mp_image)
         return self._serialize(
-            self._landmarker.detect(mp_image),
-            self._detect_hands(mp_image),
-            self._detect_face(mp_image, rgb),
+            pose_result,
+            self._detect_hands(mp_image, rgb, pose_result.pose_landmarks),
+            self._detect_face(mp_image, rgb, pose_result.pose_landmarks),
             None,
         )
 
     def detect_video(self, image_bgr: Any, timestamp_ms: int) -> DetectionResult:
         rgb = _bgr_to_rgb(image_bgr)
         mp_image = self._mp.Image(image_format=self._mp.ImageFormat.SRGB, data=rgb)
+        pose_result = self._landmarker.detect_for_video(mp_image, timestamp_ms)
         return self._serialize(
-            self._landmarker.detect_for_video(mp_image, timestamp_ms),
-            self._detect_hands_for_video(mp_image, timestamp_ms),
-            self._detect_face_for_video(mp_image, rgb, timestamp_ms),
+            pose_result,
+            self._detect_hands_for_video(
+                mp_image, rgb, pose_result.pose_landmarks, timestamp_ms
+            ),
+            self._detect_face_for_video(
+                mp_image, rgb, pose_result.pose_landmarks, timestamp_ms
+            ),
             timestamp_ms,
         )
 
     def _serialize(
         self,
         result: Any,
-        hand_results: Any,
-        face_results: Any,
+        hand_results: list[dict[str, Any]],
+        face_results: list[dict[str, Any]],
         timestamp_ms: int | None,
     ) -> DetectionResult:
         return DetectionResult(
@@ -464,8 +688,8 @@ class _TasksPoseRunner:
             pose_world_landmarks=_serialize_landmark_groups(
                 result.pose_world_landmarks
             ),
-            hand_landmarks=_serialize_task_hands(hand_results),
-            face_landmarks=_serialize_faces(face_results),
+            hand_landmarks=hand_results,
+            face_landmarks=face_results,
         )
 
     def _create_hand_landmarker(
@@ -491,6 +715,9 @@ class _TasksPoseRunner:
             base_options=python.BaseOptions(model_asset_path=str(face_model_path)),
             running_mode=mode,
             num_faces=1,
+            min_face_detection_confidence=FACE_LANDMARKER_CONFIDENCE_THRESHOLD,
+            min_face_presence_confidence=FACE_LANDMARKER_CONFIDENCE_THRESHOLD,
+            min_tracking_confidence=FACE_LANDMARKER_CONFIDENCE_THRESHOLD,
             output_face_blendshapes=False,
             output_facial_transformation_matrixes=False,
         )
@@ -505,31 +732,117 @@ class _TasksPoseRunner:
             static_image_mode=False, max_num_faces=1, refine_landmarks=False
         )
 
-    def _detect_hands(self, mp_image: Any) -> Any | None:
+    def _detect_hands(
+        self, mp_image: Any, rgb: Any, pose_landmarks: Any
+    ) -> list[dict[str, Any]]:
         if self._hand_landmarker is None:
-            return None
-        return self._hand_landmarker.detect(mp_image)
+            return []
+        hands = _serialize_task_hands(self._hand_landmarker.detect(mp_image))
+        if hands and _hands_are_near_pose_wrists(hands, pose_landmarks):
+            return hands
+        return self._detect_hands_from_pose_wrist_crops(rgb, pose_landmarks, None)
 
-    def _detect_hands_for_video(self, mp_image: Any, timestamp_ms: int) -> Any | None:
+    def _detect_hands_for_video(
+        self, mp_image: Any, rgb: Any, pose_landmarks: Any, timestamp_ms: int
+    ) -> list[dict[str, Any]]:
         if self._hand_landmarker is None:
-            return None
-        return self._hand_landmarker.detect_for_video(mp_image, timestamp_ms)
+            return []
+        hands = _serialize_task_hands(
+            self._hand_landmarker.detect_for_video(mp_image, timestamp_ms)
+        )
+        if hands and _hands_are_near_pose_wrists(hands, pose_landmarks):
+            return hands
+        return self._detect_hands_from_pose_wrist_crops(
+            rgb, pose_landmarks, timestamp_ms
+        )
 
-    def _detect_face(self, mp_image: Any, rgb: Any) -> Any | None:
+    def _detect_hands_from_pose_wrist_crops(
+        self, rgb: Any, pose_landmarks: Any, timestamp_ms: int | None
+    ) -> list[dict[str, Any]]:
+        if self._hand_crop_landmarker is None or not hasattr(rgb, "shape"):
+            return []
+        height, width = rgb.shape[:2]
+        for size_ratio in HAND_CROP_IMAGE_RATIOS:
+            for bounds in _hand_crop_bounds(
+                pose_landmarks, width, height, size_ratio
+            ):
+                x_min, y_min, x_max, y_max = bounds
+                crop = rgb[y_min:y_max, x_min:x_max].copy()
+                transform = _CoordinateTransform(
+                    x_offset=x_min / width,
+                    y_offset=y_min / height,
+                    x_scale=(x_max - x_min) / width,
+                    y_scale=(y_max - y_min) / height,
+                )
+                mp_image = self._mp.Image(
+                    image_format=self._mp.ImageFormat.SRGB, data=crop
+                )
+                result = self._hand_crop_landmarker.detect(mp_image)
+                hands = _serialize_task_hands(result, transform)
+                if hands:
+                    for hand in hands:
+                        hand["detection_source"] = "pose_wrist_crop"
+                        hand["crop_bounds"] = {
+                            "x_min": x_min,
+                            "y_min": y_min,
+                            "x_max": x_max,
+                            "y_max": y_max,
+                        }
+                        hand["crop_size_ratio"] = size_ratio
+                    return hands
+        return []
+
+    def _detect_face(
+        self, mp_image: Any, rgb: Any, pose_landmarks: Any
+    ) -> list[dict[str, Any]]:
         if self._face_landmarker is not None:
-            return self._face_landmarker.detect(mp_image)
+            face_image, transform = self._face_image_from_pose(rgb, pose_landmarks)
+            return _serialize_faces(self._face_landmarker.detect(face_image), transform)
         if self._face_mesh is not None:
-            return self._face_mesh.process(rgb)
-        return None
+            return _serialize_faces(self._face_mesh.process(rgb))
+        return []
 
     def _detect_face_for_video(
-        self, mp_image: Any, rgb: Any, timestamp_ms: int
-    ) -> Any | None:
+        self, mp_image: Any, rgb: Any, pose_landmarks: Any, timestamp_ms: int
+    ) -> list[dict[str, Any]]:
         if self._face_landmarker is not None:
-            return self._face_landmarker.detect_for_video(mp_image, timestamp_ms)
+            face_image, transform = self._face_image_from_pose(
+                rgb, pose_landmarks, fallback_image=mp_image
+            )
+            return _serialize_faces(
+                self._face_landmarker.detect_for_video(face_image, timestamp_ms),
+                transform,
+            )
         if self._face_mesh is not None:
-            return self._face_mesh.process(rgb)
-        return None
+            return _serialize_faces(self._face_mesh.process(rgb))
+        return []
+
+    def _face_image_from_pose(
+        self, rgb: Any, pose_landmarks: Any, fallback_image: Any | None = None
+    ) -> tuple[Any, _CoordinateTransform | None]:
+        if not hasattr(rgb, "shape"):
+            mp_image = fallback_image or self._mp.Image(
+                image_format=self._mp.ImageFormat.SRGB, data=rgb
+            )
+            return mp_image, None
+
+        bounds = _face_crop_bounds(pose_landmarks, rgb.shape[1], rgb.shape[0])
+        if bounds is None:
+            mp_image = fallback_image or self._mp.Image(
+                image_format=self._mp.ImageFormat.SRGB, data=rgb
+            )
+            return mp_image, None
+
+        x_min, y_min, x_max, y_max = bounds
+        crop = rgb[y_min:y_max, x_min:x_max].copy()
+        mp_image = self._mp.Image(image_format=self._mp.ImageFormat.SRGB, data=crop)
+        height, width = rgb.shape[:2]
+        return mp_image, _CoordinateTransform(
+            x_offset=x_min / width,
+            y_offset=y_min / height,
+            x_scale=(x_max - x_min) / width,
+            y_scale=(y_max - y_min) / height,
+        )
 
 
 class _SolutionsPoseRunner:
