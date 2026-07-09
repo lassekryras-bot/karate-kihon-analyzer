@@ -16,6 +16,10 @@ import androidx.camera.view.PreviewView
 import androidx.core.content.ContextCompat
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
+import dk.lasse.karatecliprecorder.orders.SoundFileTrainingOrderPlayer
+import dk.lasse.karatecliprecorder.orders.TrainingOrder
+import dk.lasse.karatecliprecorder.orders.TrainingOrderMapper
+import dk.lasse.karatecliprecorder.orders.TrainingOrderPlayer
 
 class MainActivity : AppCompatActivity() {
     private lateinit var previewView: PreviewView
@@ -32,6 +36,7 @@ class MainActivity : AppCompatActivity() {
     private var sessionController: GuidedJodanSessionController? = null
     private var guidedSessionActive = false
     private var latestGuidedState = GuidedSessionState.IDLE
+    private var trainingOrderPlayer: TrainingOrderPlayer? = null
 
     private val cameraPermissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestPermission(),
@@ -47,6 +52,7 @@ class MainActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         buildUi()
+        trainingOrderPlayer = SoundFileTrainingOrderPlayer(this)
         requestCameraPermissionIfNeeded()
     }
 
@@ -158,6 +164,12 @@ class MainActivity : AppCompatActivity() {
         sessionController?.start()
     }
 
+    override fun onDestroy() {
+        trainingOrderPlayer?.release()
+        trainingOrderPlayer = null
+        super.onDestroy()
+    }
+
     private fun updateRecordingState(state: RecordingState) {
         recordingStateText.text = "Recording: ${state.name.lowercase()}"
         val cameraReady = state == RecordingState.IDLE || state == RecordingState.SAVED || state == RecordingState.FAILED
@@ -170,6 +182,7 @@ class MainActivity : AppCompatActivity() {
         statusText.text = "Status: ${state.name.lowercase()}"
         startSessionButton.isEnabled = !guidedSessionActive
         cancelSessionButton.isEnabled = guidedSessionActive
+        TrainingOrderMapper.fromSessionState(state)?.let(::playTrainingOrder)
     }
 
     private fun showCurrentStrike(plan: GuidedStrikePlan?) {
@@ -178,6 +191,7 @@ class MainActivity : AppCompatActivity() {
             expectedSideText.text = "Expected side: none"
             return
         }
+        TrainingOrderMapper.fromStrikePlan(plan)?.let(::playTrainingOrder)
         currentStrikeText.text = "Strike: ${plan.index} / 10 (${plan.fileName})"
         expectedSideText.text = "Expected side: ${plan.expectedSide.metadataValue}"
     }
@@ -198,9 +212,14 @@ class MainActivity : AppCompatActivity() {
     private fun showSessionComplete(result: GuidedSessionResult) {
         savedClipText.text = "Saved clips: ${result.savedClipCount} / ${result.expectedClipCount}"
         metadataPathText.text = "Metadata: ${result.metadataPath}"
+        playTrainingOrder(TrainingOrderMapper.fromSessionResult(result))
         if (result.completed) {
             currentCountText.text = "Count: Session complete"
         }
+    }
+
+    private fun playTrainingOrder(order: TrainingOrder) {
+        trainingOrderPlayer?.play(order)
     }
 
     companion object {
