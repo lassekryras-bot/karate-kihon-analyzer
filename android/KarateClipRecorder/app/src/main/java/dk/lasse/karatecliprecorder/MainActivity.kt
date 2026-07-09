@@ -16,6 +16,8 @@ import androidx.camera.view.PreviewView
 import androidx.core.content.ContextCompat
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
+import dk.lasse.karatecliprecorder.captureprofile.CaptureFpsRange
+import dk.lasse.karatecliprecorder.captureprofile.SelectedCaptureProfile
 
 class MainActivity : AppCompatActivity() {
     private lateinit var previewView: PreviewView
@@ -28,6 +30,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var recordingStateText: TextView
     private lateinit var savedClipText: TextView
     private lateinit var metadataPathText: TextView
+    private lateinit var captureProfileText: TextView
     private var recordingAdapter: CameraXRecordingAdapter? = null
     private var sessionController: GuidedJodanSessionController? = null
     private var guidedSessionActive = false
@@ -66,6 +69,7 @@ class MainActivity : AppCompatActivity() {
         recordingStateText = sessionText("Recording: idle", 14f)
         savedClipText = sessionText("Saved clips: 0 / 10", 14f)
         metadataPathText = sessionText("Metadata: not saved", 14f)
+        captureProfileText = sessionText("Capture profile: detecting", 14f)
 
         startSessionButton = Button(this).apply {
             text = "Start Jodan Session"
@@ -90,6 +94,7 @@ class MainActivity : AppCompatActivity() {
             addView(expectedSideText)
             addView(recordingStateText)
             addView(savedClipText)
+            addView(captureProfileText)
             addView(metadataPathText)
         }
 
@@ -139,6 +144,7 @@ class MainActivity : AppCompatActivity() {
             onStateChanged = ::updateRecordingState,
             onSaved = ::handleSavedClip,
             onError = ::handleRecordingError,
+            onCaptureProfileSelected = ::handleCaptureProfileSelected,
         )
         recordingAdapter = adapter
         sessionController = GuidedJodanSessionController(
@@ -149,9 +155,18 @@ class MainActivity : AppCompatActivity() {
             onSavedClipCountChanged = { savedCount -> savedClipText.text = "Saved clips: $savedCount / 10" },
             onComplete = ::showSessionComplete,
             onError = { message -> metadataPathText.text = "Error: $message" },
+            captureProfile = adapter.selectedCaptureProfile,
         )
         adapter.bindCameraPreview()
     }
+
+    private fun handleCaptureProfileSelected(profile: SelectedCaptureProfile) {
+        captureProfileText.text = "Capture profile: ${profile.selectedQualityTier.name} / ${profile.targetHeight?.let { "${it}p" } ?: "unknown resolution"} / preferred ${profile.preferredTargetFps} fps\nSupported FPS: ${profile.supportedFpsRanges.toDisplayText()}"
+        sessionController?.captureProfile = profile
+    }
+
+    private fun List<CaptureFpsRange>.toDisplayText(): String =
+        if (isEmpty()) "unknown" else joinToString { "${it.minFps}-${it.maxFps}" }
 
     private fun startGuidedSession() {
         metadataPathText.text = "Metadata: not saved"

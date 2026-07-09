@@ -16,6 +16,9 @@ import androidx.camera.video.VideoCapture
 import androidx.camera.video.VideoRecordEvent
 import androidx.camera.view.PreviewView
 import androidx.core.content.ContextCompat
+import dk.lasse.karatecliprecorder.captureprofile.CameraCapabilityInitializer
+import dk.lasse.karatecliprecorder.captureprofile.CaptureProfileSelector
+import dk.lasse.karatecliprecorder.captureprofile.SelectedCaptureProfile
 import androidx.lifecycle.LifecycleOwner
 import java.io.File
 import java.util.Locale
@@ -28,10 +31,13 @@ class CameraXRecordingAdapter(
     private val onStateChanged: (RecordingState) -> Unit,
     private val onSaved: (RecordingResult) -> Unit,
     private val onError: (String) -> Unit,
+    private val onCaptureProfileSelected: (SelectedCaptureProfile) -> Unit = {},
 ) {
     private var videoCapture: VideoCapture<Recorder>? = null
     private var activeRecording: Recording? = null
     private var nextClipNumber = 1
+    var selectedCaptureProfile: SelectedCaptureProfile? = null
+        private set
     private val mainExecutor: Executor = ContextCompat.getMainExecutor(context)
 
     fun bindCameraPreview() {
@@ -43,18 +49,27 @@ class CameraXRecordingAdapter(
                 val preview = Preview.Builder().build().also {
                     it.setSurfaceProvider(previewView.surfaceProvider)
                 }
+                val cameraSelector = CameraSelector.DEFAULT_BACK_CAMERA
+                val cameraInfo = cameraProvider.availableCameraInfos.firstOrNull { info ->
+                    runCatching { cameraSelector.filter(listOf(info)).isNotEmpty() }.getOrDefault(false)
+                }
+                val profile = cameraInfo
+                    ?.let { CameraCapabilityInitializer.initialize(it) }
+                    ?: CaptureProfileSelector.fallback(
+                        reason = "Using safe HD 30fps fallback because no back camera info was available.",
+                    )
+                selectedCaptureProfile = profile
+                onCaptureProfileSelected(profile)
+
                 val recorder = Recorder.Builder()
-                    .setQualitySelector(QualitySelector.from(
-                        Quality.HD,
-                        FallbackStrategy.higherQualityOrLowerThan(Quality.HD),
-                    ))
+                    .setQualitySelector(profile.toQualitySelector())
                     .build()
                 videoCapture = VideoCapture.withOutput(recorder)
 
                 cameraProvider.unbindAll()
                 cameraProvider.bindToLifecycle(
                     lifecycleOwner,
-                    CameraSelector.DEFAULT_BACK_CAMERA,
+                    cameraSelector,
                     preview,
                     videoCapture,
                 )
@@ -137,6 +152,20 @@ class CameraXRecordingAdapter(
             moviesDir.mkdirs()
         }
         return moviesDir
+    }
+
+    private fun SelectedCaptureProfile.toQualitySelector(): QualitySelector {
+        val quality = when (selectedCameraXQualityName.uppercase()) {
+            "UHD" -> Quality.UHD
+            "FHD" -> Quality.FHD
+            "HD" -> Quality.HD
+            "SD" -> Quality.SD
+            else -> Quality.HD
+        }
+        return QualitySelector.from(
+            quality,
+            FallbackStrategy.higherQualityOrLowerThan(quality),
+        )
     }
 
     companion object {
