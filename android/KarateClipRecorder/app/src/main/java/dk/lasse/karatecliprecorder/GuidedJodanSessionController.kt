@@ -2,6 +2,7 @@ package dk.lasse.karatecliprecorder
 
 import android.os.Handler
 import android.os.Looper
+import dk.lasse.karatecliprecorder.captureprofile.SelectedCaptureProfile
 import java.io.File
 
 class GuidedJodanSessionController(
@@ -12,6 +13,7 @@ class GuidedJodanSessionController(
     private val onSavedClipCountChanged: (Int) -> Unit,
     private val onComplete: (GuidedSessionResult) -> Unit,
     private val onError: (String) -> Unit,
+    var captureProfile: SelectedCaptureProfile? = null,
 ) {
     private val handler = Handler(Looper.getMainLooper())
     private val plan = createPlan()
@@ -144,6 +146,7 @@ class GuidedJodanSessionController(
   "session_type": "jodan_fixed_duration_clip_session",
   "expected_strike_count": ${plan.size},
   "fixed_clip_duration_ms": $FIXED_CLIP_DURATION_MS,
+  "camera_profile": ${buildCameraProfileJson()},
   "clips": [
 $clipsJson
   ],
@@ -151,6 +154,34 @@ $clipsJson
   "successful_clip_count": ${clipResults.count { it.saved }}
 }
 """.trimStart()
+    }
+
+    private fun buildCameraProfileJson(): String {
+        val profile = captureProfile ?: return "null"
+        val selectedFpsRange = profile.selectedFpsRange?.let {
+            """{
+      "min_fps": ${it.minFps},
+      "max_fps": ${it.maxFps}
+    }""".trimIndent()
+        } ?: "null"
+        val supportedQualities = profile.supportedQualityNames.joinToString(prefix = "[", postfix = "]") { "\"${it.escapeJson()}\"" }
+        val supportedFpsRanges = profile.supportedFpsRanges.joinToString(prefix = "[", postfix = "]") {
+            """{
+      "min_fps": ${it.minFps},
+      "max_fps": ${it.maxFps}
+    }""".trimIndent()
+        }
+        return """{
+    "selected_quality": "${profile.selectedQualityTier.name}",
+    "selected_camerax_quality": "${profile.selectedCameraXQualityName.escapeJson()}",
+    "target_width": ${profile.targetWidth?.toString() ?: "null"},
+    "target_height": ${profile.targetHeight?.toString() ?: "null"},
+    "preferred_target_fps": ${profile.preferredTargetFps},
+    "selected_fps_range": $selectedFpsRange,
+    "supported_qualities": $supportedQualities,
+    "supported_fps_ranges": $supportedFpsRanges,
+    "selection_reason": "${profile.selectionReason.escapeJson()}"
+  }""".trimIndent()
     }
 
     private fun String.escapeJson(): String = buildString {
