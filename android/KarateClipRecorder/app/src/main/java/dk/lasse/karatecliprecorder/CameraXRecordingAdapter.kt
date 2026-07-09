@@ -66,7 +66,7 @@ class CameraXRecordingAdapter(
         }, mainExecutor)
     }
 
-    fun startRecording() {
+    fun startRecording(fileName: String? = null) {
         val capture = videoCapture
         if (capture == null) {
             onStateChanged(RecordingState.FAILED)
@@ -77,7 +77,10 @@ class CameraXRecordingAdapter(
             return
         }
 
-        val outputFile = createNextOutputFile()
+        val outputFile = if (fileName == null) createNextOutputFile() else createGuidedSessionFile(fileName)
+        if (fileName != null && outputFile.exists()) {
+            outputFile.delete()
+        }
         val outputOptions = FileOutputOptions.Builder(outputFile).build()
         val pendingRecording: PendingRecording = capture.output.prepareRecording(context, outputOptions)
 
@@ -107,12 +110,16 @@ class CameraXRecordingAdapter(
         activeRecording?.stop()
     }
 
-    private fun createNextOutputFile(): File {
-        val moviesDir = context.getExternalFilesDir(Environment.DIRECTORY_MOVIES)
-            ?: context.filesDir
-        if (!moviesDir.exists()) {
-            moviesDir.mkdirs()
+    fun createGuidedSessionFile(fileName: String): File {
+        val sessionDir = File(getMoviesDir(), GUIDED_SESSION_DIR_NAME)
+        if (!sessionDir.exists()) {
+            sessionDir.mkdirs()
         }
+        return File(sessionDir, fileName)
+    }
+
+    private fun createNextOutputFile(): File {
+        val moviesDir = getMoviesDir()
 
         while (true) {
             val fileName = String.format(Locale.US, "strike_test_%03d.mp4", nextClipNumber++)
@@ -121,5 +128,18 @@ class CameraXRecordingAdapter(
                 return candidate
             }
         }
+    }
+
+    private fun getMoviesDir(): File {
+        val moviesDir = context.getExternalFilesDir(Environment.DIRECTORY_MOVIES)
+            ?: context.filesDir
+        if (!moviesDir.exists()) {
+            moviesDir.mkdirs()
+        }
+        return moviesDir
+    }
+
+    companion object {
+        private const val GUIDED_SESSION_DIR_NAME = "guided_jodan_session"
     }
 }

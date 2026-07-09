@@ -17,10 +17,19 @@ import androidx.core.content.ContextCompat
 
 class MainActivity : AppCompatActivity() {
     private lateinit var previewView: PreviewView
-    private lateinit var recordButton: Button
+    private lateinit var startSessionButton: Button
+    private lateinit var cancelSessionButton: Button
     private lateinit var statusText: TextView
+    private lateinit var currentCountText: TextView
+    private lateinit var currentStrikeText: TextView
+    private lateinit var expectedSideText: TextView
+    private lateinit var recordingStateText: TextView
     private lateinit var savedClipText: TextView
+    private lateinit var metadataPathText: TextView
     private var recordingAdapter: CameraXRecordingAdapter? = null
+    private var sessionController: GuidedJodanSessionController? = null
+    private var guidedSessionActive = false
+    private var latestGuidedState = GuidedSessionState.IDLE
 
     private val cameraPermissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestPermission(),
@@ -28,7 +37,7 @@ class MainActivity : AppCompatActivity() {
         if (granted) {
             startCamera()
         } else {
-            updateState(RecordingState.FAILED)
+            updateRecordingState(RecordingState.FAILED)
             savedClipText.text = "Camera permission is required to record clips."
         }
     }
@@ -48,29 +57,38 @@ class MainActivity : AppCompatActivity() {
             scaleType = PreviewView.ScaleType.FILL_CENTER
         }
 
-        statusText = TextView(this).apply {
-            text = "Status: waiting for camera permission"
-            setTextColor(Color.WHITE)
-            textSize = 16f
-        }
-        savedClipText = TextView(this).apply {
-            text = "Last saved clip: none"
-            setTextColor(Color.WHITE)
-            textSize = 14f
-        }
-        recordButton = Button(this).apply {
-            text = "Record 4 seconds"
+        statusText = sessionText("Status: waiting for camera permission", 16f)
+        currentCountText = sessionText("Count: none", 20f)
+        currentStrikeText = sessionText("Strike: none", 14f)
+        expectedSideText = sessionText("Expected side: none", 14f)
+        recordingStateText = sessionText("Recording: idle", 14f)
+        savedClipText = sessionText("Saved clips: 0 / 10", 14f)
+        metadataPathText = sessionText("Metadata: not saved", 14f)
+
+        startSessionButton = Button(this).apply {
+            text = "Start Jodan Session"
             isEnabled = false
-            setOnClickListener { recordFourSecondClip() }
+            setOnClickListener { startGuidedSession() }
+        }
+        cancelSessionButton = Button(this).apply {
+            text = "Cancel Session"
+            isEnabled = false
+            setOnClickListener { sessionController?.cancel() }
         }
 
         val controls = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(32, 32, 32, 48)
             setBackgroundColor(0x66000000)
-            addView(recordButton)
+            addView(startSessionButton)
+            addView(cancelSessionButton)
             addView(statusText)
+            addView(currentCountText)
+            addView(currentStrikeText)
+            addView(expectedSideText)
+            addView(recordingStateText)
             addView(savedClipText)
+            addView(metadataPathText)
         }
 
         val root = FrameLayout(this).apply {
@@ -87,6 +105,12 @@ class MainActivity : AppCompatActivity() {
         setContentView(root)
     }
 
+    private fun sessionText(initialText: String, size: Float): TextView = TextView(this).apply {
+        text = initialText
+        setTextColor(Color.WHITE)
+        textSize = size
+    }
+
     private fun requestCameraPermissionIfNeeded() {
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED) {
             startCamera()
@@ -96,34 +120,84 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun startCamera() {
-        recordingAdapter = CameraXRecordingAdapter(
+        val adapter = CameraXRecordingAdapter(
             context = this,
             lifecycleOwner = this,
             previewView = previewView,
-            onStateChanged = ::updateState,
-            onSaved = ::showSavedClip,
-            onError = { message -> savedClipText.text = message },
-        ).also { it.bindCameraPreview() }
+            onStateChanged = ::updateRecordingState,
+            onSaved = ::handleSavedClip,
+            onError = ::handleRecordingError,
+        )
+        recordingAdapter = adapter
+        sessionController = GuidedJodanSessionController(
+            recordingAdapter = adapter,
+            onStateChanged = ::updateGuidedState,
+            onPromptChanged = { prompt -> currentCountText.text = "Count: $prompt" },
+            onStrikeChanged = ::showCurrentStrike,
+            onSavedClipCountChanged = { savedCount -> savedClipText.text = "Saved clips: $savedCount / 10" },
+            onComplete = ::showSessionComplete,
+            onError = { message -> metadataPathText.text = "Error: $message" },
+        )
+        adapter.bindCameraPreview()
     }
 
-    private fun recordFourSecondClip() {
-        recordButton.isEnabled = false
-        recordingAdapter?.startRecording()
-        recordButton.postDelayed({
-            recordingAdapter?.stopRecording()
-        }, FOUR_SECOND_RECORDING_MS)
+    private fun startGuidedSession() {
+        metadataPathText.text = "Metadata: not saved"
+        sessionController?.start()
     }
 
-    private fun updateState(state: RecordingState) {
+    private fun updateRecordingState(state: RecordingState) {
+        recordingStateText.text = "Recording: ${state.name.lowercase()}"
+        val cameraReady = state == RecordingState.IDLE || state == RecordingState.SAVED || state == RecordingState.FAILED
+        startSessionButton.isEnabled = cameraReady && !guidedSessionActive
+    }
+
+    private fun updateGuidedState(state: GuidedSessionState) {
+        latestGuidedState = state
+        guidedSessionActive = state in ACTIVE_GUIDED_STATES
         statusText.text = "Status: ${state.name.lowercase()}"
-        recordButton.isEnabled = state == RecordingState.IDLE || state == RecordingState.SAVED || state == RecordingState.FAILED
+        startSessionButton.isEnabled = !guidedSessionActive
+        cancelSessionButton.isEnabled = guidedSessionActive
     }
 
-    private fun showSavedClip(result: RecordingResult) {
-        savedClipText.text = "Last saved clip: ${result.fileName}\nPath: ${result.absolutePath}\nURI: ${result.uri}"
+    private fun showCurrentStrike(plan: GuidedStrikePlan?) {
+        if (plan == null) {
+            currentStrikeText.text = "Strike: none"
+            expectedSideText.text = "Expected side: none"
+            return
+        }
+        currentStrikeText.text = "Strike: ${plan.index} / 10 (${plan.fileName})"
+        expectedSideText.text = "Expected side: ${plan.expectedSide.metadataValue}"
+    }
+
+    private fun handleSavedClip(result: RecordingResult) {
+        if (latestGuidedState == GuidedSessionState.RECORDING || latestGuidedState == GuidedSessionState.SAVING) {
+            sessionController?.handleRecordingSaved(result)
+        } else {
+            savedClipText.text = "Last saved clip: ${result.fileName}\nPath: ${result.absolutePath}\nURI: ${result.uri}"
+        }
+    }
+
+    private fun handleRecordingError(message: String) {
+        sessionController?.handleRecordingError(message)
+        metadataPathText.text = "Error: $message"
+    }
+
+    private fun showSessionComplete(result: GuidedSessionResult) {
+        savedClipText.text = "Saved clips: ${result.savedClipCount} / ${result.expectedClipCount}"
+        metadataPathText.text = "Metadata: ${result.metadataPath}"
+        if (result.completed) {
+            currentCountText.text = "Count: Session complete"
+        }
     }
 
     companion object {
-        private const val FOUR_SECOND_RECORDING_MS = 4_000L
+        private val ACTIVE_GUIDED_STATES = setOf(
+            GuidedSessionState.READY,
+            GuidedSessionState.YOI,
+            GuidedSessionState.PROMPTING_STRIKE,
+            GuidedSessionState.RECORDING,
+            GuidedSessionState.SAVING,
+        )
     }
 }
