@@ -14,6 +14,8 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.camera.view.PreviewView
 import androidx.core.content.ContextCompat
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowInsetsCompat
 
 class MainActivity : AppCompatActivity() {
     private lateinit var previewView: PreviewView
@@ -102,8 +104,18 @@ class MainActivity : AppCompatActivity() {
                 ),
             )
         }
+        ViewCompat.setOnApplyWindowInsetsListener(root) { _, insets ->
+            val systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
+            val params = controls.layoutParams as FrameLayout.LayoutParams
+            params.bottomMargin = systemBars.bottom + 16.dp()
+            controls.layoutParams = params
+            insets
+        }
         setContentView(root)
+        ViewCompat.requestApplyInsets(root)
     }
+
+    private fun Int.dp(): Int = (this * resources.displayMetrics.density).toInt()
 
     private fun sessionText(initialText: String, size: Float): TextView = TextView(this).apply {
         text = initialText
