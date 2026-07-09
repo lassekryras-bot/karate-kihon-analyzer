@@ -1,11 +1,11 @@
 file,start_seconds,end_seconds,notes
-cue_ichi,0.000,0.580,Japanese count 1
-cue_ni,0.690,1.060,Japanese count 2
-cue_san,1.220,1.740,Japanese count 3
-cue_shi,1.830,2.330,Japanese count 4
-cue_go,2.600,2.940,Japanese count 5
-cue_roku,3.270,3.720,Japanese count 6
-cue_shichi,3.790,4.380,Japanese count 7
-cue_hachi,4.460,4.970,Japanese count 8
-cue_ku,5.090,5.440,Japanese count 9
-cue_ju,5.690,6.100,Japanese count 10
+order_ichi,0.000,0.580,Japanese count 1
+order_ni,0.690,1.060,Japanese count 2
+order_san,1.220,1.740,Japanese count 3
+order_shi,1.830,2.330,Japanese count 4
+order_go,2.600,2.940,Japanese count 5
+order_roku,3.270,3.720,Japanese count 6
+order_shichi,3.790,4.380,Japanese count 7
+order_hachi,4.460,4.970,Japanese count 8
+order_ku,5.090,5.440,Japanese count 9
+order_ju,5.690,6.100,Japanese count 10
