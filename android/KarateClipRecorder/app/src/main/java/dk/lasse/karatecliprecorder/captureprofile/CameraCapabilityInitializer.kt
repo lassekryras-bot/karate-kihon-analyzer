@@ -2,15 +2,15 @@ package dk.lasse.karatecliprecorder.captureprofile
 
 import android.hardware.camera2.CameraCharacteristics
 import androidx.camera.camera2.interop.Camera2CameraInfo
-import androidx.camera.camera2.interop.ExperimentalCamera2Interop
 import androidx.camera.core.CameraInfo
+import androidx.camera.core.DynamicRange
 import androidx.camera.video.Quality
-import androidx.camera.video.QualitySelector
+import androidx.camera.video.Recorder
 
-@OptIn(ExperimentalCamera2Interop::class)
 object CameraCapabilityInitializer {
     fun initialize(cameraInfo: CameraInfo): SelectedCaptureProfile = try {
-        val supportedQualities = QualitySelector.getSupportedQualities(cameraInfo)
+        val supportedQualities = Recorder.getVideoCapabilities(cameraInfo)
+            .getSupportedQualities(DynamicRange.SDR)
             .map { it.toQualityName() }
         val fpsRanges = loadFpsRanges(cameraInfo)
         CaptureProfileSelector.select(supportedQualities, fpsRanges)
