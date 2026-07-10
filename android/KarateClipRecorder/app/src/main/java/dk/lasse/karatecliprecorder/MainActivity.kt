@@ -5,6 +5,7 @@ import android.content.pm.PackageManager
 import android.graphics.Color
 import android.os.Bundle
 import android.view.Gravity
+import android.view.View
 import android.view.ViewGroup
 import android.widget.Button
 import android.widget.FrameLayout
@@ -22,11 +23,16 @@ import dk.lasse.karatecliprecorder.orders.TrainingOrderMapper
 import dk.lasse.karatecliprecorder.orders.TrainingOrderPlayer
 import dk.lasse.karatecliprecorder.captureprofile.CaptureFpsRange
 import dk.lasse.karatecliprecorder.captureprofile.SelectedCaptureProfile
+import dk.lasse.karatecliprecorder.learning.FindYourWeaponSessionController
+import dk.lasse.karatecliprecorder.learning.FindYourWeaponState
+import dk.lasse.karatecliprecorder.learning.HandGuideOverlayView
 
 class MainActivity : AppCompatActivity() {
     private lateinit var previewView: PreviewView
     private lateinit var startSessionButton: Button
+    private lateinit var findYourWeaponButton: Button
     private lateinit var cancelSessionButton: Button
+    private lateinit var handGuideOverlayView: HandGuideOverlayView
     private lateinit var statusText: TextView
     private lateinit var currentCountText: TextView
     private lateinit var currentStrikeText: TextView
@@ -37,7 +43,9 @@ class MainActivity : AppCompatActivity() {
     private lateinit var captureProfileText: TextView
     private var recordingAdapter: CameraXRecordingAdapter? = null
     private var sessionController: GuidedJodanSessionController? = null
+    private var findYourWeaponController: FindYourWeaponSessionController? = null
     private var guidedSessionActive = false
+    private var findYourWeaponActive = false
     private var latestGuidedState = GuidedSessionState.IDLE
     private var trainingOrderPlayer: TrainingOrderPlayer? = null
 
@@ -68,6 +76,14 @@ class MainActivity : AppCompatActivity() {
             scaleType = PreviewView.ScaleType.FILL_CENTER
         }
 
+        handGuideOverlayView = HandGuideOverlayView(this).apply {
+            layoutParams = FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.MATCH_PARENT,
+            )
+            visibility = View.GONE
+        }
+
         statusText = sessionText("Status: waiting for camera permission", 16f)
         currentCountText = sessionText("Count: none", 20f)
         currentStrikeText = sessionText("Strike: none", 14f)
@@ -82,10 +98,21 @@ class MainActivity : AppCompatActivity() {
             isEnabled = false
             setOnClickListener { startGuidedSession() }
         }
+        findYourWeaponButton = Button(this).apply {
+            text = "Find Your Weapon"
+            isEnabled = false
+            setOnClickListener { startFindYourWeaponSession() }
+        }
         cancelSessionButton = Button(this).apply {
             text = "Cancel Session"
             isEnabled = false
-            setOnClickListener { sessionController?.cancel() }
+            setOnClickListener {
+                if (findYourWeaponActive) {
+                    findYourWeaponController?.cancel()
+                } else {
+                    sessionController?.cancel()
+                }
+            }
         }
 
         val controls = LinearLayout(this).apply {
@@ -93,6 +120,7 @@ class MainActivity : AppCompatActivity() {
             setPadding(32, 32, 32, 48)
             setBackgroundColor(0x66000000)
             addView(startSessionButton)
+            addView(findYourWeaponButton)
             addView(cancelSessionButton)
             addView(statusText)
             addView(currentCountText)
@@ -106,6 +134,7 @@ class MainActivity : AppCompatActivity() {
 
         val root = FrameLayout(this).apply {
             addView(previewView)
+            addView(handGuideOverlayView)
             addView(
                 controls,
                 FrameLayout.LayoutParams(
@@ -153,6 +182,9 @@ class MainActivity : AppCompatActivity() {
             onCaptureProfileSelected = ::handleCaptureProfileSelected,
         )
         recordingAdapter = adapter
+        findYourWeaponController = FindYourWeaponSessionController(
+            onStateChanged = ::updateFindYourWeaponState,
+        )
         sessionController = GuidedJodanSessionController(
             recordingAdapter = adapter,
             onStateChanged = ::updateGuidedState,
@@ -179,6 +211,11 @@ class MainActivity : AppCompatActivity() {
         sessionController?.start()
     }
 
+    private fun startFindYourWeaponSession() {
+        metadataPathText.text = "Metadata: not saved"
+        findYourWeaponController?.start()
+    }
+
     override fun onDestroy() {
         trainingOrderPlayer?.release()
         trainingOrderPlayer = null
@@ -188,16 +225,38 @@ class MainActivity : AppCompatActivity() {
     private fun updateRecordingState(state: RecordingState) {
         recordingStateText.text = "Recording: ${state.name.lowercase()}"
         val cameraReady = state == RecordingState.IDLE || state == RecordingState.SAVED || state == RecordingState.FAILED
-        startSessionButton.isEnabled = cameraReady && !guidedSessionActive
+        startSessionButton.isEnabled = cameraReady && !guidedSessionActive && !findYourWeaponActive
+        findYourWeaponButton.isEnabled = cameraReady && !guidedSessionActive && !findYourWeaponActive
     }
 
     private fun updateGuidedState(state: GuidedSessionState) {
         latestGuidedState = state
         guidedSessionActive = state in ACTIVE_GUIDED_STATES
         statusText.text = "Status: ${state.name.lowercase()}"
-        startSessionButton.isEnabled = !guidedSessionActive
-        cancelSessionButton.isEnabled = guidedSessionActive
+        startSessionButton.isEnabled = !guidedSessionActive && !findYourWeaponActive
+        findYourWeaponButton.isEnabled = !guidedSessionActive && !findYourWeaponActive
+        cancelSessionButton.isEnabled = guidedSessionActive || findYourWeaponActive
         TrainingOrderMapper.fromSessionState(state)?.let(::playTrainingOrder)
+    }
+
+
+    private fun updateFindYourWeaponState(state: FindYourWeaponState) {
+        findYourWeaponActive = state == FindYourWeaponState.OPEN_PALM_GUIDE
+        handGuideOverlayView.visibility = if (findYourWeaponActive) View.VISIBLE else View.GONE
+        if (findYourWeaponActive) {
+            statusText.text = "Find Your Weapon"
+            currentCountText.text = "Place your open palm inside the blue hand guide."
+            currentStrikeText.text = "Keep your fingers open and face your palm toward the camera."
+            expectedSideText.text = "Expected side: none"
+        } else {
+            statusText.text = "Status: ${state.name.lowercase()}"
+            currentCountText.text = "Count: none"
+            currentStrikeText.text = "Strike: none"
+            expectedSideText.text = "Expected side: none"
+        }
+        startSessionButton.isEnabled = !guidedSessionActive && !findYourWeaponActive
+        findYourWeaponButton.isEnabled = !guidedSessionActive && !findYourWeaponActive
+        cancelSessionButton.isEnabled = guidedSessionActive || findYourWeaponActive
     }
 
     private fun showCurrentStrike(plan: GuidedStrikePlan?) {
