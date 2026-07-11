@@ -2,7 +2,6 @@ package dk.lasse.karatecliprecorder
 
 import android.content.Context
 import android.graphics.Bitmap
-import android.graphics.Matrix
 import android.os.Environment
 import androidx.camera.core.CameraSelector
 import androidx.camera.core.ImageAnalysis
@@ -39,7 +38,7 @@ class CameraXRecordingAdapter(
     private val onSaved: (RecordingResult) -> Unit,
     private val onError: (String) -> Unit,
     private val onCaptureProfileSelected: (SelectedCaptureProfile) -> Unit = {},
-    private val onAnalysisFrame: (Bitmap, Long) -> Boolean = { bitmap, _ -> bitmap.recycle(); false },
+    private val onAnalysisFrame: (Bitmap, Long) -> Boolean = { _, _ -> false },
 ) : AutoCloseable {
     private var videoCapture: VideoCapture<Recorder>? = null
     private var imageAnalysis: ImageAnalysis? = null
@@ -80,6 +79,7 @@ class CameraXRecordingAdapter(
                 imageAnalysis = ImageAnalysis.Builder()
                     .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
                     .setOutputImageFormat(ImageAnalysis.OUTPUT_IMAGE_FORMAT_RGBA_8888)
+                    .setTargetResolution(android.util.Size(640, 480))
                     .build()
                     .also { analysis ->
                         analysis.setAnalyzer(analysisExecutor) { image -> analyzeImage(image) }
@@ -123,15 +123,14 @@ class CameraXRecordingAdapter(
 
     private fun ImageProxy.toUprightBitmap(): Bitmap? {
         val plane = planes.firstOrNull() ?: return null
-        val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
-        plane.buffer.rewind()
-        bitmap.copyPixelsFromBuffer(plane.buffer)
-        val rotation = imageInfo.rotationDegrees
-        if (rotation == 0) return bitmap
-        val matrix = Matrix().apply { postRotate(rotation.toFloat()) }
-        val rotated = Bitmap.createBitmap(bitmap, 0, 0, bitmap.width, bitmap.height, matrix, true)
-        bitmap.recycle()
-        return rotated
+        return CameraRgbaBitmapConverter.convert(
+            buffer = plane.buffer,
+            width = width,
+            height = height,
+            pixelStride = plane.pixelStride,
+            rowStride = plane.rowStride,
+            rotationDegrees = imageInfo.rotationDegrees,
+        )
     }
 
     fun startRecording(fileName: String? = null) {

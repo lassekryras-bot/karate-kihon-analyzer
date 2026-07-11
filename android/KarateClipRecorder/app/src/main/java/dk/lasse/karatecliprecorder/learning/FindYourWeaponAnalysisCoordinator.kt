@@ -43,18 +43,22 @@ class FindYourWeaponAnalysisCoordinator(
     private var activeStep: FindYourWeaponStep? = null
     private var retainedHandedness = Handedness.UNKNOWN
     private var latestTimestampMs: Long? = null
+    private val lock = Any()
+    var generationToken: Long = 0L
+        private set
 
-    fun setActiveStep(step: FindYourWeaponStep?) {
+    fun setActiveStep(step: FindYourWeaponStep?) = synchronized(lock) {
         if (activeStep != step) {
+            generationToken++
             activeStep = step
             tracker.reset()
             temporalVerifier.reset()
             retainedHandedness = Handedness.UNKNOWN
-            latestTimestampMs = null
         }
     }
 
-    fun process(output: LiveGestureRecognizerOutput) {
+    fun process(output: LiveGestureRecognizerOutput) = synchronized(lock) {
+        if (output.generationToken != generationToken) return
         val previous = latestTimestampMs
         if (previous != null && output.timestampMs <= previous) return
         latestTimestampMs = output.timestampMs
@@ -82,7 +86,8 @@ class FindYourWeaponAnalysisCoordinator(
         )
     }
 
-    fun reset() {
+    fun reset() = synchronized(lock) {
+        generationToken++
         activeStep = null
         retainedHandedness = Handedness.UNKNOWN
         latestTimestampMs = null
@@ -91,7 +96,7 @@ class FindYourWeaponAnalysisCoordinator(
         onStateChanged(FindYourWeaponAnalysisState(null, null, false, Handedness.UNKNOWN, null, null, null, null, null))
     }
 
-    fun reportError(message: String) {
+    fun reportError(message: String) = synchronized(lock) {
         onStateChanged(FindYourWeaponAnalysisState(activeStep, latestTimestampMs, false, retainedHandedness, null, null, null, null, null, message))
     }
 

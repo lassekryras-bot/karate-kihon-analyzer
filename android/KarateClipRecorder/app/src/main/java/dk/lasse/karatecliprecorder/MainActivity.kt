@@ -4,6 +4,7 @@ import android.Manifest
 import android.content.pm.PackageManager
 import android.graphics.Color
 import android.os.Bundle
+import android.os.Looper
 import android.view.Gravity
 import android.view.View
 import android.view.ViewGroup
@@ -209,7 +210,10 @@ class MainActivity : AppCompatActivity() {
             onSaved = ::handleSavedClip,
             onError = ::handleRecordingError,
             onCaptureProfileSelected = ::handleCaptureProfileSelected,
-            onAnalysisFrame = { bitmap, timestampMs -> recognizerRunner?.submit(bitmap, timestampMs) ?: false },
+            onAnalysisFrame = { bitmap, timestampMs ->
+                val token = analysisCoordinator?.generationToken ?: 0L
+                recognizerRunner?.submit(bitmap, timestampMs, token) ?: false
+            },
         )
         recordingAdapter = adapter
         analysisCoordinator = FindYourWeaponAnalysisCoordinator { state -> runOnUiThread { updateAnalysisState(state) } }
@@ -359,8 +363,18 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun handleRecordingError(message: String) {
-        sessionController?.handleRecordingError(message)
-        metadataPathText.text = "Error: $message"
+        runOnMainThread {
+            sessionController?.handleRecordingError(message)
+            metadataPathText.text = "Error: $message"
+        }
+    }
+
+    private fun runOnMainThread(action: () -> Unit) {
+        if (Looper.myLooper() == Looper.getMainLooper()) {
+            action()
+        } else {
+            runOnUiThread(action)
+        }
     }
 
     private fun showSessionComplete(result: GuidedSessionResult) {
