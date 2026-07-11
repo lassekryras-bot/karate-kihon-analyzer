@@ -1,0 +1,3 @@
+Placeholder for find_weapon_01_open_palm.
+Replace this placeholder with the real open-palm tutorial image when image assets are ready.
+Suggested final Android drawable resource name: find_weapon_01_open_palm.
