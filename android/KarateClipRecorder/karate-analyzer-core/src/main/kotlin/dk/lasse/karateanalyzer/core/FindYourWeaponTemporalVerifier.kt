@@ -33,6 +33,17 @@ data class TemporalStepResult(
 class FindYourWeaponTemporalVerifier(
     private val configuration: FindYourWeaponTemporalConfiguration = FindYourWeaponTemporalConfiguration(),
 ) {
+    init {
+        require(configuration.requiredHoldDurationMs > 0) { "requiredHoldDurationMs must be > 0" }
+        require(configuration.minimumReliableMatchingRatio.isFinite() && configuration.minimumReliableMatchingRatio in 0.0..1.0) { "minimumReliableMatchingRatio must be finite and within 0..1" }
+        require(configuration.minimumLatestQuality.isFinite() && configuration.minimumLatestQuality in 0f..1f) { "minimumLatestQuality must be finite and within 0..1" }
+        require(configuration.maximumFrameGapMs >= 0) { "maximumFrameGapMs must be >= 0" }
+        require(configuration.missingDataGracePeriodMs >= 0) { "missingDataGracePeriodMs must be >= 0" }
+        require(configuration.partialMatchGracePeriodMs >= 0) { "partialMatchGracePeriodMs must be >= 0" }
+        require(configuration.progressDecayPerSecond.isFinite() && configuration.progressDecayPerSecond >= 0.0) { "progressDecayPerSecond must be finite and >= 0" }
+        require(configuration.partialDisplayCreditRatio.isFinite() && configuration.partialDisplayCreditRatio in 0f..1f) { "partialDisplayCreditRatio must be finite and within 0..1" }
+    }
+
     private var state = TemporalAcceptanceState()
 
     fun reset() {
@@ -43,14 +54,10 @@ class FindYourWeaponTemporalVerifier(
         state = TemporalAcceptanceState(step = step)
     }
 
-    fun update(frame: TrackedHandFrame?, instantResult: InstantStepResult?): TemporalStepResult {
-        val step = instantResult?.step ?: state.step
-        val handedness = frame?.handedness
-        val timestampMs = frame?.timestampMs
-
-        if (step == null) {
-            return result(instantResult, newlyAccepted = false)
-        }
+    fun update(frame: TrackedHandFrame, instantResult: InstantStepResult): TemporalStepResult {
+        val step = instantResult.step
+        val handedness = frame.handedness
+        val timestampMs = frame.timestampMs
 
         if (state.step != step || state.handedness != handedness) {
             state = TemporalAcceptanceState(
@@ -80,7 +87,7 @@ class FindYourWeaponTemporalVerifier(
 
         val matchingGood = isMatchingGood(instantResult)
         val continuousMatching = matchingGood && state.previousMatchingGood
-        if (continuousMatching && frame != null) {
+        if (continuousMatching) {
             state.missingDataMs = 0.0
             state.partialMatchMs = 0.0
             val weightedReliableDeltaMs = elapsedMs * provenanceReliability(step, frame)
@@ -92,8 +99,8 @@ class FindYourWeaponTemporalVerifier(
         }
 
         val ratio = state.weightedReliableRatio()
-        val latestQualitySufficient = (instantResult?.quality ?: 0f) >= configuration.minimumLatestQuality &&
-            frame?.let { criticalLandmarksReliable(step, it) } == true
+        val latestQualitySufficient = instantResult.quality >= configuration.minimumLatestQuality &&
+            criticalLandmarksReliable(step, frame)
         val shouldAccept = matchingGood && latestQualitySufficient &&
             state.reliableHoldCreditMs >= configuration.requiredHoldDurationMs.toDouble() &&
             state.accumulatedMatchingMs >= configuration.requiredHoldDurationMs.toDouble() &&
@@ -108,39 +115,46 @@ class FindYourWeaponTemporalVerifier(
         return result(instantResult, newlyAccepted = false)
     }
 
-    private fun applyNonMatchingElapsed(elapsedMs: Double, instantResult: InstantStepResult?) {
-        val graceMs = when (instantResult?.status) {
+    private fun applyNonMatchingElapsed(elapsedMs: Double, instantResult: InstantStepResult) {
+        val decayElapsedMs = when (instantResult.status) {
             InstantVerificationStatus.PARTIAL_MATCH -> {
+                val previous = state.partialMatchMs
                 state.partialMatchMs += elapsedMs
                 state.missingDataMs = 0.0
-                configuration.partialMatchGracePeriodMs.toDouble()
+                elapsedBeyondGrace(previous, state.partialMatchMs, configuration.partialMatchGracePeriodMs.toDouble())
             }
-            InstantVerificationStatus.INSUFFICIENT_DATA, null -> {
+            InstantVerificationStatus.INSUFFICIENT_DATA -> {
+                val previous = state.missingDataMs
                 state.missingDataMs += elapsedMs
                 state.partialMatchMs = 0.0
-                configuration.missingDataGracePeriodMs.toDouble()
+                elapsedBeyondGrace(previous, state.missingDataMs, configuration.missingDataGracePeriodMs.toDouble())
             }
-            InstantVerificationStatus.NOT_MATCHING, InstantVerificationStatus.MATCHING -> {
+            InstantVerificationStatus.NOT_MATCHING -> {
+                state.missingDataMs = 0.0
+                state.partialMatchMs = 0.0
+                elapsedMs
+            }
+            InstantVerificationStatus.MATCHING -> {
                 state.missingDataMs = 0.0
                 state.partialMatchMs = 0.0
                 0.0
             }
         }
-        val streakMs = maxOf(state.partialMatchMs, state.missingDataMs)
-        if (streakMs > graceMs || graceMs == 0.0) {
-            val decayCreditMs = configuration.requiredHoldDurationMs.toDouble() *
-                configuration.progressDecayPerSecond.coerceAtLeast(0.0) *
-                (elapsedMs / 1000.0)
-            state.reliableHoldCreditMs = (state.reliableHoldCreditMs - decayCreditMs).coerceAtLeast(0.0)
-        }
+        val decayCreditMs = configuration.requiredHoldDurationMs.toDouble() *
+            configuration.progressDecayPerSecond *
+            (decayElapsedMs / 1000.0)
+        state.reliableHoldCreditMs = (state.reliableHoldCreditMs - decayCreditMs).coerceAtLeast(0.0)
     }
 
-    private fun isMatchingGood(instant: InstantStepResult?): Boolean =
-        instant?.status == InstantVerificationStatus.MATCHING && instant.feedbackCode == FeedbackCode.GOOD
+    private fun elapsedBeyondGrace(previousStreakMs: Double, currentStreakMs: Double, graceMs: Double): Double =
+        (currentStreakMs - graceMs).coerceAtLeast(0.0) - (previousStreakMs - graceMs).coerceAtLeast(0.0)
 
-    private fun elapsedSinceLast(timestampMs: Long?): Double? {
+    private fun isMatchingGood(instant: InstantStepResult): Boolean =
+        instant.status == InstantVerificationStatus.MATCHING && instant.feedbackCode == FeedbackCode.GOOD
+
+    private fun elapsedSinceLast(timestampMs: Long): Double? {
         val previous = state.lastTimestampMs
-        if (timestampMs == null || previous == null) return 0.0
+        if (previous == null) return 0.0
         if (timestampMs < previous) return null
         return (timestampMs - previous).toDouble()
     }
@@ -186,11 +200,11 @@ class FindYourWeaponTemporalVerifier(
         }.average().takeIf { it.isFinite() } ?: 0.0
 
     private fun criticalLandmarksFor(step: HandLessonStep): List<HandLandmarkId> = when (step) {
-        HandLessonStep.OPEN_PALM -> listOf(HandLandmarkId.WRIST) + fourFingerCriticalLandmarks
-        HandLessonStep.BEND_FINGERTIPS -> fourFingerCriticalLandmarks
-        HandLessonStep.CLOSE_FINGERS -> fourFingerCriticalLandmarks
-        HandLessonStep.THUMB_ON_TOP -> fourFingerCriticalLandmarks + thumbCriticalLandmarks
-        HandLessonStep.FRONT_TWO_KNUCKLES -> fourFingerCriticalLandmarks
+        HandLessonStep.OPEN_PALM -> listOf(HandLandmarkId.WRIST) + temporalFourFingerCriticalLandmarks
+        HandLessonStep.BEND_FINGERTIPS -> temporalFourFingerCriticalLandmarks
+        HandLessonStep.CLOSE_FINGERS -> temporalFourFingerCriticalLandmarks
+        HandLessonStep.THUMB_ON_TOP -> temporalFourFingerCriticalLandmarks + temporalThumbCriticalLandmarks
+        HandLessonStep.FRONT_TWO_KNUCKLES -> temporalFourFingerCriticalLandmarks
     }
 }
 
@@ -209,7 +223,7 @@ private data class TemporalAcceptanceState(
     fun weightedReliableRatio(): Double = if (accumulatedMatchingMs <= 0.0) 0.0 else reliableMatchingMs / accumulatedMatchingMs
 }
 
-internal val fourFingerCriticalLandmarks = listOf(
+private val temporalFourFingerCriticalLandmarks = listOf(
     HandLandmarkId.INDEX_MCP,
     HandLandmarkId.INDEX_PIP,
     HandLandmarkId.INDEX_DIP,
@@ -228,7 +242,7 @@ internal val fourFingerCriticalLandmarks = listOf(
     HandLandmarkId.LITTLE_TIP,
 )
 
-internal val thumbCriticalLandmarks = listOf(
+private val temporalThumbCriticalLandmarks = listOf(
     HandLandmarkId.THUMB_CMC,
     HandLandmarkId.THUMB_MCP,
     HandLandmarkId.THUMB_IP,
