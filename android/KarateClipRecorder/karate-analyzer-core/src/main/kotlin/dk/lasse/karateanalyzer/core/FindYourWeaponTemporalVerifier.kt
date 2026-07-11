@@ -3,14 +3,19 @@ package dk.lasse.karateanalyzer.core
 /**
  * Stateful temporal acceptance for Find Your Weapon steps.
  *
- * This class keeps raw matching time, weighted reliable matching time, and decaying hold credit as
- * separate values. Display-only partial progress is never converted into reliable observation time.
+ * This accumulator consumes an already-computed [InstantStepResult] so callers do not duplicate
+ * feature extraction or instant verification. It keeps raw matching time, weighted reliable
+ * matching time, and decaying hold credit separate; display-only partial progress is never
+ * converted into reliable observation time.
  */
 data class FindYourWeaponTemporalConfiguration(
     val requiredHoldDurationMs: Long = 600,
     val minimumReliableMatchingRatio: Double = 0.75,
     val minimumLatestQuality: Float = 0.70f,
-    val incorrectFrameDecayRatio: Double = 1.0,
+    val maximumFrameGapMs: Long = 1_000,
+    val missingDataGracePeriodMs: Long = 120,
+    val partialMatchGracePeriodMs: Long = 120,
+    val progressDecayPerSecond: Double = 1.0,
     val partialDisplayCreditRatio: Float = 0.35f,
 )
 
@@ -27,8 +32,6 @@ data class TemporalStepResult(
 
 class FindYourWeaponTemporalVerifier(
     private val configuration: FindYourWeaponTemporalConfiguration = FindYourWeaponTemporalConfiguration(),
-    private val verifier: FindYourWeaponVerifier = FindYourWeaponVerifier(),
-    private val extractor: HandFeatureExtractor = HandFeatureExtractor(),
 ) {
     private var state = TemporalAcceptanceState()
 
@@ -36,38 +39,60 @@ class FindYourWeaponTemporalVerifier(
         state = TemporalAcceptanceState()
     }
 
-    fun update(step: HandLessonStep, frame: TrackedHandFrame?): TemporalStepResult {
-        val instant = frame?.let { verifier.verify(step, it, extractor.extract(it)) }
-        val hand = frame?.handedness
+    fun resetForStep(step: HandLessonStep) {
+        state = TemporalAcceptanceState(step = step)
+    }
+
+    fun update(frame: TrackedHandFrame?, instantResult: InstantStepResult?): TemporalStepResult {
+        val step = instantResult?.step ?: state.step
+        val handedness = frame?.handedness
         val timestampMs = frame?.timestampMs
 
-        if (state.step != step || state.handedness != hand) {
-            state = TemporalAcceptanceState(step = step, handedness = hand, lastTimestampMs = timestampMs, previousMatchingGood = isMatchingGood(instant))
-            return result(instant, newlyAccepted = false)
+        if (step == null) {
+            return result(instantResult, newlyAccepted = false)
+        }
+
+        if (state.step != step || state.handedness != handedness) {
+            state = TemporalAcceptanceState(
+                step = step,
+                handedness = handedness,
+                lastTimestampMs = timestampMs,
+                previousMatchingGood = isMatchingGood(instantResult),
+            )
+            return result(instantResult, newlyAccepted = false)
         }
 
         val elapsedMs = elapsedSinceLast(timestampMs)
+        if (elapsedMs == null || elapsedMs > configuration.maximumFrameGapMs) {
+            state = TemporalAcceptanceState(
+                step = step,
+                handedness = handedness,
+                lastTimestampMs = timestampMs,
+                previousMatchingGood = isMatchingGood(instantResult),
+            )
+            return result(instantResult, newlyAccepted = false)
+        }
         state.lastTimestampMs = timestampMs
 
         if (state.accepted) {
-            return result(instant, newlyAccepted = false, forcedProgress = 1f)
+            return result(instantResult, newlyAccepted = false, forcedProgress = 1f)
         }
 
-        val matchingGood = isMatchingGood(instant)
+        val matchingGood = isMatchingGood(instantResult)
         val continuousMatching = matchingGood && state.previousMatchingGood
         if (continuousMatching && frame != null) {
-            val reliability = provenanceReliability(step, frame)
-            val weightedReliableDeltaMs = elapsedMs * reliability
+            state.missingDataMs = 0.0
+            state.partialMatchMs = 0.0
+            val weightedReliableDeltaMs = elapsedMs * provenanceReliability(step, frame)
             state.accumulatedMatchingMs += elapsedMs
             state.reliableMatchingMs += weightedReliableDeltaMs
             state.reliableHoldCreditMs += weightedReliableDeltaMs
         } else {
-            val decayMs = elapsedMs * configuration.incorrectFrameDecayRatio.coerceAtLeast(0.0)
-            state.reliableHoldCreditMs = (state.reliableHoldCreditMs - decayMs).coerceAtLeast(0.0)
+            applyNonMatchingElapsed(elapsedMs, instantResult)
         }
 
         val ratio = state.weightedReliableRatio()
-        val latestQualitySufficient = (instant?.quality ?: 0f) >= configuration.minimumLatestQuality &&
+        val latestQualitySufficient = (instantResult?.quality ?: 0f) >= configuration.minimumLatestQuality &&
             frame?.let { criticalLandmarksReliable(step, it) } == true
         val shouldAccept = matchingGood && latestQualitySufficient &&
             state.reliableHoldCreditMs >= configuration.requiredHoldDurationMs.toDouble() &&
@@ -77,18 +102,47 @@ class FindYourWeaponTemporalVerifier(
         state.previousMatchingGood = matchingGood
         if (shouldAccept) {
             state.accepted = true
-            return result(instant, newlyAccepted = true, forcedProgress = 1f)
+            return result(instantResult, newlyAccepted = true, forcedProgress = 1f)
         }
 
-        return result(instant, newlyAccepted = false)
+        return result(instantResult, newlyAccepted = false)
+    }
+
+    private fun applyNonMatchingElapsed(elapsedMs: Double, instantResult: InstantStepResult?) {
+        val graceMs = when (instantResult?.status) {
+            InstantVerificationStatus.PARTIAL_MATCH -> {
+                state.partialMatchMs += elapsedMs
+                state.missingDataMs = 0.0
+                configuration.partialMatchGracePeriodMs.toDouble()
+            }
+            InstantVerificationStatus.INSUFFICIENT_DATA, null -> {
+                state.missingDataMs += elapsedMs
+                state.partialMatchMs = 0.0
+                configuration.missingDataGracePeriodMs.toDouble()
+            }
+            InstantVerificationStatus.NOT_MATCHING, InstantVerificationStatus.MATCHING -> {
+                state.missingDataMs = 0.0
+                state.partialMatchMs = 0.0
+                0.0
+            }
+        }
+        val streakMs = maxOf(state.partialMatchMs, state.missingDataMs)
+        if (streakMs > graceMs || graceMs == 0.0) {
+            val decayCreditMs = configuration.requiredHoldDurationMs.toDouble() *
+                configuration.progressDecayPerSecond.coerceAtLeast(0.0) *
+                (elapsedMs / 1000.0)
+            state.reliableHoldCreditMs = (state.reliableHoldCreditMs - decayCreditMs).coerceAtLeast(0.0)
+        }
     }
 
     private fun isMatchingGood(instant: InstantStepResult?): Boolean =
         instant?.status == InstantVerificationStatus.MATCHING && instant.feedbackCode == FeedbackCode.GOOD
 
-    private fun elapsedSinceLast(timestampMs: Long?): Double {
+    private fun elapsedSinceLast(timestampMs: Long?): Double? {
         val previous = state.lastTimestampMs
-        return if (timestampMs == null || previous == null) 0.0 else (timestampMs - previous).coerceAtLeast(0L).toDouble()
+        if (timestampMs == null || previous == null) return 0.0
+        if (timestampMs < previous) return null
+        return (timestampMs - previous).toDouble()
     }
 
     private fun result(
@@ -149,6 +203,8 @@ private data class TemporalAcceptanceState(
     var reliableHoldCreditMs: Double = 0.0,
     var accepted: Boolean = false,
     var previousMatchingGood: Boolean = false,
+    var missingDataMs: Double = 0.0,
+    var partialMatchMs: Double = 0.0,
 ) {
     fun weightedReliableRatio(): Double = if (accumulatedMatchingMs <= 0.0) 0.0 else reliableMatchingMs / accumulatedMatchingMs
 }
