@@ -17,3 +17,4 @@ dependencyResolutionManagement {
 rootProject.name = "KarateClipRecorder"
 include(":app")
 include(":karate-analyzer-core")
+include(":mediapipe-hand-adapter")
