@@ -69,7 +69,68 @@ class FindYourWeaponTemporalVerifierTest {
         val highQuality = hand(800)
         val result = verifier.update(highQuality, instant(HandLessonStep.OPEN_PALM, highQuality))
         assertFalse(result.accepted)
+        assertEquals(0.0, result.reliableMatchingMs, 0.001)
+        assertEquals(0.0, result.reliableHoldCreditMs, 0.001)
+    }
+
+
+    @Test fun predictedFollowedByOneObservedFrameAddsNoReliableInterval() {
+        val verifier = FindYourWeaponTemporalVerifier()
+        verifier.update(hand(0, predicted = setOf(HandLandmarkId.INDEX_PIP)), matching(HandLessonStep.OPEN_PALM, quality = 0.9f))
+        val result = verifier.update(hand(200), instant(HandLessonStep.OPEN_PALM, hand(200)))
+        assertFalse(result.accepted)
+        assertEquals(0.0, result.reliableMatchingMs, 0.001)
+        assertEquals(0.0, result.reliableHoldCreditMs, 0.001)
+    }
+
+    @Test fun twoReliableObservedEndpointsAddElapsedTime() {
+        val result = runOpenPalm(LandmarkSource.OBSERVED, listOf(0L, 200L)).last()
         assertEquals(200.0, result.reliableMatchingMs, 0.001)
+        assertEquals(200.0, result.reliableHoldCreditMs, 0.001)
+    }
+
+    @Test fun twoInterpolatedEndpointsApplyDeterministicWeight() {
+        val result = runOpenPalm(LandmarkSource.INTERPOLATED, listOf(0L, 200L)).last()
+        assertEquals(150.0, result.reliableMatchingMs, 0.001)
+        assertEquals(150.0, result.reliableHoldCreditMs, 0.001)
+        assertEquals(0.75, result.weightedReliableRatio, 0.001)
+    }
+
+    @Test fun fullyDecayedCreditResetsActiveAttemptRatioForNextAttempt() {
+        val verifier = FindYourWeaponTemporalVerifier(FindYourWeaponTemporalConfiguration(progressDecayPerSecond = 10.0))
+        runStep(verifier, HandLessonStep.OPEN_PALM, listOf(hand(0), hand(200)))
+        val decayed = verifier.update(missingHand(400, Handedness.RIGHT), insufficient(HandLessonStep.OPEN_PALM))
+        assertEquals(0.0, decayed.reliableHoldCreditMs, 0.001)
+        assertEquals(0.0, decayed.weightedReliableRatio, 0.001)
+    }
+
+    @Test fun cleanAttemptSucceedsAfterPoisonedAttemptFullyDecays() {
+        val verifier = FindYourWeaponTemporalVerifier(FindYourWeaponTemporalConfiguration(progressDecayPerSecond = 10.0))
+        for (frame in listOf(hand(0), hand(200), hand(400), hand(600))) {
+            verifier.update(frame, matching(HandLessonStep.OPEN_PALM, quality = 0.1f))
+        }
+        verifier.update(missingHand(800, Handedness.RIGHT), insufficient(HandLessonStep.OPEN_PALM))
+        val result = runStep(verifier, HandLessonStep.OPEN_PALM, listOf(hand(1000), hand(1200), hand(1400), hand(1600))).last()
+        assertTrue(result.accepted)
+    }
+
+    @Test fun nanAndInfinityPartialScoresProduceFiniteProgress() {
+        val verifier = FindYourWeaponTemporalVerifier()
+        val nan = verifier.update(hand(0), partial(HandLessonStep.OPEN_PALM, Float.NaN))
+        val infinity = verifier.update(hand(50), partial(HandLessonStep.OPEN_PALM, Float.POSITIVE_INFINITY))
+        listOf(nan, infinity).forEach { result ->
+            assertTrue(result.progress.isFinite())
+            assertTrue(result.progress in 0f..1f)
+            assertTrue(result.weightedReliableRatio.isFinite())
+            assertTrue(result.weightedReliableRatio in 0.0..1.0)
+        }
+    }
+
+    @Test fun unreliableMatchingWithExistingCreditReportsPaused() {
+        val verifier = FindYourWeaponTemporalVerifier()
+        runStep(verifier, HandLessonStep.OPEN_PALM, listOf(hand(0), hand(200)))
+        val result = verifier.update(hand(400), matching(HandLessonStep.OPEN_PALM, quality = 0.1f))
+        assertEquals(TemporalVerificationStatus.PAUSED, result.status)
         assertEquals(200.0, result.reliableHoldCreditMs, 0.001)
     }
 
@@ -286,10 +347,10 @@ class FindYourWeaponTemporalVerifierTest {
         criticalLandmarksVisible = false,
     )
 
-    private fun partial(step: HandLessonStep): InstantStepResult = InstantStepResult(
+    private fun partial(step: HandLessonStep, score: Float = 0.8f): InstantStepResult = InstantStepResult(
         step = step,
         status = InstantVerificationStatus.PARTIAL_MATCH,
-        score = 0.8f,
+        score = score,
         quality = 0.8f,
         feedbackCode = FeedbackCode.HOLD_STILL,
         criticalLandmarksVisible = true,
