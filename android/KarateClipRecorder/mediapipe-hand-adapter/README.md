@@ -1,4 +1,4 @@
-# MediaPipe hand adapter
+# MediaPipe Gesture Recognizer hand adapter
 
 This module adapts MediaPipe Tasks Vision Gesture Recognizer output into analyzer-neutral hand frames.
 
