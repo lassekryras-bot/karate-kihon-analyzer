@@ -17,12 +17,11 @@ data class LandmarkTrack(
     val lastStabilizedSample: LandmarkSample? = null,
     val lastStabilizedTimestampMs: Long? = null,
     val velocityPerMs: Point3? = null,
-    val pendingPredictions: List<PendingLandmarkSample> = emptyList(),
+    val pendingGapFrames: List<PendingGapFrame> = emptyList(),
 )
 
-data class PendingLandmarkSample(
+data class PendingGapFrame(
     val timestampMs: Long,
-    val sample: LandmarkSample,
 )
 
 data class TrackedHandFrame(
@@ -87,13 +86,13 @@ class TemporalHandTracker(
         if (elapsedSinceObserved != null && elapsedSinceObserved in 1..configuration.maximumInterpolationGapMs) {
             val start = previous.lastObservedSample?.position
             if (start != null && elapsedSinceObserved > 1) {
-                previous.pendingPredictions
+                previous.pendingGapFrames
                     .filter { it.timestampMs > previous.lastObservedTimestampMs && it.timestampMs < timestampMs }
                     .forEach { pending ->
                         val ratio = (pending.timestampMs - previous.lastObservedTimestampMs).toFloat() / elapsedSinceObserved.toFloat()
                         backfill.getOrPut(pending.timestampMs) { mutableMapOf() }[id] = LandmarkSample(
                             position = lerp(start, smoothed, ratio),
-                            confidence = min(pending.sample.confidence, min(previous.lastObservedSample.confidence, observed.confidence)),
+                            confidence = min(previous.lastObservedSample.confidence, observed.confidence),
                             source = LandmarkSource.INTERPOLATED,
                         )
                     }
@@ -111,12 +110,20 @@ class TemporalHandTracker(
         val lastObservedTimestamp = previous.lastObservedTimestampMs ?: return previous to missing()
         val gap = timestampMs - lastObservedTimestamp
         val lastObservedPosition = previous.lastObservedSample?.position
-        if (gap !in 1..configuration.maximumPredictionGapMs || lastObservedPosition == null) {
+        if (gap !in 1..configuration.maximumInterpolationGapMs || lastObservedPosition == null) {
             val sample = missing()
             return previous.copy(
                 lastStabilizedSample = sample,
                 lastStabilizedTimestampMs = timestampMs,
-                pendingPredictions = emptyList(),
+                pendingGapFrames = emptyList(),
+            ) to sample
+        }
+        if (gap > configuration.maximumPredictionGapMs) {
+            val sample = missing()
+            return previous.copy(
+                lastStabilizedSample = sample,
+                lastStabilizedTimestampMs = timestampMs,
+                pendingGapFrames = previous.pendingGapFrames + PendingGapFrame(timestampMs),
             ) to sample
         }
         val velocity = previous.velocityPerMs ?: Point3(0f, 0f, 0f)
@@ -126,7 +133,7 @@ class TemporalHandTracker(
         return previous.copy(
             lastStabilizedSample = sample,
             lastStabilizedTimestampMs = timestampMs,
-            pendingPredictions = previous.pendingPredictions + PendingLandmarkSample(timestampMs, sample),
+            pendingGapFrames = previous.pendingGapFrames + PendingGapFrame(timestampMs),
         ) to sample
     }
 

@@ -116,15 +116,56 @@ class TemporalHandTrackerTest {
     }
 
     @Test
+    fun missingLiveFramesWithinInterpolationWindowAreBackfilledOnReacquisition() {
+        val tracker = TemporalHandTracker(
+            TrackingConfiguration(
+                maximumPredictionGapMs = 75,
+                maximumInterpolationGapMs = 250,
+                smoothingFactor = 1f,
+            ),
+        )
+        tracker.track(frame(0, point(0f)))
+        val predicted = tracker.track(frame(50, null))
+        val firstMissing = tracker.track(frame(100, null))
+        val secondMissing = tracker.track(frame(150, null))
+        val result = tracker.track(frame(200, point(20f)))
+
+        assertEquals(LandmarkSource.PREDICTED, predicted.landmarks[id]?.source)
+        assertEquals(LandmarkSource.MISSING, firstMissing.landmarks[id]?.source)
+        assertEquals(LandmarkSource.MISSING, secondMissing.landmarks[id]?.source)
+        assertEquals(listOf(50L, 100L, 150L), result.interpolatedFrames.map { it.timestampMs })
+        assertEquals(listOf(5f, 10f, 15f), result.interpolatedFrames.map { it.landmarks[id]?.position?.x })
+    }
+
+    @Test
+    fun interpolatedConfidenceComesFromObservedEndpoints() {
+        val tracker = TemporalHandTracker(TrackingConfiguration(smoothingFactor = 1f, maximumPredictionGapMs = 100))
+        tracker.track(frame(0, point(0f), confidence = 0.6f))
+        val predicted = tracker.track(frame(50, null))
+        val result = tracker.track(frame(100, point(10f), confidence = 0.8f))
+
+        assertEquals(0.3f, predicted.landmarks[id]?.confidence)
+        assertEquals(0.6f, result.interpolatedFrames.single().landmarks[id]?.confidence)
+    }
+
+    @Test
     fun pendingTimestampsAreIsolatedPerLandmark() {
-        val tracker = TemporalHandTracker(TrackingConfiguration(smoothingFactor = 1f, maximumInterpolationGapMs = 250))
+        val tracker = TemporalHandTracker(
+            TrackingConfiguration(
+                maximumPredictionGapMs = 75,
+                maximumInterpolationGapMs = 250,
+                smoothingFactor = 1f,
+            ),
+        )
         tracker.track(multiFrame(0, id to point(0f), wrist to point(100f)))
         tracker.track(multiFrame(50, id to null, wrist to point(100f)))
         tracker.track(multiFrame(100, id to null, wrist to null))
-        val result = tracker.track(multiFrame(150, id to point(15f), wrist to point(115f)))
+        tracker.track(multiFrame(150, id to null, wrist to null))
+        val result = tracker.track(multiFrame(200, id to point(20f), wrist to point(120f)))
 
-        assertEquals(listOf(50L, 100L), result.interpolatedFrames.map { it.timestampMs })
+        assertEquals(listOf(50L, 100L, 150L), result.interpolatedFrames.map { it.timestampMs })
         assertEquals(setOf(id), result.interpolatedFrames.first().landmarks.keys)
+        assertEquals(setOf(id, wrist), result.interpolatedFrames[1].landmarks.keys)
         assertEquals(setOf(id, wrist), result.interpolatedFrames.last().landmarks.keys)
     }
 
@@ -204,29 +245,13 @@ class TemporalHandTrackerTest {
     }
 
     @Test
-    fun interpolationIsNotCreatedForLongReacquisitionGap() {
-        val tracker = TemporalHandTracker(TrackingConfiguration(smoothingFactor = 1f, maximumInterpolationGapMs = 80))
+    fun observationAfterInterpolationWindowProducesNoInterpolation() {
+        val tracker = TemporalHandTracker(TrackingConfiguration(smoothingFactor = 1f, maximumInterpolationGapMs = 250))
         tracker.track(frame(0, point(0f)))
         tracker.track(frame(50, null))
-        val result = tracker.track(frame(100, point(10f)))
-
-        assertTrue(result.interpolatedFrames.isEmpty())
-        assertEquals(LandmarkSource.OBSERVED, result.landmarks[id]?.source)
-    }
-
-    @Test
-    fun longGapClearsPendingInterpolationHistory() {
-        val tracker = TemporalHandTracker(
-            TrackingConfiguration(
-                maximumPredictionGapMs = 75,
-                maximumInterpolationGapMs = 250,
-                smoothingFactor = 1f,
-            ),
-        )
-        tracker.track(frame(0, point(0f)))
-        tracker.track(frame(50, null))
-        tracker.track(frame(100, null))
-        val result = tracker.track(frame(150, point(15f)))
+        tracker.track(frame(200, null))
+        tracker.track(frame(251, null))
+        val result = tracker.track(frame(300, point(30f)))
 
         assertTrue(result.interpolatedFrames.isEmpty())
         assertEquals(LandmarkSource.OBSERVED, result.landmarks[id]?.source)
