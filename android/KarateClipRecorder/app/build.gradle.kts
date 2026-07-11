@@ -32,6 +32,7 @@ kotlin {
 val cameraxVersion = "1.4.1"
 
 dependencies {
+    implementation(project(":karate-analyzer-core"))
     implementation("androidx.core:core-ktx:1.15.0")
     implementation("androidx.appcompat:appcompat:1.7.0")
     implementation("androidx.activity:activity-ktx:1.10.0")
