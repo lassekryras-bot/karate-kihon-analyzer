@@ -195,27 +195,10 @@ private abstract class BaseVerifier(
     protected fun clamp(value: Float?): Float = value?.takeIf { it.isFinite() }?.coerceIn(0f, 1f) ?: 0f
 }
 
-private val fourFingerIds = listOf(
-    HandLandmarkId.INDEX_MCP,
-    HandLandmarkId.INDEX_PIP,
-    HandLandmarkId.INDEX_DIP,
-    HandLandmarkId.INDEX_TIP,
-    HandLandmarkId.MIDDLE_MCP,
-    HandLandmarkId.MIDDLE_PIP,
-    HandLandmarkId.MIDDLE_DIP,
-    HandLandmarkId.MIDDLE_TIP,
-    HandLandmarkId.RING_MCP,
-    HandLandmarkId.RING_PIP,
-    HandLandmarkId.RING_DIP,
-    HandLandmarkId.RING_TIP,
-    HandLandmarkId.LITTLE_MCP,
-    HandLandmarkId.LITTLE_PIP,
-    HandLandmarkId.LITTLE_DIP,
-    HandLandmarkId.LITTLE_TIP,
-)
+private val fourFingerIds = fourFingerCriticalLandmarks
 
 private val openPalmCriticalIds = listOf(HandLandmarkId.WRIST) + fourFingerIds
-private val thumbCriticalIds = listOf(HandLandmarkId.THUMB_CMC, HandLandmarkId.THUMB_MCP, HandLandmarkId.THUMB_IP, HandLandmarkId.THUMB_TIP)
+private val thumbCriticalIds = thumbCriticalLandmarks
 private val frontKnuckleIds = setOf(HandLandmarkId.INDEX_MCP, HandLandmarkId.MIDDLE_MCP)
 
 /** Critical landmarks: wrist and four finger chains. Components: extension, low curl, consistency. */
@@ -383,7 +366,7 @@ private class ThumbOnTopStepVerifier(
         val thumbTip = frame.landmarks[HandLandmarkId.THUMB_TIP]
         val thumbTipPresent = thumbTip?.position != null && thumbTip.source != LandmarkSource.MISSING
         val criticalQuality = min(criticalQuality(fourFingerIds, frame), criticalQuality(thumbCriticalIds, frame))
-        val criticalVisible = closed.criticalLandmarksVisible && thumbTipPresent
+        val criticalVisible = closed.criticalLandmarksVisible && allPresent(thumbCriticalIds, frame)
         val crossesPalm = if (features.thumb.crossesPalmAxis == true) 1f else 0f
         val nearestKnuckleDistance = listOfNotNull(
             features.thumb.tipToIndexMcpRatio,
@@ -437,7 +420,7 @@ private class FrontTwoKnucklesStepVerifier(
         val closed = closedVerifier.verify(frame, features)
         val usableHighlights = presentLandmarks(frontKnuckleIds, frame)
         val allKnucklesPresent = usableHighlights.containsAll(frontKnuckleIds)
-        val criticalQuality = min(criticalQuality(fourFingerIds, frame), criticalQuality(frontKnuckleIds.toList(), frame))
+        val criticalQuality = criticalQuality(fourFingerIds, frame)
         val criticalVisible = closed.criticalLandmarksVisible && allKnucklesPresent && features.palmCoordinateSystem != null
         val orientation = features.palmCoordinateSystem?.zAxis?.let { abs(it.z) }
         val orientationComponent = orientation ?: configuration.fistOrientationTolerance
