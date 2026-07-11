@@ -59,7 +59,8 @@ fun averageOfPoints(points: Iterable<Point3?>): Point3? {
 }
 
 /** Midpoint of two finite points. */
-fun midpoint(a: Point3?, b: Point3?): Point3? = averageOfPoints(listOf(a, b)).takeIf { a != null && b != null }
+fun midpoint(a: Point3?, b: Point3?): Point3? =
+    if (a != null && b != null && a.isFinitePoint() && b.isFinitePoint()) averageOfPoints(listOf(a, b)) else null
 
 /**
  * Angle at [vertex] formed by [first]-[vertex]-[third], in degrees.

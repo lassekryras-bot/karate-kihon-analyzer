@@ -40,10 +40,11 @@ class HandFeatureExtractor(
         val wrist = frame.point(HandLandmarkId.WRIST)
         val origin = averageOfPoints(listOf(index, middle, ring, little)) ?: return null
         val width = distanceBetween(index, little) ?: return null
-        val xAxis = (little ?: return null).minus(index ?: return null).normalized() ?: return null
-        val yAxis = (middle ?: return null).minus(wrist ?: return null).normalized() ?: return null
-        val zAxis = xAxis.cross(yAxis)?.normalized()
-        return PalmCoordinateSystem(origin, xAxis, yAxis, zAxis, width)
+        val rawX = (little ?: return null).minus(index ?: return null).normalized() ?: return null
+        val rawY = (middle ?: return null).minus(wrist ?: return null).normalized() ?: return null
+        val zAxis = rawX.cross(rawY)?.normalized() ?: return null
+        val yAxis = zAxis.cross(rawX)?.normalized() ?: return null
+        return PalmCoordinateSystem(origin, rawX, yAxis, zAxis, width)
     }
 
     private fun finger(frame: TrackedHandFrame, mcpId: HandLandmarkId, pipId: HandLandmarkId, dipId: HandLandmarkId, tipId: HandLandmarkId, palmCenter: Point3?, palmWidth: Float?): FingerFeatures {
@@ -75,15 +76,15 @@ class HandFeatureExtractor(
             tipToPalmRatio = safeDivide(distanceBetween(tip, palmCenter), palmWidth),
             tipToIndexMcpRatio = safeDivide(distanceBetween(tip, indexMcp), palmWidth),
             tipToMiddleMcpRatio = safeDivide(distanceBetween(tip, middleMcp), palmWidth),
-            crossesPalmAxis = thumbCrossesPalmAxis(tip, palm, frame.handedness),
+            crossesPalmAxis = thumbCrossesPalmAxis(tip, palm),
             quality = quality(listOf(HandLandmarkId.THUMB_CMC, HandLandmarkId.THUMB_MCP, HandLandmarkId.THUMB_IP, HandLandmarkId.THUMB_TIP), frame),
         )
     }
 
-    private fun thumbCrossesPalmAxis(tip: Point3?, palm: PalmCoordinateSystem?, handedness: Handedness): Boolean? {
-        if (tip == null || palm == null || handedness == Handedness.UNKNOWN) return null
+    private fun thumbCrossesPalmAxis(tip: Point3?, palm: PalmCoordinateSystem?): Boolean? {
+        if (tip == null || palm == null) return null
         val lateral = (tip - palm.origin).dot(palm.xAxis) ?: return null
-        return if (handedness == Handedness.RIGHT) lateral > 0f else lateral < 0f
+        return lateral > 0f
     }
 
     /** Average flexion heuristic: 0 at 170+ degrees, 1 at 70 degrees or less. */
