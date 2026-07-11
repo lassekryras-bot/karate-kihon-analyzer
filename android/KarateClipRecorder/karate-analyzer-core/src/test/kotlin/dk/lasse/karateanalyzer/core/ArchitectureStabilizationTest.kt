@@ -7,6 +7,7 @@ import kotlin.io.path.name
 import kotlin.io.path.readText
 import kotlin.test.Test
 import kotlin.test.assertFalse
+import kotlin.test.assertTrue
 
 class ArchitectureStabilizationTest {
     private val repoRoot: Path = generateSequence(Path.of("").toAbsolutePath().normalize()) { it.parent }
@@ -35,15 +36,28 @@ class ArchitectureStabilizationTest {
 
     @Test fun mediaPipeAdapterDoesNotDownloadRuntimeModelsOrBundleBinaryModels() {
         val adapterRoot = repoRoot.resolve("mediapipe-hand-adapter")
-        val forbiddenText = listOf("downloadModel", "model download", "http://", "https://")
-        projectFiles(adapterRoot).forEach { file ->
-            val text = runCatching { file.readText() }.getOrDefault("")
-            forbiddenText.forEach { token ->
+        val forbiddenRuntimeDownloadUsage = listOf(
+            "java.net.URL",
+            "HttpURLConnection",
+            "OkHttpClient",
+            "DownloadManager",
+            "downloadModel",
+        )
+        kotlinFiles(adapterRoot.resolve("src/main")).forEach { file ->
+            val text = file.readText()
+            forbiddenRuntimeDownloadUsage.forEach { token ->
                 assertFalse(text.contains(token), "Unexpected runtime model-download token '$token' in $file")
             }
         }
         val binaryModel = projectFiles(adapterRoot).any { it.name.endsWith(".task") || it.name.endsWith(".tflite") }
         assertFalse(binaryModel, "No binary MediaPipe model should be committed")
+    }
+
+    @Test fun adapterAndroidManifestNamespaceDoesNotFailRuntimeDownloadScan() {
+        val manifest = repoRoot.resolve("mediapipe-hand-adapter/src/main/AndroidManifest.xml")
+        assertTrue(manifest.readText().contains("http://schemas.android.com/apk/res/android"))
+        val scannedRuntimeDownloadFiles = kotlinFiles(repoRoot.resolve("mediapipe-hand-adapter/src/main"))
+        assertFalse(manifest in scannedRuntimeDownloadFiles, "Runtime download scan should include Kotlin source only")
     }
 
 

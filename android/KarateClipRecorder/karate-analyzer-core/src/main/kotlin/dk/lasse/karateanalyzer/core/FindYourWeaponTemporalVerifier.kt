@@ -70,26 +70,36 @@ class FindYourWeaponTemporalVerifier(
         val timestampMs = frame.timestampMs
 
         if (state.step != step || state.handedness != handedness) {
+            val currentFrameReliability = frameReliability(step, frame, instantResult)
             state = TemporalAcceptanceState(
                 step = step,
                 handedness = handedness,
                 lastTimestampMs = timestampMs,
                 previousMatchingGood = isMatchingGood(instantResult),
-                previousFrameReliability = frameReliability(step, frame, instantResult),
+                previousFrameReliability = currentFrameReliability,
             )
-            return result(instantResult, newlyAccepted = false, status = TemporalVerificationStatus.WAITING_FOR_DATA)
+            return result(
+                instantResult,
+                newlyAccepted = false,
+                status = initialStatus(instantResult, currentFrameReliability),
+            )
         }
 
         val elapsedMs = elapsedSinceLast(timestampMs)
         if (elapsedMs == null || elapsedMs > configuration.maximumFrameGapMs) {
+            val currentFrameReliability = frameReliability(step, frame, instantResult)
             state = TemporalAcceptanceState(
                 step = step,
                 handedness = handedness,
                 lastTimestampMs = timestampMs,
                 previousMatchingGood = isMatchingGood(instantResult),
-                previousFrameReliability = frameReliability(step, frame, instantResult),
+                previousFrameReliability = currentFrameReliability,
             )
-            return result(instantResult, newlyAccepted = false, status = TemporalVerificationStatus.WAITING_FOR_DATA)
+            return result(
+                instantResult,
+                newlyAccepted = false,
+                status = initialStatus(instantResult, currentFrameReliability),
+            )
         }
         state.lastTimestampMs = timestampMs
 
@@ -102,13 +112,13 @@ class FindYourWeaponTemporalVerifier(
         var decayed = false
         var paused = false
         var addedReliableCredit = false
+        val currentFrameReliability = frameReliability(step, frame, instantResult)
         if (continuousMatching) {
             state.missingDataMs = 0.0
             state.partialMatchMs = 0.0
             state.accumulatedMatchingMs += elapsedMs
             state.activeAttemptMatchingMs += elapsedMs
-            val currentReliability = frameReliability(step, frame, instantResult)
-            val intervalReliability = minOf(state.previousFrameReliability, currentReliability)
+            val intervalReliability = minOf(state.previousFrameReliability, currentFrameReliability)
             if (intervalReliability > 0.0) {
                 val weightedReliableDeltaMs = elapsedMs * intervalReliability
                 state.reliableMatchingMs += weightedReliableDeltaMs
@@ -130,7 +140,7 @@ class FindYourWeaponTemporalVerifier(
             ratio >= configuration.minimumReliableMatchingRatio
 
         state.previousMatchingGood = matchingGood
-        state.previousFrameReliability = frameReliability(step, frame, instantResult)
+        state.previousFrameReliability = currentFrameReliability
         if (shouldAccept) {
             state.accepted = true
             return result(instantResult, newlyAccepted = true, forcedProgress = 1f, status = TemporalVerificationStatus.ACCEPTED)
@@ -139,9 +149,20 @@ class FindYourWeaponTemporalVerifier(
         return result(
             instant = instantResult,
             newlyAccepted = false,
-            status = currentStatus(addedReliableCredit, paused, decayed),
+            status = currentStatus(
+                addedReliableCredit = addedReliableCredit,
+                paused = paused || (matchingGood && currentFrameReliability == 0.0),
+                decayed = decayed,
+            ),
         )
     }
+
+    private fun initialStatus(instantResult: InstantStepResult, frameReliability: Double): TemporalVerificationStatus =
+        if (isMatchingGood(instantResult) && frameReliability == 0.0) {
+            TemporalVerificationStatus.PAUSED
+        } else {
+            TemporalVerificationStatus.WAITING_FOR_DATA
+        }
 
     private fun applyNonMatchingElapsed(elapsedMs: Double, instantResult: InstantStepResult): InterruptionUpdate {
         val decayElapsedMs = when (instantResult.status) {

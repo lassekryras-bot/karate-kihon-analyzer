@@ -74,6 +74,32 @@ class FindYourWeaponTemporalVerifierTest {
     }
 
 
+
+    @Test fun lowQualityGoodMatchingAtBeginningReportsPaused() {
+        val verifier = FindYourWeaponTemporalVerifier()
+        val result = verifier.update(hand(0), matching(HandLessonStep.OPEN_PALM, quality = 0.1f))
+        assertEquals(TemporalVerificationStatus.PAUSED, result.status)
+        assertFalse(result.accepted)
+        assertEquals(0.0, result.reliableHoldCreditMs, 0.001)
+    }
+
+    @Test fun predictedGoodMatchingAtBeginningReportsPaused() {
+        val verifier = FindYourWeaponTemporalVerifier()
+        val frame = hand(0, predicted = setOf(HandLandmarkId.INDEX_PIP))
+        val result = verifier.update(frame, matching(HandLessonStep.OPEN_PALM, quality = 0.9f))
+        assertEquals(TemporalVerificationStatus.PAUSED, result.status)
+        assertFalse(result.accepted)
+        assertEquals(0.0, result.reliableHoldCreditMs, 0.001)
+    }
+
+    @Test fun firstReliableFrameWaitsThenNextReliableIntervalBuildsProgress() {
+        val verifier = FindYourWeaponTemporalVerifier()
+        val first = update(verifier, HandLessonStep.OPEN_PALM, hand(0))
+        val second = update(verifier, HandLessonStep.OPEN_PALM, hand(200))
+        assertEquals(TemporalVerificationStatus.WAITING_FOR_DATA, first.status)
+        assertEquals(TemporalVerificationStatus.BUILDING_PROGRESS, second.status)
+    }
+
     @Test fun predictedFollowedByOneObservedFrameAddsNoReliableInterval() {
         val verifier = FindYourWeaponTemporalVerifier()
         verifier.update(hand(0, predicted = setOf(HandLandmarkId.INDEX_PIP)), matching(HandLessonStep.OPEN_PALM, quality = 0.9f))
