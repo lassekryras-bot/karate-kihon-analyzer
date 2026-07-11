@@ -1,0 +1,3 @@
+Placeholder for find_weapon_02_bend_fingertips.
+Replace this placeholder with the real bent-fingertips tutorial image when image assets are ready.
+Suggested final Android drawable resource name: find_weapon_02_bend_fingertips.

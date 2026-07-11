@@ -1,0 +1,3 @@
+Placeholder for find_weapon_04_thumb_on_top.
+Replace this placeholder with the real thumb-on-top tutorial image when image assets are ready.
+Suggested final Android drawable resource name: find_weapon_04_thumb_on_top.

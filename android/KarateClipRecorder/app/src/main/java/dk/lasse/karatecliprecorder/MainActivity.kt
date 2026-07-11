@@ -9,7 +9,6 @@ import android.view.View
 import android.view.ViewGroup
 import android.widget.Button
 import android.widget.FrameLayout
-import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.TextView
 import androidx.activity.result.contract.ActivityResultContracts
@@ -37,7 +36,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var findYourWeaponBackButton: Button
     private lateinit var findYourWeaponNextButton: Button
     private lateinit var handGuideOverlayView: HandGuideOverlayView
-    private lateinit var findYourWeaponImageView: ImageView
+    private lateinit var findYourWeaponAssetText: TextView
     private lateinit var statusText: TextView
     private lateinit var currentCountText: TextView
     private lateinit var currentStrikeText: TextView
@@ -89,10 +88,7 @@ class MainActivity : AppCompatActivity() {
             visibility = View.GONE
         }
 
-        findYourWeaponImageView = ImageView(this).apply {
-            adjustViewBounds = true
-            maxHeight = 220.dp()
-            scaleType = ImageView.ScaleType.FIT_CENTER
+        findYourWeaponAssetText = sessionText("Tutorial image placeholder: none", 14f).apply {
             visibility = View.GONE
         }
 
@@ -149,7 +145,7 @@ class MainActivity : AppCompatActivity() {
             addView(statusText)
             addView(currentCountText)
             addView(currentStrikeText)
-            addView(findYourWeaponImageView)
+            addView(findYourWeaponAssetText)
             addView(expectedSideText)
             addView(recordingStateText)
             addView(savedClipText)
@@ -269,7 +265,7 @@ class MainActivity : AppCompatActivity() {
         findYourWeaponActive = state.isActive
         val step = state.step
         handGuideOverlayView.visibility = if (step == FindYourWeaponStep.OPEN_PALM && state.isActive) View.VISIBLE else View.GONE
-        findYourWeaponImageView.visibility = if (state.isActive && step != null) View.VISIBLE else View.GONE
+        findYourWeaponAssetText.visibility = if (state.isActive && step != null) View.VISIBLE else View.GONE
         findYourWeaponBackButton.visibility = if (state.isActive) View.VISIBLE else View.GONE
         findYourWeaponNextButton.visibility = if (state.isActive) View.VISIBLE else View.GONE
         if (state.isActive && step != null) {
@@ -278,7 +274,7 @@ class MainActivity : AppCompatActivity() {
             currentCountText.text = content.instruction
             currentStrikeText.text = content.detail
             expectedSideText.text = "Step: ${content.stepNumber} / ${FindYourWeaponStep.entries.size}"
-            findYourWeaponImageView.setImageResource(content.imageResId)
+            findYourWeaponAssetText.text = "Tutorial image placeholder: ${content.placeholderFileName}"
             findYourWeaponBackButton.isEnabled = step != FindYourWeaponStep.OPEN_PALM
             findYourWeaponNextButton.text = if (step == FindYourWeaponStep.FRONT_TWO_KNUCKLES) "Finish" else "Next"
         } else {
@@ -286,7 +282,7 @@ class MainActivity : AppCompatActivity() {
             currentCountText.text = "Count: none"
             currentStrikeText.text = "Strike: none"
             expectedSideText.text = "Expected side: none"
-            findYourWeaponImageView.setImageDrawable(null)
+            findYourWeaponAssetText.text = "Tutorial image placeholder: none"
             findYourWeaponNextButton.text = "Next"
         }
         startSessionButton.isEnabled = !guidedSessionActive && !findYourWeaponActive
@@ -338,35 +334,35 @@ class MainActivity : AppCompatActivity() {
             title = "Find Your Weapon",
             instruction = "Place your open palm inside the blue hand guide.",
             detail = "Keep your fingers open and face your palm toward the camera.",
-            imageResId = R.drawable.find_weapon_01_open_palm,
+            placeholderFileName = "find_weapon_01_open_palm.txt",
         )
         FindYourWeaponStep.BEND_FINGERTIPS -> FindYourWeaponStepContent(
             stepNumber = 2,
             title = "Find Your Weapon",
             instruction = "Bend the top parts of your fingers.",
             detail = "Start by folding the fingertips.",
-            imageResId = R.drawable.find_weapon_02_bend_fingertips,
+            placeholderFileName = "find_weapon_02_bend_fingertips.txt",
         )
         FindYourWeaponStep.CLOSE_FINGERS -> FindYourWeaponStepContent(
             stepNumber = 3,
             title = "Find Your Weapon",
             instruction = "Close your fingers into your palm.",
             detail = "Make the fist shape.",
-            imageResId = R.drawable.find_weapon_03_close_fingers,
+            placeholderFileName = "find_weapon_03_close_fingers.txt",
         )
         FindYourWeaponStep.THUMB_ON_TOP -> FindYourWeaponStepContent(
             stepNumber = 4,
             title = "Find Your Weapon",
             instruction = "Place your thumb across the front of your fingers.",
             detail = "Keep the fist firm but relaxed.",
-            imageResId = R.drawable.find_weapon_04_thumb_on_top,
+            placeholderFileName = "find_weapon_04_thumb_on_top.txt",
         )
         FindYourWeaponStep.FRONT_TWO_KNUCKLES -> FindYourWeaponStepContent(
             stepNumber = 5,
             title = "Find Your Weapon",
             instruction = "These two front knuckles are your weapon.",
             detail = "Aim with the index and middle knuckles.",
-            imageResId = R.drawable.find_weapon_05_front_two_knuckles,
+            placeholderFileName = "find_weapon_05_front_two_knuckles.txt",
         )
     }
 
@@ -375,7 +371,7 @@ class MainActivity : AppCompatActivity() {
         val title: String,
         val instruction: String,
         val detail: String,
-        val imageResId: Int,
+        val placeholderFileName: String,
     )
 
     companion object {
