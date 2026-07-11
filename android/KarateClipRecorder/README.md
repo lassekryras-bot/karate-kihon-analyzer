@@ -224,3 +224,7 @@ Inconsistent JVM-target compatibility detected for tasks compileDebugJavaWithJav
 ```
 
 Fix it by setting Java `compileOptions` and Kotlin `compilerOptions.jvmTarget` to JVM 17 in `app/build.gradle.kts`.
+
+### MediaPipe Gesture Recognizer model
+
+Find Your Weapon hand-shape capture is wired for the MediaPipe Tasks Vision Gesture Recognizer. Package the Gesture Recognizer `.task` bundle at `mediapipe/gesture_recognizer.task`. The adapter expects Gesture Recognizer results and is not a Hand Landmarker adapter.
