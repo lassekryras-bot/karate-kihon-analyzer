@@ -23,10 +23,13 @@ import dk.lasse.karatecliprecorder.orders.TrainingOrderMapper
 import dk.lasse.karatecliprecorder.orders.TrainingOrderPlayer
 import dk.lasse.karatecliprecorder.captureprofile.CaptureFpsRange
 import dk.lasse.karatecliprecorder.captureprofile.SelectedCaptureProfile
+import dk.lasse.karatecliprecorder.learning.FindYourWeaponAnalysisCoordinator
+import dk.lasse.karatecliprecorder.learning.FindYourWeaponAnalysisState
 import dk.lasse.karatecliprecorder.learning.FindYourWeaponSessionController
 import dk.lasse.karatecliprecorder.learning.FindYourWeaponState
 import dk.lasse.karatecliprecorder.learning.FindYourWeaponStep
 import dk.lasse.karatecliprecorder.learning.HandGuideOverlayView
+import dk.lasse.karatecliprecorder.mediapipehandadapter.LiveGestureRecognizerRunner
 
 class MainActivity : AppCompatActivity() {
     private lateinit var previewView: PreviewView
@@ -45,6 +48,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var savedClipText: TextView
     private lateinit var metadataPathText: TextView
     private lateinit var captureProfileText: TextView
+    private lateinit var analyzerDebugText: TextView
     private var recordingAdapter: CameraXRecordingAdapter? = null
     private var sessionController: GuidedJodanSessionController? = null
     private var findYourWeaponController: FindYourWeaponSessionController? = null
@@ -52,6 +56,8 @@ class MainActivity : AppCompatActivity() {
     private var findYourWeaponActive = false
     private var latestGuidedState = GuidedSessionState.IDLE
     private var trainingOrderPlayer: TrainingOrderPlayer? = null
+    private var recognizerRunner: LiveGestureRecognizerRunner? = null
+    private var analysisCoordinator: FindYourWeaponAnalysisCoordinator? = null
 
     private val cameraPermissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestPermission(),
@@ -100,6 +106,7 @@ class MainActivity : AppCompatActivity() {
         savedClipText = sessionText("Saved clips: 0 / 10", 14f)
         metadataPathText = sessionText("Metadata: not saved", 14f)
         captureProfileText = sessionText("Capture profile: detecting", 14f)
+        analyzerDebugText = sessionText("Analyzer: inactive", 14f)
 
         startSessionButton = Button(this).apply {
             text = "Start Jodan Session"
@@ -150,6 +157,7 @@ class MainActivity : AppCompatActivity() {
             addView(recordingStateText)
             addView(savedClipText)
             addView(captureProfileText)
+            addView(analyzerDebugText)
             addView(metadataPathText)
         }
 
@@ -201,8 +209,10 @@ class MainActivity : AppCompatActivity() {
             onSaved = ::handleSavedClip,
             onError = ::handleRecordingError,
             onCaptureProfileSelected = ::handleCaptureProfileSelected,
+            onAnalysisFrame = { bitmap, timestampMs -> recognizerRunner?.submit(bitmap, timestampMs) ?: false },
         )
         recordingAdapter = adapter
+        analysisCoordinator = FindYourWeaponAnalysisCoordinator { state -> runOnUiThread { updateAnalysisState(state) } }
         findYourWeaponController = FindYourWeaponSessionController(
             onStateChanged = ::updateFindYourWeaponState,
         )
@@ -234,10 +244,16 @@ class MainActivity : AppCompatActivity() {
 
     private fun startFindYourWeaponSession() {
         metadataPathText.text = "Metadata: not saved"
+        ensureRecognizerRunner()
+        analysisCoordinator?.reset()
         findYourWeaponController?.start()
     }
 
     override fun onDestroy() {
+        recognizerRunner?.close()
+        recognizerRunner = null
+        recordingAdapter?.close()
+        recordingAdapter = null
         trainingOrderPlayer?.release()
         trainingOrderPlayer = null
         super.onDestroy()
@@ -268,6 +284,9 @@ class MainActivity : AppCompatActivity() {
         findYourWeaponAssetText.visibility = if (state.isActive && step != null) View.VISIBLE else View.GONE
         findYourWeaponBackButton.visibility = if (state.isActive) View.VISIBLE else View.GONE
         findYourWeaponNextButton.visibility = if (state.isActive) View.VISIBLE else View.GONE
+        analysisCoordinator?.setActiveStep(if (state.isActive) step else null)
+        recordingAdapter?.setAnalysisEnabled(state.isActive && step != null)
+        if (!state.isActive) { analysisCoordinator?.reset() }
         if (state.isActive && step != null) {
             val content = step.content()
             statusText.text = content.title
@@ -289,6 +308,36 @@ class MainActivity : AppCompatActivity() {
         findYourWeaponButton.isEnabled = !guidedSessionActive && !findYourWeaponActive
         cancelSessionButton.isEnabled = guidedSessionActive || findYourWeaponActive
     }
+
+    private fun ensureRecognizerRunner() {
+        if (recognizerRunner != null) return
+        recognizerRunner = LiveGestureRecognizerRunner(
+            context = this,
+            onResult = { output -> analysisCoordinator?.process(output) },
+            onError = { message -> analysisCoordinator?.reportError(message) },
+        )
+    }
+
+    private fun updateAnalysisState(state: FindYourWeaponAnalysisState) {
+        analyzerDebugText.text = if (state.errorMessage != null) {
+            "Analyzer error: ${state.errorMessage}"
+        } else if (state.activeStep == null) {
+            "Analyzer: inactive"
+        } else {
+            listOf(
+                "Analyzer: ${if (state.handDetected) "hand detected" else "no hand"}",
+                "Hand: ${state.handedness.name.lowercase()}",
+                "Instant: ${state.instantResult?.status?.name?.lowercase() ?: "none"} / ${state.instantResult?.feedbackCode?.name ?: "NONE"}",
+                "Score: ${state.instantResult?.score?.format2() ?: "--"}",
+                "Quality: ${state.instantResult?.quality?.format2() ?: "--"}",
+                "Temporal: ${state.temporalResult?.status?.name?.lowercase() ?: "none"}",
+                "Progress: ${((state.temporalResult?.progress ?: 0f) * 100f).toInt()}%",
+                "Latency: ${state.inferenceLatencyMs?.let { "$it ms" } ?: "--"}",
+            ).joinToString("\n")
+        }
+    }
+
+    private fun Float.format2(): String = String.format(java.util.Locale.US, "%.2f", this)
 
     private fun showCurrentStrike(plan: GuidedStrikePlan?) {
         if (plan == null) {

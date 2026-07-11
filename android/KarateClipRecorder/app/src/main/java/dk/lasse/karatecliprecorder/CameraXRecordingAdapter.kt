@@ -1,8 +1,12 @@
 package dk.lasse.karatecliprecorder
 
 import android.content.Context
+import android.graphics.Bitmap
+import android.graphics.Matrix
 import android.os.Environment
 import androidx.camera.core.CameraSelector
+import androidx.camera.core.ImageAnalysis
+import androidx.camera.core.ImageProxy
 import androidx.camera.core.Preview
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.video.FallbackStrategy
@@ -23,6 +27,9 @@ import androidx.lifecycle.LifecycleOwner
 import java.io.File
 import java.util.Locale
 import java.util.concurrent.Executor
+import java.util.concurrent.ExecutorService
+import java.util.concurrent.Executors
+import java.util.concurrent.atomic.AtomicBoolean
 
 class CameraXRecordingAdapter(
     private val context: Context,
@@ -32,13 +39,18 @@ class CameraXRecordingAdapter(
     private val onSaved: (RecordingResult) -> Unit,
     private val onError: (String) -> Unit,
     private val onCaptureProfileSelected: (SelectedCaptureProfile) -> Unit = {},
-) {
+    private val onAnalysisFrame: (Bitmap, Long) -> Boolean = { bitmap, _ -> bitmap.recycle(); false },
+) : AutoCloseable {
     private var videoCapture: VideoCapture<Recorder>? = null
+    private var imageAnalysis: ImageAnalysis? = null
     private var activeRecording: Recording? = null
     private var nextClipNumber = 1
     var selectedCaptureProfile: SelectedCaptureProfile? = null
         private set
     private val mainExecutor: Executor = ContextCompat.getMainExecutor(context)
+    private val analysisExecutor: ExecutorService = Executors.newSingleThreadExecutor()
+    private val analysisEnabled = AtomicBoolean(false)
+    private val closed = AtomicBoolean(false)
 
     fun bindCameraPreview() {
         onStateChanged(RecordingState.PREPARING)
@@ -65,13 +77,21 @@ class CameraXRecordingAdapter(
                     .setQualitySelector(profile.toQualitySelector())
                     .build()
                 videoCapture = VideoCapture.withOutput(recorder)
+                imageAnalysis = ImageAnalysis.Builder()
+                    .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
+                    .setOutputImageFormat(ImageAnalysis.OUTPUT_IMAGE_FORMAT_RGBA_8888)
+                    .build()
+                    .also { analysis ->
+                        analysis.setAnalyzer(analysisExecutor) { image -> analyzeImage(image) }
+                    }
 
                 cameraProvider.unbindAll()
                 cameraProvider.bindToLifecycle(
                     lifecycleOwner,
                     cameraSelector,
                     preview,
-                    videoCapture,
+                    videoCapture!!,
+                    imageAnalysis!!,
                 )
                 onStateChanged(RecordingState.IDLE)
             } catch (error: Exception) {
@@ -79,6 +99,39 @@ class CameraXRecordingAdapter(
                 onError("Camera preview failed: ${error.message}")
             }
         }, mainExecutor)
+    }
+
+    fun setAnalysisEnabled(enabled: Boolean) {
+        analysisEnabled.set(enabled)
+    }
+
+    private fun analyzeImage(image: ImageProxy) {
+        try {
+            if (!analysisEnabled.get() || closed.get()) return
+            val bitmap = image.toUprightBitmap() ?: run {
+                onError("Camera analysis frame conversion failed.")
+                return
+            }
+            val accepted = onAnalysisFrame(bitmap, image.imageInfo.timestamp / 1_000_000L)
+            if (!accepted) bitmap.recycle()
+        } catch (error: Exception) {
+            onError("Camera analysis failed: ${error.message}")
+        } finally {
+            image.close()
+        }
+    }
+
+    private fun ImageProxy.toUprightBitmap(): Bitmap? {
+        val plane = planes.firstOrNull() ?: return null
+        val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+        plane.buffer.rewind()
+        bitmap.copyPixelsFromBuffer(plane.buffer)
+        val rotation = imageInfo.rotationDegrees
+        if (rotation == 0) return bitmap
+        val matrix = Matrix().apply { postRotate(rotation.toFloat()) }
+        val rotated = Bitmap.createBitmap(bitmap, 0, 0, bitmap.width, bitmap.height, matrix, true)
+        bitmap.recycle()
+        return rotated
     }
 
     fun startRecording(fileName: String? = null) {
@@ -166,6 +219,16 @@ class CameraXRecordingAdapter(
             quality,
             FallbackStrategy.higherQualityOrLowerThan(quality),
         )
+    }
+
+    override fun close() {
+        if (!closed.compareAndSet(false, true)) return
+        analysisEnabled.set(false)
+        imageAnalysis?.clearAnalyzer()
+        imageAnalysis = null
+        activeRecording?.close()
+        activeRecording = null
+        analysisExecutor.shutdownNow()
     }
 
     companion object {
