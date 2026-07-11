@@ -1,6 +1,8 @@
 package dk.lasse.karatecliprecorder.mediapipehandadapter
 
 import dk.lasse.karateanalyzer.core.HandLandmarkId
+import dk.lasse.karateanalyzer.core.Handedness
+import dk.lasse.karateanalyzer.core.LandmarkSource
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
@@ -11,9 +13,39 @@ import kotlin.test.assertTrue
 class MediaPipeHandFrameMapperTest {
     private val mapper = MediaPipeHandFrameMapper()
 
+    @Test fun all21LandmarksMapToCorrectHandLandmarkIdWithoutMirroring() {
+        val points = HandLandmarkId.entries.map { id -> MediaPipePoint3(id.ordinal.toFloat(), id.ordinal.toFloat() + 0.25f, id.ordinal.toFloat() + 0.5f) }
+        val frame = mapper.toHandFrame(mapper.toDetectedHands(listOf(observation(points = points))).single())
+
+        HandLandmarkId.entries.forEach { id ->
+            val sample = frame.landmarks.getValue(id)
+            assertEquals(id.ordinal.toFloat(), sample.position!!.x)
+            assertEquals(id.ordinal.toFloat() + 0.25f, sample.position!!.y)
+            assertEquals(id.ordinal.toFloat() + 0.5f, sample.position!!.z)
+            assertEquals(LandmarkSource.OBSERVED, sample.source)
+        }
+    }
+
+    @Test fun leftRightAndUnknownHandednessAreMapped() {
+        assertEquals(Handedness.LEFT, mapper.toHandFrame(mapper.toDetectedHands(listOf(observation(label = "Left"))).single()).handedness)
+        assertEquals(Handedness.RIGHT, mapper.toHandFrame(mapper.toDetectedHands(listOf(observation(label = "Right"))).single()).handedness)
+        assertEquals(Handedness.UNKNOWN, mapper.toHandFrame(mapper.toDetectedHands(listOf(observation(label = "NotAHand"))).single()).handedness)
+        assertEquals(Handedness.UNKNOWN, mapper.toHandFrame(mapper.toDetectedHands(listOf(observation(label = null))).single()).handedness)
+    }
+
+    @Test fun timestampsArePreserved() {
+        val hand = mapper.toDetectedHands(listOf(observation(timestamp = 9876))).single()
+        assertEquals(9876, hand.frameTimestampMs)
+        assertEquals(9876, mapper.toHandFrame(hand).timestampMs)
+    }
+
+    @Test fun emptyDetectionResultsAreSupported() {
+        assertTrue(mapper.toDetectedHands(emptyList()).isEmpty())
+        assertNull(HighestConfidenceActiveHandSelector().select(emptyList()))
+    }
+
     @Test fun absentPointConfidenceDoesNotBecomeOne() {
-        val hand = mapper.toDetectedHands(listOf(observation(score = null))).single()
-        val frame = mapper.toHandFrame(hand)
+        val frame = mapper.toHandFrame(mapper.toDetectedHands(listOf(observation(score = null))).single())
         assertEquals(0f, frame.landmarks.getValue(HandLandmarkId.WRIST).confidence)
     }
 
@@ -24,9 +56,47 @@ class MediaPipeHandFrameMapperTest {
         assertEquals(0.42f, hand.handConfidence)
     }
 
+    @Test fun pointConfidencePrecedesVisibilityAndHandConfidenceAndIsClamped() {
+        val point = MediaPipePoint3(0f, 0f, 0f, presence = 1.4f, visibility = 0.2f)
+        val frame = mapper.toHandFrame(mapper.toDetectedHands(listOf(observation(points = listOf(point) + points(20), score = 0.1f))).single())
+        assertEquals(1f, frame.landmarks.getValue(HandLandmarkId.WRIST).confidence)
+    }
+
+    @Test fun visibilityConfidenceIsUsedWhenPresenceUnavailableAndClamped() {
+        val point = MediaPipePoint3(0f, 0f, 0f, presence = Float.NaN, visibility = -0.5f)
+        val frame = mapper.toHandFrame(mapper.toDetectedHands(listOf(observation(points = listOf(point) + points(20), score = 0.9f))).single())
+        assertEquals(0f, frame.landmarks.getValue(HandLandmarkId.WRIST).confidence)
+    }
+
+    @Test fun nonFiniteCoordinatesBecomeMissingSamples() {
+        listOf(
+            MediaPipePoint3(Float.NaN, 0f, 0f),
+            MediaPipePoint3(Float.POSITIVE_INFINITY, 0f, 0f),
+            MediaPipePoint3(Float.NEGATIVE_INFINITY, 0f, 0f),
+            MediaPipePoint3(0f, Float.NaN, 0f),
+            MediaPipePoint3(0f, Float.POSITIVE_INFINITY, 0f),
+            MediaPipePoint3(0f, Float.NEGATIVE_INFINITY, 0f),
+            MediaPipePoint3(0f, 0f, Float.NaN),
+            MediaPipePoint3(0f, 0f, Float.POSITIVE_INFINITY),
+            MediaPipePoint3(0f, 0f, Float.NEGATIVE_INFINITY),
+        ).forEach { badPoint ->
+            val frame = mapper.toHandFrame(mapper.toDetectedHands(listOf(observation(points = listOf(badPoint) + points(20)))).single())
+            val wrist = frame.landmarks.getValue(HandLandmarkId.WRIST)
+            assertNull(wrist.position)
+            assertEquals(0f, wrist.confidence)
+            assertEquals(LandmarkSource.MISSING, wrist.source)
+        }
+    }
+
     @Test fun malformedNormalizedLandmarksAreExcluded() {
         val hands = mapper.toDetectedHands(listOf(observation(points = points(20), score = 0.99f)))
         assertTrue(hands.isEmpty())
+    }
+
+    @Test fun malformedWorldLandmarksAreIgnoredSafely() {
+        val hand = mapper.toDetectedHands(listOf(observation(worldPoints = points(20)))).single()
+        assertNull(hand.worldLandmarks)
+        assertTrue(hand.isValid)
     }
 
     @Test fun malformedHandsCannotWinActiveHandSelection() {
@@ -35,6 +105,12 @@ class MediaPipeHandFrameMapperTest {
         val selected = HighestConfidenceActiveHandSelector().select(listOf(valid, malformed))
         assertEquals(valid, selected)
         assertFalse(malformed.isValid)
+    }
+
+    @Test fun activeHandSelectionUsesGenuineHandLevelConfidence() {
+        val low = mapper.toDetectedHands(listOf(observation(score = 0.2f))).single()
+        val high = mapper.toDetectedHands(listOf(observation(score = 0.8f))).single()
+        assertEquals(high, HighestConfidenceActiveHandSelector().select(listOf(low, high)))
     }
 
     @Test fun gestureScoresAreClampedAndNonFiniteScoresBecomeNull() {
@@ -62,7 +138,7 @@ class MediaPipeHandFrameMapperTest {
         assertTrue(exception.message!!.contains(GESTURE_RECOGNIZER_MODEL_ASSET_PATH))
     }
 
-    @Test fun multipleHandsAreMappedByHandIndex() {
+    @Test fun multipleDtoHandsAreMappedByHandIndex() {
         val hands = mapper.toDetectedHands(
             listOf(
                 observation(label = "Left", score = 0.7f, openScore = 0.2f, timestamp = 10),
@@ -78,6 +154,7 @@ class MediaPipeHandFrameMapperTest {
 
     private fun observation(
         points: List<MediaPipePoint3> = points(21),
+        worldPoints: List<MediaPipePoint3>? = points(21),
         label: String? = "Right",
         score: Float? = 0.75f,
         openScore: Float? = null,
@@ -85,7 +162,7 @@ class MediaPipeHandFrameMapperTest {
         timestamp: Long = 123,
     ) = MediaPipeHandObservation(
         normalizedLandmarks = points,
-        worldLandmarks = points,
+        worldLandmarks = worldPoints,
         handednessLabel = label,
         handednessScore = score,
         openPalmScore = openScore,

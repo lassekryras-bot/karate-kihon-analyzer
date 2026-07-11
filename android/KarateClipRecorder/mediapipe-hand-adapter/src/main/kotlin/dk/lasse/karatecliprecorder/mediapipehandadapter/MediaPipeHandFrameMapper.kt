@@ -16,7 +16,7 @@ class MediaPipeHandFrameMapper {
         handedness = hand.handednessLabel.toHandedness(),
         landmarks = HandLandmarkId.entries.associateWith { id ->
             val point = hand.landmarks.getOrNull(id.ordinal)
-            if (point == null) {
+            if (point == null || !point.hasFiniteCoordinates()) {
                 LandmarkSample(null, 0f, LandmarkSource.MISSING)
             } else {
                 LandmarkSample(
@@ -41,6 +41,8 @@ class MediaPipeHandFrameMapper {
             closedFistScore = observation.closedFistScore.finiteUnitOrNull(),
         )
     }
+
+    private fun MediaPipePoint3.hasFiniteCoordinates(): Boolean = x.isFinite() && y.isFinite() && z.isFinite()
 
     private fun pointConfidence(point: MediaPipePoint3, handConfidence: Float): Float =
         point.presence.finiteUnitOrNull()
