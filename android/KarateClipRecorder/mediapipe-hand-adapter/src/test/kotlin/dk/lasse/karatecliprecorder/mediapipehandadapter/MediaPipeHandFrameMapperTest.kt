@@ -99,6 +99,23 @@ class MediaPipeHandFrameMapperTest {
         assertTrue(hand.isValid)
     }
 
+    @Test fun invalidWorldGeometryBecomesNull() {
+        listOf(
+            MediaPipePoint3(Float.NaN, 0f, 0f),
+            MediaPipePoint3(Float.POSITIVE_INFINITY, 0f, 0f),
+            MediaPipePoint3(Float.NEGATIVE_INFINITY, 0f, 0f),
+            MediaPipePoint3(0f, Float.NaN, 0f),
+            MediaPipePoint3(0f, Float.POSITIVE_INFINITY, 0f),
+            MediaPipePoint3(0f, Float.NEGATIVE_INFINITY, 0f),
+            MediaPipePoint3(0f, 0f, Float.NaN),
+            MediaPipePoint3(0f, 0f, Float.POSITIVE_INFINITY),
+            MediaPipePoint3(0f, 0f, Float.NEGATIVE_INFINITY),
+        ).forEach { badWorldPoint ->
+            val hand = mapper.toDetectedHands(listOf(observation(worldPoints = listOf(badWorldPoint) + points(20)))).single()
+            assertNull(hand.worldLandmarks)
+        }
+    }
+
     @Test fun malformedHandsCannotWinActiveHandSelection() {
         val valid = mapper.toDetectedHands(listOf(observation(score = 0.20f))).single()
         val malformed = DetectedHand(0, "Right", 1f, points(20), null, null, null)
@@ -107,10 +124,26 @@ class MediaPipeHandFrameMapperTest {
         assertFalse(malformed.isValid)
     }
 
-    @Test fun activeHandSelectionUsesGenuineHandLevelConfidence() {
-        val low = mapper.toDetectedHands(listOf(observation(score = 0.2f))).single()
-        val high = mapper.toDetectedHands(listOf(observation(score = 0.8f))).single()
-        assertEquals(high, HighestConfidenceActiveHandSelector().select(listOf(low, high)))
+    @Test fun activeHandSelectionUsesUsableLandmarksBeforeGenuineHandLevelConfidence() {
+        val partiallyUsableHighConfidence = mapper.toDetectedHands(
+            listOf(observation(points = listOf(MediaPipePoint3(Float.NaN, Float.NaN, Float.NaN)) + points(20), score = 1f)),
+        ).single()
+        val fullyUsableLowerConfidence = mapper.toDetectedHands(listOf(observation(score = 0.2f))).single()
+        assertEquals(20, partiallyUsableHighConfidence.usableLandmarkCount)
+        assertEquals(21, fullyUsableLowerConfidence.usableLandmarkCount)
+        assertEquals(fullyUsableLowerConfidence, HighestConfidenceActiveHandSelector().select(listOf(partiallyUsableHighConfidence, fullyUsableLowerConfidence)))
+    }
+
+    @Test fun allNanHighConfidenceHandLosesToFiniteLowerConfidenceHand() {
+        val unusableHighConfidence = mapper.toDetectedHands(listOf(observation(points = List(21) { MediaPipePoint3(Float.NaN, Float.NaN, Float.NaN) }, score = 1f))).single()
+        val usableLowerConfidence = mapper.toDetectedHands(listOf(observation(score = 0.1f))).single()
+        assertEquals(0, unusableHighConfidence.usableLandmarkCount)
+        assertEquals(usableLowerConfidence, HighestConfidenceActiveHandSelector().select(listOf(unusableHighConfidence, usableLowerConfidence)))
+    }
+
+    @Test fun zeroUsableLandmarkHandsAreNotSelectable() {
+        val unusable = mapper.toDetectedHands(listOf(observation(points = List(21) { MediaPipePoint3(Float.NaN, Float.NaN, Float.NaN) }, score = 1f))).single()
+        assertNull(HighestConfidenceActiveHandSelector().select(listOf(unusable)))
     }
 
     @Test fun gestureScoresAreClampedAndNonFiniteScoresBecomeNull() {

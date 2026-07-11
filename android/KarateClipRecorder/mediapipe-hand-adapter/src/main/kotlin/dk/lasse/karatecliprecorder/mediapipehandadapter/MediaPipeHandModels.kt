@@ -33,6 +33,7 @@ data class DetectedHand(
     val closedFistScore: Float?,
 ) {
     val isValid: Boolean = landmarks.size == MEDIAPIPE_HAND_LANDMARK_COUNT
+    val usableLandmarkCount: Int = landmarks.count { it.hasFiniteCoordinates() }
 }
 
 class MissingGestureRecognizerModelException(assetPath: String) :
@@ -50,3 +51,5 @@ class GestureRecognizerModelAssetValidator(
 }
 
 internal fun Float?.finiteUnitOrNull(): Float? = this?.takeIf { it.isFinite() }?.coerceIn(0f, 1f)
+
+internal fun MediaPipePoint3.hasFiniteCoordinates(): Boolean = x.isFinite() && y.isFinite() && z.isFinite()

@@ -36,13 +36,13 @@ class MediaPipeHandFrameMapper {
             handednessLabel = observation.handednessLabel,
             handConfidence = handConfidence,
             landmarks = observation.normalizedLandmarks,
-            worldLandmarks = observation.worldLandmarks?.takeIf { it.size == MEDIAPIPE_HAND_LANDMARK_COUNT },
+            worldLandmarks = observation.worldLandmarks?.takeIf { points ->
+                points.size == MEDIAPIPE_HAND_LANDMARK_COUNT && points.all { it.hasFiniteCoordinates() }
+            },
             openPalmScore = observation.openPalmScore.finiteUnitOrNull(),
             closedFistScore = observation.closedFistScore.finiteUnitOrNull(),
         )
     }
-
-    private fun MediaPipePoint3.hasFiniteCoordinates(): Boolean = x.isFinite() && y.isFinite() && z.isFinite()
 
     private fun pointConfidence(point: MediaPipePoint3, handConfidence: Float): Float =
         point.presence.finiteUnitOrNull()
@@ -61,6 +61,6 @@ class MediaPipeHandFrameMapper {
 class HighestConfidenceActiveHandSelector {
     fun select(hands: List<DetectedHand>): DetectedHand? = hands
         .asSequence()
-        .filter { it.isValid }
-        .maxByOrNull { it.handConfidence }
+        .filter { it.isValid && it.usableLandmarkCount > 0 }
+        .maxWithOrNull(compareBy<DetectedHand> { it.usableLandmarkCount }.thenBy { it.handConfidence })
 }

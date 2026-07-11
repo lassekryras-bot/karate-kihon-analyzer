@@ -227,4 +227,4 @@ Fix it by setting Java `compileOptions` and Kotlin `compilerOptions.jvmTarget` t
 
 ### MediaPipe Gesture Recognizer model
 
-Find Your Weapon hand-shape capture is wired for the MediaPipe Tasks Vision Gesture Recognizer. Package the Gesture Recognizer `.task` bundle at `mediapipe/gesture_recognizer.task`. The adapter expects Gesture Recognizer results and is not a Hand Landmarker adapter.
+Find Your Weapon hand-shape capture is prepared for later MediaPipe Tasks Vision Gesture Recognizer integration. Package the Gesture Recognizer `.task` bundle at `mediapipe/gesture_recognizer.task`. The adapter expects Gesture Recognizer results and is not a Hand Landmarker adapter.
