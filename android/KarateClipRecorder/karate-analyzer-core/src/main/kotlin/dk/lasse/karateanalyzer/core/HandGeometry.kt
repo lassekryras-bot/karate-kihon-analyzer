@@ -1,7 +1,6 @@
 package dk.lasse.karateanalyzer.core
 
 import kotlin.math.acos
-import kotlin.math.isFinite
 import kotlin.math.sqrt
 
 private const val EPSILON = 1e-6f

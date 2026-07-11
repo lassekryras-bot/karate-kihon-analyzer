@@ -1,0 +1,45 @@
+name: Android build validation
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  validate-android:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: android/KarateClipRecorder
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+
+      - name: Run Android validation
+        run: |
+          gradle --continue \
+            :karate-analyzer-core:test \
+            :mediapipe-hand-adapter:test \
+            :mediapipe-hand-adapter:compileDebugKotlin \
+            :app:compileDebugKotlin
+
+      - name: Upload test reports
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-test-reports
+          path: |
+            android/KarateClipRecorder/karate-analyzer-core/build/reports/tests
+            android/KarateClipRecorder/mediapipe-hand-adapter/build/reports/tests
+          if-no-files-found: ignore
