@@ -14,20 +14,20 @@ class FindYourWeaponTemporalVerifierTest {
     private val extractor = HandFeatureExtractor()
 
     @Test fun observedSixHundredMsAccepts() {
-        val result = runOpenPalm(LandmarkSource.OBSERVED, listOf(0L, 600L)).last()
+        val result = runOpenPalm(LandmarkSource.OBSERVED, listOf(0L, 200L, 400L, 600L)).last()
         assertTrue(result.accepted)
         assertTrue(result.newlyAccepted)
         assertEquals(600.0, result.reliableHoldCreditMs, 0.001)
     }
 
     @Test fun interpolatedSixHundredMsDoesNotAccept() {
-        val result = runOpenPalm(LandmarkSource.INTERPOLATED, listOf(0L, 600L)).last()
+        val result = runOpenPalm(LandmarkSource.INTERPOLATED, listOf(0L, 200L, 400L, 600L)).last()
         assertFalse(result.accepted)
         assertEquals(450.0, result.reliableHoldCreditMs, 0.001)
     }
 
     @Test fun interpolatedEightHundredMsMayAccept() {
-        val result = runOpenPalm(LandmarkSource.INTERPOLATED, listOf(0L, 800L)).last()
+        val result = runOpenPalm(LandmarkSource.INTERPOLATED, listOf(0L, 200L, 400L, 600L, 800L)).last()
         assertTrue(result.accepted)
         assertEquals(600.0, result.reliableHoldCreditMs, 0.001)
         assertEquals(0.75, result.weightedReliableRatio, 0.001)
@@ -42,6 +42,56 @@ class FindYourWeaponTemporalVerifierTest {
         }
     }
 
+
+    @Test fun twoFramesSixHundredMsApartDoNotAcceptWithDefaultFrameGap() {
+        val result = runOpenPalm(LandmarkSource.OBSERVED, listOf(0L, 600L)).last()
+        assertFalse(result.accepted)
+        assertEquals(0.0, result.reliableHoldCreditMs, 0.001)
+        assertEquals(TemporalVerificationStatus.WAITING_FOR_DATA, result.status)
+    }
+
+    @Test fun lowQualityMatchingDoesNotCreateReliableCreditOrAcceptance() {
+        val verifier = FindYourWeaponTemporalVerifier()
+        val frames = listOf(hand(0), hand(200), hand(400), hand(600))
+        val results = frames.map { frame -> verifier.update(frame, matching(HandLessonStep.OPEN_PALM, quality = 0.1f)) }
+        val result = results.last()
+        assertFalse(result.accepted)
+        assertEquals(600.0, result.accumulatedMatchingMs, 0.001)
+        assertEquals(0.0, result.reliableMatchingMs, 0.001)
+        assertEquals(0.0, result.reliableHoldCreditMs, 0.001)
+    }
+
+    @Test fun lowQualityMatchingFollowedByOneHighQualityFrameCannotAccept() {
+        val verifier = FindYourWeaponTemporalVerifier()
+        for (frame in listOf(hand(0), hand(200), hand(400), hand(600))) {
+            verifier.update(frame, matching(HandLessonStep.OPEN_PALM, quality = 0.1f))
+        }
+        val highQuality = hand(800)
+        val result = verifier.update(highQuality, instant(HandLessonStep.OPEN_PALM, highQuality))
+        assertFalse(result.accepted)
+        assertEquals(200.0, result.reliableMatchingMs, 0.001)
+        assertEquals(200.0, result.reliableHoldCreditMs, 0.001)
+    }
+
+    @Test fun temporalStatusesTransitionAsExpected() {
+        val verifier = FindYourWeaponTemporalVerifier()
+        assertEquals(TemporalVerificationStatus.WAITING_FOR_DATA, update(verifier, HandLessonStep.OPEN_PALM, hand(0)).status)
+        assertEquals(TemporalVerificationStatus.BUILDING_PROGRESS, update(verifier, HandLessonStep.OPEN_PALM, hand(200)).status)
+        assertEquals(TemporalVerificationStatus.PAUSED, verifier.update(missingHand(260, Handedness.RIGHT), insufficient(HandLessonStep.OPEN_PALM)).status)
+        assertEquals(TemporalVerificationStatus.LOSING_PROGRESS, verifier.update(missingHand(420, Handedness.RIGHT), insufficient(HandLessonStep.OPEN_PALM)).status)
+
+        val holding = FindYourWeaponTemporalVerifier(
+            FindYourWeaponTemporalConfiguration(requiredHoldDurationMs = 300, minimumReliableMatchingRatio = 0.9),
+        )
+        val holdingResult = runStep(holding, HandLessonStep.OPEN_PALM, listOf(hand(0, source = LandmarkSource.INTERPOLATED), hand(200, source = LandmarkSource.INTERPOLATED), hand(400, source = LandmarkSource.INTERPOLATED))).last()
+        assertFalse(holdingResult.accepted)
+        assertEquals(1f, holdingResult.progress)
+        assertEquals(TemporalVerificationStatus.HOLDING, holdingResult.status)
+
+        val accepted = runOpenPalm(LandmarkSource.OBSERVED, listOf(0L, 200L, 400L, 600L)).last()
+        assertEquals(TemporalVerificationStatus.ACCEPTED, accepted.status)
+    }
+
     @Test fun partialFramesCannotIncreaseReliableMatchingMs() {
         val verifier = FindYourWeaponTemporalVerifier()
         val partialFrame = hand(0, curl = 125f)
@@ -49,7 +99,7 @@ class FindYourWeaponTemporalVerifierTest {
         assertFalse(partial.accepted)
         assertTrue(partial.progress > 0f)
         assertEquals(0.0, partial.reliableMatchingMs, 0.001)
-        val laterPartialFrame = hand(600, curl = 125f)
+        val laterPartialFrame = hand(200, curl = 125f)
         val laterPartial = verifier.update(laterPartialFrame, partial(HandLessonStep.OPEN_PALM))
         assertEquals(0.0, laterPartial.reliableMatchingMs, 0.001)
         assertEquals(0.0, laterPartial.reliableHoldCreditMs, 0.001)
@@ -59,7 +109,7 @@ class FindYourWeaponTemporalVerifierTest {
         val verifier = FindYourWeaponTemporalVerifier()
         val partialFrame = hand(0, curl = 125f)
         verifier.update(partialFrame, partial(HandLessonStep.OPEN_PALM))
-        val matchingFrame = hand(600)
+        val matchingFrame = hand(200)
         val result = verifier.update(matchingFrame, instant(HandLessonStep.OPEN_PALM, matchingFrame))
         assertFalse(result.accepted)
         assertEquals(0.0, result.reliableMatchingMs, 0.001)
@@ -69,10 +119,10 @@ class FindYourWeaponTemporalVerifierTest {
         val verifier = FindYourWeaponTemporalVerifier(
             FindYourWeaponTemporalConfiguration(progressDecayPerSecond = 0.0),
         )
-        for (frame in listOf(hand(0, curl = 125f), hand(600, curl = 125f))) {
+        for (frame in listOf(hand(0, curl = 125f), hand(200, curl = 125f))) {
             verifier.update(frame, partial(HandLessonStep.OPEN_PALM))
         }
-        val matchingFrame = hand(1200)
+        val matchingFrame = hand(400)
         val result = verifier.update(matchingFrame, instant(HandLessonStep.OPEN_PALM, matchingFrame))
         assertFalse(result.accepted)
         assertEquals(0.0, result.reliableMatchingMs, 0.001)
@@ -81,13 +131,13 @@ class FindYourWeaponTemporalVerifierTest {
 
     @Test fun backwardsTimestampsAndExcessiveFrameGapsResetSafely() {
         val backwards = FindYourWeaponTemporalVerifier()
-        runStep(backwards, HandLessonStep.OPEN_PALM, listOf(hand(0), hand(300)))
+        runStep(backwards, HandLessonStep.OPEN_PALM, listOf(hand(0), hand(150), hand(300)))
         val afterBackwards = update(backwards, HandLessonStep.OPEN_PALM, hand(200))
         assertFalse(afterBackwards.accepted)
         assertEquals(0.0, afterBackwards.reliableHoldCreditMs, 0.001)
 
         val gap = FindYourWeaponTemporalVerifier()
-        runStep(gap, HandLessonStep.OPEN_PALM, listOf(hand(0), hand(300)))
+        runStep(gap, HandLessonStep.OPEN_PALM, listOf(hand(0), hand(150), hand(300)))
         val afterGap = update(gap, HandLessonStep.OPEN_PALM, hand(2000))
         assertFalse(afterGap.accepted)
         assertEquals(0.0, afterGap.reliableHoldCreditMs, 0.001)
@@ -95,12 +145,12 @@ class FindYourWeaponTemporalVerifierTest {
 
     @Test fun resetAndResetForStepClearAcceptance() {
         val verifier = FindYourWeaponTemporalVerifier()
-        runStep(verifier, HandLessonStep.OPEN_PALM, listOf(hand(0), hand(600)))
+        runStep(verifier, HandLessonStep.OPEN_PALM, listOf(hand(0), hand(200), hand(400), hand(600)))
         verifier.reset()
         val afterReset = update(verifier, HandLessonStep.OPEN_PALM, hand(1200))
         assertFalse(afterReset.accepted)
 
-        runStep(verifier, HandLessonStep.OPEN_PALM, listOf(hand(1800), hand(2400)))
+        runStep(verifier, HandLessonStep.OPEN_PALM, listOf(hand(1800), hand(2000), hand(2200), hand(2400)))
         verifier.resetForStep(HandLessonStep.CLOSE_FINGERS)
         val afterStepReset = update(verifier, HandLessonStep.CLOSE_FINGERS, hand(3000, curl = 70f))
         assertFalse(afterStepReset.accepted)
@@ -109,7 +159,7 @@ class FindYourWeaponTemporalVerifierTest {
 
     @Test fun noHandMissingInputPreservesProgressDuringGraceAndDoesNotResetHand() {
         val verifier = FindYourWeaponTemporalVerifier()
-        runStep(verifier, HandLessonStep.OPEN_PALM, listOf(hand(0), hand(300)))
+        runStep(verifier, HandLessonStep.OPEN_PALM, listOf(hand(0), hand(150), hand(300)))
         val progressBeforeMissing = update(verifier, HandLessonStep.OPEN_PALM, hand(300)).progress
         val missingFrame = missingHand(360, Handedness.RIGHT)
         val missing = verifier.update(missingFrame, insufficient(HandLessonStep.OPEN_PALM))
@@ -124,7 +174,7 @@ class FindYourWeaponTemporalVerifierTest {
     @Test fun decayAfterGraceIsFpsIndependent() {
         val remainingCredits = listOf(15, 30, 60).map { fps ->
             val verifier = FindYourWeaponTemporalVerifier()
-            runStep(verifier, HandLessonStep.OPEN_PALM, listOf(hand(0), hand(300)))
+            runStep(verifier, HandLessonStep.OPEN_PALM, listOf(hand(0), hand(150), hand(300)))
             val interruptionStartMs = 300L
             val interruptionDurationMs = 240L
             val intervals = maxOf(1, (fps * interruptionDurationMs / 1000.0).toInt())
@@ -167,7 +217,7 @@ class FindYourWeaponTemporalVerifierTest {
     @Test fun progressIsAlwaysFiniteAndWithinRange() {
         val verifier = FindYourWeaponTemporalVerifier()
         val results = mutableListOf<TemporalStepResult>()
-        results += runStep(verifier, HandLessonStep.OPEN_PALM, listOf(hand(0), hand(300)))
+        results += runStep(verifier, HandLessonStep.OPEN_PALM, listOf(hand(0), hand(150), hand(300)))
         results += verifier.update(missingHand(360, Handedness.RIGHT), insufficient(HandLessonStep.OPEN_PALM))
         val partialFrame = hand(420, curl = 125f)
         results += verifier.update(partialFrame, partial(HandLessonStep.OPEN_PALM))
@@ -180,11 +230,11 @@ class FindYourWeaponTemporalVerifierTest {
     @Test fun thumbStepCannotAcceptWhenClosedFingerLandmarksArePredictedOrMissing() {
         val predicted = runStep(
             HandLessonStep.THUMB_ON_TOP,
-            listOf(hand(0, curl = 70f, thumbCrossing = true, predicted = setOf(HandLandmarkId.INDEX_PIP)), hand(600, curl = 70f, thumbCrossing = true, predicted = setOf(HandLandmarkId.INDEX_PIP)), hand(1200, curl = 70f, thumbCrossing = true, predicted = setOf(HandLandmarkId.INDEX_PIP))),
+            listOf(hand(0, curl = 70f, thumbCrossing = true, predicted = setOf(HandLandmarkId.INDEX_PIP)), hand(200, curl = 70f, thumbCrossing = true, predicted = setOf(HandLandmarkId.INDEX_PIP)), hand(400, curl = 70f, thumbCrossing = true, predicted = setOf(HandLandmarkId.INDEX_PIP)), hand(600, curl = 70f, thumbCrossing = true, predicted = setOf(HandLandmarkId.INDEX_PIP)), hand(800, curl = 70f, thumbCrossing = true, predicted = setOf(HandLandmarkId.INDEX_PIP))),
         ).last()
         val missing = runStep(
             HandLessonStep.THUMB_ON_TOP,
-            listOf(hand(0, curl = 70f, thumbCrossing = true, missing = setOf(HandLandmarkId.RING_DIP)), hand(600, curl = 70f, thumbCrossing = true, missing = setOf(HandLandmarkId.RING_DIP)), hand(1200, curl = 70f, thumbCrossing = true, missing = setOf(HandLandmarkId.RING_DIP))),
+            listOf(hand(0, curl = 70f, thumbCrossing = true, missing = setOf(HandLandmarkId.RING_DIP)), hand(200, curl = 70f, thumbCrossing = true, missing = setOf(HandLandmarkId.RING_DIP)), hand(400, curl = 70f, thumbCrossing = true, missing = setOf(HandLandmarkId.RING_DIP)), hand(600, curl = 70f, thumbCrossing = true, missing = setOf(HandLandmarkId.RING_DIP)), hand(800, curl = 70f, thumbCrossing = true, missing = setOf(HandLandmarkId.RING_DIP))),
         ).last()
         assertFalse(predicted.accepted)
         assertFalse(missing.accepted)
@@ -193,11 +243,11 @@ class FindYourWeaponTemporalVerifierTest {
     @Test fun knuckleStepCannotAcceptWhenClosedFingerLandmarksArePredictedOrMissing() {
         val predicted = runStep(
             HandLessonStep.FRONT_TWO_KNUCKLES,
-            listOf(hand(0, curl = 70f, predicted = setOf(HandLandmarkId.MIDDLE_PIP)), hand(600, curl = 70f, predicted = setOf(HandLandmarkId.MIDDLE_PIP)), hand(1200, curl = 70f, predicted = setOf(HandLandmarkId.MIDDLE_PIP))),
+            listOf(hand(0, curl = 70f, predicted = setOf(HandLandmarkId.MIDDLE_PIP)), hand(200, curl = 70f, predicted = setOf(HandLandmarkId.MIDDLE_PIP)), hand(400, curl = 70f, predicted = setOf(HandLandmarkId.MIDDLE_PIP)), hand(600, curl = 70f, predicted = setOf(HandLandmarkId.MIDDLE_PIP)), hand(800, curl = 70f, predicted = setOf(HandLandmarkId.MIDDLE_PIP))),
         ).last()
         val missing = runStep(
             HandLessonStep.FRONT_TWO_KNUCKLES,
-            listOf(hand(0, curl = 70f, missing = setOf(HandLandmarkId.LITTLE_DIP)), hand(600, curl = 70f, missing = setOf(HandLandmarkId.LITTLE_DIP)), hand(1200, curl = 70f, missing = setOf(HandLandmarkId.LITTLE_DIP))),
+            listOf(hand(0, curl = 70f, missing = setOf(HandLandmarkId.LITTLE_DIP)), hand(200, curl = 70f, missing = setOf(HandLandmarkId.LITTLE_DIP)), hand(400, curl = 70f, missing = setOf(HandLandmarkId.LITTLE_DIP)), hand(600, curl = 70f, missing = setOf(HandLandmarkId.LITTLE_DIP)), hand(800, curl = 70f, missing = setOf(HandLandmarkId.LITTLE_DIP))),
         ).last()
         assertFalse(predicted.accepted)
         assertFalse(missing.accepted)
@@ -205,8 +255,8 @@ class FindYourWeaponTemporalVerifierTest {
 
     @Test fun acceptedProgressRemainsOneAfterLaterIncorrectFrames() {
         val verifier = FindYourWeaponTemporalVerifier()
-        runStep(verifier, HandLessonStep.OPEN_PALM, listOf(hand(0), hand(600)))
-        val laterIncorrect = update(verifier, HandLessonStep.OPEN_PALM, hand(1200, curl = 70f))
+        runStep(verifier, HandLessonStep.OPEN_PALM, listOf(hand(0), hand(200), hand(400), hand(600)))
+        val laterIncorrect = update(verifier, HandLessonStep.OPEN_PALM, hand(800, curl = 70f))
         assertTrue(laterIncorrect.accepted)
         assertFalse(laterIncorrect.newlyAccepted)
         assertEquals(1f, laterIncorrect.progress)
@@ -242,6 +292,15 @@ class FindYourWeaponTemporalVerifierTest {
         score = 0.8f,
         quality = 0.8f,
         feedbackCode = FeedbackCode.HOLD_STILL,
+        criticalLandmarksVisible = true,
+    )
+
+    private fun matching(step: HandLessonStep, quality: Float): InstantStepResult = InstantStepResult(
+        step = step,
+        status = InstantVerificationStatus.MATCHING,
+        score = 1f,
+        quality = quality,
+        feedbackCode = FeedbackCode.GOOD,
         criticalLandmarksVisible = true,
     )
 

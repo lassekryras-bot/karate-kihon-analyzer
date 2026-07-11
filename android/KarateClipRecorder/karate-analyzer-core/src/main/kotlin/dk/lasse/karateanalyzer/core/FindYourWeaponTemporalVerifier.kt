@@ -12,14 +12,24 @@ data class FindYourWeaponTemporalConfiguration(
     val requiredHoldDurationMs: Long = 600,
     val minimumReliableMatchingRatio: Double = 0.75,
     val minimumLatestQuality: Float = 0.70f,
-    val maximumFrameGapMs: Long = 1_000,
+    val maximumFrameGapMs: Long = 250,
     val missingDataGracePeriodMs: Long = 120,
     val partialMatchGracePeriodMs: Long = 120,
     val progressDecayPerSecond: Double = 1.0,
     val partialDisplayCreditRatio: Float = 0.35f,
 )
 
+enum class TemporalVerificationStatus {
+    WAITING_FOR_DATA,
+    BUILDING_PROGRESS,
+    HOLDING,
+    PAUSED,
+    LOSING_PROGRESS,
+    ACCEPTED,
+}
+
 data class TemporalStepResult(
+    val status: TemporalVerificationStatus,
     val instant: InstantStepResult?,
     val accepted: Boolean,
     val newlyAccepted: Boolean,
@@ -66,7 +76,7 @@ class FindYourWeaponTemporalVerifier(
                 lastTimestampMs = timestampMs,
                 previousMatchingGood = isMatchingGood(instantResult),
             )
-            return result(instantResult, newlyAccepted = false)
+            return result(instantResult, newlyAccepted = false, status = TemporalVerificationStatus.WAITING_FOR_DATA)
         }
 
         val elapsedMs = elapsedSinceLast(timestampMs)
@@ -77,30 +87,38 @@ class FindYourWeaponTemporalVerifier(
                 lastTimestampMs = timestampMs,
                 previousMatchingGood = isMatchingGood(instantResult),
             )
-            return result(instantResult, newlyAccepted = false)
+            return result(instantResult, newlyAccepted = false, status = TemporalVerificationStatus.WAITING_FOR_DATA)
         }
         state.lastTimestampMs = timestampMs
 
         if (state.accepted) {
-            return result(instantResult, newlyAccepted = false, forcedProgress = 1f)
+            return result(instantResult, newlyAccepted = false, forcedProgress = 1f, status = TemporalVerificationStatus.ACCEPTED)
         }
 
         val matchingGood = isMatchingGood(instantResult)
         val continuousMatching = matchingGood && state.previousMatchingGood
+        var decayed = false
+        var paused = false
+        var addedReliableCredit = false
         if (continuousMatching) {
             state.missingDataMs = 0.0
             state.partialMatchMs = 0.0
-            val weightedReliableDeltaMs = elapsedMs * provenanceReliability(step, frame)
             state.accumulatedMatchingMs += elapsedMs
-            state.reliableMatchingMs += weightedReliableDeltaMs
-            state.reliableHoldCreditMs += weightedReliableDeltaMs
+            val reliability = provenanceReliability(step, frame)
+            if (latestQualitySufficient(step, frame, instantResult) && reliability > 0.0) {
+                val weightedReliableDeltaMs = elapsedMs * reliability
+                state.reliableMatchingMs += weightedReliableDeltaMs
+                state.reliableHoldCreditMs += weightedReliableDeltaMs
+                addedReliableCredit = weightedReliableDeltaMs > 0.0
+            }
         } else {
-            applyNonMatchingElapsed(elapsedMs, instantResult)
+            val interruption = applyNonMatchingElapsed(elapsedMs, instantResult)
+            decayed = interruption.decayed
+            paused = interruption.paused
         }
 
         val ratio = state.weightedReliableRatio()
-        val latestQualitySufficient = instantResult.quality >= configuration.minimumLatestQuality &&
-            criticalLandmarksReliable(step, frame)
+        val latestQualitySufficient = latestQualitySufficient(step, frame, instantResult)
         val shouldAccept = matchingGood && latestQualitySufficient &&
             state.reliableHoldCreditMs >= configuration.requiredHoldDurationMs.toDouble() &&
             state.accumulatedMatchingMs >= configuration.requiredHoldDurationMs.toDouble() &&
@@ -109,13 +127,17 @@ class FindYourWeaponTemporalVerifier(
         state.previousMatchingGood = matchingGood
         if (shouldAccept) {
             state.accepted = true
-            return result(instantResult, newlyAccepted = true, forcedProgress = 1f)
+            return result(instantResult, newlyAccepted = true, forcedProgress = 1f, status = TemporalVerificationStatus.ACCEPTED)
         }
 
-        return result(instantResult, newlyAccepted = false)
+        return result(
+            instant = instantResult,
+            newlyAccepted = false,
+            status = currentStatus(addedReliableCredit, paused, decayed),
+        )
     }
 
-    private fun applyNonMatchingElapsed(elapsedMs: Double, instantResult: InstantStepResult) {
+    private fun applyNonMatchingElapsed(elapsedMs: Double, instantResult: InstantStepResult): InterruptionUpdate {
         val decayElapsedMs = when (instantResult.status) {
             InstantVerificationStatus.PARTIAL_MATCH -> {
                 val previous = state.partialMatchMs
@@ -143,7 +165,28 @@ class FindYourWeaponTemporalVerifier(
         val decayCreditMs = configuration.requiredHoldDurationMs.toDouble() *
             configuration.progressDecayPerSecond *
             (decayElapsedMs / 1000.0)
+        val previousCredit = state.reliableHoldCreditMs
         state.reliableHoldCreditMs = (state.reliableHoldCreditMs - decayCreditMs).coerceAtLeast(0.0)
+        return InterruptionUpdate(
+            paused = decayElapsedMs == 0.0 && instantResult.status in setOf(InstantVerificationStatus.PARTIAL_MATCH, InstantVerificationStatus.INSUFFICIENT_DATA),
+            decayed = state.reliableHoldCreditMs < previousCredit,
+        )
+    }
+
+    private fun latestQualitySufficient(step: HandLessonStep, frame: TrackedHandFrame, instantResult: InstantStepResult): Boolean =
+        instantResult.quality.isFinite() &&
+            instantResult.quality >= configuration.minimumLatestQuality &&
+            instantResult.criticalLandmarksVisible &&
+            criticalLandmarksReliable(step, frame)
+
+    private fun currentStatus(addedReliableCredit: Boolean, paused: Boolean, decayed: Boolean): TemporalVerificationStatus = when {
+        state.accepted -> TemporalVerificationStatus.ACCEPTED
+        decayed -> TemporalVerificationStatus.LOSING_PROGRESS
+        paused -> TemporalVerificationStatus.PAUSED
+        state.reliableHoldCreditMs >= configuration.requiredHoldDurationMs.toDouble() -> TemporalVerificationStatus.HOLDING
+        addedReliableCredit -> TemporalVerificationStatus.BUILDING_PROGRESS
+        state.reliableHoldCreditMs > 0.0 -> TemporalVerificationStatus.BUILDING_PROGRESS
+        else -> TemporalVerificationStatus.WAITING_FOR_DATA
     }
 
     private fun elapsedBeyondGrace(previousStreakMs: Double, currentStreakMs: Double, graceMs: Double): Double =
@@ -163,6 +206,7 @@ class FindYourWeaponTemporalVerifier(
         instant: InstantStepResult?,
         newlyAccepted: Boolean,
         forcedProgress: Float? = null,
+        status: TemporalVerificationStatus = currentStatus(addedReliableCredit = false, paused = false, decayed = false),
     ): TemporalStepResult {
         val reliableProgress = (state.reliableHoldCreditMs / configuration.requiredHoldDurationMs.toDouble()).coerceIn(0.0, 1.0).toFloat()
         val partialDisplayProgress = if (instant?.status == InstantVerificationStatus.PARTIAL_MATCH) {
@@ -172,6 +216,7 @@ class FindYourWeaponTemporalVerifier(
         }
         val progress = forcedProgress ?: maxOf(reliableProgress, partialDisplayProgress).coerceIn(0f, 1f)
         return TemporalStepResult(
+            status = status,
             instant = instant,
             accepted = state.accepted,
             newlyAccepted = newlyAccepted,
@@ -207,6 +252,11 @@ class FindYourWeaponTemporalVerifier(
         HandLessonStep.FRONT_TWO_KNUCKLES -> temporalFourFingerCriticalLandmarks
     }
 }
+
+private data class InterruptionUpdate(
+    val paused: Boolean,
+    val decayed: Boolean,
+)
 
 private data class TemporalAcceptanceState(
     val step: HandLessonStep? = null,
