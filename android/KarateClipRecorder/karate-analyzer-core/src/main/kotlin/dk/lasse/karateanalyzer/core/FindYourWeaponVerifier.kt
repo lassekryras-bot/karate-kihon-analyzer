@@ -61,6 +61,7 @@ data class FindYourWeaponVerifierConfiguration(
     val fingertipBendCurlFalloff: Float = 0.18f,
     val fingertipBendTipToPalmRatioRange: ClosedFloatingPointRange<Float> = 0.45f..1.55f,
     val fingertipBendMinimumMcpAngleDegrees: Float = 125f,
+    val fingerConsistencyThreshold: Float = 0.75f,
     val closedFingerCurlThreshold: Float = 0.74f,
     val closedTipToPalmRatioThreshold: Float = 0.85f,
     val thumbAcrossMaxKnuckleDistance: Float = 0.90f,
@@ -123,7 +124,7 @@ private abstract class BaseVerifier(
         val clampedScore = clamp(score)
         val clampedQuality = clamp(quality)
         val hasData = criticalLandmarksVisible && requiredMeasurementsPresent && score != null
-        val matchingAllowed = hasData && canMatch(clampedQuality, criticalQuality, stepAllowsMatching)
+        val matchingAllowed = hasData && feedbackCode == FeedbackCode.GOOD && canMatch(clampedQuality, criticalQuality, stepAllowsMatching)
         val status = when {
             !hasData -> InstantVerificationStatus.INSUFFICIENT_DATA
             clampedScore < configuration.partialMatchScoreThreshold -> InstantVerificationStatus.NOT_MATCHING
@@ -282,11 +283,12 @@ private class BendFingertipsStepVerifier(
         }
         val curlInRange = averageCurl != null && averageCurl in configuration.fingertipBendCurlRange
         val mcpOpen = averageMcpAngle != null && averageMcpAngle >= configuration.fingertipBendMinimumMcpAngleDegrees
-        val stepAllowsMatching = curlInRange && mcpOpen
+        val fingersConsistent = consistency(curls) >= configuration.fingerConsistencyThreshold
+        val stepAllowsMatching = curlInRange && mcpOpen && fingersConsistent
         val feedback = when {
             !criticalVisible -> FeedbackCode.INSUFFICIENT_VISIBILITY
             features.dataQuality < configuration.minimumOverallDataQuality -> FeedbackCode.HOLD_STILL
-            consistency(curls) < 0.75f -> FeedbackCode.FINGERS_UNEVEN
+            consistency(curls) < configuration.fingerConsistencyThreshold -> FeedbackCode.FINGERS_UNEVEN
             averageMcpAngle != null && averageMcpAngle < configuration.fingertipBendMinimumMcpAngleDegrees -> FeedbackCode.DO_NOT_CLOSE_YET
             averageCurl == null || averageCurl < configuration.fingertipBendCurlRange.start -> FeedbackCode.BEND_FINGERTIPS_MORE
             averageCurl > configuration.fingertipBendCurlRange.endInclusive -> FeedbackCode.DO_NOT_CLOSE_YET
@@ -347,12 +349,13 @@ private class CloseFingersStepVerifier(
         } else {
             null
         }
-        val stepAllowsMatching = mean(curls)?.let { it >= configuration.closedFingerCurlThreshold } == true
+        val stepAllowsMatching = mean(curls)?.let { it >= configuration.closedFingerCurlThreshold } == true &&
+            consistency(curls) >= configuration.fingerConsistencyThreshold
         val feedback = when {
             !criticalVisible -> FeedbackCode.INSUFFICIENT_VISIBILITY
             features.dataQuality < configuration.minimumOverallDataQuality -> FeedbackCode.HOLD_STILL
             curlComponent == null || curlComponent < configuration.partialMatchScoreThreshold -> FeedbackCode.CLOSE_FINGERS_MORE
-            consistency(curls) < 0.75f -> FeedbackCode.FINGERS_UNEVEN
+            consistency(curls) < configuration.fingerConsistencyThreshold -> FeedbackCode.FINGERS_UNEVEN
             else -> FeedbackCode.GOOD
         }
         return result(
@@ -440,7 +443,8 @@ private class FrontTwoKnucklesStepVerifier(
         val orientationComponent = orientation ?: configuration.fistOrientationTolerance
         val score = weighted(closed.score, if (allKnucklesPresent) 1f else 0f, orientationComponent.coerceIn(0f, 1f))
         val quality = if (orientation == null) features.dataQuality * 0.8f else features.dataQuality
-        val stepAllowsMatching = closed.status == InstantVerificationStatus.MATCHING && allKnucklesPresent
+        val orientationAcceptable = orientation == null || orientation >= configuration.fistOrientationTolerance
+        val stepAllowsMatching = closed.status == InstantVerificationStatus.MATCHING && allKnucklesPresent && orientationAcceptable
         val feedback = when {
             !closed.criticalLandmarksVisible -> FeedbackCode.CLOSE_FINGERS_MORE
             !allKnucklesPresent -> FeedbackCode.INSUFFICIENT_VISIBILITY

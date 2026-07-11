@@ -31,7 +31,8 @@ class FindYourWeaponVerifierTest {
         assertNotEquals(InstantVerificationStatus.MATCHING, folded.status)
         assertEquals(FeedbackCode.DO_NOT_CLOSE_YET, folded.feedbackCode)
         val uneven = verify(HandLessonStep.BEND_FINGERTIPS, hand(perFinger = listOf(125f,125f,95f,160f)))
-        assertTrue(uneven.status == InstantVerificationStatus.PARTIAL_MATCH || uneven.feedbackCode == FeedbackCode.FINGERS_UNEVEN)
+        assertNotEquals(InstantVerificationStatus.MATCHING, uneven.status)
+        assertEquals(FeedbackCode.FINGERS_UNEVEN, uneven.feedbackCode)
     }
 
     @Test fun closedFingersIgnoresThumbAndReportsUnevenClosure() {
@@ -41,6 +42,9 @@ class FindYourWeaponVerifierTest {
         assertEquals(InstantVerificationStatus.MATCHING, verify(HandLessonStep.CLOSE_FINGERS, hand(curl = 70f, missing = thumbIds)).status)
         val uneven = verify(HandLessonStep.CLOSE_FINGERS, hand(perFinger = listOf(70f,70f,70f,175f)))
         assertTrue(uneven.score < verify(HandLessonStep.CLOSE_FINGERS, hand(curl = 70f)).score)
+        val moderatelyUneven = verify(HandLessonStep.CLOSE_FINGERS, hand(perFinger = listOf(70f,70f,70f,120f)))
+        assertNotEquals(InstantVerificationStatus.MATCHING, moderatelyUneven.status)
+        assertEquals(FeedbackCode.FINGERS_UNEVEN, moderatelyUneven.feedbackCode)
     }
 
     @Test fun thumbOnTopRequiresReliableThumbAcrossAndMirrors() {
@@ -63,6 +67,35 @@ class FindYourWeaponVerifierTest {
         assertFalse(HandLandmarkId.INDEX_MCP in missingKnuckle.highlightLandmarks)
         assertTrue(HandLandmarkId.MIDDLE_MCP in missingKnuckle.highlightLandmarks)
         assertTrue(ok.quality.isFinite())
+    }
+
+    @Test fun matchingResultsAlwaysUseGoodFeedback() {
+        val fixtures = listOf(
+            hand(),
+            hand(curl = 125f),
+            hand(curl = 70f),
+            hand(curl = 70f, thumbCrossing = true),
+            hand(perFinger = listOf(125f, 125f, 95f, 160f)),
+            hand(perFinger = listOf(70f, 70f, 70f, 120f)),
+            hand(curl = 70f, middleMcpZ = 1.6f),
+        )
+
+        for (step in HandLessonStep.entries) {
+            for (frame in fixtures) {
+                val result = verify(step, frame)
+                if (result.status == InstantVerificationStatus.MATCHING) {
+                    assertEquals(FeedbackCode.GOOD, result.feedbackCode)
+                    assertNotEquals(FeedbackCode.FINGERS_UNEVEN, result.feedbackCode)
+                    assertNotEquals(FeedbackCode.TURN_FIST_TOWARD_CAMERA, result.feedbackCode)
+                }
+            }
+        }
+    }
+
+    @Test fun frontTwoKnucklesBelowOrientationToleranceDoesNotMatch() {
+        val result = verify(HandLessonStep.FRONT_TWO_KNUCKLES, hand(curl = 70f, middleMcpZ = 1.6f))
+        assertNotEquals(InstantVerificationStatus.MATCHING, result.status)
+        assertEquals(FeedbackCode.TURN_FIST_TOWARD_CAMERA, result.feedbackCode)
     }
 
     @Test fun qualityAndConfigurationGatesPreventMatching() {
@@ -105,12 +138,17 @@ class FindYourWeaponVerifierTest {
 
     private fun verify(step: HandLessonStep, frame: TrackedHandFrame) = verifier.verify(step, frame, extractor.extract(frame))
 
-    private fun hand(handedness: Handedness = Handedness.RIGHT, curl: Float = 175f, thumbCrossing: Boolean = false, missing: Set<HandLandmarkId> = emptySet(), source: LandmarkSource = LandmarkSource.OBSERVED, scale: Float = 1f, offset: Point3 = Point3(0f,0f,0f), perFinger: List<Float>? = null, mcpDirection: Double = 90.0): TrackedHandFrame {
+    private fun hand(handedness: Handedness = Handedness.RIGHT, curl: Float = 175f, thumbCrossing: Boolean = false, missing: Set<HandLandmarkId> = emptySet(), source: LandmarkSource = LandmarkSource.OBSERVED, scale: Float = 1f, offset: Point3 = Point3(0f,0f,0f), perFinger: List<Float>? = null, mcpDirection: Double = 90.0, middleMcpZ: Float = 0f): TrackedHandFrame {
         val mirror = if (handedness == Handedness.LEFT) -1f else 1f
         val map = mutableMapOf<HandLandmarkId, Point3>(); map[HandLandmarkId.WRIST]=t(0f,0f,scale,offset,mirror)
         val curls = perFinger ?: listOf(curl,curl,curl,curl)
         finger(map, HandLandmarkId.INDEX_MCP,HandLandmarkId.INDEX_PIP,HandLandmarkId.INDEX_DIP,HandLandmarkId.INDEX_TIP,-.6f,1f,curls[0],scale,offset,mirror,mcpDirection)
         finger(map, HandLandmarkId.MIDDLE_MCP,HandLandmarkId.MIDDLE_PIP,HandLandmarkId.MIDDLE_DIP,HandLandmarkId.MIDDLE_TIP,-.2f,1f,curls[1],scale,offset,mirror,mcpDirection)
+        if (middleMcpZ != 0f) {
+            for (id in listOf(HandLandmarkId.MIDDLE_MCP, HandLandmarkId.MIDDLE_PIP, HandLandmarkId.MIDDLE_DIP, HandLandmarkId.MIDDLE_TIP)) {
+                map[id] = map.getValue(id).copy(z = middleMcpZ)
+            }
+        }
         finger(map, HandLandmarkId.RING_MCP,HandLandmarkId.RING_PIP,HandLandmarkId.RING_DIP,HandLandmarkId.RING_TIP,.2f,1f,curls[2],scale,offset,mirror,mcpDirection)
         finger(map, HandLandmarkId.LITTLE_MCP,HandLandmarkId.LITTLE_PIP,HandLandmarkId.LITTLE_DIP,HandLandmarkId.LITTLE_TIP,.6f,1f,curls[3],scale,offset,mirror,mcpDirection)
         val tx=if(thumbCrossing).45f else -1.1f
