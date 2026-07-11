@@ -17,6 +17,12 @@ data class LandmarkTrack(
     val lastStabilizedSample: LandmarkSample? = null,
     val lastStabilizedTimestampMs: Long? = null,
     val velocityPerMs: Point3? = null,
+    val pendingPredictions: List<PendingLandmarkSample> = emptyList(),
+)
+
+data class PendingLandmarkSample(
+    val timestampMs: Long,
+    val sample: LandmarkSample,
 )
 
 data class TrackedHandFrame(
@@ -81,15 +87,16 @@ class TemporalHandTracker(
         if (elapsedSinceObserved != null && elapsedSinceObserved in 1..configuration.maximumInterpolationGapMs) {
             val start = previous.lastObservedSample?.position
             if (start != null && elapsedSinceObserved > 1) {
-                val missingTimestamps = collectMissingPredictionTimestamps(previous.lastObservedTimestampMs, timestampMs)
-                missingTimestamps.forEach { missingTimestamp ->
-                    val ratio = (missingTimestamp - previous.lastObservedTimestampMs).toFloat() / elapsedSinceObserved.toFloat()
-                    backfill.getOrPut(missingTimestamp) { mutableMapOf() }[id] = LandmarkSample(
-                        position = lerp(start, smoothed, ratio),
-                        confidence = min(previous.lastObservedSample.confidence, observed.confidence),
-                        source = LandmarkSource.INTERPOLATED,
-                    )
-                }
+                previous.pendingPredictions
+                    .filter { it.timestampMs > previous.lastObservedTimestampMs && it.timestampMs < timestampMs }
+                    .forEach { pending ->
+                        val ratio = (pending.timestampMs - previous.lastObservedTimestampMs).toFloat() / elapsedSinceObserved.toFloat()
+                        backfill.getOrPut(pending.timestampMs) { mutableMapOf() }[id] = LandmarkSample(
+                            position = lerp(start, smoothed, ratio),
+                            confidence = min(pending.sample.confidence, min(previous.lastObservedSample.confidence, observed.confidence)),
+                            source = LandmarkSource.INTERPOLATED,
+                        )
+                    }
             }
         }
 
@@ -106,22 +113,25 @@ class TemporalHandTracker(
         val lastObservedPosition = previous.lastObservedSample?.position
         if (gap !in 1..configuration.maximumPredictionGapMs || lastObservedPosition == null) {
             val sample = missing()
-            return previous.copy(lastStabilizedSample = sample, lastStabilizedTimestampMs = timestampMs) to sample
+            return previous.copy(
+                lastStabilizedSample = sample,
+                lastStabilizedTimestampMs = timestampMs,
+                pendingPredictions = emptyList(),
+            ) to sample
         }
         val velocity = previous.velocityPerMs ?: Point3(0f, 0f, 0f)
         val predictedPosition = lastObservedPosition + velocity * gap.toFloat()
         val confidenceRatio = 1f - (gap.toFloat() / configuration.maximumPredictionGapMs.toFloat()).coerceIn(0f, 1f)
         val sample = LandmarkSample(predictedPosition, previous.lastObservedSample.confidence * confidenceRatio, LandmarkSource.PREDICTED)
-        return previous.copy(lastStabilizedSample = sample, lastStabilizedTimestampMs = timestampMs) to sample
+        return previous.copy(
+            lastStabilizedSample = sample,
+            lastStabilizedTimestampMs = timestampMs,
+            pendingPredictions = previous.pendingPredictions + PendingLandmarkSample(timestampMs, sample),
+        ) to sample
     }
 
     private fun LandmarkSample?.isUsableObservation(): Boolean =
         this != null && source == LandmarkSource.OBSERVED && position != null && confidence >= configuration.minimumObservedConfidence
-
-    private fun collectMissingPredictionTimestamps(startExclusive: Long, endExclusive: Long): List<Long> =
-        tracks.values.mapNotNull { track ->
-            track.lastStabilizedTimestampMs?.takeIf { it > startExclusive && it < endExclusive && track.lastStabilizedSample?.source == LandmarkSource.PREDICTED }
-        }.distinct()
 
     private fun stabilizeHandedness(frame: HandFrame): Handedness {
         if (frame.handedness != Handedness.UNKNOWN) {
