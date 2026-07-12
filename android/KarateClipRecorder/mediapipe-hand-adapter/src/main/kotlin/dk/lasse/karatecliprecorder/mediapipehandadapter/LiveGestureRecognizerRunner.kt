@@ -8,6 +8,7 @@ import com.google.mediapipe.tasks.core.BaseOptions
 import com.google.mediapipe.tasks.core.Delegate
 import com.google.mediapipe.tasks.vision.core.RunningMode
 import com.google.mediapipe.tasks.vision.gesturerecognizer.GestureRecognizer
+import com.google.mediapipe.tasks.vision.gesturerecognizer.GestureRecognizerResult
 import java.util.concurrent.atomic.AtomicBoolean
 
 /** Adapter-neutral live recognizer output consumed by the app. */
@@ -228,11 +229,11 @@ private class MediaPipeLiveGestureRecognizerClientFactory(
             .setMinHandDetectionConfidence(0.5f)
             .setMinHandPresenceConfidence(0.5f)
             .setMinTrackingConfidence(0.5f)
-            .setResultListener { result, callbackImage ->
+            .setResultListener { result: GestureRecognizerResult, callbackImage: MPImage ->
                 val timestamp = result.timestampMs()
                 onResult(timestamp, adapter.adapt(result, timestamp), callbackImage)
             }
-            .setErrorListener { error -> onRuntimeError(error.message ?: error.toString()) }
+            .setErrorListener { error: RuntimeException -> onRuntimeError(error.message ?: error.toString()) }
             .build()
         return MediaPipeLiveGestureRecognizerClient(GestureRecognizer.createFromOptions(context, options))
     }
