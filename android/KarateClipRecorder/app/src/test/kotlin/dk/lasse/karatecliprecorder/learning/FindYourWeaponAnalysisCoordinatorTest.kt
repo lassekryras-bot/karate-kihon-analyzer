@@ -26,7 +26,7 @@ class FindYourWeaponAnalysisCoordinatorTest {
         val states = mutableListOf<FindYourWeaponAnalysisState>()
         val coordinator = FindYourWeaponAnalysisCoordinator(states::add)
         coordinator.setActiveStep(FindYourWeaponStep.OPEN_PALM)
-        coordinator.process(output(100, emptyList(), coordinator.generationToken))
+        coordinator.process(output(100, emptyList(), coordinator.currentGenerationToken()))
         val state = states.last()
         assertFalse(state.handDetected)
         assertEquals(Handedness.UNKNOWN, state.handedness)
@@ -39,8 +39,8 @@ class FindYourWeaponAnalysisCoordinatorTest {
         val states = mutableListOf<FindYourWeaponAnalysisState>()
         val coordinator = FindYourWeaponAnalysisCoordinator(states::add)
         coordinator.setActiveStep(FindYourWeaponStep.OPEN_PALM)
-        coordinator.process(output(100, listOf(hand("Right")), coordinator.generationToken))
-        coordinator.process(output(200, emptyList(), coordinator.generationToken))
+        coordinator.process(output(100, listOf(hand("Right")), coordinator.currentGenerationToken()))
+        coordinator.process(output(200, emptyList(), coordinator.currentGenerationToken()))
         assertEquals(Handedness.RIGHT, states.last().handedness)
     }
 
@@ -48,7 +48,7 @@ class FindYourWeaponAnalysisCoordinatorTest {
         val states = mutableListOf<FindYourWeaponAnalysisState>()
         val coordinator = FindYourWeaponAnalysisCoordinator(states::add)
         coordinator.setActiveStep(FindYourWeaponStep.OPEN_PALM)
-        val token = coordinator.generationToken
+        val token = coordinator.currentGenerationToken()
         coordinator.process(output(100, emptyList(), token))
         coordinator.process(output(100, emptyList(), token))
         coordinator.process(output(90, emptyList(), token))
@@ -61,19 +61,19 @@ class FindYourWeaponAnalysisCoordinatorTest {
         val states = mutableListOf<FindYourWeaponAnalysisState>()
         val coordinator = FindYourWeaponAnalysisCoordinator(states::add)
         coordinator.setActiveStep(FindYourWeaponStep.OPEN_PALM)
-        val token = coordinator.generationToken
+        val token = coordinator.currentGenerationToken()
         coordinator.process(output(100, listOf(hand("Right")), token))
         coordinator.reset()
         assertNull(states.last().activeStep)
         assertEquals(Handedness.UNKNOWN, states.last().handedness)
-        assertTrue(coordinator.generationToken > token)
+        assertTrue(coordinator.currentGenerationToken() > token)
     }
 
     @Test fun highCannedGestureScoresCannotCreateAcceptanceWithoutGeometry() {
         val states = mutableListOf<FindYourWeaponAnalysisState>()
         val coordinator = FindYourWeaponAnalysisCoordinator(states::add)
         coordinator.setActiveStep(FindYourWeaponStep.OPEN_PALM)
-        coordinator.process(output(100, listOf(hand("Right", openPalm = 1f, closedFist = 1f)), coordinator.generationToken))
+        coordinator.process(output(100, listOf(hand("Right", openPalm = 1f, closedFist = 1f)), coordinator.currentGenerationToken()))
         assertFalse(states.last().temporalResult?.accepted ?: true)
     }
 

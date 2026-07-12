@@ -16,6 +16,7 @@ import dk.lasse.karateanalyzer.core.TemporalStepResult
 import dk.lasse.karatecliprecorder.mediapipehandadapter.HighestConfidenceActiveHandSelector
 import dk.lasse.karatecliprecorder.mediapipehandadapter.LiveGestureRecognizerOutput
 import dk.lasse.karatecliprecorder.mediapipehandadapter.MediaPipeHandFrameMapper
+import dk.lasse.karatecliprecorder.mediapipehandadapter.RecognizerLifecycleState
 
 
 data class FindYourWeaponAnalysisState(
@@ -29,6 +30,7 @@ data class FindYourWeaponAnalysisState(
     val closedFistGestureScore: Float?,
     val inferenceLatencyMs: Long?,
     val errorMessage: String? = null,
+    val recognizerState: RecognizerLifecycleState = RecognizerLifecycleState.INACTIVE,
 )
 
 class FindYourWeaponAnalysisCoordinator(
@@ -44,8 +46,9 @@ class FindYourWeaponAnalysisCoordinator(
     private var retainedHandedness = Handedness.UNKNOWN
     private var latestTimestampMs: Long? = null
     private val lock = Any()
-    var generationToken: Long = 0L
-        private set
+    private var generationToken: Long = 0L
+
+    fun currentGenerationToken(): Long = synchronized(lock) { generationToken }
 
     fun setActiveStep(step: FindYourWeaponStep?) = synchronized(lock) {
         if (activeStep != step) {
@@ -96,8 +99,8 @@ class FindYourWeaponAnalysisCoordinator(
         onStateChanged(FindYourWeaponAnalysisState(null, null, false, Handedness.UNKNOWN, null, null, null, null, null))
     }
 
-    fun reportError(message: String) = synchronized(lock) {
-        onStateChanged(FindYourWeaponAnalysisState(activeStep, latestTimestampMs, false, retainedHandedness, null, null, null, null, null, message))
+    fun reportError(message: String, recognizerState: RecognizerLifecycleState = RecognizerLifecycleState.FAILED) = synchronized(lock) {
+        onStateChanged(FindYourWeaponAnalysisState(activeStep, latestTimestampMs, false, retainedHandedness, null, null, null, null, null, message, recognizerState))
     }
 
     private fun emit(output: LiveGestureRecognizerOutput, handDetected: Boolean, handedness: Handedness, instant: InstantStepResult?, temporal: TemporalStepResult?, openPalm: Float?, closedFist: Float?) {

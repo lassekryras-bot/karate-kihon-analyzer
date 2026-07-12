@@ -30,7 +30,12 @@ import dk.lasse.karatecliprecorder.learning.FindYourWeaponSessionController
 import dk.lasse.karatecliprecorder.learning.FindYourWeaponState
 import dk.lasse.karatecliprecorder.learning.FindYourWeaponStep
 import dk.lasse.karatecliprecorder.learning.HandGuideOverlayView
+import dk.lasse.karatecliprecorder.mediapipehandadapter.FramePermit
 import dk.lasse.karatecliprecorder.mediapipehandadapter.LiveGestureRecognizerRunner
+import dk.lasse.karatecliprecorder.mediapipehandadapter.RecognizerLifecycleState
+import java.util.concurrent.ExecutorService
+import java.util.concurrent.Executors
+import java.util.concurrent.atomic.AtomicLong
 
 class MainActivity : AppCompatActivity() {
     private lateinit var previewView: PreviewView
@@ -59,6 +64,11 @@ class MainActivity : AppCompatActivity() {
     private var trainingOrderPlayer: TrainingOrderPlayer? = null
     private var recognizerRunner: LiveGestureRecognizerRunner? = null
     private var analysisCoordinator: FindYourWeaponAnalysisCoordinator? = null
+    private val recognizerExecutor: ExecutorService = Executors.newSingleThreadExecutor()
+    private var recognizerState: RecognizerLifecycleState = RecognizerLifecycleState.INACTIVE
+    private val submittedFrameCount = AtomicLong(0)
+    private val processedFrameCount = AtomicLong(0)
+    private val droppedFrameCount = AtomicLong(0)
 
     private val cameraPermissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestPermission(),
@@ -209,10 +219,30 @@ class MainActivity : AppCompatActivity() {
             onStateChanged = ::updateRecordingState,
             onSaved = ::handleSavedClip,
             onError = ::handleRecordingError,
+            onAnalysisError = ::handleAnalysisError,
             onCaptureProfileSelected = ::handleCaptureProfileSelected,
-            onAnalysisFrame = { bitmap, timestampMs ->
-                val token = analysisCoordinator?.generationToken ?: 0L
-                recognizerRunner?.submit(bitmap, timestampMs, token) ?: false
+            onAnalysisFramePermit = { timestampMs ->
+                val coordinator = analysisCoordinator
+                val runner = recognizerRunner
+                if (coordinator == null || runner == null || recognizerState != RecognizerLifecycleState.READY) {
+                    droppedFrameCount.incrementAndGet()
+                    null
+                } else {
+                    runner.tryAcquireFrame(timestampMs, coordinator.currentGenerationToken()).also { permit ->
+                        if (permit == null) droppedFrameCount.incrementAndGet()
+                    }
+                }
+            },
+            onAnalysisPermitRelease = { permit -> (permit as? FramePermit)?.let { recognizerRunner?.releasePermit(it) } },
+            onAnalysisFrame = { bitmap, _, permit ->
+                val framePermit = permit as? FramePermit
+                if (framePermit == null) {
+                    false
+                } else {
+                    val accepted = recognizerRunner?.submit(bitmap, framePermit) ?: false
+                    if (accepted) submittedFrameCount.incrementAndGet()
+                    accepted
+                }
             },
         )
         recordingAdapter = adapter
@@ -248,14 +278,42 @@ class MainActivity : AppCompatActivity() {
 
     private fun startFindYourWeaponSession() {
         metadataPathText.text = "Metadata: not saved"
-        ensureRecognizerRunner()
         analysisCoordinator?.reset()
-        findYourWeaponController?.start()
+        recognizerState = RecognizerLifecycleState.INITIALIZING
+        updateAnalysisState(
+            FindYourWeaponAnalysisState(
+                activeStep = null,
+                timestampMs = null,
+                handDetected = false,
+                handedness = dk.lasse.karateanalyzer.core.Handedness.UNKNOWN,
+                instantResult = null,
+                temporalResult = null,
+                openPalmGestureScore = null,
+                closedFistGestureScore = null,
+                inferenceLatencyMs = null,
+                recognizerState = recognizerState,
+            ),
+        )
+        recognizerExecutor.execute {
+            val runner = createRecognizerRunner()
+            runOnMainThread {
+                recognizerRunner?.close()
+                recognizerRunner = runner
+                recognizerState = runner.lifecycleState
+                if (runner.initializationSucceeded()) {
+                    findYourWeaponController?.start()
+                } else {
+                    recordingAdapter?.setAnalysisEnabled(false)
+                }
+            }
+        }
     }
 
     override fun onDestroy() {
         recognizerRunner?.close()
         recognizerRunner = null
+        recognizerState = RecognizerLifecycleState.CLOSED
+        recognizerExecutor.shutdownNow()
         recordingAdapter?.close()
         recordingAdapter = null
         trainingOrderPlayer?.release()
@@ -313,14 +371,14 @@ class MainActivity : AppCompatActivity() {
         cancelSessionButton.isEnabled = guidedSessionActive || findYourWeaponActive
     }
 
-    private fun ensureRecognizerRunner() {
-        if (recognizerRunner != null) return
-        recognizerRunner = LiveGestureRecognizerRunner(
-            context = this,
-            onResult = { output -> analysisCoordinator?.process(output) },
-            onError = { message -> analysisCoordinator?.reportError(message) },
-        )
-    }
+    private fun createRecognizerRunner(): LiveGestureRecognizerRunner = LiveGestureRecognizerRunner(
+        context = this,
+        onResult = { output ->
+            processedFrameCount.incrementAndGet()
+            analysisCoordinator?.process(output)
+        },
+        onError = { message -> analysisCoordinator?.reportError(message, RecognizerLifecycleState.FAILED) },
+    )
 
     private fun updateAnalysisState(state: FindYourWeaponAnalysisState) {
         analyzerDebugText.text = if (state.errorMessage != null) {
@@ -337,6 +395,16 @@ class MainActivity : AppCompatActivity() {
                 "Temporal: ${state.temporalResult?.status?.name?.lowercase() ?: "none"}",
                 "Progress: ${((state.temporalResult?.progress ?: 0f) * 100f).toInt()}%",
                 "Latency: ${state.inferenceLatencyMs?.let { "$it ms" } ?: "--"}",
+                "Step: ${state.activeStep?.name ?: "none"}",
+                "Accepted: ${state.temporalResult?.accepted ?: false}",
+                "Newly accepted: ${state.temporalResult?.newlyAccepted ?: false}",
+                "Reliable hold: ${state.temporalResult?.reliableHoldCreditMs?.toInt() ?: 0} ms",
+                "Reliable ratio: ${state.temporalResult?.weightedReliableRatio?.format2() ?: "--"}",
+                "OpenPalm: ${state.openPalmGestureScore?.format2() ?: "--"}",
+                "ClosedFist: ${state.closedFistGestureScore?.format2() ?: "--"}",
+                "Timestamp: ${state.timestampMs ?: "--"}",
+                "Frames: submitted=${submittedFrameCount.get()} processed=${processedFrameCount.get()} dropped=${droppedFrameCount.get()}",
+                "Recognizer: ${state.recognizerState.name.lowercase()}",
             ).joinToString("\n")
         }
     }
@@ -360,6 +428,11 @@ class MainActivity : AppCompatActivity() {
         } else {
             savedClipText.text = "Last saved clip: ${result.fileName}\nPath: ${result.absolutePath}\nURI: ${result.uri}"
         }
+    }
+
+
+    private fun handleAnalysisError(message: String) {
+        analysisCoordinator?.reportError(message, recognizerState)
     }
 
     private fun handleRecordingError(message: String) {

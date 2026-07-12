@@ -37,8 +37,13 @@ class CameraXRecordingAdapter(
     private val onStateChanged: (RecordingState) -> Unit,
     private val onSaved: (RecordingResult) -> Unit,
     private val onError: (String) -> Unit,
+    private val onAnalysisError: (String) -> Unit = onError,
     private val onCaptureProfileSelected: (SelectedCaptureProfile) -> Unit = {},
-    private val onAnalysisFrame: (Bitmap, Long) -> Boolean = { _, _ -> false },
+    private val cameraSelector: CameraSelector = CameraSelector.DEFAULT_BACK_CAMERA,
+    val analysisInputMirrored: Boolean = false,
+    private val onAnalysisFramePermit: (Long) -> Any? = { null },
+    private val onAnalysisPermitRelease: (Any) -> Unit = {},
+    private val onAnalysisFrame: (Bitmap, Long, Any?) -> Boolean = { _, _, _ -> false },
 ) : AutoCloseable {
     private var videoCapture: VideoCapture<Recorder>? = null
     private var imageAnalysis: ImageAnalysis? = null
@@ -60,7 +65,6 @@ class CameraXRecordingAdapter(
                 val preview = Preview.Builder().build().also {
                     it.setSurfaceProvider(previewView.surfaceProvider)
                 }
-                val cameraSelector = CameraSelector.DEFAULT_BACK_CAMERA
                 val cameraInfo = cameraProvider.availableCameraInfos.firstOrNull { info ->
                     runCatching { cameraSelector.filter(listOf(info)).isNotEmpty() }.getOrDefault(false)
                 }
@@ -106,17 +110,28 @@ class CameraXRecordingAdapter(
     }
 
     private fun analyzeImage(image: ImageProxy) {
+        var permit: Any? = null
         try {
             if (!analysisEnabled.get() || closed.get()) return
+            val timestampMs = image.imageInfo.timestamp / 1_000_000L
+            permit = onAnalysisFramePermit(timestampMs) ?: return
             val bitmap = image.toUprightBitmap() ?: run {
-                onError("Camera analysis frame conversion failed.")
+                onAnalysisError("Camera analysis frame conversion failed.")
                 return
             }
-            val accepted = onAnalysisFrame(bitmap, image.imageInfo.timestamp / 1_000_000L)
-            if (!accepted) bitmap.recycle()
+            var bitmapOwnershipTransferred = false
+            try {
+                bitmapOwnershipTransferred = onAnalysisFrame(bitmap, timestampMs, permit)
+            } finally {
+                if (!bitmapOwnershipTransferred && !bitmap.isRecycled) {
+                    bitmap.recycle()
+                }
+            }
+            if (bitmapOwnershipTransferred) permit = null
         } catch (error: Exception) {
-            onError("Camera analysis failed: ${error.message}")
+            onAnalysisError("Camera analysis failed: ${error.message}")
         } finally {
+            permit?.let(onAnalysisPermitRelease)
             image.close()
         }
     }

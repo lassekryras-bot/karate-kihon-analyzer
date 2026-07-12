@@ -20,6 +20,14 @@ data class LiveGestureRecognizerOutput(
     val generationToken: Long = 0L,
 )
 
+enum class RecognizerLifecycleState { INACTIVE, INITIALIZING, READY, FAILED, CLOSED }
+
+data class FramePermit internal constructor(
+    internal val timestampMs: Long,
+    internal val runnerGeneration: Long,
+    internal val outputGenerationToken: Long,
+)
+
 class LiveGestureRecognizerRunner(
     context: Context,
     private val onResult: (LiveGestureRecognizerOutput) -> Unit,
@@ -30,9 +38,12 @@ class LiveGestureRecognizerRunner(
     private val lock = Any()
     private var closed = false
     private val timestampGate = MonotonicTimestampGate()
-    private var generation = 0L
+    private var runnerGeneration = 0L
     private var inFlight: InFlight? = null
+    private var pendingPermit: FramePermit? = null
     private var client: LiveGestureRecognizerClient? = null
+    var lifecycleState: RecognizerLifecycleState = RecognizerLifecycleState.INITIALIZING
+        private set
 
     init {
         client = runCatching {
@@ -40,9 +51,28 @@ class LiveGestureRecognizerRunner(
                 onResult = ::completeResult,
                 onRuntimeError = ::handleRuntimeError,
             )
+        }.onSuccess {
+            lifecycleState = RecognizerLifecycleState.READY
         }.getOrElse { error ->
+            lifecycleState = RecognizerLifecycleState.FAILED
             onError(error.message ?: "Gesture Recognizer creation failed")
             null
+        }
+    }
+
+    fun initializationSucceeded(): Boolean = lifecycleState == RecognizerLifecycleState.READY
+
+    fun tryAcquireFrame(timestampMs: Long, generationToken: Long = 0L): FramePermit? = synchronized(lock) {
+        if (closed || lifecycleState != RecognizerLifecycleState.READY || client == null) return null
+        if (!timestampGate.tryAccept(timestampMs)) return null
+        if (!busy.compareAndSet(false, true)) return null
+        FramePermit(timestampMs, runnerGeneration, generationToken).also { pendingPermit = it }
+    }
+
+    fun releasePermit(permit: FramePermit) = synchronized(lock) {
+        if (pendingPermit == permit) {
+            pendingPermit = null
+            busy.set(false)
         }
     }
 
@@ -50,41 +80,47 @@ class LiveGestureRecognizerRunner(
      * Returns true only after ownership of [bitmap] transfers to this runner. When false is
      * returned, callers keep ownership and must release it themselves.
      */
-    fun submit(bitmap: Bitmap, timestampMs: Long, generationToken: Long = 0L): Boolean {
+    fun submit(bitmap: Bitmap, permit: FramePermit): Boolean {
         val recognizer = client ?: return false
-        val acceptedGeneration: Long
-        synchronized(lock) {
-            if (closed) return false
-            if (!timestampGate.tryAccept(timestampMs)) return false
-            if (!busy.compareAndSet(false, true)) return false
-            acceptedGeneration = generation
-        }
-        val image = BitmapImageBuilder(bitmap).build()
-        synchronized(lock) {
-            inFlight = InFlight(
-                bitmap = bitmap,
-                image = image,
-                timestampMs = timestampMs,
-                width = bitmap.width,
-                height = bitmap.height,
-                startedAtMs = System.currentTimeMillis(),
-                generation = acceptedGeneration,
-                outputGenerationToken = generationToken,
-            )
-        }
-        return runCatching { recognizer.recognizeAsync(image, timestampMs); true }.getOrElse { error ->
-            // Ownership did not successfully transfer to MediaPipe. Close the MPImage we created,
-            // keep caller bitmap ownership, and return false so CameraX can release the bitmap once.
+        var image: MPImage? = null
+        return runCatching {
+            image = BitmapImageBuilder(bitmap).build()
             synchronized(lock) {
-                if (inFlight?.timestampMs == timestampMs && inFlight?.generation == acceptedGeneration) {
-                    inFlight = null
-                    busy.set(false)
+                if (closed || permit.runnerGeneration != runnerGeneration || pendingPermit != permit) {
+                    image?.close()
+                    return false
                 }
+                inFlight = InFlight(
+                    bitmap = bitmap,
+                    image = image!!,
+                    timestampMs = permit.timestampMs,
+                    width = bitmap.width,
+                    height = bitmap.height,
+                    startedAtMs = System.currentTimeMillis(),
+                    runnerGeneration = permit.runnerGeneration,
+                    outputGenerationToken = permit.outputGenerationToken,
+                )
+                pendingPermit = null
             }
-            image.close()
+            recognizer.recognizeAsync(image!!, permit.timestampMs)
+            true
+        }.getOrElse { error ->
+            synchronized(lock) {
+                if (pendingPermit == permit) pendingPermit = null
+                if (inFlight?.timestampMs == permit.timestampMs && inFlight?.runnerGeneration == permit.runnerGeneration) inFlight = null
+                busy.set(false)
+            }
+            image?.close()
             onError("MediaPipe runtime error: ${error.message ?: error}")
             false
         }
+    }
+
+    fun submit(bitmap: Bitmap, timestampMs: Long, generationToken: Long = 0L): Boolean {
+        val permit = tryAcquireFrame(timestampMs, generationToken) ?: return false
+        val submitted = submit(bitmap, permit)
+        if (!submitted) releasePermit(permit)
+        return submitted
     }
 
     private fun completeResult(
@@ -114,11 +150,11 @@ class LiveGestureRecognizerRunner(
 
     private fun releaseMatchingInFlight(timestampMs: Long, recycleBitmap: Boolean): InFlight? = synchronized(lock) {
         val current = inFlight
-        if (current != null && current.timestampMs == timestampMs && current.generation == generation) {
+        if (current != null && current.timestampMs == timestampMs && current.runnerGeneration == runnerGeneration) {
             inFlight = null
             busy.set(false)
             current.image.close()
-            if (recycleBitmap) current.bitmap.recycle()
+            if (recycleBitmap && !current.bitmap.isRecycled) current.bitmap.recycle()
             current
         } else null
     }
@@ -126,9 +162,10 @@ class LiveGestureRecognizerRunner(
     private fun releaseCurrentInFlight(recycleBitmap: Boolean): InFlight? = synchronized(lock) {
         val current = inFlight
         inFlight = null
+        pendingPermit = null
         busy.set(false)
         current?.image?.close()
-        if (recycleBitmap) current?.bitmap?.recycle()
+        if (recycleBitmap && current?.bitmap?.isRecycled == false) current.bitmap.recycle()
         current
     }
 
@@ -136,7 +173,8 @@ class LiveGestureRecognizerRunner(
         val clientToClose = synchronized(lock) {
             if (closed) return
             closed = true
-            generation++
+            lifecycleState = RecognizerLifecycleState.CLOSED
+            runnerGeneration++
             releaseCurrentInFlight(recycleBitmap = true)
             client.also { client = null }
         }
@@ -150,7 +188,7 @@ class LiveGestureRecognizerRunner(
         val width: Int,
         val height: Int,
         val startedAtMs: Long,
-        val generation: Long,
+        val runnerGeneration: Long,
         val outputGenerationToken: Long,
     )
 }
