@@ -41,8 +41,8 @@ class MissingGestureRecognizerModelException(assetPath: String) :
 
 /** Validates that the configured Gesture Recognizer .task bundle is packaged. */
 class GestureRecognizerModelAssetValidator(
-    private val assetExists: (String) -> Boolean,
     private val assetPath: String = GESTURE_RECOGNIZER_MODEL_ASSET_PATH,
+    private val assetExists: (String) -> Boolean,
 ) {
     fun validate(): String {
         if (!assetExists(assetPath)) throw MissingGestureRecognizerModelException(assetPath)

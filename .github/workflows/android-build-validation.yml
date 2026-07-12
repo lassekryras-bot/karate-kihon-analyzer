@@ -49,4 +49,14 @@ jobs:
           path: |
             android/KarateClipRecorder/**/build/reports/**
             android/KarateClipRecorder/**/build/test-results/**
+            :app:compileDebugKotlin
+
+      - name: Upload test reports
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-test-reports
+          path: |
+            android/KarateClipRecorder/karate-analyzer-core/build/reports/tests
+            android/KarateClipRecorder/mediapipe-hand-adapter/build/reports/tests
           if-no-files-found: ignore
