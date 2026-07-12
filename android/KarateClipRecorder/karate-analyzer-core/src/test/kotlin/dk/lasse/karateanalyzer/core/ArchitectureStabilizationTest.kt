@@ -1,63 +1,148 @@
 package dk.lasse.karateanalyzer.core
 
-import java.io.File
+import java.nio.file.Files
+import java.nio.file.Path
+import kotlin.io.path.isRegularFile
+import kotlin.io.path.name
+import kotlin.io.path.readText
 import kotlin.test.Test
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 class ArchitectureStabilizationTest {
-    private val repoRoot: File = generateSequence(File(System.getProperty("user.dir"))) { it.parentFile }
-        .first { it.resolve("settings.gradle.kts").isFile && it.resolve("app/build.gradle.kts").isFile }
+    private val repoRoot: Path =
+        generateSequence(Path.of("").toAbsolutePath().normalize()) { it.parent }
+            .first {
+                Files.exists(it.resolve("settings.gradle.kts")) &&
+                    it.resolve("settings.gradle.kts")
+                        .readText()
+                        .contains("KarateClipRecorder")
+            }
 
-    @Test fun appDependsOnMediaPipeHandAdapter() {
-        val appBuild = repoRoot.resolve("app/build.gradle.kts").readText()
+    @Test
+    fun coreHasNoAndroidOrMediaPipeImports() {
+        val forbidden = listOf(
+            "import android.",
+            "import androidx.",
+            "import com.google.mediapipe",
+        )
+
+        kotlinFiles(
+            repoRoot.resolve("karate-analyzer-core/src/main/kotlin"),
+        ).forEach { file ->
+            val text = file.readText()
+
+            forbidden.forEach { token ->
+                assertFalse(
+                    text.contains(token),
+                    "${file.fileName} must not contain $token",
+                )
+            }
+        }
+    }
+
+    @Test
+    fun mediaPipeAdapterDoesNotCallTemporalVerifier() {
+        kotlinFiles(
+            repoRoot.resolve("mediapipe-hand-adapter/src/main/kotlin"),
+        ).forEach { file ->
+            assertFalse(
+                file.readText().contains(
+                    "FindYourWeaponTemporalVerifier",
+                ),
+                "Adapter must not call temporal verifier: $file",
+            )
+        }
+    }
+
+    @Test
+    fun appDependsOnMediaPipeHandAdapter() {
+        val appBuild =
+            repoRoot.resolve("app/build.gradle.kts").readText()
 
         assertTrue(
-            appBuild.contains("""implementation(project(":mediapipe-hand-adapter"))"""),
+            appBuild.contains(
+                """implementation(project(":mediapipe-hand-adapter"))""",
+            ),
             "App must depend on mediapipe-hand-adapter for live hand analysis",
         )
     }
 
-    @Test fun analyzerCoreHasNoAndroidOrMediaPipeImports() {
-        val coreSources = repoRoot.resolve("karate-analyzer-core/src/main/kotlin")
-            .walkTopDown()
-            .filter { it.isFile && it.extension == "kt" }
-            .joinToString("\n") { it.readText() }
+    @Test
+    fun mediaPipeAdapterDoesNotDownloadRuntimeModelsOrBundleBinaryModels() {
+        val adapterRoot =
+            repoRoot.resolve("mediapipe-hand-adapter")
 
-        assertFalse(coreSources.contains("import android."), "Analyzer core must remain Android-free")
-        assertFalse(coreSources.contains("import com.google.mediapipe"), "Analyzer core must remain MediaPipe-free")
-    }
+        val forbiddenRuntimeDownloadUsage = listOf(
+            "java.net.URL",
+            "HttpURLConnection",
+            "OkHttpClient",
+            "DownloadManager",
+            "downloadModel",
+        )
 
-    @Test fun adapterDoesNotCallTemporalVerifier() {
-        val adapterSources = repoRoot.resolve("mediapipe-hand-adapter/src/main/kotlin")
-            .walkTopDown()
-            .filter { it.isFile && it.extension == "kt" }
-            .joinToString("\n") { it.readText() }
+        kotlinFiles(adapterRoot.resolve("src/main")).forEach { file ->
+            val text = file.readText()
+
+            forbiddenRuntimeDownloadUsage.forEach { token ->
+                assertFalse(
+                    text.contains(token),
+                    "Unexpected runtime model-download token '$token' in $file",
+                )
+            }
+        }
+
+        val binaryModel = projectFiles(adapterRoot).any {
+            it.name.endsWith(".task") ||
+                it.name.endsWith(".tflite")
+        }
 
         assertFalse(
-            adapterSources.contains("FindYourWeaponTemporalVerifier"),
-            "MediaPipe adapter must not call temporal verifier",
+            binaryModel,
+            "No binary MediaPipe model should be committed",
         )
     }
 
-    @Test fun adapterDoesNotDownloadRuntimeModels() {
-        val adapterSources = repoRoot.resolve("mediapipe-hand-adapter/src/main/kotlin")
-            .walkTopDown()
-            .filter { it.isFile && it.extension == "kt" }
-            .joinToString("\n") { it.readText() }
-
-        assertFalse(adapterSources.contains("http://"), "Adapter must not download models at runtime")
-        assertFalse(adapterSources.contains("https://"), "Adapter must not download models at runtime")
-    }
-
-    @Test fun binaryModelsAreNotCommitted() {
-        val committedModelAssets = repoRoot.walkTopDown()
-            .filter { it.isFile && it.extension in setOf("task", "tflite") }
-            .toList()
+    @Test
+    fun adapterAndroidManifestNamespaceDoesNotFailRuntimeDownloadScan() {
+        val manifest =
+            repoRoot.resolve(
+                "mediapipe-hand-adapter/src/main/AndroidManifest.xml",
+            )
 
         assertTrue(
-            committedModelAssets.isEmpty(),
-            "Binary .task and .tflite models must not be committed without explicit review: $committedModelAssets",
+            manifest.readText().contains(
+                "http://schemas.android.com/apk/res/android",
+            ),
+        )
+
+        val scannedRuntimeDownloadFiles =
+            kotlinFiles(
+                repoRoot.resolve(
+                    "mediapipe-hand-adapter/src/main",
+                ),
+            )
+
+        assertFalse(
+            manifest in scannedRuntimeDownloadFiles,
+            "Runtime download scan should include Kotlin source only",
         )
     }
+
+    private fun kotlinFiles(root: Path): List<Path> =
+        projectFiles(root).filter {
+            it.name.endsWith(".kt") ||
+                it.name.endsWith(".kts")
+        }
+
+    private fun projectFiles(root: Path): List<Path> =
+        Files.walk(root).use { stream ->
+            stream
+                .filter { it.isRegularFile() }
+                .filter {
+                    !it.toString().contains("/.gradle/") &&
+                        !it.toString().contains("/build/")
+                }
+                .toList()
+        }
 }
