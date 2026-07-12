@@ -1,8 +1,11 @@
 package dk.lasse.karatecliprecorder
 
 import android.content.Context
+import android.graphics.Bitmap
 import android.os.Environment
 import androidx.camera.core.CameraSelector
+import androidx.camera.core.ImageAnalysis
+import androidx.camera.core.ImageProxy
 import androidx.camera.core.Preview
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.video.FallbackStrategy
@@ -23,6 +26,9 @@ import androidx.lifecycle.LifecycleOwner
 import java.io.File
 import java.util.Locale
 import java.util.concurrent.Executor
+import java.util.concurrent.ExecutorService
+import java.util.concurrent.Executors
+import java.util.concurrent.atomic.AtomicBoolean
 
 class CameraXRecordingAdapter(
     private val context: Context,
@@ -31,14 +37,24 @@ class CameraXRecordingAdapter(
     private val onStateChanged: (RecordingState) -> Unit,
     private val onSaved: (RecordingResult) -> Unit,
     private val onError: (String) -> Unit,
+    private val onAnalysisError: (String) -> Unit = onError,
     private val onCaptureProfileSelected: (SelectedCaptureProfile) -> Unit = {},
-) {
+    private val cameraSelector: CameraSelector = CameraSelector.DEFAULT_BACK_CAMERA,
+    val analysisInputMirrored: Boolean = false,
+    private val onAnalysisFramePermit: (Long) -> Any? = { null },
+    private val onAnalysisPermitRelease: (Any) -> Unit = {},
+    private val onAnalysisFrame: (Bitmap, Long, Any?) -> Boolean = { _, _, _ -> false },
+) : AutoCloseable {
     private var videoCapture: VideoCapture<Recorder>? = null
+    private var imageAnalysis: ImageAnalysis? = null
     private var activeRecording: Recording? = null
     private var nextClipNumber = 1
     var selectedCaptureProfile: SelectedCaptureProfile? = null
         private set
     private val mainExecutor: Executor = ContextCompat.getMainExecutor(context)
+    private val analysisExecutor: ExecutorService = Executors.newSingleThreadExecutor()
+    private val analysisEnabled = AtomicBoolean(false)
+    private val closed = AtomicBoolean(false)
 
     fun bindCameraPreview() {
         onStateChanged(RecordingState.PREPARING)
@@ -49,7 +65,6 @@ class CameraXRecordingAdapter(
                 val preview = Preview.Builder().build().also {
                     it.setSurfaceProvider(previewView.surfaceProvider)
                 }
-                val cameraSelector = CameraSelector.DEFAULT_BACK_CAMERA
                 val cameraInfo = cameraProvider.availableCameraInfos.firstOrNull { info ->
                     runCatching { cameraSelector.filter(listOf(info)).isNotEmpty() }.getOrDefault(false)
                 }
@@ -65,13 +80,22 @@ class CameraXRecordingAdapter(
                     .setQualitySelector(profile.toQualitySelector())
                     .build()
                 videoCapture = VideoCapture.withOutput(recorder)
+                imageAnalysis = ImageAnalysis.Builder()
+                    .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
+                    .setOutputImageFormat(ImageAnalysis.OUTPUT_IMAGE_FORMAT_RGBA_8888)
+                    .setTargetResolution(android.util.Size(640, 480))
+                    .build()
+                    .also { analysis ->
+                        analysis.setAnalyzer(analysisExecutor) { image -> analyzeImage(image) }
+                    }
 
                 cameraProvider.unbindAll()
                 cameraProvider.bindToLifecycle(
                     lifecycleOwner,
                     cameraSelector,
                     preview,
-                    videoCapture,
+                    videoCapture!!,
+                    imageAnalysis!!,
                 )
                 onStateChanged(RecordingState.IDLE)
             } catch (error: Exception) {
@@ -79,6 +103,49 @@ class CameraXRecordingAdapter(
                 onError("Camera preview failed: ${error.message}")
             }
         }, mainExecutor)
+    }
+
+    fun setAnalysisEnabled(enabled: Boolean) {
+        analysisEnabled.set(enabled)
+    }
+
+    private fun analyzeImage(image: ImageProxy) {
+        var permit: Any? = null
+        try {
+            if (!analysisEnabled.get() || closed.get()) return
+            val timestampMs = image.imageInfo.timestamp / 1_000_000L
+            permit = onAnalysisFramePermit(timestampMs) ?: return
+            val bitmap = image.toUprightBitmap() ?: run {
+                onAnalysisError("Camera analysis frame conversion failed.")
+                return
+            }
+            var bitmapOwnershipTransferred = false
+            try {
+                bitmapOwnershipTransferred = onAnalysisFrame(bitmap, timestampMs, permit)
+            } finally {
+                if (!bitmapOwnershipTransferred && !bitmap.isRecycled) {
+                    bitmap.recycle()
+                }
+            }
+            if (bitmapOwnershipTransferred) permit = null
+        } catch (error: Exception) {
+            onAnalysisError("Camera analysis failed: ${error.message}")
+        } finally {
+            permit?.let(onAnalysisPermitRelease)
+            image.close()
+        }
+    }
+
+    private fun ImageProxy.toUprightBitmap(): Bitmap? {
+        val plane = planes.firstOrNull() ?: return null
+        return CameraRgbaBitmapConverter.convert(
+            buffer = plane.buffer,
+            width = width,
+            height = height,
+            pixelStride = plane.pixelStride,
+            rowStride = plane.rowStride,
+            rotationDegrees = imageInfo.rotationDegrees,
+        )
     }
 
     fun startRecording(fileName: String? = null) {
@@ -166,6 +233,16 @@ class CameraXRecordingAdapter(
             quality,
             FallbackStrategy.higherQualityOrLowerThan(quality),
         )
+    }
+
+    override fun close() {
+        if (!closed.compareAndSet(false, true)) return
+        analysisEnabled.set(false)
+        imageAnalysis?.clearAnalyzer()
+        imageAnalysis = null
+        activeRecording?.close()
+        activeRecording = null
+        analysisExecutor.shutdownNow()
     }
 
     companion object {
