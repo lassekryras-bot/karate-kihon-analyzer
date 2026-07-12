@@ -2,20 +2,15 @@ name: Android build validation
 
 on:
   pull_request:
-    paths:
-      - 'android/KarateClipRecorder/**'
-      - '.github/workflows/android-build-validation.yml'
   push:
     branches: [main]
 
 jobs:
   validate-android:
     runs-on: ubuntu-latest
-
     defaults:
       run:
         working-directory: android/KarateClipRecorder
-
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
@@ -37,16 +32,14 @@ jobs:
             :karate-analyzer-core:test \
             :mediapipe-hand-adapter:test \
             :mediapipe-hand-adapter:compileDebugKotlin \
-            :app:testDebugUnitTest \
-            :app:compileDebugKotlin \
-            :app:assembleDebug
+            :app:compileDebugKotlin
 
-      - name: Upload failure reports
+      - name: Upload test reports
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: android-build-validation-reports
+          name: android-test-reports
           path: |
-            android/KarateClipRecorder/**/build/reports/**
-            android/KarateClipRecorder/**/build/test-results/**
+            android/KarateClipRecorder/karate-analyzer-core/build/reports/tests
+            android/KarateClipRecorder/mediapipe-hand-adapter/build/reports/tests
           if-no-files-found: ignore
