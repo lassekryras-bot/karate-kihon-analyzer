@@ -330,11 +330,24 @@ class FindYourWeaponTemporalVerifierTest {
     @Test fun knuckleStepCannotAcceptWhenClosedFingerLandmarksArePredictedOrMissing() {
         val predicted = runStep(
             HandLessonStep.FRONT_TWO_KNUCKLES,
-            listOf(hand(0, curl = 70f, predicted = setOf(HandLandmarkId.MIDDLE_PIP)), hand(200, curl = 70f, predicted = setOf(HandLandmarkId.MIDDLE_PIP)), hand(400, curl = 70f, predicted = setOf(HandLandmarkId.MIDDLE_PIP)), hand(600, curl = 70f, predicted = setOf(HandLandmarkId.MIDDLE_PIP)), hand(800, curl = 70f, predicted = setOf(HandLandmarkId.MIDDLE_PIP))),
+            listOf(hand(0, curl = 70f, thumbCrossing = true, predicted = setOf(HandLandmarkId.MIDDLE_PIP)), hand(200, curl = 70f, thumbCrossing = true, predicted = setOf(HandLandmarkId.MIDDLE_PIP)), hand(400, curl = 70f, thumbCrossing = true, predicted = setOf(HandLandmarkId.MIDDLE_PIP)), hand(600, curl = 70f, thumbCrossing = true, predicted = setOf(HandLandmarkId.MIDDLE_PIP)), hand(800, curl = 70f, thumbCrossing = true, predicted = setOf(HandLandmarkId.MIDDLE_PIP))),
         ).last()
         val missing = runStep(
             HandLessonStep.FRONT_TWO_KNUCKLES,
-            listOf(hand(0, curl = 70f, missing = setOf(HandLandmarkId.LITTLE_DIP)), hand(200, curl = 70f, missing = setOf(HandLandmarkId.LITTLE_DIP)), hand(400, curl = 70f, missing = setOf(HandLandmarkId.LITTLE_DIP)), hand(600, curl = 70f, missing = setOf(HandLandmarkId.LITTLE_DIP)), hand(800, curl = 70f, missing = setOf(HandLandmarkId.LITTLE_DIP))),
+            listOf(hand(0, curl = 70f, thumbCrossing = true, missing = setOf(HandLandmarkId.LITTLE_DIP)), hand(200, curl = 70f, thumbCrossing = true, missing = setOf(HandLandmarkId.LITTLE_DIP)), hand(400, curl = 70f, thumbCrossing = true, missing = setOf(HandLandmarkId.LITTLE_DIP)), hand(600, curl = 70f, thumbCrossing = true, missing = setOf(HandLandmarkId.LITTLE_DIP)), hand(800, curl = 70f, thumbCrossing = true, missing = setOf(HandLandmarkId.LITTLE_DIP))),
+        ).last()
+        assertFalse(predicted.accepted)
+        assertFalse(missing.accepted)
+    }
+
+    @Test fun knuckleStepCannotAcceptWhenThumbLandmarksArePredictedOrMissing() {
+        val predicted = runStep(
+            HandLessonStep.FRONT_TWO_KNUCKLES,
+            listOf(hand(0, curl = 70f, thumbCrossing = true, predicted = setOf(HandLandmarkId.THUMB_TIP)), hand(200, curl = 70f, thumbCrossing = true, predicted = setOf(HandLandmarkId.THUMB_TIP)), hand(400, curl = 70f, thumbCrossing = true, predicted = setOf(HandLandmarkId.THUMB_TIP)), hand(600, curl = 70f, thumbCrossing = true, predicted = setOf(HandLandmarkId.THUMB_TIP)), hand(800, curl = 70f, thumbCrossing = true, predicted = setOf(HandLandmarkId.THUMB_TIP))),
+        ).last()
+        val missing = runStep(
+            HandLessonStep.FRONT_TWO_KNUCKLES,
+            listOf(hand(0, curl = 70f, thumbCrossing = true, missing = setOf(HandLandmarkId.THUMB_TIP)), hand(200, curl = 70f, thumbCrossing = true, missing = setOf(HandLandmarkId.THUMB_TIP)), hand(400, curl = 70f, thumbCrossing = true, missing = setOf(HandLandmarkId.THUMB_TIP)), hand(600, curl = 70f, thumbCrossing = true, missing = setOf(HandLandmarkId.THUMB_TIP)), hand(800, curl = 70f, thumbCrossing = true, missing = setOf(HandLandmarkId.THUMB_TIP))),
         ).last()
         assertFalse(predicted.accepted)
         assertFalse(missing.accepted)
@@ -416,7 +429,7 @@ class FindYourWeaponTemporalVerifierTest {
         finger(map, HandLandmarkId.MIDDLE_MCP, HandLandmarkId.MIDDLE_PIP, HandLandmarkId.MIDDLE_DIP, HandLandmarkId.MIDDLE_TIP, -.2f, 1f, curl, scale, offset, mirror, mcpDirection)
         finger(map, HandLandmarkId.RING_MCP, HandLandmarkId.RING_PIP, HandLandmarkId.RING_DIP, HandLandmarkId.RING_TIP, .2f, 1f, curl, scale, offset, mirror, mcpDirection)
         finger(map, HandLandmarkId.LITTLE_MCP, HandLandmarkId.LITTLE_PIP, HandLandmarkId.LITTLE_DIP, HandLandmarkId.LITTLE_TIP, .6f, 1f, curl, scale, offset, mirror, mcpDirection)
-        val thumbTipX = if (thumbCrossing) 0.05f else -1.15f
+        val thumbTipX = if (thumbCrossing) 0.05f else -2.2f
         map[HandLandmarkId.THUMB_CMC] = transform(-.75f, .45f, scale, offset, mirror)
         map[HandLandmarkId.THUMB_MCP] = transform(-.95f, .9f, scale, offset, mirror)
         map[HandLandmarkId.THUMB_IP] = transform(thumbTipX - .2f, 1.1f, scale, offset, mirror)

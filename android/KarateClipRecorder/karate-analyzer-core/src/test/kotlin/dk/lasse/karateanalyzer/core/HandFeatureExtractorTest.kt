@@ -61,6 +61,7 @@ class HandFeatureExtractorTest {
         val moved = extractor.extract(openHand(Handedness.RIGHT, scale = 3f, offset = Point3(10f, -7f, 2f)))
         assertEquals(base.index.tipToMcpRatio!!, moved.index.tipToMcpRatio!!, 0.001f)
         assertEquals(base.openPalmScore!!, moved.openPalmScore!!, 0.001f)
+        assertEquals(base.thumb.tipInsideIndexBoundaryRatio!!, moved.thumb.tipInsideIndexBoundaryRatio!!, 0.001f)
     }
 
     @Test fun mirroredHandsProduceComparableScores() {
@@ -77,13 +78,74 @@ class HandFeatureExtractorTest {
         val leftCrossed = extractor.extract(openHand(Handedness.LEFT, thumbCrossing = true)).thumb
         val unknownExtended = extractor.extract(openHand(Handedness.UNKNOWN, thumbCrossing = false)).thumb
         val unknownCrossed = extractor.extract(openHand(Handedness.UNKNOWN, thumbCrossing = true)).thumb
+        val rightAtIndexEdge = extractor.extract(openHand(Handedness.RIGHT, thumbTipX = -0.7f)).thumb
+        val rightOutsideIndexEdge = extractor.extract(openHand(Handedness.RIGHT, thumbTipX = -0.9f)).thumb
         assertEquals(false, rightExtended.crossesPalmAxis)
         assertEquals(true, rightCrossed.crossesPalmAxis)
         assertEquals(rightExtended.crossesPalmAxis, leftExtended.crossesPalmAxis)
         assertEquals(rightCrossed.crossesPalmAxis, leftCrossed.crossesPalmAxis)
         assertEquals(false, unknownExtended.crossesPalmAxis)
         assertEquals(true, unknownCrossed.crossesPalmAxis)
+        assertTrue(rightExtended.tipLateralToPalmRatio!! < 0f)
+        assertTrue(rightCrossed.tipLateralToPalmRatio!! > 0f)
+        assertEquals(false, rightExtended.tipInsideIndexBoundary)
+        assertEquals(true, rightCrossed.tipInsideIndexBoundary)
+        assertTrue(rightExtended.tipInsideIndexBoundaryRatio!! < 0f)
+        assertTrue(rightCrossed.tipInsideIndexBoundaryRatio!! > 0f)
+        assertEquals(true, rightAtIndexEdge.tipInsideIndexBoundary)
+        assertEquals(false, rightOutsideIndexEdge.tipInsideIndexBoundary)
+        assertEquals(0.083f, rightAtIndexEdge.tipInsideIndexBoundaryRatio!!, 0.001f)
+        assertEquals(-0.083f, rightOutsideIndexEdge.tipInsideIndexBoundaryRatio!!, 0.001f)
+        assertEquals(rightExtended.tipInsideIndexBoundaryRatio!!, leftExtended.tipInsideIndexBoundaryRatio!!, 0.001f)
         assertNotNull(rightExtended.tipToIndexMcpRatio)
+    }
+
+    @Test fun thumbOpenClosedScoresUseWeightedFingerDistances() {
+        val open = extractor.extract(openHand(Handedness.RIGHT, thumbCrossing = false)).thumb
+        val closed = extractor.extract(openHand(Handedness.RIGHT, thumbCrossing = true)).thumb
+        val leftOpen = extractor.extract(openHand(Handedness.LEFT, thumbCrossing = false)).thumb
+        val movedOpen = extractor.extract(openHand(Handedness.RIGHT, thumbCrossing = false, scale = 3f, offset = Point3(4f, -2f, 1f))).thumb
+
+        assertTrue(open.openScore!! > closed.openScore!!)
+        assertTrue(closed.closedScore!! > open.closedScore!!)
+        assertTrue(open.weightedFingerDistanceRatio!! > closed.weightedFingerDistanceRatio!!)
+        assertEquals(open.openScore!!, leftOpen.openScore!!, 0.001f)
+        assertEquals(open.closedScore!!, movedOpen.closedScore!!, 0.001f)
+        assertEquals(open.weightedFingerDistanceRatio!!, movedOpen.weightedFingerDistanceRatio!!, 0.001f)
+    }
+
+    @Test fun thumbOpenClosedScoresAreNullWithoutUsableDistanceInputs() {
+        val degenerate = extractor.extract(openHand(Handedness.RIGHT, scale = 0f)).thumb
+        val missingFingers = extractor.extract(
+            openHand(
+                Handedness.RIGHT,
+                missing = setOf(
+                    HandLandmarkId.INDEX_MCP,
+                    HandLandmarkId.INDEX_PIP,
+                    HandLandmarkId.INDEX_DIP,
+                    HandLandmarkId.INDEX_TIP,
+                    HandLandmarkId.MIDDLE_MCP,
+                    HandLandmarkId.MIDDLE_PIP,
+                    HandLandmarkId.MIDDLE_DIP,
+                    HandLandmarkId.MIDDLE_TIP,
+                    HandLandmarkId.RING_MCP,
+                    HandLandmarkId.RING_PIP,
+                    HandLandmarkId.RING_DIP,
+                    HandLandmarkId.RING_TIP,
+                    HandLandmarkId.LITTLE_MCP,
+                    HandLandmarkId.LITTLE_PIP,
+                    HandLandmarkId.LITTLE_DIP,
+                    HandLandmarkId.LITTLE_TIP,
+                ),
+            ),
+        ).thumb
+
+        assertNull(degenerate.weightedFingerDistanceRatio)
+        assertNull(degenerate.openScore)
+        assertNull(degenerate.closedScore)
+        assertNull(missingFingers.weightedFingerDistanceRatio)
+        assertNull(missingFingers.openScore)
+        assertNull(missingFingers.closedScore)
     }
 
     @Test fun missingThumbTipProducesNullThumbTipMeasurements() {
@@ -91,12 +153,16 @@ class HandFeatureExtractorTest {
         assertNull(features.thumb.ipAngleDegrees)
         assertNull(features.thumb.tipToPalmRatio)
         assertNull(features.thumb.crossesPalmAxis)
+        assertNull(features.thumb.tipInsideIndexBoundaryRatio)
+        assertNull(features.thumb.tipInsideIndexBoundary)
     }
 
     @Test fun missingOneFingerJointNullsDependentMeasurementsWithoutCrashing() {
         val features = extractor.extract(openHand(Handedness.RIGHT, missing = setOf(HandLandmarkId.INDEX_PIP)))
         assertNull(features.index.pipAngleDegrees)
         assertNull(features.index.mcpAngleDegrees)
+        assertNull(features.thumb.tipInsideIndexBoundaryRatio)
+        assertNull(features.thumb.tipInsideIndexBoundary)
         assertNotNull(features.middle.extensionScore)
     }
 
@@ -128,7 +194,7 @@ class HandFeatureExtractorTest {
     }
 
     private fun assertFinite(features: HandFeatures) {
-        val floats = listOfNotNull(features.palmWidth, features.index.mcpAngleDegrees, features.index.pipAngleDegrees, features.index.dipAngleDegrees, features.index.curlScore, features.openPalmScore, features.fourFingerCurlScore, features.dataQuality)
+        val floats = listOfNotNull(features.palmWidth, features.index.mcpAngleDegrees, features.index.pipAngleDegrees, features.index.dipAngleDegrees, features.index.curlScore, features.openPalmScore, features.fourFingerCurlScore, features.thumb.weightedFingerDistanceRatio, features.thumb.openScore, features.thumb.closedScore, features.dataQuality)
         assertTrue(floats.all { it.isFinite() })
     }
 
@@ -143,7 +209,7 @@ class HandFeatureExtractorTest {
         assertTrue(cross.dot(palm.zAxis)!! > 0.999f)
     }
 
-    private fun openHand(handedness: Handedness, pipAngle: Float = 175f, dipAngle: Float = 175f, scale: Float = 1f, offset: Point3 = Point3(0f, 0f, 0f), thumbCrossing: Boolean = false, missing: Set<HandLandmarkId> = emptySet(), source: LandmarkSource = LandmarkSource.OBSERVED, noise: Float = 0f, skewPalm: Boolean = false): TrackedHandFrame {
+    private fun openHand(handedness: Handedness, pipAngle: Float = 175f, dipAngle: Float = 175f, scale: Float = 1f, offset: Point3 = Point3(0f, 0f, 0f), thumbCrossing: Boolean = false, missing: Set<HandLandmarkId> = emptySet(), source: LandmarkSource = LandmarkSource.OBSERVED, noise: Float = 0f, skewPalm: Boolean = false, thumbTipX: Float? = null): TrackedHandFrame {
         val mirror = if (handedness == Handedness.LEFT) -1f else 1f
         val map = mutableMapOf<HandLandmarkId, Point3>()
         map[HandLandmarkId.WRIST] = p(0f, 0f, scale, offset, mirror)
@@ -151,7 +217,7 @@ class HandFeatureExtractorTest {
         finger(map, HandLandmarkId.MIDDLE_MCP, HandLandmarkId.MIDDLE_PIP, HandLandmarkId.MIDDLE_DIP, HandLandmarkId.MIDDLE_TIP, -0.2f, if (skewPalm) 1.25f else 1f, pipAngle, dipAngle, scale, offset, mirror)
         finger(map, HandLandmarkId.RING_MCP, HandLandmarkId.RING_PIP, HandLandmarkId.RING_DIP, HandLandmarkId.RING_TIP, 0.2f, if (skewPalm) 0.95f else 1f, pipAngle, dipAngle, scale, offset, mirror)
         finger(map, HandLandmarkId.LITTLE_MCP, HandLandmarkId.LITTLE_PIP, HandLandmarkId.LITTLE_DIP, HandLandmarkId.LITTLE_TIP, 0.6f, if (skewPalm) 0.75f else 1f, pipAngle, dipAngle, scale, offset, mirror)
-        val tx = if (thumbCrossing) 0.45f else -1.1f
+        val tx = thumbTipX ?: if (thumbCrossing) 0.45f else -2.2f
         map[HandLandmarkId.THUMB_CMC] = p(-0.75f, 0.45f, scale, offset, mirror)
         map[HandLandmarkId.THUMB_MCP] = p(-0.95f, 0.9f, scale, offset, mirror)
         map[HandLandmarkId.THUMB_IP] = p((tx - 0.2f), 1.1f, scale, offset, mirror)

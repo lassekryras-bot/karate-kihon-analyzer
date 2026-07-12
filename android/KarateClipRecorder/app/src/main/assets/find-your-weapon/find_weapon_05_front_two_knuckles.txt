@@ -1,3 +1,0 @@
-Placeholder for find_weapon_05_front_two_knuckles.
-Replace this placeholder with the real front-two-knuckles tutorial image when image assets are ready.
-Suggested final Android drawable resource name: find_weapon_05_front_two_knuckles.

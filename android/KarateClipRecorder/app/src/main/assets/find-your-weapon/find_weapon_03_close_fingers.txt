@@ -1,3 +1,0 @@
-Placeholder for find_weapon_03_close_fingers.
-Replace this placeholder with the real close-fingers tutorial image when image assets are ready.
-Suggested final Android drawable resource name: find_weapon_03_close_fingers.

@@ -3,3 +3,7 @@ output/
 __pycache__/
 *.pyc
 *.egg-info/
+.idea/
+android/.idea/
+debug_run_main.py
+temp_*.py

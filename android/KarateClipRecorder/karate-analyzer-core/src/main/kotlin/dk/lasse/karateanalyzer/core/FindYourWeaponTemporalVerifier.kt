@@ -290,7 +290,7 @@ class FindYourWeaponTemporalVerifier(
         HandLessonStep.BEND_FINGERTIPS -> temporalFourFingerCriticalLandmarks
         HandLessonStep.CLOSE_FINGERS -> temporalFourFingerCriticalLandmarks
         HandLessonStep.THUMB_ON_TOP -> temporalFourFingerCriticalLandmarks + temporalThumbCriticalLandmarks
-        HandLessonStep.FRONT_TWO_KNUCKLES -> temporalFourFingerCriticalLandmarks
+        HandLessonStep.FRONT_TWO_KNUCKLES -> temporalFourFingerCriticalLandmarks + temporalThumbCriticalLandmarks
     }
 }
 

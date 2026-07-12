@@ -10,10 +10,12 @@ import android.view.View
 import android.view.ViewGroup
 import android.widget.Button
 import android.widget.FrameLayout
+import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.TextView
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
+import androidx.appcompat.widget.SwitchCompat
 import androidx.camera.view.PreviewView
 import androidx.core.content.ContextCompat
 import androidx.core.view.ViewCompat
@@ -26,6 +28,7 @@ import dk.lasse.karatecliprecorder.captureprofile.CaptureFpsRange
 import dk.lasse.karatecliprecorder.captureprofile.SelectedCaptureProfile
 import dk.lasse.karatecliprecorder.learning.FindYourWeaponAnalysisCoordinator
 import dk.lasse.karatecliprecorder.learning.FindYourWeaponAnalysisState
+import dk.lasse.karatecliprecorder.learning.FindYourWeaponDebugOverlayView
 import dk.lasse.karatecliprecorder.learning.FindYourWeaponSessionController
 import dk.lasse.karatecliprecorder.learning.FindYourWeaponState
 import dk.lasse.karatecliprecorder.learning.FindYourWeaponStep
@@ -44,8 +47,11 @@ class MainActivity : AppCompatActivity() {
     private lateinit var cancelSessionButton: Button
     private lateinit var findYourWeaponBackButton: Button
     private lateinit var findYourWeaponNextButton: Button
+    private lateinit var debugSwitch: SwitchCompat
     private lateinit var handGuideOverlayView: HandGuideOverlayView
-    private lateinit var findYourWeaponAssetText: TextView
+    private lateinit var findYourWeaponImage: ImageView
+    private lateinit var findYourWeaponDebugOverlayView: FindYourWeaponDebugOverlayView
+    private lateinit var debugScopeText: TextView
     private lateinit var statusText: TextView
     private lateinit var currentCountText: TextView
     private lateinit var currentStrikeText: TextView
@@ -60,6 +66,7 @@ class MainActivity : AppCompatActivity() {
     private var findYourWeaponController: FindYourWeaponSessionController? = null
     private var guidedSessionActive = false
     private var findYourWeaponActive = false
+    private var debugUiVisible = false
     private var latestGuidedState = GuidedSessionState.IDLE
     private var trainingOrderPlayer: TrainingOrderPlayer? = null
     private var recognizerRunner: LiveGestureRecognizerRunner? = null
@@ -105,10 +112,26 @@ class MainActivity : AppCompatActivity() {
             visibility = View.GONE
         }
 
-        findYourWeaponAssetText = sessionText("Tutorial image placeholder: none", 14f).apply {
+        findYourWeaponImage = ImageView(this).apply {
+            layoutParams = FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.MATCH_PARENT,
+            )
+            alpha = 0.72f
+            setPadding(64.dp(), 96.dp(), 64.dp(), 220.dp())
+            scaleType = ImageView.ScaleType.FIT_CENTER
             visibility = View.GONE
         }
 
+        findYourWeaponDebugOverlayView = FindYourWeaponDebugOverlayView(this).apply {
+            layoutParams = FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.MATCH_PARENT,
+            )
+            visibility = View.GONE
+        }
+
+        debugScopeText = sessionText("Debug: camera", 14f)
         statusText = sessionText("Status: waiting for camera permission", 16f)
         currentCountText = sessionText("Count: none", 20f)
         currentStrikeText = sessionText("Strike: none", 14f)
@@ -150,6 +173,16 @@ class MainActivity : AppCompatActivity() {
             visibility = View.GONE
             setOnClickListener { findYourWeaponController?.next() }
         }
+        debugSwitch = SwitchCompat(this).apply {
+            text = "Debug"
+            setTextColor(Color.WHITE)
+            isChecked = false
+            setOnCheckedChangeListener { _, checked ->
+                debugUiVisible = checked
+                if (!checked) findYourWeaponDebugOverlayView.setOverlay(null)
+                updateControlVisibility()
+            }
+        }
 
         val controls = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
@@ -157,13 +190,14 @@ class MainActivity : AppCompatActivity() {
             setBackgroundColor(0x66000000)
             addView(startSessionButton)
             addView(findYourWeaponButton)
+            addView(findYourWeaponNextButton)
+            addView(debugSwitch)
             addView(cancelSessionButton)
             addView(findYourWeaponBackButton)
-            addView(findYourWeaponNextButton)
+            addView(debugScopeText)
             addView(statusText)
             addView(currentCountText)
             addView(currentStrikeText)
-            addView(findYourWeaponAssetText)
             addView(expectedSideText)
             addView(recordingStateText)
             addView(savedClipText)
@@ -175,6 +209,8 @@ class MainActivity : AppCompatActivity() {
         val root = FrameLayout(this).apply {
             addView(previewView)
             addView(handGuideOverlayView)
+            addView(findYourWeaponImage)
+            addView(findYourWeaponDebugOverlayView)
             addView(
                 controls,
                 FrameLayout.LayoutParams(
@@ -193,6 +229,7 @@ class MainActivity : AppCompatActivity() {
         }
         setContentView(root)
         ViewCompat.requestApplyInsets(root)
+        updateControlVisibility()
     }
 
     private fun Int.dp(): Int = (this * resources.displayMetrics.density).toInt()
@@ -294,6 +331,7 @@ class MainActivity : AppCompatActivity() {
                 recognizerState = recognizerState,
             ),
         )
+        findYourWeaponController?.start()
         recognizerExecutor.execute {
             val runner = createRecognizerRunner()
             runOnMainThread {
@@ -301,7 +339,7 @@ class MainActivity : AppCompatActivity() {
                 recognizerRunner = runner
                 recognizerState = runner.lifecycleState
                 if (runner.initializationSucceeded()) {
-                    findYourWeaponController?.start()
+                    recordingAdapter?.setAnalysisEnabled(findYourWeaponActive && findYourWeaponController?.state?.step != null)
                 } else {
                     recordingAdapter?.setAnalysisEnabled(false)
                 }
@@ -326,6 +364,7 @@ class MainActivity : AppCompatActivity() {
         val cameraReady = state == RecordingState.IDLE || state == RecordingState.SAVED || state == RecordingState.FAILED
         startSessionButton.isEnabled = cameraReady && !guidedSessionActive && !findYourWeaponActive
         findYourWeaponButton.isEnabled = cameraReady && !guidedSessionActive && !findYourWeaponActive
+        updateControlVisibility()
     }
 
     private fun updateGuidedState(state: GuidedSessionState) {
@@ -335,6 +374,7 @@ class MainActivity : AppCompatActivity() {
         startSessionButton.isEnabled = !guidedSessionActive && !findYourWeaponActive
         findYourWeaponButton.isEnabled = !guidedSessionActive && !findYourWeaponActive
         cancelSessionButton.isEnabled = guidedSessionActive || findYourWeaponActive
+        updateControlVisibility()
         TrainingOrderMapper.fromSessionState(state)?.let(::playTrainingOrder)
     }
 
@@ -342,10 +382,8 @@ class MainActivity : AppCompatActivity() {
     private fun updateFindYourWeaponState(state: FindYourWeaponState) {
         findYourWeaponActive = state.isActive
         val step = state.step
-        handGuideOverlayView.visibility = if (step == FindYourWeaponStep.OPEN_PALM && state.isActive) View.VISIBLE else View.GONE
-        findYourWeaponAssetText.visibility = if (state.isActive && step != null) View.VISIBLE else View.GONE
-        findYourWeaponBackButton.visibility = if (state.isActive) View.VISIBLE else View.GONE
-        findYourWeaponNextButton.visibility = if (state.isActive) View.VISIBLE else View.GONE
+        handGuideOverlayView.visibility = View.GONE
+        if (!state.isActive) findYourWeaponDebugOverlayView.setOverlay(null)
         analysisCoordinator?.setActiveStep(if (state.isActive) step else null)
         recordingAdapter?.setAnalysisEnabled(state.isActive && step != null)
         if (!state.isActive) { analysisCoordinator?.reset() }
@@ -355,7 +393,7 @@ class MainActivity : AppCompatActivity() {
             currentCountText.text = content.instruction
             currentStrikeText.text = content.detail
             expectedSideText.text = "Step: ${content.stepNumber} / ${FindYourWeaponStep.entries.size}"
-            findYourWeaponAssetText.text = "Tutorial image placeholder: ${content.placeholderFileName}"
+            findYourWeaponImage.setImageResource(content.imageResId)
             findYourWeaponBackButton.isEnabled = step != FindYourWeaponStep.OPEN_PALM
             findYourWeaponNextButton.text = if (step == FindYourWeaponStep.FRONT_TWO_KNUCKLES) "Finish" else "Next"
         } else {
@@ -363,12 +401,49 @@ class MainActivity : AppCompatActivity() {
             currentCountText.text = "Count: none"
             currentStrikeText.text = "Strike: none"
             expectedSideText.text = "Expected side: none"
-            findYourWeaponAssetText.text = "Tutorial image placeholder: none"
+            findYourWeaponImage.setImageDrawable(null)
             findYourWeaponNextButton.text = "Next"
         }
         startSessionButton.isEnabled = !guidedSessionActive && !findYourWeaponActive
         findYourWeaponButton.isEnabled = !guidedSessionActive && !findYourWeaponActive
         cancelSessionButton.isEnabled = guidedSessionActive || findYourWeaponActive
+        updateControlVisibility()
+    }
+
+    private fun updateControlVisibility() {
+        val idle = !guidedSessionActive && !findYourWeaponActive
+        val active = guidedSessionActive || findYourWeaponActive
+        val debugScope = currentDebugScope()
+
+        startSessionButton.visibility = if (idle) View.VISIBLE else View.GONE
+        findYourWeaponButton.visibility = if (idle) View.VISIBLE else View.GONE
+        findYourWeaponImage.visibility = if (findYourWeaponActive && findYourWeaponController?.state?.step != null) View.VISIBLE else View.GONE
+        findYourWeaponDebugOverlayView.visibility = if (debugUiVisible && findYourWeaponActive && findYourWeaponController?.state?.step != null) View.VISIBLE else View.GONE
+        findYourWeaponNextButton.visibility = if (findYourWeaponActive) View.VISIBLE else View.GONE
+        findYourWeaponBackButton.visibility = if (debugUiVisible && findYourWeaponActive) View.VISIBLE else View.GONE
+        cancelSessionButton.visibility = if (debugUiVisible && active) View.VISIBLE else View.GONE
+
+        debugScopeText.text = "Debug: ${debugScope.label}"
+        debugScopeText.visibleWhen(debugUiVisible)
+        statusText.visibleWhen(debugUiVisible && debugScope != DebugScope.CAMERA)
+        currentCountText.visibleWhen(debugUiVisible && debugScope != DebugScope.CAMERA)
+        currentStrikeText.visibleWhen(debugUiVisible && debugScope != DebugScope.CAMERA)
+        expectedSideText.visibleWhen(debugUiVisible && debugScope != DebugScope.CAMERA)
+        recordingStateText.visibleWhen(debugUiVisible && debugScope != DebugScope.FIND_YOUR_WEAPON)
+        savedClipText.visibleWhen(debugUiVisible && debugScope != DebugScope.FIND_YOUR_WEAPON)
+        captureProfileText.visibleWhen(debugUiVisible && debugScope != DebugScope.FIND_YOUR_WEAPON)
+        analyzerDebugText.visibleWhen(debugUiVisible && debugScope == DebugScope.FIND_YOUR_WEAPON)
+        metadataPathText.visibleWhen(debugUiVisible && debugScope != DebugScope.FIND_YOUR_WEAPON)
+    }
+
+    private fun currentDebugScope(): DebugScope = when {
+        findYourWeaponActive -> DebugScope.FIND_YOUR_WEAPON
+        guidedSessionActive -> DebugScope.GUIDED_SESSION
+        else -> DebugScope.CAMERA
+    }
+
+    private fun View.visibleWhen(visible: Boolean) {
+        visibility = if (visible) View.VISIBLE else View.GONE
     }
 
     private fun createRecognizerRunner(): LiveGestureRecognizerRunner = LiveGestureRecognizerRunner(
@@ -381,8 +456,13 @@ class MainActivity : AppCompatActivity() {
     )
 
     private fun updateAnalysisState(state: FindYourWeaponAnalysisState) {
+        findYourWeaponDebugOverlayView.setOverlay(
+            if (debugUiVisible && findYourWeaponActive && state.activeStep != null) state.debugOverlay else null,
+        )
         analyzerDebugText.text = if (state.errorMessage != null) {
             "Analyzer error: ${state.errorMessage}"
+        } else if (state.recognizerState == RecognizerLifecycleState.INITIALIZING) {
+            "Analyzer: initializing"
         } else if (state.activeStep == null) {
             "Analyzer: inactive"
         } else {
@@ -402,6 +482,11 @@ class MainActivity : AppCompatActivity() {
                 "Reliable ratio: ${state.temporalResult?.weightedReliableRatio?.format2() ?: "--"}",
                 "OpenPalm: ${state.openPalmGestureScore?.format2() ?: "--"}",
                 "ClosedFist: ${state.closedFistGestureScore?.format2() ?: "--"}",
+                "Thumb open: ${state.thumbOpenScore?.format2() ?: "--"}",
+                "Thumb closed: ${state.thumbClosedScore?.format2() ?: "--"}",
+                "Thumb distance: ${state.thumbFingerDistanceRatio?.format2() ?: "--"}",
+                "Thumb inside: ${state.thumbInsideBoundary?.let { it.toString() } ?: "--"}",
+                "Thumb line: ${state.thumbInsideBoundaryRatio?.format2() ?: "--"}",
                 "Timestamp: ${state.timestampMs ?: "--"}",
                 "Frames: submitted=${submittedFrameCount.get()} processed=${processedFrameCount.get()} dropped=${droppedFrameCount.get()}",
                 "Recognizer: ${state.recognizerState.name.lowercase()}",
@@ -472,35 +557,35 @@ class MainActivity : AppCompatActivity() {
             title = "Find Your Weapon",
             instruction = "Place your open palm inside the blue hand guide.",
             detail = "Keep your fingers open and face your palm toward the camera.",
-            placeholderFileName = "find_weapon_01_open_palm.txt",
+            imageResId = R.drawable.find_weapon_01_open_palm,
         )
         FindYourWeaponStep.BEND_FINGERTIPS -> FindYourWeaponStepContent(
             stepNumber = 2,
             title = "Find Your Weapon",
             instruction = "Bend the top parts of your fingers.",
             detail = "Start by folding the fingertips.",
-            placeholderFileName = "find_weapon_02_bend_fingertips.txt",
+            imageResId = R.drawable.find_weapon_02_bend_fingertips,
         )
         FindYourWeaponStep.CLOSE_FINGERS -> FindYourWeaponStepContent(
             stepNumber = 3,
             title = "Find Your Weapon",
             instruction = "Close your fingers into your palm.",
             detail = "Make the fist shape.",
-            placeholderFileName = "find_weapon_03_close_fingers.txt",
+            imageResId = R.drawable.find_weapon_03_close_fingers,
         )
         FindYourWeaponStep.THUMB_ON_TOP -> FindYourWeaponStepContent(
             stepNumber = 4,
             title = "Find Your Weapon",
             instruction = "Place your thumb across the front of your fingers.",
             detail = "Keep the fist firm but relaxed.",
-            placeholderFileName = "find_weapon_04_thumb_on_top.txt",
+            imageResId = R.drawable.find_weapon_04_thumb_on_top,
         )
         FindYourWeaponStep.FRONT_TWO_KNUCKLES -> FindYourWeaponStepContent(
             stepNumber = 5,
             title = "Find Your Weapon",
             instruction = "These two front knuckles are your weapon.",
             detail = "Aim with the index and middle knuckles.",
-            placeholderFileName = "find_weapon_05_front_two_knuckles.txt",
+            imageResId = R.drawable.find_weapon_05_front_two_knuckles,
         )
     }
 
@@ -509,7 +594,7 @@ class MainActivity : AppCompatActivity() {
         val title: String,
         val instruction: String,
         val detail: String,
-        val placeholderFileName: String,
+        val imageResId: Int,
     )
 
     companion object {
@@ -521,4 +606,10 @@ class MainActivity : AppCompatActivity() {
             GuidedSessionState.SAVING,
         )
     }
+}
+
+private enum class DebugScope(val label: String) {
+    CAMERA("camera"),
+    GUIDED_SESSION("guided session"),
+    FIND_YOUR_WEAPON("Find Your Weapon"),
 }

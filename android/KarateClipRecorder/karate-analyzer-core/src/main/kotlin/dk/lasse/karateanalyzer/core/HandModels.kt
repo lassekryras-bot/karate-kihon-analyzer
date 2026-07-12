@@ -74,6 +74,7 @@ enum class FeedbackCode {
     MOVE_INTO_GUIDE,
     MOVE_CLOSER,
     OPEN_FINGERS,
+    OPEN_THUMB,
     BEND_FINGERTIPS_MORE,
     DO_NOT_CLOSE_YET,
     FINGERS_UNEVEN,

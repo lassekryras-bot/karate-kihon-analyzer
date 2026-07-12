@@ -57,6 +57,7 @@ data class FindYourWeaponVerifierConfiguration(
     val matchingScoreThreshold: Float = 0.78f,
     val partialMatchScoreThreshold: Float = 0.45f,
     val openPalmExtensionThreshold: Float = 0.78f,
+    val openPalmFacingCameraTolerance: Float = 0.20f,
     val fingertipBendCurlRange: ClosedFloatingPointRange<Float> = 0.30f..0.68f,
     val fingertipBendCurlFalloff: Float = 0.18f,
     val fingertipBendTipToPalmRatioRange: ClosedFloatingPointRange<Float> = 0.45f..1.55f,
@@ -66,7 +67,13 @@ data class FindYourWeaponVerifierConfiguration(
     val closedTipToPalmRatioThreshold: Float = 0.85f,
     val thumbAcrossMaxKnuckleDistance: Float = 0.90f,
     val thumbAcrossMinimumClosenessScore: Float = 0.35f,
+    val thumbAcrossMinimumInsideFistScore: Float = 0.20f,
+    val thumbAcrossMinimumLateralRatio: Float = -0.55f,
     val thumbFarOutsidePalmRatio: Float = 1.70f,
+    val thumbOpenScoreThreshold: Float = 0.55f,
+    val thumbClosedScoreThreshold: Float = 0.45f,
+    val thumbInsideHandBoundaryThreshold: Float = 0.02f,
+    val thumbOutsideHandBoundaryTolerance: Float = 0.00f,
     val fistOrientationTolerance: Float = 0.55f,
     val minimumVisibleFingerCount: Int = 4,
     val scoreWeights: StepScoreWeights = StepScoreWeights(),
@@ -192,8 +199,71 @@ private abstract class BaseVerifier(
             .coerceIn(0f, 1f)
     }
 
+    protected fun thumbAcrossAssessment(features: HandFeatures): ThumbAcrossAssessment {
+        val nearestKnuckleDistance = listOfNotNull(
+            features.thumb.tipToIndexMcpRatio,
+            features.thumb.tipToMiddleMcpRatio,
+        ).minOrNull()
+        val closeToKnuckle = nearestKnuckleDistance?.let {
+            1f - (it / configuration.thumbAcrossMaxKnuckleDistance).coerceIn(0f, 1f)
+        }
+        val insideFist = features.thumb.tipToPalmRatio?.let {
+            1f - (it / configuration.thumbFarOutsidePalmRatio).coerceIn(0f, 1f)
+        }
+        val lateralAcross = features.thumb.tipLateralToPalmRatio?.let {
+            ((it - configuration.thumbAcrossMinimumLateralRatio) / -configuration.thumbAcrossMinimumLateralRatio)
+                .coerceIn(0f, 1f)
+        }
+        val scoreComponent = listOfNotNull(closeToKnuckle, insideFist, lateralAcross)
+            .takeIf { it.size == 3 }
+            ?.average()
+            ?.toFloat()
+        val closedEnough = features.thumb.closedScore?.let { it >= configuration.thumbClosedScoreThreshold } == true
+        val insideIndexBoundary = thumbInsideHandBoundary(features)
+        return ThumbAcrossAssessment(
+            closeToKnuckle = closeToKnuckle,
+            insideFist = insideFist,
+            lateralAcross = lateralAcross,
+            closedScore = features.thumb.closedScore,
+            insideIndexBoundary = insideIndexBoundary,
+            scoreComponent = scoreComponent,
+            isAcross = closeToKnuckle != null &&
+                closeToKnuckle >= configuration.thumbAcrossMinimumClosenessScore &&
+                insideFist != null &&
+                insideFist >= configuration.thumbAcrossMinimumInsideFistScore &&
+                features.thumb.tipLateralToPalmRatio != null &&
+                features.thumb.tipLateralToPalmRatio >= configuration.thumbAcrossMinimumLateralRatio &&
+                insideIndexBoundary &&
+                closedEnough,
+        )
+    }
+
+    protected fun thumbOpenEnough(features: HandFeatures): Boolean =
+        features.thumb.openScore?.let { it >= configuration.thumbOpenScoreThreshold } == true &&
+            thumbOutsideHandBoundary(features)
+
+    protected fun thumbClosedEnough(features: HandFeatures): Boolean =
+        features.thumb.closedScore?.let { it >= configuration.thumbClosedScoreThreshold } == true &&
+            thumbInsideHandBoundary(features)
+
+    protected fun thumbInsideHandBoundary(features: HandFeatures): Boolean =
+        features.thumb.tipInsideIndexBoundaryRatio?.let { it >= configuration.thumbInsideHandBoundaryThreshold } == true
+
+    protected fun thumbOutsideHandBoundary(features: HandFeatures): Boolean =
+        features.thumb.tipInsideIndexBoundaryRatio?.let { it <= configuration.thumbOutsideHandBoundaryTolerance } == true
+
     protected fun clamp(value: Float?): Float = value?.takeIf { it.isFinite() }?.coerceIn(0f, 1f) ?: 0f
 }
+
+private data class ThumbAcrossAssessment(
+    val closeToKnuckle: Float?,
+    val insideFist: Float?,
+    val lateralAcross: Float?,
+    val closedScore: Float?,
+    val insideIndexBoundary: Boolean,
+    val scoreComponent: Float?,
+    val isAcross: Boolean,
+)
 
 private val fourFingerIds = listOf(
     HandLandmarkId.INDEX_MCP,
@@ -228,20 +298,38 @@ private class OpenPalmStepVerifier(
         val usable = usableFingers(features)
         val extensions = usable.mapNotNull { it.extensionScore }
         val averageExtension = mean(extensions)
+        val palmFacingCamera = features.palmCoordinateSystem?.zAxis?.let { zAxis ->
+            when (features.handedness) {
+                Handedness.RIGHT -> zAxis.z
+                Handedness.LEFT -> -zAxis.z
+                Handedness.UNKNOWN -> 0f
+            }
+        }
+        val palmFacingComponent = palmFacingCamera?.let {
+            ((it - configuration.openPalmFacingCameraTolerance) / (1f - configuration.openPalmFacingCameraTolerance))
+                .coerceIn(0f, 1f)
+        }
         val criticalQuality = criticalQuality(openPalmCriticalIds, frame)
+        val thumbOpen = thumbOpenEnough(features)
         val criticalVisible = features.palmCoordinateSystem != null &&
             allPresent(listOf(HandLandmarkId.WRIST), frame) &&
             usable.size >= configuration.minimumVisibleFingerCount &&
             criticalQuality >= configuration.minimumCriticalLandmarkQuality
         val score = features.openPalmScore?.let { openPalmScore ->
             val extensionComponent = (openPalmScore / configuration.openPalmExtensionThreshold).coerceIn(0f, 1f)
-            weighted(extensionComponent, 1f - clamp(features.fourFingerCurlScore), consistency(extensions))
+            weighted(extensionComponent, palmFacingComponent ?: 0f, consistency(extensions))
         }
-        val stepAllowsMatching = averageExtension != null && averageExtension >= configuration.openPalmExtensionThreshold
+        val stepAllowsMatching = averageExtension != null &&
+            averageExtension >= configuration.openPalmExtensionThreshold &&
+            palmFacingCamera != null &&
+            palmFacingCamera >= configuration.openPalmFacingCameraTolerance &&
+            thumbOpen
         val feedback = when {
             !criticalVisible -> FeedbackCode.INSUFFICIENT_VISIBILITY
             features.dataQuality < configuration.minimumOverallDataQuality -> FeedbackCode.HOLD_STILL
+            !thumbOpen -> FeedbackCode.OPEN_THUMB
             clamp(features.fourFingerCurlScore) > 1f - configuration.openPalmExtensionThreshold -> FeedbackCode.OPEN_FINGERS
+            palmFacingCamera == null || palmFacingCamera < configuration.openPalmFacingCameraTolerance -> FeedbackCode.TURN_FIST_TOWARD_CAMERA
             else -> FeedbackCode.GOOD
         }
         return result(
@@ -250,7 +338,7 @@ private class OpenPalmStepVerifier(
             quality = features.dataQuality,
             criticalLandmarksVisible = criticalVisible,
             criticalQuality = criticalQuality,
-            requiredMeasurementsPresent = features.openPalmScore != null && features.fourFingerCurlScore != null,
+            requiredMeasurementsPresent = features.openPalmScore != null && features.fourFingerCurlScore != null && features.thumb.openScore != null && features.thumb.tipInsideIndexBoundaryRatio != null,
             stepAllowsMatching = stepAllowsMatching,
             feedbackCode = feedback,
         )
@@ -271,6 +359,7 @@ private class BendFingertipsStepVerifier(
         val averageCurl = mean(curls)
         val averageMcpAngle = mean(mcpAngles)
         val criticalQuality = criticalQuality(fourFingerIds, frame)
+        val thumbOpen = thumbOpenEnough(features)
         val criticalVisible = usable.size >= configuration.minimumVisibleFingerCount &&
             criticalQuality >= configuration.minimumCriticalLandmarkQuality
         val curlComponent = averageCurl?.let { bendRangeComponent(it) }
@@ -284,10 +373,11 @@ private class BendFingertipsStepVerifier(
         val curlInRange = averageCurl != null && averageCurl in configuration.fingertipBendCurlRange
         val mcpOpen = averageMcpAngle != null && averageMcpAngle >= configuration.fingertipBendMinimumMcpAngleDegrees
         val fingersConsistent = consistency(curls) >= configuration.fingerConsistencyThreshold
-        val stepAllowsMatching = curlInRange && mcpOpen && fingersConsistent
+        val stepAllowsMatching = curlInRange && mcpOpen && fingersConsistent && thumbOpen
         val feedback = when {
             !criticalVisible -> FeedbackCode.INSUFFICIENT_VISIBILITY
             features.dataQuality < configuration.minimumOverallDataQuality -> FeedbackCode.HOLD_STILL
+            !thumbOpen -> FeedbackCode.OPEN_THUMB
             consistency(curls) < configuration.fingerConsistencyThreshold -> FeedbackCode.FINGERS_UNEVEN
             averageMcpAngle != null && averageMcpAngle < configuration.fingertipBendMinimumMcpAngleDegrees -> FeedbackCode.DO_NOT_CLOSE_YET
             averageCurl == null || averageCurl < configuration.fingertipBendCurlRange.start -> FeedbackCode.BEND_FINGERTIPS_MORE
@@ -300,7 +390,7 @@ private class BendFingertipsStepVerifier(
             quality = features.dataQuality,
             criticalLandmarksVisible = criticalVisible,
             criticalQuality = criticalQuality,
-            requiredMeasurementsPresent = averageCurl != null && averageMcpAngle != null && ratioComponent != null,
+            requiredMeasurementsPresent = averageCurl != null && averageMcpAngle != null && ratioComponent != null && features.thumb.openScore != null && features.thumb.tipInsideIndexBoundaryRatio != null,
             stepAllowsMatching = stepAllowsMatching,
             feedbackCode = feedback,
         )
@@ -329,9 +419,10 @@ private class BendFingertipsStepVerifier(
     }
 }
 
-/** Closed fingers; thumb landmarks are deliberately non-critical. Components: curl, tip distance, evenness. */
+/** Closed fingers; step 3 keeps the thumb open while later fist checks can reuse only the finger shape. */
 private class CloseFingersStepVerifier(
     configuration: FindYourWeaponVerifierConfiguration,
+    private val requireOpenThumb: Boolean = true,
 ) : BaseVerifier(configuration) {
     override val step: HandLessonStep = HandLessonStep.CLOSE_FINGERS
 
@@ -340,6 +431,7 @@ private class CloseFingersStepVerifier(
         val curls = usable.mapNotNull { it.curlScore }
         val ratios = usable.mapNotNull { it.tipToPalmRatio }
         val criticalQuality = criticalQuality(fourFingerIds, frame)
+        val thumbOpen = !requireOpenThumb || thumbOpenEnough(features)
         val criticalVisible = usable.size >= configuration.minimumVisibleFingerCount &&
             criticalQuality >= configuration.minimumCriticalLandmarkQuality
         val curlComponent = mean(curls.map { it / configuration.closedFingerCurlThreshold })?.coerceIn(0f, 1f)
@@ -350,10 +442,12 @@ private class CloseFingersStepVerifier(
             null
         }
         val stepAllowsMatching = mean(curls)?.let { it >= configuration.closedFingerCurlThreshold } == true &&
-            consistency(curls) >= configuration.fingerConsistencyThreshold
+            consistency(curls) >= configuration.fingerConsistencyThreshold &&
+            thumbOpen
         val feedback = when {
             !criticalVisible -> FeedbackCode.INSUFFICIENT_VISIBILITY
             features.dataQuality < configuration.minimumOverallDataQuality -> FeedbackCode.HOLD_STILL
+            !thumbOpen -> FeedbackCode.OPEN_THUMB
             curlComponent == null || curlComponent < configuration.partialMatchScoreThreshold -> FeedbackCode.CLOSE_FINGERS_MORE
             consistency(curls) < configuration.fingerConsistencyThreshold -> FeedbackCode.FINGERS_UNEVEN
             else -> FeedbackCode.GOOD
@@ -364,7 +458,7 @@ private class CloseFingersStepVerifier(
             quality = features.dataQuality,
             criticalLandmarksVisible = criticalVisible,
             criticalQuality = criticalQuality,
-            requiredMeasurementsPresent = curlComponent != null && tipComponent != null,
+            requiredMeasurementsPresent = curlComponent != null && tipComponent != null && (!requireOpenThumb || (features.thumb.openScore != null && features.thumb.tipInsideIndexBoundaryRatio != null)),
             stepAllowsMatching = stepAllowsMatching,
             feedbackCode = feedback,
         )
@@ -376,7 +470,7 @@ private class ThumbOnTopStepVerifier(
     configuration: FindYourWeaponVerifierConfiguration,
 ) : BaseVerifier(configuration) {
     override val step: HandLessonStep = HandLessonStep.THUMB_ON_TOP
-    private val closedVerifier = CloseFingersStepVerifier(configuration)
+    private val closedVerifier = CloseFingersStepVerifier(configuration, requireOpenThumb = false)
 
     override fun verify(frame: TrackedHandFrame, features: HandFeatures): InstantStepResult {
         val closed = closedVerifier.verify(frame, features)
@@ -384,19 +478,9 @@ private class ThumbOnTopStepVerifier(
         val thumbTipPresent = thumbTip?.position != null && thumbTip.source != LandmarkSource.MISSING
         val criticalQuality = min(criticalQuality(fourFingerIds, frame), criticalQuality(thumbCriticalIds, frame))
         val criticalVisible = closed.criticalLandmarksVisible && thumbTipPresent
-        val crossesPalm = if (features.thumb.crossesPalmAxis == true) 1f else 0f
-        val nearestKnuckleDistance = listOfNotNull(
-            features.thumb.tipToIndexMcpRatio,
-            features.thumb.tipToMiddleMcpRatio,
-        ).minOrNull()
-        val closeToKnuckle = nearestKnuckleDistance?.let {
-            1f - (it / configuration.thumbAcrossMaxKnuckleDistance).coerceIn(0f, 1f)
-        }
-        val insideFist = features.thumb.tipToPalmRatio?.let {
-            1f - (it / configuration.thumbFarOutsidePalmRatio).coerceIn(0f, 1f)
-        }
-        val score = if (closeToKnuckle != null && insideFist != null) {
-            weighted(closed.score, crossesPalm, (closeToKnuckle + insideFist) / 2f)
+        val thumbAcross = thumbAcrossAssessment(features)
+        val score = if (thumbAcross.scoreComponent != null && thumbAcross.lateralAcross != null && thumbAcross.closedScore != null) {
+            weighted(closed.score, thumbAcross.lateralAcross, (thumbAcross.scoreComponent + thumbAcross.closedScore) / 2f)
         } else {
             null
         }
@@ -404,13 +488,13 @@ private class ThumbOnTopStepVerifier(
             thumbTip?.source != LandmarkSource.PREDICTED
         val stepAllowsMatching = closed.status == InstantVerificationStatus.MATCHING &&
             thumbReliablyObserved &&
-            features.thumb.crossesPalmAxis == true &&
-            closeToKnuckle != null && closeToKnuckle >= configuration.thumbAcrossMinimumClosenessScore
+            thumbAcross.isAcross &&
+            thumbClosedEnough(features)
         val feedback = when {
             !closed.criticalLandmarksVisible -> FeedbackCode.CLOSE_FINGERS_MORE
             !thumbTipPresent -> FeedbackCode.INSUFFICIENT_VISIBILITY
             features.dataQuality < configuration.minimumOverallDataQuality -> FeedbackCode.HOLD_STILL
-            features.thumb.crossesPalmAxis != true || closeToKnuckle == null || closeToKnuckle < configuration.thumbAcrossMinimumClosenessScore -> FeedbackCode.MOVE_THUMB_ACROSS
+            !thumbAcross.isAcross -> FeedbackCode.MOVE_THUMB_ACROSS
             else -> FeedbackCode.GOOD
         }
         return result(
@@ -419,7 +503,7 @@ private class ThumbOnTopStepVerifier(
             quality = min(features.dataQuality, features.thumb.quality),
             criticalLandmarksVisible = criticalVisible,
             criticalQuality = criticalQuality,
-            requiredMeasurementsPresent = thumbTipPresent && closeToKnuckle != null && insideFist != null,
+            requiredMeasurementsPresent = thumbTipPresent && thumbAcross.scoreComponent != null && features.thumb.closedScore != null && features.thumb.tipInsideIndexBoundaryRatio != null,
             stepAllowsMatching = stepAllowsMatching,
             feedbackCode = feedback,
         )
@@ -431,25 +515,26 @@ private class FrontTwoKnucklesStepVerifier(
     configuration: FindYourWeaponVerifierConfiguration,
 ) : BaseVerifier(configuration) {
     override val step: HandLessonStep = HandLessonStep.FRONT_TWO_KNUCKLES
-    private val closedVerifier = CloseFingersStepVerifier(configuration)
+    private val thumbVerifier = ThumbOnTopStepVerifier(configuration)
 
     override fun verify(frame: TrackedHandFrame, features: HandFeatures): InstantStepResult {
-        val closed = closedVerifier.verify(frame, features)
+        val thumb = thumbVerifier.verify(frame, features)
         val usableHighlights = presentLandmarks(frontKnuckleIds, frame)
         val allKnucklesPresent = usableHighlights.containsAll(frontKnuckleIds)
-        val criticalQuality = min(criticalQuality(fourFingerIds, frame), criticalQuality(frontKnuckleIds.toList(), frame))
-        val criticalVisible = closed.criticalLandmarksVisible && allKnucklesPresent && features.palmCoordinateSystem != null
+        val criticalQuality = min(criticalQuality(fourFingerIds + thumbCriticalIds, frame), criticalQuality(frontKnuckleIds.toList(), frame))
+        val criticalVisible = thumb.criticalLandmarksVisible && allKnucklesPresent && features.palmCoordinateSystem != null
         val orientation = features.palmCoordinateSystem?.zAxis?.let { abs(it.z) }
         val orientationComponent = orientation ?: configuration.fistOrientationTolerance
-        val score = weighted(closed.score, if (allKnucklesPresent) 1f else 0f, orientationComponent.coerceIn(0f, 1f))
-        val quality = if (orientation == null) features.dataQuality * 0.8f else features.dataQuality
+        val score = weighted(thumb.score, if (allKnucklesPresent) 1f else 0f, orientationComponent.coerceIn(0f, 1f))
+        val orientationQuality = if (orientation == null) features.dataQuality * 0.8f else features.dataQuality
+        val quality = min(thumb.quality, orientationQuality)
         val orientationAcceptable = orientation == null || orientation >= configuration.fistOrientationTolerance
-        val stepAllowsMatching = closed.status == InstantVerificationStatus.MATCHING && allKnucklesPresent && orientationAcceptable
+        val stepAllowsMatching = thumb.status == InstantVerificationStatus.MATCHING && allKnucklesPresent && orientationAcceptable
         val feedback = when {
-            !closed.criticalLandmarksVisible -> FeedbackCode.CLOSE_FINGERS_MORE
             !allKnucklesPresent -> FeedbackCode.INSUFFICIENT_VISIBILITY
             quality < configuration.minimumOverallDataQuality -> FeedbackCode.HOLD_STILL
             orientation != null && orientation < configuration.fistOrientationTolerance -> FeedbackCode.TURN_FIST_TOWARD_CAMERA
+            thumb.feedbackCode != FeedbackCode.GOOD -> thumb.feedbackCode
             else -> FeedbackCode.GOOD
         }
         return result(
@@ -458,7 +543,7 @@ private class FrontTwoKnucklesStepVerifier(
             quality = quality,
             criticalLandmarksVisible = criticalVisible,
             criticalQuality = criticalQuality,
-            requiredMeasurementsPresent = features.palmCoordinateSystem != null,
+            requiredMeasurementsPresent = features.palmCoordinateSystem != null && thumb.status != InstantVerificationStatus.INSUFFICIENT_DATA,
             stepAllowsMatching = stepAllowsMatching,
             feedbackCode = feedback,
             highlightLandmarks = usableHighlights,

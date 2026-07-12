@@ -30,6 +30,12 @@ data class FingerFeatures(
     val quality: Float,
 )
 
+/** Camera-normalized segment for the live thumb boundary used by Find Your Weapon debug views. */
+data class ThumbBoundaryLine(
+    val start: Point3,
+    val end: Point3,
+)
+
 /** Thumb geometry needed by later step verifiers without deciding whether any step has passed. */
 data class ThumbFeatures(
     val cmcAngleDegrees: Float?,
@@ -38,6 +44,13 @@ data class ThumbFeatures(
     val tipToPalmRatio: Float?,
     val tipToIndexMcpRatio: Float?,
     val tipToMiddleMcpRatio: Float?,
+    val tipLateralToPalmRatio: Float?,
+    val weightedFingerDistanceRatio: Float?,
+    val closedScore: Float?,
+    val openScore: Float?,
+    val tipInsideIndexBoundaryRatio: Float?,
+    val tipInsideIndexBoundary: Boolean?,
+    val indexBoundaryLine: ThumbBoundaryLine?,
     val crossesPalmAxis: Boolean?,
     val quality: Float,
 )
@@ -74,4 +87,7 @@ data class HandFeatureExtractorConfiguration(
         LandmarkSource.MISSING to 0f,
     ),
     val minimumAggregateFingerCount: Int = 3,
+    val thumbNearestFingerPointCount: Int = 3,
+    val thumbClosedDistanceRatio: Float = 0.45f,
+    val thumbOpenDistanceRatio: Float = 1.20f,
 )
