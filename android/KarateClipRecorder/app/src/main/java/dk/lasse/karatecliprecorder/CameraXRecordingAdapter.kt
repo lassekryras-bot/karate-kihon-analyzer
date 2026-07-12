@@ -19,10 +19,10 @@ import androidx.camera.video.VideoCapture
 import androidx.camera.video.VideoRecordEvent
 import androidx.camera.view.PreviewView
 import androidx.core.content.ContextCompat
+import androidx.lifecycle.LifecycleOwner
 import dk.lasse.karatecliprecorder.captureprofile.CameraCapabilityInitializer
 import dk.lasse.karatecliprecorder.captureprofile.CaptureProfileSelector
 import dk.lasse.karatecliprecorder.captureprofile.SelectedCaptureProfile
-import androidx.lifecycle.LifecycleOwner
 import java.io.File
 import java.util.Locale
 import java.util.concurrent.Executor
@@ -61,7 +61,7 @@ class CameraXRecordingAdapter(
         val providerFuture = ProcessCameraProvider.getInstance(context)
         providerFuture.addListener({
             try {
-                val cameraProvider = providerFuture.get()
+                val cameraProvider: ProcessCameraProvider = providerFuture.get()
                 val preview = Preview.Builder().build().also {
                     it.setSurfaceProvider(previewView.surfaceProvider)
                 }
