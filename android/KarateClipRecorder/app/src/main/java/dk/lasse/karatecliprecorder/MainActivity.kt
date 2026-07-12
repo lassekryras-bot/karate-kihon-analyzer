@@ -233,16 +233,11 @@ class MainActivity : AppCompatActivity() {
                     }
                 }
             },
-            onAnalysisPermitRelease = { permit -> (permit as? FramePermit)?.let { recognizerRunner?.releasePermit(it) } },
+            onAnalysisPermitRelease = { permit -> recognizerRunner?.releasePermit(permit) },
             onAnalysisFrame = { bitmap, _, permit ->
-                val framePermit = permit as? FramePermit
-                if (framePermit == null) {
-                    false
-                } else {
-                    val accepted = recognizerRunner?.submit(bitmap, framePermit) ?: false
-                    if (accepted) submittedFrameCount.incrementAndGet()
-                    accepted
-                }
+                val accepted = permit?.let { recognizerRunner?.submit(bitmap, it) } ?: false
+                if (accepted) submittedFrameCount.incrementAndGet()
+                accepted
             },
         )
         recordingAdapter = adapter

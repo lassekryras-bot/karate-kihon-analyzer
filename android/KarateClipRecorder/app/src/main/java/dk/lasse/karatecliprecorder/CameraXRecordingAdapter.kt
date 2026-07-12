@@ -19,10 +19,11 @@ import androidx.camera.video.VideoCapture
 import androidx.camera.video.VideoRecordEvent
 import androidx.camera.view.PreviewView
 import androidx.core.content.ContextCompat
+import androidx.lifecycle.LifecycleOwner
 import dk.lasse.karatecliprecorder.captureprofile.CameraCapabilityInitializer
 import dk.lasse.karatecliprecorder.captureprofile.CaptureProfileSelector
 import dk.lasse.karatecliprecorder.captureprofile.SelectedCaptureProfile
-import androidx.lifecycle.LifecycleOwner
+import dk.lasse.karatecliprecorder.mediapipehandadapter.FramePermit
 import java.io.File
 import java.util.Locale
 import java.util.concurrent.Executor
@@ -41,9 +42,9 @@ class CameraXRecordingAdapter(
     private val onCaptureProfileSelected: (SelectedCaptureProfile) -> Unit = {},
     private val cameraSelector: CameraSelector = CameraSelector.DEFAULT_BACK_CAMERA,
     val analysisInputMirrored: Boolean = false,
-    private val onAnalysisFramePermit: (Long) -> Any? = { null },
-    private val onAnalysisPermitRelease: (Any) -> Unit = {},
-    private val onAnalysisFrame: (Bitmap, Long, Any?) -> Boolean = { _, _, _ -> false },
+    private val onAnalysisFramePermit: (Long) -> FramePermit? = { null },
+    private val onAnalysisPermitRelease: (FramePermit) -> Unit = {},
+    private val onAnalysisFrame: (Bitmap, Long, FramePermit?) -> Boolean = { _, _, _ -> false },
 ) : AutoCloseable {
     private var videoCapture: VideoCapture<Recorder>? = null
     private var imageAnalysis: ImageAnalysis? = null
@@ -110,7 +111,7 @@ class CameraXRecordingAdapter(
     }
 
     private fun analyzeImage(image: ImageProxy) {
-        var permit: Any? = null
+        var permit: FramePermit? = null
         try {
             if (!analysisEnabled.get() || closed.get()) return
             val timestampMs = image.imageInfo.timestamp / 1_000_000L
