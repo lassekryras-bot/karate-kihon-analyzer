@@ -160,15 +160,30 @@ class MediaPipeHandFrameMapperTest {
     }
 
     @Test fun modelAssetValidatorSucceedsWhenPresent() {
-        val validator = GestureRecognizerModelAssetValidator { it == GESTURE_RECOGNIZER_MODEL_ASSET_PATH }
-        assertEquals(GESTURE_RECOGNIZER_MODEL_ASSET_PATH, validator.validate())
+        val validator = GestureRecognizerModelAssetValidator(
+            assetExists = { assetPath ->
+                assetPath == GESTURE_RECOGNIZER_MODEL_ASSET_PATH
+            },
+        )
+
+        assertEquals(
+            GESTURE_RECOGNIZER_MODEL_ASSET_PATH,
+            validator.validate(),
+        )
     }
 
     @Test fun modelAssetValidatorThrowsDocumentedExceptionWhenAbsent() {
         val exception = assertFailsWith<MissingGestureRecognizerModelException> {
-            GestureRecognizerModelAssetValidator { false }.validate()
+            GestureRecognizerModelAssetValidator(
+                assetExists = { false },
+            ).validate()
         }
-        assertTrue(exception.message!!.contains(GESTURE_RECOGNIZER_MODEL_ASSET_PATH))
+
+        assertTrue(
+            exception.message!!.contains(
+                GESTURE_RECOGNIZER_MODEL_ASSET_PATH,
+            ),
+        )
     }
 
     @Test fun multipleDtoHandsAreMappedByHandIndex() {
