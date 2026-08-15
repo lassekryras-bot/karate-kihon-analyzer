@@ -89,6 +89,9 @@ import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicLong
 
 class MainActivity : AppCompatActivity() {
+    private lateinit var trainingRoot: View
+    private lateinit var homeScreen: HomeScreenView
+    private var cameraStartupRequested = false
     private lateinit var previewView: PreviewView
     private lateinit var startSessionButton: Button
     private lateinit var findYourWeaponButton: Button
@@ -226,10 +229,37 @@ class MainActivity : AppCompatActivity() {
         punchHeightCaptureStore = PunchHeightCaptureStore(this)
         cameraSetupCaptureStore = CameraSetupCaptureStore(this)
         buildUi()
+        homeScreen = HomeScreenView(
+            context = this,
+            onContinue = ::openTrainingHub,
+            onLearn = {
+                showTrainingUi()
+                startJapaneseCountLevel1()
+            },
+            onPractice = ::openTrainingHub,
+            onSkillCoach = ::openTrainingHub,
+            onTrain = ::openTrainingHub,
+        )
+        setContentView(FrameLayout(this).apply {
+            addView(trainingRoot)
+            addView(homeScreen)
+        })
         trainingOrderPlayer = SoundFileTrainingOrderPlayer(this)
         japaneseCountFullExamplePlayer = JapaneseCountFullExamplePlayer(this)
         japaneseCountLiveRecognizer = JapaneseCountLiveRecognizer(this)
-        requestCameraPermissionIfNeeded()
+    }
+
+    private fun openTrainingHub() {
+        showTrainingUi()
+        if (!cameraStartupRequested) {
+            cameraStartupRequested = true
+            requestCameraPermissionIfNeeded()
+        }
+    }
+
+    private fun showTrainingUi() {
+        homeScreen.visibility = View.GONE
+        trainingRoot.visibility = View.VISIBLE
     }
 
     private fun buildUi() {
@@ -646,7 +676,7 @@ class MainActivity : AppCompatActivity() {
             controlsScroller.layoutParams = params
             insets
         }
-        setContentView(root)
+        trainingRoot = root.apply { visibility = View.GONE }
         ViewCompat.requestApplyInsets(root)
         updateControlVisibility()
     }
