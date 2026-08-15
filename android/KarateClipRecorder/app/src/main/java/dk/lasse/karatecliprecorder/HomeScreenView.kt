@@ -7,10 +7,12 @@ import android.graphics.drawable.GradientDrawable
 import android.view.Gravity
 import android.view.View
 import android.widget.FrameLayout
+import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.ProgressBar
 import android.widget.ScrollView
 import android.widget.TextView
+import androidx.core.content.ContextCompat
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 
@@ -26,6 +28,8 @@ class HomeScreenView(
     onPractice: () -> Unit,
     onSkillCoach: () -> Unit,
     onTrain: () -> Unit,
+    onProgress: () -> Unit,
+    onSettings: () -> Unit,
 ) : FrameLayout(context) {
     private val red = Color.rgb(190, 0, 12)
     private val ink = Color.rgb(24, 24, 24)
@@ -54,10 +58,16 @@ class HomeScreenView(
             clipToPadding = false
             addView(content)
         }, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT))
-        addView(bottomNavigation(onTrain), LayoutParams(LayoutParams.MATCH_PARENT, 82.dp(), Gravity.BOTTOM))
+        val navigation = bottomNavigation(onTrain, onProgress, onSettings)
+        addView(navigation, LayoutParams(LayoutParams.MATCH_PARENT, 82.dp(), Gravity.BOTTOM))
         ViewCompat.setOnApplyWindowInsetsListener(this) { _, insets ->
-            val bars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
-            content.setPadding(20.dp(), bars.top + 12.dp(), 20.dp(), bars.bottom + 110.dp())
+            val systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
+            val navigationBars = insets.getInsets(WindowInsetsCompat.Type.navigationBars())
+            content.setPadding(20.dp(), systemBars.top + 12.dp(), 20.dp(), navigationBars.bottom + 110.dp())
+            navigation.layoutParams = (navigation.layoutParams as LayoutParams).apply {
+                height = 82.dp()
+                bottomMargin = navigationBars.bottom
+            }
             insets
         }
         ViewCompat.requestApplyInsets(this)
@@ -151,20 +161,57 @@ class HomeScreenView(
         }, LayoutParams(LayoutParams.MATCH_PARENT, 10.dp()).apply { bottomMargin = 12.dp() })
     }
 
-    private fun bottomNavigation(onTrain: () -> Unit) = LinearLayout(context).apply {
+    private fun bottomNavigation(
+        onTrain: () -> Unit,
+        onProgress: () -> Unit,
+        onSettings: () -> Unit,
+    ) = LinearLayout(context).apply {
         orientation = LinearLayout.HORIZONTAL
         gravity = Gravity.CENTER
         elevation = 12.dp().toFloat()
         setPadding(12.dp(), 6.dp(), 12.dp(), 6.dp())
         setBackgroundColor(Color.WHITE)
-        listOf("⌂\nHome", "◆\nTrain", "▥\nProgress", "⚙\nSettings").forEachIndexed { index, text ->
-            addView(label(text, 13f, Typeface.BOLD, Gravity.CENTER).apply {
-                setTextColor(if (index == 0) red else ink)
-                if (index == 1) setOnClickListener { onTrain() }
-                isClickable = index == 1
-                contentDescription = text.replace('\n', ' ')
-            }, LinearLayout.LayoutParams(0, LayoutParams.MATCH_PARENT, 1f))
+        listOf(
+            navigationItem("Home", R.drawable.ic_nav_home, selected = true, onClick = {}),
+            navigationItem("Train", R.drawable.ic_nav_train_belt, onClick = onTrain),
+            navigationItem("Progress", R.drawable.ic_nav_progress, onClick = onProgress),
+            navigationItem("Settings", R.drawable.ic_nav_settings, onClick = onSettings),
+        ).forEach { item ->
+            addView(item, LinearLayout.LayoutParams(0, LayoutParams.MATCH_PARENT, 1f))
         }
+    }
+
+    private fun navigationItem(
+        label: String,
+        iconRes: Int,
+        selected: Boolean = false,
+        onClick: () -> Unit,
+    ) = LinearLayout(context).apply {
+        orientation = LinearLayout.VERTICAL
+        gravity = Gravity.CENTER
+        minimumWidth = 48.dp()
+        minimumHeight = 48.dp()
+        isSelected = selected
+        isClickable = true
+        isFocusable = true
+        contentDescription = label
+        ViewCompat.setStateDescription(this, if (selected) "Selected" else "Not selected")
+        setOnClickListener { onClick() }
+
+        val tint = ContextCompat.getColorStateList(context, R.color.nav_icon_tint)
+        addView(ImageView(context).apply {
+            setImageResource(iconRes)
+            imageTintList = tint
+            isSelected = selected
+            importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
+        }, LayoutParams(24.dp(), 24.dp()))
+        addView(label(label, 13f, Typeface.BOLD, Gravity.CENTER).apply {
+            setTextColor(tint)
+            isSelected = selected
+            importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
+        }, LayoutParams(LayoutParams.WRAP_CONTENT, LayoutParams.WRAP_CONTENT).apply {
+            topMargin = 4.dp()
+        })
     }
 
     private fun sectionLabel(text: String) = label(text, 13f, Typeface.BOLD).apply {

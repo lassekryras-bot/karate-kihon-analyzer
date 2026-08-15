@@ -239,6 +239,8 @@ class MainActivity : AppCompatActivity() {
             onPractice = ::openTrainingHub,
             onSkillCoach = ::openTrainingHub,
             onTrain = ::openTrainingHub,
+            onProgress = { showHomeDestinationPlaceholder("Progress") },
+            onSettings = { showHomeDestinationPlaceholder("Settings") },
         )
         setContentView(FrameLayout(this).apply {
             addView(trainingRoot)
@@ -247,6 +249,10 @@ class MainActivity : AppCompatActivity() {
         trainingOrderPlayer = SoundFileTrainingOrderPlayer(this)
         japaneseCountFullExamplePlayer = JapaneseCountFullExamplePlayer(this)
         japaneseCountLiveRecognizer = JapaneseCountLiveRecognizer(this)
+    }
+
+    private fun showHomeDestinationPlaceholder(destination: String) {
+        Toast.makeText(this, "$destination coming soon.", Toast.LENGTH_SHORT).show()
     }
 
     private fun openTrainingHub() {
