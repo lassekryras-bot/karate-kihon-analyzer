@@ -30,6 +30,7 @@ import androidx.camera.view.PreviewView
 import androidx.core.content.ContextCompat
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
+import dk.lasse.karatecliprecorder.enso.EnsoDebugGalleryView
 import dk.lasse.karatecliprecorder.orders.SoundFileTrainingOrderPlayer
 import dk.lasse.karatecliprecorder.orders.TrainingOrder
 import dk.lasse.karatecliprecorder.orders.TrainingOrderMapper
@@ -89,8 +90,10 @@ import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicLong
 
 class MainActivity : AppCompatActivity() {
+    private lateinit var appRoot: FrameLayout
     private lateinit var trainingRoot: View
     private lateinit var homeScreen: HomeScreenView
+    private var ensoDebugGallery: View? = null
     private var cameraStartupRequested = false
     private lateinit var previewView: PreviewView
     private lateinit var startSessionButton: Button
@@ -240,12 +243,13 @@ class MainActivity : AppCompatActivity() {
             onSkillCoach = ::openTrainingHub,
             onTrain = ::openTrainingHub,
             onProgress = { showHomeDestinationPlaceholder("Progress") },
-            onSettings = { showHomeDestinationPlaceholder("Settings") },
+            onSettings = ::openSettings,
         )
-        setContentView(FrameLayout(this).apply {
+        appRoot = FrameLayout(this).apply {
             addView(trainingRoot)
             addView(homeScreen)
-        })
+        }
+        setContentView(appRoot)
         trainingOrderPlayer = SoundFileTrainingOrderPlayer(this)
         japaneseCountFullExamplePlayer = JapaneseCountFullExamplePlayer(this)
         japaneseCountLiveRecognizer = JapaneseCountLiveRecognizer(this)
@@ -253,6 +257,32 @@ class MainActivity : AppCompatActivity() {
 
     private fun showHomeDestinationPlaceholder(destination: String) {
         Toast.makeText(this, "$destination coming soon.", Toast.LENGTH_SHORT).show()
+    }
+
+    private fun openSettings() {
+        if ((applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE) == 0) {
+            showHomeDestinationPlaceholder("Settings")
+            return
+        }
+        if (ensoDebugGallery != null) return
+
+        ensoDebugGallery = EnsoDebugGalleryView(
+            context = this,
+            onClose = ::closeEnsoDebugGallery,
+        ).also { gallery ->
+            appRoot.addView(
+                gallery,
+                FrameLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                ),
+            )
+        }
+    }
+
+    private fun closeEnsoDebugGallery() {
+        ensoDebugGallery?.let(appRoot::removeView)
+        ensoDebugGallery = null
     }
 
     private fun openTrainingHub() {
