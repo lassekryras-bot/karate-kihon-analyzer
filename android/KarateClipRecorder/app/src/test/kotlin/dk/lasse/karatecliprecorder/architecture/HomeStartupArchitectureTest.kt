@@ -52,6 +52,32 @@ class HomeStartupArchitectureTest {
         assertTrue(tint.contains("android:state_selected=\"true\""))
     }
 
+    @Test fun quickActionsUseSuppliedContentVectors() {
+        val home = appSources.resolve("HomeScreenView.kt").readText()
+        val resources = appRoot.resolve("app/src/main/res")
+
+        listOf(
+            "R.drawable.ic_learn_torii",
+            "R.drawable.ic_practice",
+            "R.drawable.ic_skill_coach_target",
+        ).forEach { drawable -> assertTrue(home.contains(drawable)) }
+        assertTrue(home.contains("R.color.content_icon_tint"))
+
+        listOf(
+            "drawable/ic_learn_torii.xml",
+            "drawable/ic_practice.xml",
+            "drawable/ic_skill_coach_target.xml",
+            "color/content_icon_tint.xml",
+        ).forEach { resource -> assertTrue(resources.resolve(resource).isFile) }
+
+        val contentTint = resources.resolve("color/content_icon_tint.xml").readText()
+        assertTrue(contentTint.contains("#BE000C"))
+
+        val belt = resources.resolve("drawable/ic_nav_train_belt.xml").readText()
+        assertTrue(belt.contains("android:viewportWidth=\"640\""))
+        assertTrue(belt.contains("android:translateY=\"42\""))
+    }
+
     @Test fun passiveNavigationDestinationsAvoidTrainingStartup() {
         val activity = appSources.resolve("MainActivity.kt").readText()
         val homeConstruction = activity.substringAfter("homeScreen = HomeScreenView").substringBefore("setContentView")

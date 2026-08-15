@@ -98,19 +98,28 @@ class HomeScreenView(
         LinearLayout(context).apply {
             orientation = LinearLayout.HORIZONTAL
             val actions = listOf(
-                Triple("▰", "Learn\nStep-by-step lessons", onLearn),
-                Triple("✦", "Practice\nFree practice & drills", onPractice),
-                Triple("◎", "Skill Coach\nTechnique feedback", onCoach),
+                Triple(R.drawable.ic_learn_torii, "Learn\nStep-by-step lessons", onLearn),
+                Triple(R.drawable.ic_practice, "Practice\nFree practice & drills", onPractice),
+                Triple(R.drawable.ic_skill_coach_target, "Skill Coach\nTechnique feedback", onCoach),
             )
-            actions.forEachIndexed { index, (icon, copy, callback) ->
+            actions.forEachIndexed { index, (iconRes, copy, callback) ->
                 addView(card().apply {
+                    orientation = LinearLayout.VERTICAL
                     gravity = Gravity.CENTER
                     setOnClickListener { callback() }
                     isClickable = true
                     isFocusable = true
                     contentDescription = copy.replace('\n', ' ')
-                    addView(label("$icon\n$copy", 14f, Typeface.BOLD, Gravity.CENTER).apply {
+                    addView(ImageView(context).apply {
+                        setImageResource(iconRes)
+                        imageTintList = ContextCompat.getColorStateList(context, R.color.content_icon_tint)
+                        importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
+                    }, LayoutParams(32.dp(), 32.dp()))
+                    addView(label(copy, 14f, Typeface.BOLD, Gravity.CENTER).apply {
                         setTextColor(if (index == 0) ink else red)
+                        importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
+                    }, LayoutParams(LayoutParams.WRAP_CONTENT, LayoutParams.WRAP_CONTENT).apply {
+                        topMargin = 8.dp()
                     })
                 }, LinearLayout.LayoutParams(0, 142.dp(), 1f).apply {
                     if (index > 0) marginStart = 8.dp()
