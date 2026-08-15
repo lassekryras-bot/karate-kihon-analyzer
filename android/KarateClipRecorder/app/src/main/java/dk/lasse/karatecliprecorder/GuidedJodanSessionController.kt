@@ -3,6 +3,7 @@ package dk.lasse.karatecliprecorder
 import android.os.Handler
 import android.os.Looper
 import dk.lasse.karatecliprecorder.captureprofile.SelectedCaptureProfile
+import dk.lasse.karatecliprecorder.learning.JapaneseCountLesson
 import java.io.File
 
 class GuidedJodanSessionController(
@@ -206,12 +207,11 @@ $clipsJson
         private const val METADATA_FILE_NAME = "guided_jodan_session_metadata.json"
 
         fun createPlan(): List<GuidedStrikePlan> {
-            val counts = listOf("Ichi", "Ni", "San", "Shi", "Go", "Roku", "Shichi", "Hachi", "Ku", "Ju")
-            return counts.mapIndexed { index, count ->
-                val strikeIndex = index + 1
+            return JapaneseCountLesson.items.map { count ->
+                val strikeIndex = count.number.toInt()
                 GuidedStrikePlan(
                     index = strikeIndex,
-                    japaneseCount = count,
+                    japaneseCount = count.japanese,
                     expectedSide = if (strikeIndex % 2 == 1) StrikeSide.RIGHT else StrikeSide.LEFT,
                 )
             }

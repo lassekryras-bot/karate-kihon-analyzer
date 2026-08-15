@@ -19,6 +19,7 @@ data class LiveGestureRecognizerOutput(
     val inputHeight: Int,
     val inferenceLatencyMs: Long?,
     val generationToken: Long = 0L,
+    val analysisToPreviewTransform: FloatArray? = null,
 )
 
 enum class RecognizerLifecycleState { INACTIVE, INITIALIZING, READY, FAILED, CLOSED }
@@ -81,7 +82,11 @@ class LiveGestureRecognizerRunner(
      * Returns true only after ownership of [bitmap] transfers to this runner. When false is
      * returned, callers keep ownership and must release it themselves.
      */
-    fun submit(bitmap: Bitmap, permit: FramePermit): Boolean {
+    fun submit(
+        bitmap: Bitmap,
+        permit: FramePermit,
+        analysisToPreviewTransform: FloatArray? = null,
+    ): Boolean {
         val recognizer = client ?: return false
         var image: MPImage? = null
         return runCatching {
@@ -100,6 +105,7 @@ class LiveGestureRecognizerRunner(
                     startedAtMs = System.currentTimeMillis(),
                     runnerGeneration = permit.runnerGeneration,
                     outputGenerationToken = permit.outputGenerationToken,
+                    analysisToPreviewTransform = analysisToPreviewTransform?.copyOf(),
                 )
                 pendingPermit = null
             }
@@ -117,9 +123,14 @@ class LiveGestureRecognizerRunner(
         }
     }
 
-    fun submit(bitmap: Bitmap, timestampMs: Long, generationToken: Long = 0L): Boolean {
+    fun submit(
+        bitmap: Bitmap,
+        timestampMs: Long,
+        generationToken: Long = 0L,
+        analysisToPreviewTransform: FloatArray? = null,
+    ): Boolean {
         val permit = tryAcquireFrame(timestampMs, generationToken) ?: return false
-        val submitted = submit(bitmap, permit)
+        val submitted = submit(bitmap, permit, analysisToPreviewTransform)
         if (!submitted) releasePermit(permit)
         return submitted
     }
@@ -140,6 +151,7 @@ class LiveGestureRecognizerRunner(
                 inputHeight = completed.height,
                 inferenceLatencyMs = System.currentTimeMillis() - completed.startedAtMs,
                 generationToken = completed.outputGenerationToken,
+                analysisToPreviewTransform = completed.analysisToPreviewTransform?.copyOf(),
             ),
         )
     }
@@ -191,6 +203,7 @@ class LiveGestureRecognizerRunner(
         val startedAtMs: Long,
         val runnerGeneration: Long,
         val outputGenerationToken: Long,
+        val analysisToPreviewTransform: FloatArray?,
     )
 }
 

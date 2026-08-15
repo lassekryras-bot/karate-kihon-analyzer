@@ -78,11 +78,12 @@ class HandFeatureExtractor(
     private fun thumb(frame: TrackedHandFrame, palm: PalmCoordinateSystem?, palmCenter: Point3?, palmWidth: Float?): ThumbFeatures {
         val wrist = frame.point(HandLandmarkId.WRIST); val cmc = frame.point(HandLandmarkId.THUMB_CMC); val mcp = frame.point(HandLandmarkId.THUMB_MCP)
         val ip = frame.point(HandLandmarkId.THUMB_IP); val tip = frame.point(HandLandmarkId.THUMB_TIP)
-        val indexMcp = frame.point(HandLandmarkId.INDEX_MCP); val indexPip = frame.point(HandLandmarkId.INDEX_PIP); val middleMcp = frame.point(HandLandmarkId.MIDDLE_MCP)
-        val ringMcp = frame.point(HandLandmarkId.RING_MCP); val littleMcp = frame.point(HandLandmarkId.LITTLE_MCP)
+        val indexMcp = frame.point(HandLandmarkId.INDEX_MCP); val indexPip = frame.point(HandLandmarkId.INDEX_PIP)
+        val middleMcp = frame.point(HandLandmarkId.MIDDLE_MCP); val middlePip = frame.point(HandLandmarkId.MIDDLE_PIP)
         val weightedFingerDistanceRatio = thumbWeightedFingerDistanceRatio(frame, palmWidth)
         val closedScore = thumbClosedScore(weightedFingerDistanceRatio)
-        val indexBoundary = thumbIndexBoundary(tip, palm, indexMcp, indexPip, middleMcp, ringMcp, littleMcp)
+        val indexBoundary = thumbSideBoundary(tip, palm, indexMcp, indexPip, middleMcp, middlePip, outwardOffsetFactor = 0.5f)
+        val middleBoundary = thumbSideBoundary(tip, palm, middleMcp, middlePip, indexMcp, indexPip, outwardOffsetFactor = 0f)
         return ThumbFeatures(
             cmcAngleDegrees = angleBetweenThreePoints(wrist, cmc, mcp),
             mcpAngleDegrees = angleBetweenThreePoints(cmc, mcp, ip),
@@ -97,6 +98,9 @@ class HandFeatureExtractor(
             tipInsideIndexBoundaryRatio = indexBoundary?.tipInsideRatio,
             tipInsideIndexBoundary = indexBoundary?.tipInsideRatio?.let { it > 0f },
             indexBoundaryLine = indexBoundary?.line,
+            tipInsideMiddleBoundaryRatio = middleBoundary?.tipInsideRatio,
+            tipInsideMiddleBoundary = middleBoundary?.tipInsideRatio?.let { it > 0f },
+            middleBoundaryLine = middleBoundary?.line,
             crossesPalmAxis = thumbCrossesPalmAxis(tip, palm),
             quality = quality(listOf(HandLandmarkId.THUMB_CMC, HandLandmarkId.THUMB_MCP, HandLandmarkId.THUMB_IP, HandLandmarkId.THUMB_TIP), frame),
         )
@@ -135,46 +139,35 @@ class HandFeatureExtractor(
         return safeDivide(lateral, palm.palmWidth)
     }
 
-    private fun thumbIndexBoundary(
+    private fun thumbSideBoundary(
         tip: Point3?,
         palm: PalmCoordinateSystem?,
-        indexMcp: Point3?,
-        indexPip: Point3?,
-        middleMcp: Point3?,
-        ringMcp: Point3?,
-        littleMcp: Point3?,
-    ): ThumbIndexBoundary? {
+        fingerMcp: Point3?,
+        fingerPip: Point3?,
+        neighborMcp: Point3?,
+        neighborPip: Point3?,
+        outwardOffsetFactor: Float,
+    ): ThumbBoundary? {
         val thumb = palmLocal(tip, palm) ?: return null
-        val start = palmLocal(indexMcp, palm) ?: return null
-        val end = palmLocal(indexPip, palm) ?: return null
-        val averageFingerGap = averageNeighborFingerGap(palm, indexMcp, middleMcp, ringMcp, littleMcp) ?: return null
-        val edgeOffset = averageFingerGap * 0.5f
-        val centerBoundaryX = if (abs(end.y - start.y) > 1e-4f) {
-            start.x + (thumb.y - start.y) * (end.x - start.x) / (end.y - start.y)
+        val fingerMcpLocal = palmLocal(fingerMcp, palm) ?: return null
+        val fingerPipLocal = palmLocal(fingerPip, palm) ?: return null
+        val neighborMcpLocal = palmLocal(neighborMcp, palm) ?: return null
+        val neighborPipLocal = palmLocal(neighborPip, palm) ?: return null
+        val mcpGap = abs(neighborMcpLocal.x - fingerMcpLocal.x).takeIf { it.isFinite() && it > 0f } ?: return null
+        val pipGap = abs(neighborPipLocal.x - fingerPipLocal.x).takeIf { it.isFinite() && it > 0f } ?: return null
+        val shiftedStart = Point2(fingerMcpLocal.x - mcpGap * outwardOffsetFactor, fingerMcpLocal.y)
+        val shiftedEnd = Point2(fingerPipLocal.x - pipGap * outwardOffsetFactor, fingerPipLocal.y)
+        val boundaryX = if (abs(shiftedEnd.y - shiftedStart.y) > 1e-4f) {
+            shiftedStart.x + (thumb.y - shiftedStart.y) * (shiftedEnd.x - shiftedStart.x) / (shiftedEnd.y - shiftedStart.y)
         } else {
-            (start.x + end.x) / 2f
+            (shiftedStart.x + shiftedEnd.x) / 2f
         }
-        val shiftedBoundaryX = centerBoundaryX - edgeOffset
-        val lineStart = palmPoint(Point2(start.x - edgeOffset, start.y), palm) ?: return null
-        val lineEnd = palmPoint(Point2(end.x - edgeOffset, end.y), palm) ?: return null
-        return ThumbIndexBoundary(
-            tipInsideRatio = (thumb.x - shiftedBoundaryX).takeIf { it.isFinite() } ?: return null,
+        val lineStart = palmPoint(shiftedStart, palm) ?: return null
+        val lineEnd = palmPoint(shiftedEnd, palm) ?: return null
+        return ThumbBoundary(
+            tipInsideRatio = (thumb.x - boundaryX).takeIf { it.isFinite() } ?: return null,
             line = ThumbBoundaryLine(lineStart, lineEnd),
         )
-    }
-
-    private fun averageNeighborFingerGap(
-        palm: PalmCoordinateSystem?,
-        indexMcp: Point3?,
-        middleMcp: Point3?,
-        ringMcp: Point3?,
-        littleMcp: Point3?,
-    ): Float? {
-        val points = listOf(indexMcp, middleMcp, ringMcp, littleMcp)
-            .map { palmLocal(it, palm) ?: return null }
-        val gaps = points.zipWithNext().map { (first, second) -> abs(second.x - first.x) }
-        if (gaps.size != 3 || gaps.any { !it.isFinite() || it <= 0f }) return null
-        return gaps.average().toFloat().takeIf { it.isFinite() }
     }
 
     private fun palmLocal(point: Point3?, palm: PalmCoordinateSystem?): Point2? {
@@ -217,7 +210,7 @@ class HandFeatureExtractor(
     private fun TrackedHandFrame.point(id: HandLandmarkId): Point3? = landmarks[id]?.position?.takeIf { it.isFinitePoint() && landmarks[id]?.source != LandmarkSource.MISSING }
 
     private data class Point2(val x: Float, val y: Float)
-    private data class ThumbIndexBoundary(val tipInsideRatio: Float, val line: ThumbBoundaryLine)
+    private data class ThumbBoundary(val tipInsideRatio: Float, val line: ThumbBoundaryLine)
 
     private companion object {
         private val thumbPointWeights = listOf(

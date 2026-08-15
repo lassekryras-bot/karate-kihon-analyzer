@@ -30,7 +30,7 @@ data class FingerFeatures(
     val quality: Float,
 )
 
-/** Camera-normalized segment for the live thumb boundary used by Find Your Weapon debug views. */
+/** Camera-normalized segment for a live thumb boundary used by Find Your Weapon debug views. */
 data class ThumbBoundaryLine(
     val start: Point3,
     val end: Point3,
@@ -51,6 +51,9 @@ data class ThumbFeatures(
     val tipInsideIndexBoundaryRatio: Float?,
     val tipInsideIndexBoundary: Boolean?,
     val indexBoundaryLine: ThumbBoundaryLine?,
+    val tipInsideMiddleBoundaryRatio: Float?,
+    val tipInsideMiddleBoundary: Boolean?,
+    val middleBoundaryLine: ThumbBoundaryLine?,
     val crossesPalmAxis: Boolean?,
     val quality: Float,
 )

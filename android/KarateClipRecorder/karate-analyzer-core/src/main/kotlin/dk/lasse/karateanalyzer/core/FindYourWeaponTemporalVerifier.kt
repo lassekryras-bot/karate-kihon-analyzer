@@ -10,9 +10,11 @@ package dk.lasse.karateanalyzer.core
  */
 data class FindYourWeaponTemporalConfiguration(
     val requiredHoldDurationMs: Long = 600,
-    val minimumReliableMatchingRatio: Double = 0.75,
-    val minimumLatestQuality: Float = 0.70f,
-    val maximumFrameGapMs: Long = 250,
+    val exerciseHoldDurationMs: Long = 2_000,
+    val finalKnuckleHoldDurationMs: Long = 1_000,
+    val minimumReliableMatchingRatio: Double = 0.60,
+    val minimumLatestQuality: Float = 0.45f,
+    val maximumFrameGapMs: Long = 500,
     val missingDataGracePeriodMs: Long = 120,
     val partialMatchGracePeriodMs: Long = 120,
     val progressDecayPerSecond: Double = 1.0,
@@ -45,6 +47,8 @@ class FindYourWeaponTemporalVerifier(
 ) {
     init {
         require(configuration.requiredHoldDurationMs > 0) { "requiredHoldDurationMs must be > 0" }
+        require(configuration.exerciseHoldDurationMs > 0) { "exerciseHoldDurationMs must be > 0" }
+        require(configuration.finalKnuckleHoldDurationMs > 0) { "finalKnuckleHoldDurationMs must be > 0" }
         require(configuration.minimumReliableMatchingRatio.isFinite() && configuration.minimumReliableMatchingRatio in 0.0..1.0) { "minimumReliableMatchingRatio must be finite and within 0..1" }
         require(configuration.minimumLatestQuality.isFinite() && configuration.minimumLatestQuality in 0f..1f) { "minimumLatestQuality must be finite and within 0..1" }
         require(configuration.maximumFrameGapMs >= 0) { "maximumFrameGapMs must be >= 0" }
@@ -134,9 +138,10 @@ class FindYourWeaponTemporalVerifier(
 
         val ratio = state.weightedReliableRatio()
         val latestQualitySufficient = latestQualitySufficient(step, frame, instantResult)
+        val requiredHoldDurationMs = requiredHoldDurationMsFor(step).toDouble()
         val shouldAccept = matchingGood && latestQualitySufficient &&
-            state.reliableHoldCreditMs >= configuration.requiredHoldDurationMs.toDouble() &&
-            state.activeAttemptMatchingMs >= configuration.requiredHoldDurationMs.toDouble() &&
+            state.reliableHoldCreditMs >= requiredHoldDurationMs &&
+            state.activeAttemptMatchingMs >= requiredHoldDurationMs &&
             ratio >= configuration.minimumReliableMatchingRatio
 
         state.previousMatchingGood = matchingGood
@@ -189,7 +194,7 @@ class FindYourWeaponTemporalVerifier(
                 0.0
             }
         }
-        val decayCreditMs = configuration.requiredHoldDurationMs.toDouble() *
+        val decayCreditMs = requiredHoldDurationMsFor(instantResult.step).toDouble() *
             configuration.progressDecayPerSecond *
             (decayElapsedMs / 1000.0)
         val previousCredit = state.reliableHoldCreditMs
@@ -223,7 +228,7 @@ class FindYourWeaponTemporalVerifier(
         state.accepted -> TemporalVerificationStatus.ACCEPTED
         decayed -> TemporalVerificationStatus.LOSING_PROGRESS
         paused -> TemporalVerificationStatus.PAUSED
-        state.reliableHoldCreditMs >= configuration.requiredHoldDurationMs.toDouble() -> TemporalVerificationStatus.HOLDING
+        state.reliableHoldCreditMs >= currentRequiredHoldDurationMs().toDouble() -> TemporalVerificationStatus.HOLDING
         addedReliableCredit -> TemporalVerificationStatus.BUILDING_PROGRESS
         state.reliableHoldCreditMs > 0.0 -> TemporalVerificationStatus.PAUSED
         else -> TemporalVerificationStatus.WAITING_FOR_DATA
@@ -248,7 +253,7 @@ class FindYourWeaponTemporalVerifier(
         forcedProgress: Float? = null,
         status: TemporalVerificationStatus = currentStatus(addedReliableCredit = false, paused = false, decayed = false),
     ): TemporalStepResult {
-        val reliableProgress = (state.reliableHoldCreditMs / configuration.requiredHoldDurationMs.toDouble()).coerceIn(0.0, 1.0).toFloat()
+        val reliableProgress = (state.reliableHoldCreditMs / requiredHoldDurationMsFor(instant.step).toDouble()).coerceIn(0.0, 1.0).toFloat()
         val safeScore = instant.score.takeIf { it.isFinite() }?.coerceIn(0f, 1f) ?: 0f
         val partialDisplayProgress = if (instant.status == InstantVerificationStatus.PARTIAL_MATCH) {
             safeScore * configuration.partialDisplayCreditRatio.coerceIn(0f, 1f)
@@ -290,7 +295,17 @@ class FindYourWeaponTemporalVerifier(
         HandLessonStep.BEND_FINGERTIPS -> temporalFourFingerCriticalLandmarks
         HandLessonStep.CLOSE_FINGERS -> temporalFourFingerCriticalLandmarks
         HandLessonStep.THUMB_ON_TOP -> temporalFourFingerCriticalLandmarks + temporalThumbCriticalLandmarks
-        HandLessonStep.FRONT_TWO_KNUCKLES -> temporalFourFingerCriticalLandmarks + temporalThumbCriticalLandmarks
+        HandLessonStep.FRONT_TWO_KNUCKLES -> temporalFrontKnuckleCriticalLandmarks
+    }
+
+    private fun currentRequiredHoldDurationMs(): Long = state.step?.let(::requiredHoldDurationMsFor) ?: configuration.requiredHoldDurationMs
+
+    private fun requiredHoldDurationMsFor(step: HandLessonStep): Long = when (step) {
+        HandLessonStep.BEND_FINGERTIPS,
+        HandLessonStep.CLOSE_FINGERS,
+        HandLessonStep.THUMB_ON_TOP -> configuration.exerciseHoldDurationMs
+        HandLessonStep.FRONT_TWO_KNUCKLES -> configuration.finalKnuckleHoldDurationMs
+        HandLessonStep.OPEN_PALM -> configuration.requiredHoldDurationMs
     }
 }
 
@@ -341,4 +356,12 @@ private val temporalThumbCriticalLandmarks = listOf(
     HandLandmarkId.THUMB_MCP,
     HandLandmarkId.THUMB_IP,
     HandLandmarkId.THUMB_TIP,
+)
+
+private val temporalFrontKnuckleCriticalLandmarks = listOf(
+    HandLandmarkId.WRIST,
+    HandLandmarkId.INDEX_MCP,
+    HandLandmarkId.MIDDLE_MCP,
+    HandLandmarkId.RING_MCP,
+    HandLandmarkId.LITTLE_MCP,
 )

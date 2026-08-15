@@ -10,12 +10,20 @@ import kotlin.math.min
 
 class HandGuideOverlayView(context: Context) : View(context) {
     private val fillPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = Color.argb(32, 33, 150, 243)
+        color = Color.argb(36, 190, 255, 24)
         style = Paint.Style.FILL
     }
 
+    private val shadowPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = Color.argb(190, 0, 0, 0)
+        style = Paint.Style.STROKE
+        strokeCap = Paint.Cap.ROUND
+        strokeJoin = Paint.Join.ROUND
+        strokeWidth = 14f
+    }
+
     private val strokePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = Color.argb(210, 33, 150, 243)
+        color = Color.argb(235, 190, 255, 24)
         style = Paint.Style.STROKE
         strokeCap = Paint.Cap.ROUND
         strokeJoin = Paint.Join.ROUND
@@ -49,9 +57,11 @@ class HandGuideOverlayView(context: Context) : View(context) {
             palm.top + palmHeight * 0.78f,
         )
         canvas.drawRoundRect(thumb, palmWidth * 0.16f, palmWidth * 0.16f, fillPaint)
+        canvas.drawRoundRect(thumb, palmWidth * 0.16f, palmWidth * 0.16f, shadowPaint)
         canvas.drawRoundRect(thumb, palmWidth * 0.16f, palmWidth * 0.16f, strokePaint)
 
         canvas.drawOval(palm, fillPaint)
+        canvas.drawOval(palm, shadowPaint)
         canvas.drawOval(palm, strokePaint)
 
         val wrist = RectF(
@@ -61,6 +71,7 @@ class HandGuideOverlayView(context: Context) : View(context) {
             palm.bottom + guideHeight * 0.16f,
         )
         canvas.drawRoundRect(wrist, palmWidth * 0.08f, palmWidth * 0.08f, fillPaint)
+        canvas.drawRoundRect(wrist, palmWidth * 0.08f, palmWidth * 0.08f, shadowPaint)
         canvas.drawRoundRect(wrist, palmWidth * 0.08f, palmWidth * 0.08f, strokePaint)
     }
 
@@ -72,6 +83,7 @@ class HandGuideOverlayView(context: Context) : View(context) {
             baseY,
         )
         canvas.drawRoundRect(finger, width / 2f, width / 2f, fillPaint)
+        canvas.drawRoundRect(finger, width / 2f, width / 2f, shadowPaint)
         canvas.drawRoundRect(finger, width / 2f, width / 2f, strokePaint)
     }
 }

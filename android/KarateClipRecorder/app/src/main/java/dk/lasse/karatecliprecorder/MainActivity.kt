@@ -1,18 +1,28 @@
 package dk.lasse.karatecliprecorder
 
 import android.Manifest
+import android.content.pm.ApplicationInfo
 import android.content.pm.PackageManager
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 import android.graphics.Color
 import android.os.Bundle
+import android.os.Handler
 import android.os.Looper
+import android.os.SystemClock
+import android.util.Log
 import android.view.Gravity
 import android.view.View
 import android.view.ViewGroup
+import android.view.WindowManager
 import android.widget.Button
 import android.widget.FrameLayout
 import android.widget.ImageView
 import android.widget.LinearLayout
+import android.widget.ProgressBar
+import android.widget.ScrollView
 import android.widget.TextView
+import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.widget.SwitchCompat
@@ -28,14 +38,52 @@ import dk.lasse.karatecliprecorder.captureprofile.CaptureFpsRange
 import dk.lasse.karatecliprecorder.captureprofile.SelectedCaptureProfile
 import dk.lasse.karatecliprecorder.learning.FindYourWeaponAnalysisCoordinator
 import dk.lasse.karatecliprecorder.learning.FindYourWeaponAnalysisState
+import dk.lasse.karatecliprecorder.learning.FindYourWeaponAutoAdvanceController
+import dk.lasse.karatecliprecorder.learning.FindYourWeaponAutoAdvanceDecision
+import dk.lasse.karatecliprecorder.learning.FindYourWeaponCoachCopy
+import dk.lasse.karatecliprecorder.learning.FindYourWeaponCoachTextGate
 import dk.lasse.karatecliprecorder.learning.FindYourWeaponDebugOverlayView
+import dk.lasse.karatecliprecorder.learning.FindYourWeaponProgressRingView
 import dk.lasse.karatecliprecorder.learning.FindYourWeaponSessionController
 import dk.lasse.karatecliprecorder.learning.FindYourWeaponState
 import dk.lasse.karatecliprecorder.learning.FindYourWeaponStep
 import dk.lasse.karatecliprecorder.learning.HandGuideOverlayView
+import dk.lasse.karatecliprecorder.learning.CountRecognitionAlternative
+import dk.lasse.karatecliprecorder.learning.CountRecognitionError
+import dk.lasse.karatecliprecorder.learning.CountRecognitionFailure
+import dk.lasse.karatecliprecorder.learning.CountStatus
+import dk.lasse.karatecliprecorder.learning.CountTrainingPhase
+import dk.lasse.karatecliprecorder.learning.CountTrainingSession
+import dk.lasse.karatecliprecorder.learning.CountTranscriptNormalizer
+import dk.lasse.karatecliprecorder.learning.CameraSetupCapture
+import dk.lasse.karatecliprecorder.learning.CameraSetupCaptureStore
+import dk.lasse.karatecliprecorder.learning.CameraSetupSessionCoordinator
+import dk.lasse.karatecliprecorder.learning.CameraSetupStage
+import dk.lasse.karatecliprecorder.learning.CameraSetupState
+import dk.lasse.karatecliprecorder.learning.CameraView
+import dk.lasse.karatecliprecorder.learning.JapaneseCountFullExamplePlayer
+import dk.lasse.karatecliprecorder.learning.JapaneseCountLessonItem
+import dk.lasse.karatecliprecorder.learning.JapaneseCountLesson
+import dk.lasse.karatecliprecorder.learning.JapaneseCountListeningPolicy
+import dk.lasse.karatecliprecorder.learning.JapaneseCountLiveRecognizer
+import dk.lasse.karatecliprecorder.learning.JapaneseCountLevel1Controller
+import dk.lasse.karatecliprecorder.learning.JapaneseCountLevel1State
+import dk.lasse.karatecliprecorder.learning.PunchHeightCaptureStore
+import dk.lasse.karatecliprecorder.learning.PunchHeightCompletedSession
+import dk.lasse.karatecliprecorder.learning.PunchHeightOverlayView
+import dk.lasse.karatecliprecorder.learning.PunchHeightSessionCoordinator
+import dk.lasse.karatecliprecorder.learning.PunchHeightSessionStage
+import dk.lasse.karatecliprecorder.learning.PunchHeightSessionState
+import dk.lasse.karatecliprecorder.learning.PunchHeightVoiceCoach
 import dk.lasse.karatecliprecorder.mediapipehandadapter.FramePermit
 import dk.lasse.karatecliprecorder.mediapipehandadapter.LiveGestureRecognizerRunner
 import dk.lasse.karatecliprecorder.mediapipehandadapter.RecognizerLifecycleState
+import dk.lasse.karatecliprecorder.mediapipeposeadapter.LivePoseLandmarkerRunner
+import dk.lasse.karatecliprecorder.mediapipeposeadapter.LivePoseLandmarkerOutput
+import dk.lasse.karatecliprecorder.mediapipeposeadapter.PoseFramePermit
+import dk.lasse.karatecliprecorder.mediapipeposeadapter.PoseRecognizerLifecycleState
+import dk.lasse.karateanalyzer.core.PunchHeightAnalyzer
+import dk.lasse.karateanalyzer.core.PunchHeightTargetType
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicLong
@@ -44,13 +92,35 @@ class MainActivity : AppCompatActivity() {
     private lateinit var previewView: PreviewView
     private lateinit var startSessionButton: Button
     private lateinit var findYourWeaponButton: Button
+    private lateinit var punchHeightButton: Button
+    private lateinit var cameraSetupViewButtons: LinearLayout
+    private lateinit var cameraSetupTitleText: TextView
+    private lateinit var cameraSetupMessageText: TextView
+    private lateinit var cameraSetupProgress: ProgressBar
+    private lateinit var cameraSetupCapturedImage: ImageView
+    private lateinit var cameraSetupRetakeButton: Button
+    private lateinit var cameraSetupDoneButton: Button
+    private lateinit var countJapaneseButton: Button
+    private lateinit var countJapaneseLevel2Button: Button
     private lateinit var cancelSessionButton: Button
     private lateinit var findYourWeaponBackButton: Button
     private lateinit var findYourWeaponNextButton: Button
+    private lateinit var japaneseCountBackButton: Button
+    private lateinit var japaneseCountPlayButton: Button
+    private lateinit var japaneseCountReplayButton: Button
+    private lateinit var japaneseCountNextButton: Button
+    private lateinit var japaneseCountListenButton: Button
+    private lateinit var japaneseCountFinishButton: Button
+    private lateinit var japaneseCountRetryButton: Button
     private lateinit var debugSwitch: SwitchCompat
     private lateinit var handGuideOverlayView: HandGuideOverlayView
     private lateinit var findYourWeaponImage: ImageView
     private lateinit var findYourWeaponDebugOverlayView: FindYourWeaponDebugOverlayView
+    private lateinit var findYourWeaponProgressRingView: FindYourWeaponProgressRingView
+    private lateinit var findYourWeaponMessageText: TextView
+    private lateinit var japaneseCountText: TextView
+    private lateinit var japaneseCountFeedbackText: TextView
+    private lateinit var japaneseCountResultsText: TextView
     private lateinit var debugScopeText: TextView
     private lateinit var statusText: TextView
     private lateinit var currentCountText: TextView
@@ -61,17 +131,65 @@ class MainActivity : AppCompatActivity() {
     private lateinit var metadataPathText: TextView
     private lateinit var captureProfileText: TextView
     private lateinit var analyzerDebugText: TextView
+    private lateinit var punchHeightOverlayView: PunchHeightOverlayView
+    private lateinit var punchHeightTitleText: TextView
+    private lateinit var punchHeightMessageText: TextView
+    private lateinit var punchHeightProgress: ProgressBar
+    private lateinit var punchHeightMultiplierText: TextView
+    private lateinit var punchHeightMultiplierMinusButton: Button
+    private lateinit var punchHeightMultiplierResetButton: Button
+    private lateinit var punchHeightMultiplierPlusButton: Button
+    private lateinit var punchHeightMultiplierControls: LinearLayout
+    private lateinit var punchHeightReviewLargeImage: ImageView
+    private lateinit var punchHeightReviewThumbnails: LinearLayout
+    private lateinit var punchHeightReviewExplanation: TextView
+    private lateinit var punchHeightPracticeAgainButton: Button
+    private lateinit var punchHeightCloseButton: Button
     private var recordingAdapter: CameraXRecordingAdapter? = null
     private var sessionController: GuidedJodanSessionController? = null
     private var findYourWeaponController: FindYourWeaponSessionController? = null
+    private lateinit var japaneseCountLevel1Controller: JapaneseCountLevel1Controller
+    private lateinit var japaneseCountFullExamplePlayer: JapaneseCountFullExamplePlayer
+    private lateinit var japaneseCountLiveRecognizer: JapaneseCountLiveRecognizer
     private var guidedSessionActive = false
     private var findYourWeaponActive = false
+    private var japaneseCountActive = false
+    private var punchHeightActive = false
+    private var cameraSetupActive = false
     private var debugUiVisible = false
+    private var findYourWeaponKnuckleGuideVisible = false
+    private var findYourWeaponFinishReady = false
+    private var renderedFindYourWeaponStep: FindYourWeaponStep? = null
+    private var latestFindYourWeaponAnalysisState: FindYourWeaponAnalysisState? = null
     private var latestGuidedState = GuidedSessionState.IDLE
+    private var latestRecordingState = RecordingState.PREPARING
     private var trainingOrderPlayer: TrainingOrderPlayer? = null
     private var recognizerRunner: LiveGestureRecognizerRunner? = null
     private var analysisCoordinator: FindYourWeaponAnalysisCoordinator? = null
+    private var poseRecognizerRunner: LivePoseLandmarkerRunner? = null
+    private val punchHeightCoordinator = PunchHeightSessionCoordinator()
+    private lateinit var punchHeightCaptureStore: PunchHeightCaptureStore
+    private var punchHeightVoiceCoach: PunchHeightVoiceCoach? = null
+    private var latestPunchHeightState = PunchHeightSessionState()
+    private var completedPunchHeightSession: PunchHeightCompletedSession? = null
+    private val cameraSetupCoordinator = CameraSetupSessionCoordinator()
+    private lateinit var cameraSetupCaptureStore: CameraSetupCaptureStore
+    private var cameraSetupVoiceCoach: PunchHeightVoiceCoach? = null
+    private var latestCameraSetupState = CameraSetupState()
+    private var completedCameraSetupCapture: CameraSetupCapture? = null
+    private var lastSpokenCameraSetupMessage: String? = null
+    private var poseRecognizerState = PoseRecognizerLifecycleState.CLOSED
     private val recognizerExecutor: ExecutorService = Executors.newSingleThreadExecutor()
+    private val punchHeightStorageExecutor: ExecutorService = Executors.newSingleThreadExecutor()
+    private val mainHandler = Handler(Looper.getMainLooper())
+    private val findYourWeaponAutoAdvanceController = FindYourWeaponAutoAdvanceController()
+    private val findYourWeaponCoachTextGate = FindYourWeaponCoachTextGate()
+    private var pendingFindYourWeaponAdvance: Runnable? = null
+    private var pendingJapaneseCountRecognitionRestart: Runnable? = null
+    private var japaneseCountCommittedTranscript = ""
+    private var japaneseCountMode: JapaneseCountMode? = null
+    private var pendingJapaneseCountMicrophonePermission = false
+    private var japaneseCountTrainingSession = CountTrainingSession()
     private var recognizerState: RecognizerLifecycleState = RecognizerLifecycleState.INACTIVE
     private val submittedFrameCount = AtomicLong(0)
     private val processedFrameCount = AtomicLong(0)
@@ -88,10 +206,29 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    private val audioPermissionLauncher = registerForActivityResult(
+        ActivityResultContracts.RequestPermission(),
+    ) { granted ->
+        if (pendingJapaneseCountMicrophonePermission) {
+            pendingJapaneseCountMicrophonePermission = false
+            if (granted) {
+                beginJapaneseCountLiveRecognition()
+            } else {
+                showJapaneseCountLevel2Error(CountRecognitionError.MICROPHONE_PERMISSION_DENIED)
+            }
+        }
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        japaneseCountLevel1Controller = JapaneseCountLevel1Controller(::updateJapaneseCountLevel1State)
+        punchHeightCaptureStore = PunchHeightCaptureStore(this)
+        cameraSetupCaptureStore = CameraSetupCaptureStore(this)
         buildUi()
         trainingOrderPlayer = SoundFileTrainingOrderPlayer(this)
+        japaneseCountFullExamplePlayer = JapaneseCountFullExamplePlayer(this)
+        japaneseCountLiveRecognizer = JapaneseCountLiveRecognizer(this)
         requestCameraPermissionIfNeeded()
     }
 
@@ -123,11 +260,126 @@ class MainActivity : AppCompatActivity() {
             visibility = View.GONE
         }
 
+        punchHeightOverlayView = PunchHeightOverlayView(this).apply {
+            layoutParams = FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.MATCH_PARENT,
+            )
+            visibility = View.GONE
+        }
+
         findYourWeaponDebugOverlayView = FindYourWeaponDebugOverlayView(this).apply {
             layoutParams = FrameLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
                 ViewGroup.LayoutParams.MATCH_PARENT,
             )
+            visibility = View.GONE
+        }
+
+        findYourWeaponProgressRingView = FindYourWeaponProgressRingView(this).apply {
+            layoutParams = LinearLayout.LayoutParams(58.dp(), 58.dp()).apply {
+                gravity = Gravity.CENTER_HORIZONTAL
+                bottomMargin = 10.dp()
+            }
+            visibility = View.GONE
+        }
+
+        findYourWeaponMessageText = sessionText("", 18f).apply {
+            layoutParams = LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+            ).apply {
+                gravity = Gravity.CENTER_HORIZONTAL
+                bottomMargin = 10.dp()
+            }
+            gravity = Gravity.CENTER
+            visibility = View.GONE
+        }
+
+        punchHeightTitleText = sessionText("", 24f).apply {
+            gravity = Gravity.CENTER
+            visibility = View.GONE
+        }
+        punchHeightMessageText = sessionText("", 18f).apply {
+            gravity = Gravity.CENTER
+            visibility = View.GONE
+        }
+        punchHeightProgress = ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal).apply {
+            max = 1000
+            progress = 0
+            visibility = View.GONE
+        }
+        punchHeightMultiplierText = sessionText("Chin projection ×1.10", 14f).apply {
+            gravity = Gravity.CENTER
+            visibility = View.GONE
+        }
+        punchHeightReviewLargeImage = ImageView(this).apply {
+            layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 260.dp())
+            scaleType = ImageView.ScaleType.FIT_CENTER
+            visibility = View.GONE
+        }
+        punchHeightReviewThumbnails = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER
+            visibility = View.GONE
+        }
+        punchHeightReviewExplanation = sessionText("", 15f).apply {
+            gravity = Gravity.CENTER
+            visibility = View.GONE
+        }
+
+        cameraSetupTitleText = sessionText("Camera setup", 24f).apply {
+            gravity = Gravity.CENTER
+            visibility = View.GONE
+        }
+        cameraSetupMessageText = sessionText("", 18f).apply {
+            gravity = Gravity.CENTER
+            visibility = View.GONE
+        }
+        cameraSetupProgress = ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal).apply {
+            max = 1000
+            progress = 0
+            visibility = View.GONE
+        }
+        cameraSetupCapturedImage = ImageView(this).apply {
+            layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 280.dp())
+            scaleType = ImageView.ScaleType.FIT_CENTER
+            visibility = View.GONE
+        }
+
+        japaneseCountText = sessionText("", 32f).apply {
+            layoutParams = LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+            ).apply {
+                gravity = Gravity.CENTER_HORIZONTAL
+                bottomMargin = 10.dp()
+            }
+            gravity = Gravity.CENTER
+            visibility = View.GONE
+        }
+
+        japaneseCountFeedbackText = sessionText("", 16f).apply {
+            layoutParams = LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+            ).apply {
+                gravity = Gravity.CENTER_HORIZONTAL
+                bottomMargin = 10.dp()
+            }
+            gravity = Gravity.CENTER
+            visibility = View.GONE
+        }
+
+        japaneseCountResultsText = sessionText("", 14f).apply {
+            layoutParams = LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+            ).apply {
+                gravity = Gravity.CENTER_HORIZONTAL
+                bottomMargin = 10.dp()
+            }
+            gravity = Gravity.CENTER
             visibility = View.GONE
         }
 
@@ -152,12 +404,33 @@ class MainActivity : AppCompatActivity() {
             isEnabled = false
             setOnClickListener { startFindYourWeaponSession() }
         }
+        punchHeightButton = Button(this).apply {
+            text = "Camera Setup"
+            isEnabled = false
+            setOnClickListener { startCameraSetupSession() }
+        }
+        countJapaneseButton = Button(this).apply {
+            text = "Japanese Count - Level 1"
+            isEnabled = true
+            setOnClickListener { startJapaneseCountLevel1() }
+        }
+        countJapaneseLevel2Button = Button(this).apply {
+            text = "Japanese Count - Level 2"
+            isEnabled = true
+            setOnClickListener { startJapaneseCountLevel2() }
+        }
         cancelSessionButton = Button(this).apply {
             text = "Cancel Session"
             isEnabled = false
             setOnClickListener {
-                if (findYourWeaponActive) {
-                    findYourWeaponController?.cancel()
+                if (cameraSetupActive) {
+                    closeCameraSetupSession()
+                } else if (punchHeightActive) {
+                    cancelPunchHeightSession()
+                } else if (japaneseCountActive) {
+                    stopJapaneseCountSession()
+                } else if (findYourWeaponActive) {
+                    navigateFindYourWeaponManually { findYourWeaponController?.cancel() }
                 } else {
                     sessionController?.cancel()
                 }
@@ -166,12 +439,96 @@ class MainActivity : AppCompatActivity() {
         findYourWeaponBackButton = Button(this).apply {
             text = "Back"
             visibility = View.GONE
-            setOnClickListener { findYourWeaponController?.back() }
+            setOnClickListener { navigateFindYourWeaponManually { findYourWeaponController?.back() } }
         }
         findYourWeaponNextButton = Button(this).apply {
             text = "Next"
             visibility = View.GONE
-            setOnClickListener { findYourWeaponController?.next() }
+            setOnClickListener { navigateFindYourWeaponManually { findYourWeaponController?.next() } }
+        }
+        japaneseCountBackButton = Button(this).apply {
+            text = "Previous"
+            visibility = View.GONE
+            setOnClickListener { navigateJapaneseCountLevel1 { japaneseCountLevel1Controller.back() } }
+        }
+        japaneseCountPlayButton = Button(this).apply {
+            text = "Play full example"
+            visibility = View.GONE
+            setOnClickListener { playJapaneseCountFullExample() }
+        }
+        japaneseCountReplayButton = Button(this).apply {
+            text = "Replay"
+            visibility = View.GONE
+            setOnClickListener { playJapaneseCountLevel1Item() }
+        }
+        japaneseCountNextButton = Button(this).apply {
+            text = "Next"
+            visibility = View.GONE
+            setOnClickListener { navigateJapaneseCountLevel1 { japaneseCountLevel1Controller.next() } }
+        }
+        japaneseCountListenButton = Button(this).apply {
+            text = "Start listening"
+            visibility = View.GONE
+            setOnClickListener { requestJapaneseCountLiveRecognition() }
+        }
+        japaneseCountFinishButton = Button(this).apply {
+            text = "Stop listening"
+            visibility = View.GONE
+            setOnClickListener { finishJapaneseCountLiveRecognition() }
+        }
+        japaneseCountRetryButton = Button(this).apply {
+            text = "Retry"
+            visibility = View.GONE
+            setOnClickListener { resetJapaneseCountLevel2() }
+        }
+        punchHeightMultiplierMinusButton = Button(this).apply {
+            text = "−0.05"
+            setOnClickListener { adjustPunchHeightMultiplier(-PunchHeightAnalyzer.CHIN_PROJECTION_STEP) }
+        }
+        punchHeightMultiplierResetButton = Button(this).apply {
+            text = "Reset"
+            setOnClickListener { setPunchHeightMultiplier(PunchHeightAnalyzer.DEFAULT_CHIN_PROJECTION_MULTIPLIER) }
+        }
+        punchHeightMultiplierPlusButton = Button(this).apply {
+            text = "+0.05"
+            setOnClickListener { adjustPunchHeightMultiplier(PunchHeightAnalyzer.CHIN_PROJECTION_STEP) }
+        }
+        punchHeightPracticeAgainButton = Button(this).apply {
+            text = "Practice again"
+            visibility = View.GONE
+            setOnClickListener { startPunchHeightSession() }
+        }
+        punchHeightCloseButton = Button(this).apply {
+            text = "Close"
+            visibility = View.GONE
+            setOnClickListener { closePunchHeightSession() }
+        }
+        cameraSetupRetakeButton = Button(this).apply {
+            text = "Retake"
+            visibility = View.GONE
+            setOnClickListener {
+                if (latestCameraSetupState.stage == CameraSetupStage.ADJUST_CAMERA) {
+                    restartCameraSetupAfterAdjustment()
+                } else {
+                    latestCameraSetupState.selectedView?.let(::selectCameraSetupView)
+                }
+            }
+        }
+        cameraSetupDoneButton = Button(this).apply {
+            text = "Done"
+            visibility = View.GONE
+            setOnClickListener { closeCameraSetupSession() }
+        }
+        cameraSetupViewButtons = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            visibility = View.GONE
+            CameraView.entries.forEach { view ->
+                addView(Button(this@MainActivity).apply {
+                    text = view.displayName
+                    contentDescription = "Select ${view.displayName} camera view"
+                    setOnClickListener { selectCameraSetupView(view) }
+                })
+            }
         }
         debugSwitch = SwitchCompat(this).apply {
             text = "Debug"
@@ -179,9 +536,20 @@ class MainActivity : AppCompatActivity() {
             isChecked = false
             setOnCheckedChangeListener { _, checked ->
                 debugUiVisible = checked
-                if (!checked) findYourWeaponDebugOverlayView.setOverlay(null)
+                updateJapaneseCountDebugText()
+                updateFindYourWeaponOverlay(latestFindYourWeaponAnalysisState)
+                updatePunchHeightState(latestPunchHeightState, speak = false)
                 updateControlVisibility()
             }
+        }
+
+        punchHeightMultiplierControls = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER
+            addView(punchHeightMultiplierMinusButton, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+            addView(punchHeightMultiplierResetButton, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+            addView(punchHeightMultiplierPlusButton, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+            visibility = View.GONE
         }
 
         val controls = LinearLayout(this).apply {
@@ -190,6 +558,38 @@ class MainActivity : AppCompatActivity() {
             setBackgroundColor(0x66000000)
             addView(startSessionButton)
             addView(findYourWeaponButton)
+            addView(punchHeightButton)
+            addView(countJapaneseButton)
+            addView(countJapaneseLevel2Button)
+            addView(cameraSetupTitleText)
+            addView(cameraSetupMessageText)
+            addView(cameraSetupViewButtons)
+            addView(cameraSetupProgress)
+            addView(cameraSetupCapturedImage)
+            addView(cameraSetupRetakeButton)
+            addView(cameraSetupDoneButton)
+            addView(punchHeightTitleText)
+            addView(punchHeightMessageText)
+            addView(punchHeightProgress)
+            addView(punchHeightMultiplierText)
+            addView(punchHeightMultiplierControls)
+            addView(punchHeightReviewLargeImage)
+            addView(punchHeightReviewThumbnails)
+            addView(punchHeightReviewExplanation)
+            addView(punchHeightPracticeAgainButton)
+            addView(punchHeightCloseButton)
+            addView(findYourWeaponProgressRingView)
+            addView(findYourWeaponMessageText)
+            addView(japaneseCountText)
+            addView(japaneseCountFeedbackText)
+            addView(japaneseCountResultsText)
+            addView(japaneseCountBackButton)
+            addView(japaneseCountPlayButton)
+            addView(japaneseCountReplayButton)
+            addView(japaneseCountNextButton)
+            addView(japaneseCountListenButton)
+            addView(japaneseCountFinishButton)
+            addView(japaneseCountRetryButton)
             addView(findYourWeaponNextButton)
             addView(debugSwitch)
             addView(cancelSessionButton)
@@ -205,14 +605,33 @@ class MainActivity : AppCompatActivity() {
             addView(analyzerDebugText)
             addView(metadataPathText)
         }
+        val controlsScroller = object : ScrollView(this) {
+            override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
+                val maxHeight = (resources.displayMetrics.heightPixels * MAX_CONTROLS_HEIGHT_RATIO).toInt()
+                super.onMeasure(
+                    widthMeasureSpec,
+                    View.MeasureSpec.makeMeasureSpec(maxHeight, View.MeasureSpec.AT_MOST),
+                )
+            }
+        }.apply {
+            isFillViewport = false
+            addView(
+                controls,
+                FrameLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    ViewGroup.LayoutParams.WRAP_CONTENT,
+                ),
+            )
+        }
 
         val root = FrameLayout(this).apply {
             addView(previewView)
             addView(handGuideOverlayView)
+            addView(punchHeightOverlayView)
             addView(findYourWeaponImage)
             addView(findYourWeaponDebugOverlayView)
             addView(
-                controls,
+                controlsScroller,
                 FrameLayout.LayoutParams(
                     ViewGroup.LayoutParams.MATCH_PARENT,
                     ViewGroup.LayoutParams.WRAP_CONTENT,
@@ -222,9 +641,9 @@ class MainActivity : AppCompatActivity() {
         }
         ViewCompat.setOnApplyWindowInsetsListener(root) { _, insets ->
             val systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
-            val params = controls.layoutParams as FrameLayout.LayoutParams
+            val params = controlsScroller.layoutParams as FrameLayout.LayoutParams
             params.bottomMargin = systemBars.bottom + 16.dp()
-            controls.layoutParams = params
+            controlsScroller.layoutParams = params
             insets
         }
         setContentView(root)
@@ -259,27 +678,48 @@ class MainActivity : AppCompatActivity() {
             onAnalysisError = ::handleAnalysisError,
             onCaptureProfileSelected = ::handleCaptureProfileSelected,
             onAnalysisFramePermit = { timestampMs ->
-                val coordinator = analysisCoordinator
-                val runner = recognizerRunner
-                if (coordinator == null || runner == null || recognizerState != RecognizerLifecycleState.READY) {
-                    droppedFrameCount.incrementAndGet()
-                    null
+                if (cameraSetupActive || punchHeightActive) {
+                    val runner = poseRecognizerRunner
+                    if (runner == null || poseRecognizerState != PoseRecognizerLifecycleState.READY) {
+                        droppedFrameCount.incrementAndGet()
+                        null
+                    } else {
+                        val generationToken = if (cameraSetupActive) {
+                            cameraSetupCoordinator.currentGenerationToken()
+                        } else {
+                            punchHeightCoordinator.currentGenerationToken()
+                        }
+                        runner.tryAcquireFrame(timestampMs, generationToken).also { permit ->
+                            if (permit == null) droppedFrameCount.incrementAndGet()
+                        }
+                    }
                 } else {
-                    runner.tryAcquireFrame(timestampMs, coordinator.currentGenerationToken()).also { permit ->
-                        if (permit == null) droppedFrameCount.incrementAndGet()
+                    val coordinator = analysisCoordinator
+                    val runner = recognizerRunner
+                    if (coordinator == null || runner == null || recognizerState != RecognizerLifecycleState.READY) {
+                        droppedFrameCount.incrementAndGet()
+                        null
+                    } else {
+                        runner.tryAcquireFrame(timestampMs, coordinator.currentGenerationToken()).also { permit ->
+                            if (permit == null) droppedFrameCount.incrementAndGet()
+                        }
                     }
                 }
             },
-            onAnalysisPermitRelease = { permit -> (permit as? FramePermit)?.let { recognizerRunner?.releasePermit(it) } },
-            onAnalysisFrame = { bitmap, _, permit ->
-                val framePermit = permit as? FramePermit
-                if (framePermit == null) {
-                    false
-                } else {
-                    val accepted = recognizerRunner?.submit(bitmap, framePermit) ?: false
-                    if (accepted) submittedFrameCount.incrementAndGet()
-                    accepted
+            onAnalysisPermitRelease = { permit ->
+                when (permit) {
+                    is PoseFramePermit -> poseRecognizerRunner?.releasePermit(permit)
+                    is FramePermit -> recognizerRunner?.releasePermit(permit)
                 }
+            },
+            onAnalysisFrame = { bitmap, _, permit, analysisToPreviewTransform ->
+                val accepted = when (permit) {
+                    is PoseFramePermit -> poseRecognizerRunner?.submit(bitmap, permit) ?: false
+                    is FramePermit -> recognizerRunner?.submit(bitmap, permit, analysisToPreviewTransform) ?: false
+                    else -> false
+                }
+                if (accepted) submittedFrameCount.incrementAndGet()
+                accepted
             },
         )
         recordingAdapter = adapter
@@ -313,8 +753,818 @@ class MainActivity : AppCompatActivity() {
         sessionController?.start()
     }
 
+    private fun startCameraSetupSession() {
+        recordingAdapter?.setAnalysisEnabled(false)
+        poseRecognizerRunner?.close()
+        poseRecognizerRunner = null
+        poseRecognizerState = PoseRecognizerLifecycleState.INITIALIZING
+        cameraSetupVoiceCoach?.close()
+        cameraSetupVoiceCoach = PunchHeightVoiceCoach(this)
+        completedCameraSetupCapture = null
+        lastSpokenCameraSetupMessage = null
+        cameraSetupCapturedImage.setImageDrawable(null)
+        cameraSetupActive = true
+        latestCameraSetupState = cameraSetupCoordinator.start()
+        updateCameraSetupState(latestCameraSetupState, speak = false)
+        updateMainMenuAvailability()
+        updateControlVisibility()
+        recognizerExecutor.execute {
+            val runner = createPoseRecognizerRunner()
+            runOnMainThread {
+                poseRecognizerRunner?.close()
+                poseRecognizerRunner = runner
+                poseRecognizerState = runner.lifecycleState
+                if (!cameraSetupActive) return@runOnMainThread
+                if (runner.initializationSucceeded()) {
+                    recordingAdapter?.setAnalysisEnabled(
+                        cameraSetupCoordinator.currentState().stage == CameraSetupStage.POSITIONING,
+                    )
+                } else {
+                    updateCameraSetupState(cameraSetupCoordinator.fail("Pose tracking could not start."))
+                }
+            }
+        }
+    }
+
+    private fun selectCameraSetupView(view: CameraView) {
+        if (!cameraSetupActive) return
+        completedCameraSetupCapture = null
+        cameraSetupCapturedImage.setImageDrawable(null)
+        cameraSetupVoiceCoach?.reset()
+        lastSpokenCameraSetupMessage = null
+        updateCameraSetupState(cameraSetupCoordinator.selectView(view), speak = true)
+        recordingAdapter?.setAnalysisEnabled(poseRecognizerState == PoseRecognizerLifecycleState.READY)
+    }
+
+    private fun handleCameraSetupPoseResult(output: LivePoseLandmarkerOutput, bitmap: Bitmap) {
+        processedFrameCount.incrementAndGet()
+        val decision = cameraSetupCoordinator.process(output.poseFrame)
+        if (!decision.shouldCapture) {
+            if (!bitmap.isRecycled) bitmap.recycle()
+            runOnMainThread {
+                if (cameraSetupActive) {
+                    if (decision.state.stage == CameraSetupStage.ADJUST_CAMERA) {
+                        recordingAdapter?.setAnalysisEnabled(false)
+                    }
+                    updateCameraSetupState(decision.state)
+                }
+            }
+            return
+        }
+        recordingAdapter?.setAnalysisEnabled(false)
+        runOnMainThread { if (cameraSetupActive) updateCameraSetupState(decision.state) }
+        val view = decision.state.selectedView ?: run {
+            if (!bitmap.isRecycled) bitmap.recycle()
+            return
+        }
+        val captureFrame = decision.captureFrame ?: run {
+            if (!bitmap.isRecycled) bitmap.recycle()
+            return
+        }
+        punchHeightStorageExecutor.execute {
+            runCatching { cameraSetupCaptureStore.save(bitmap, view, captureFrame) }
+                .onSuccess { capture ->
+                    runOnMainThread {
+                        if (!cameraSetupActive) return@runOnMainThread
+                        completedCameraSetupCapture = capture
+                        cameraSetupCapturedImage.setImageBitmap(BitmapFactory.decodeFile(capture.imageFile.absolutePath))
+                        metadataPathText.text = "Camera setup: ${capture.imageFile.absolutePath}"
+                        updateCameraSetupState(cameraSetupCoordinator.captureSaved())
+                    }
+                }
+                .onFailure { error ->
+                    runOnMainThread {
+                        if (cameraSetupActive) updateCameraSetupState(
+                            cameraSetupCoordinator.fail("Could not save the setup picture: ${error.message}"),
+                        )
+                    }
+                }
+        }
+    }
+
+    private fun updateCameraSetupState(state: CameraSetupState, speak: Boolean = true) {
+        latestCameraSetupState = state
+        cameraSetupTitleText.text = state.selectedView?.let { "Camera setup - ${it.displayName}" } ?: "Camera setup"
+        cameraSetupMessageText.text = state.message
+        cameraSetupProgress.progress = (state.holdProgress * cameraSetupProgress.max).toInt()
+        if (speak && cameraSetupActive && state.message != lastSpokenCameraSetupMessage) {
+            val spoken = cameraSetupVoiceCoach?.speak(state.message, SystemClock.elapsedRealtime()) == true
+            if (spoken) lastSpokenCameraSetupMessage = state.message
+        }
+        updateControlVisibility()
+    }
+
+    private fun restartCameraSetupAfterAdjustment() {
+        if (!cameraSetupActive || latestCameraSetupState.stage != CameraSetupStage.ADJUST_CAMERA) return
+        cameraSetupVoiceCoach?.reset()
+        lastSpokenCameraSetupMessage = null
+        updateCameraSetupState(cameraSetupCoordinator.restartAfterCameraAdjustment())
+        recordingAdapter?.setAnalysisEnabled(poseRecognizerState == PoseRecognizerLifecycleState.READY)
+    }
+
+    private fun closeCameraSetupSession() {
+        recordingAdapter?.setAnalysisEnabled(false)
+        cameraSetupCoordinator.cancel()
+        cameraSetupActive = false
+        poseRecognizerRunner?.close()
+        poseRecognizerRunner = null
+        poseRecognizerState = PoseRecognizerLifecycleState.CLOSED
+        cameraSetupVoiceCoach?.close()
+        cameraSetupVoiceCoach = null
+        lastSpokenCameraSetupMessage = null
+        completedCameraSetupCapture = null
+        cameraSetupCapturedImage.setImageDrawable(null)
+        updateMainMenuAvailability()
+        updateControlVisibility()
+    }
+
+    private fun startPunchHeightSession() {
+        recordingAdapter?.setAnalysisEnabled(false)
+        poseRecognizerRunner?.close()
+        poseRecognizerRunner = null
+        poseRecognizerState = PoseRecognizerLifecycleState.INITIALIZING
+        punchHeightVoiceCoach?.close()
+        punchHeightVoiceCoach = PunchHeightVoiceCoach(this)
+        completedPunchHeightSession = null
+        clearPunchHeightReview()
+        try {
+            punchHeightCaptureStore.beginSession()
+        } catch (error: Exception) {
+            Toast.makeText(this, error.message ?: "Could not start Punch Heights.", Toast.LENGTH_LONG).show()
+            return
+        }
+        punchHeightActive = true
+        val state = punchHeightCoordinator.start()
+        updatePunchHeightState(state)
+        updateMainMenuAvailability()
+        updateControlVisibility()
+        recognizerExecutor.execute {
+            val runner = createPoseRecognizerRunner()
+            runOnMainThread {
+                poseRecognizerRunner?.close()
+                poseRecognizerRunner = runner
+                poseRecognizerState = runner.lifecycleState
+                if (punchHeightActive && runner.initializationSucceeded()) {
+                    recordingAdapter?.setAnalysisEnabled(true)
+                } else if (punchHeightActive) {
+                    failPunchHeightSession("Pose tracking could not start. Check that the Pose Landmarker model is installed.")
+                }
+            }
+        }
+    }
+
+    private fun createPoseRecognizerRunner(): LivePoseLandmarkerRunner = LivePoseLandmarkerRunner(
+        context = this,
+        onResult = { output, bitmap ->
+            if (cameraSetupActive) handleCameraSetupPoseResult(output, bitmap)
+            else handlePunchHeightPoseResult(output, bitmap)
+        },
+        onError = { message -> runOnMainThread {
+            if (cameraSetupActive) updateCameraSetupState(cameraSetupCoordinator.fail(message))
+            else failPunchHeightSession(message)
+        } },
+    )
+
+    private fun handlePunchHeightPoseResult(output: LivePoseLandmarkerOutput, bitmap: Bitmap) {
+        processedFrameCount.incrementAndGet()
+        val decision = punchHeightCoordinator.process(output)
+        val snapshot = decision.captureSnapshot
+        if (snapshot == null) {
+            if (!bitmap.isRecycled) bitmap.recycle()
+            runOnMainThread { if (punchHeightActive) updatePunchHeightState(decision.state) }
+            return
+        }
+        recordingAdapter?.setAnalysisEnabled(false)
+        runOnMainThread { if (punchHeightActive) updatePunchHeightState(decision.state) }
+        punchHeightStorageExecutor.execute {
+            runCatching { punchHeightCaptureStore.saveCapture(bitmap, snapshot) }
+                .onSuccess {
+                    runOnMainThread {
+                        if (!punchHeightActive) return@runOnMainThread
+                        updatePunchHeightState(punchHeightCoordinator.captureSaved(snapshot.targetType))
+                        mainHandler.postDelayed({ advancePunchHeightAfterCapture(snapshot.targetType) }, PUNCH_HEIGHT_CAPTURE_PAUSE_MS)
+                    }
+                }
+                .onFailure { error -> runOnMainThread { failPunchHeightSession("Could not save ${snapshot.targetType.name.lowercase()}: ${error.message}") } }
+        }
+    }
+
+    private fun advancePunchHeightAfterCapture(capturedTarget: PunchHeightTargetType) {
+        if (!punchHeightActive || capturedTarget !in punchHeightCoordinator.currentState().capturedTargets) return
+        val state = punchHeightCoordinator.advanceAfterCapture()
+        updatePunchHeightState(state)
+        if (state.stage == PunchHeightSessionStage.SESSION_REVIEW) {
+            finishPunchHeightSessionStorage()
+        } else {
+            recordingAdapter?.setAnalysisEnabled(poseRecognizerState == PoseRecognizerLifecycleState.READY)
+        }
+    }
+
+    private fun finishPunchHeightSessionStorage() {
+        recordingAdapter?.setAnalysisEnabled(false)
+        punchHeightStorageExecutor.execute {
+            runCatching { punchHeightCaptureStore.completeSession() }
+                .onSuccess { session ->
+                    runOnMainThread {
+                        if (!punchHeightActive) return@runOnMainThread
+                        completedPunchHeightSession = session
+                        val state = punchHeightCoordinator.markReviewReady()
+                        updatePunchHeightState(state)
+                        showPunchHeightReview(session)
+                    }
+                }
+                .onFailure { error -> runOnMainThread { failPunchHeightSession("Could not finish the image set: ${error.message}") } }
+        }
+    }
+
+    private fun showPunchHeightReview(session: PunchHeightCompletedSession) {
+        punchHeightReviewThumbnails.removeAllViews()
+        session.captures.forEach { capture ->
+            val thumbnail = ImageView(this).apply {
+                layoutParams = LinearLayout.LayoutParams(0, 100.dp(), 1f).apply { marginStart = 4.dp(); marginEnd = 4.dp() }
+                scaleType = ImageView.ScaleType.CENTER_CROP
+                setImageBitmap(BitmapFactory.decodeFile(capture.analysisFile.absolutePath))
+                contentDescription = "${capture.targetType.name.lowercase()} analysis"
+                setOnClickListener { selectPunchHeightReviewCapture(capture) }
+            }
+            punchHeightReviewThumbnails.addView(thumbnail)
+        }
+        session.captures.firstOrNull()?.let(::selectPunchHeightReviewCapture)
+        updateControlVisibility()
+    }
+
+    private fun selectPunchHeightReviewCapture(capture: dk.lasse.karatecliprecorder.learning.PunchHeightSavedCapture) {
+        punchHeightReviewLargeImage.setImageBitmap(BitmapFactory.decodeFile(capture.analysisFile.absolutePath))
+        punchHeightReviewExplanation.text = buildString {
+            append(capture.snapshot.target.explanation)
+            append(" Your fist was ")
+            append(String.format(java.util.Locale.US, "%+.1f%%", capture.snapshot.signedHeightErrorTorsoRatio * 100f))
+            append(" of your torso length from the target centre.")
+        }
+    }
+
+    private fun clearPunchHeightReview() {
+        if (::punchHeightReviewThumbnails.isInitialized) punchHeightReviewThumbnails.removeAllViews()
+        if (::punchHeightReviewLargeImage.isInitialized) punchHeightReviewLargeImage.setImageDrawable(null)
+        if (::punchHeightReviewExplanation.isInitialized) punchHeightReviewExplanation.text = ""
+    }
+
+    private fun adjustPunchHeightMultiplier(delta: Float) {
+        setPunchHeightMultiplier(punchHeightCoordinator.currentState().chinProjectionMultiplier + delta)
+    }
+
+    private fun setPunchHeightMultiplier(value: Float) {
+        if (!punchHeightActive) return
+        updatePunchHeightState(punchHeightCoordinator.setChinProjectionMultiplier(value), speak = false)
+    }
+
+    private fun cancelPunchHeightSession() {
+        recordingAdapter?.setAnalysisEnabled(false)
+        punchHeightCoordinator.cancel()
+        punchHeightActive = false
+        poseRecognizerRunner?.close()
+        poseRecognizerRunner = null
+        poseRecognizerState = PoseRecognizerLifecycleState.CLOSED
+        punchHeightVoiceCoach?.close()
+        punchHeightVoiceCoach = null
+        punchHeightStorageExecutor.execute { punchHeightCaptureStore.cancelSession() }
+        clearPunchHeightReview()
+        latestPunchHeightState = PunchHeightSessionState()
+        updateMainMenuAvailability()
+        updateControlVisibility()
+    }
+
+    private fun closePunchHeightSession() {
+        punchHeightCoordinator.complete()
+        punchHeightActive = false
+        recordingAdapter?.setAnalysisEnabled(false)
+        poseRecognizerRunner?.close()
+        poseRecognizerRunner = null
+        poseRecognizerState = PoseRecognizerLifecycleState.CLOSED
+        punchHeightVoiceCoach?.close()
+        punchHeightVoiceCoach = null
+        completedPunchHeightSession = null
+        clearPunchHeightReview()
+        latestPunchHeightState = PunchHeightSessionState()
+        updateMainMenuAvailability()
+        updateControlVisibility()
+    }
+
+    private fun failPunchHeightSession(message: String) {
+        if (!punchHeightActive) return
+        recordingAdapter?.setAnalysisEnabled(false)
+        val failed = punchHeightCoordinator.fail(message)
+        updatePunchHeightState(failed, speak = false)
+        Toast.makeText(this, message, Toast.LENGTH_LONG).show()
+        punchHeightActive = false
+        poseRecognizerRunner?.close()
+        poseRecognizerRunner = null
+        poseRecognizerState = PoseRecognizerLifecycleState.FAILED
+        punchHeightVoiceCoach?.close()
+        punchHeightVoiceCoach = null
+        punchHeightStorageExecutor.execute { punchHeightCaptureStore.cancelSession() }
+        updateMainMenuAvailability()
+        updateControlVisibility()
+    }
+
+    private fun updatePunchHeightState(state: PunchHeightSessionState, speak: Boolean = true) {
+        latestPunchHeightState = state
+        val inReview = state.stage == PunchHeightSessionStage.SESSION_REVIEW && completedPunchHeightSession != null
+        punchHeightTitleText.text = when {
+            inReview -> "Punch Heights review"
+            state.targetType != null -> "${state.targetType.name.lowercase().replaceFirstChar(Char::uppercase)} — ${state.capturedTargets.size + 1} of 3"
+            state.stage == PunchHeightSessionStage.SESSION_SETUP -> "Punch Heights — Setup"
+            state.stage == PunchHeightSessionStage.BODY_INITIALIZATION -> "Body initialization"
+            else -> "Punch Heights — Level 1"
+        }
+        punchHeightMessageText.text = state.message
+        punchHeightProgress.progress = ((state.evaluation?.holdProgress
+            ?: state.setupEvaluation?.progress
+            ?: state.initializationEvaluation?.progress
+            ?: 0f) * punchHeightProgress.max).toInt()
+        punchHeightMultiplierText.text = String.format(
+            java.util.Locale.US,
+            "Jodan chin projection ×%.2f",
+            state.chinProjectionMultiplier,
+        )
+        punchHeightOverlayView.setSessionState(if (punchHeightActive && !inReview) state else null, debugUiVisible)
+        if (speak && punchHeightActive) punchHeightVoiceCoach?.speak(state.message, SystemClock.elapsedRealtime())
+        val evaluation = state.evaluation
+        analyzerDebugText.text = if (evaluation == null) {
+            "Pose: ${poseRecognizerState.name.lowercase()} / stage ${state.stage.name.lowercase()}"
+        } else listOf(
+            "Pose: ${poseRecognizerState.name.lowercase()} / ${state.stage.name.lowercase()}",
+            "Target: ${evaluation.target?.calculationStrategy ?: "lost"}",
+            "Confidence: ${evaluation.target?.confidence?.format2() ?: "--"}",
+            "Arm: ${evaluation.activeArm.name.lowercase()} / elbow ${evaluation.elbowAngleDegrees?.format2() ?: "--"}°",
+            "Error: ${evaluation.signedHeightErrorTorsoRatio?.let { String.format(java.util.Locale.US, "%+.2f", it) } ?: "--"}",
+            "Hold: ${evaluation.stableHoldMs} ms / ${(evaluation.holdProgress * 100f).toInt()}%",
+            "Chin: ${evaluation.target?.chinEstimate?.source?.name ?: "n/a"} / ${evaluation.target?.chinEstimate?.confidence?.format2() ?: "--"}",
+            "Capture: target ≥0.70 / arm ≥0.60 / elbow ≥165° / hold 1200 ms",
+            "Motion 400 ms: fist ≤0.025 / target ≤0.015 / body ≤0.020 torso",
+        ).joinToString("\n")
+        updateControlVisibility()
+    }
+
+    private fun startJapaneseCountLevel1() {
+        stopJapaneseCountSession()
+        metadataPathText.text = "Metadata: not saved"
+        japaneseCountMode = JapaneseCountMode.LEVEL_1
+        japaneseCountActive = true
+        japaneseCountLevel1Controller.start()
+    }
+
+    private fun startJapaneseCountLevel2() {
+        stopJapaneseCountSession()
+        metadataPathText.text = "Metadata: not saved"
+        japaneseCountMode = JapaneseCountMode.LEVEL_2
+        japaneseCountActive = true
+        resetJapaneseCountLevel2()
+        if (japaneseCountTrainingSession.phase == CountTrainingPhase.READY) {
+            playJapaneseCountFullExample()
+        }
+    }
+
+    private fun stopJapaneseCountSession() {
+        cancelJapaneseCountRecognitionRestart()
+        pendingJapaneseCountMicrophonePermission = false
+        trainingOrderPlayer?.stop()
+        if (::japaneseCountFullExamplePlayer.isInitialized) {
+            japaneseCountFullExamplePlayer.stop()
+        }
+        if (::japaneseCountLiveRecognizer.isInitialized) {
+            japaneseCountLiveRecognizer.cancel()
+        }
+        japaneseCountMode = null
+        japaneseCountActive = false
+        japaneseCountCommittedTranscript = ""
+        japaneseCountTrainingSession = CountTrainingSession()
+        if (::japaneseCountLevel1Controller.isInitialized) {
+            japaneseCountLevel1Controller.cancel()
+        }
+        japaneseCountText.text = ""
+        japaneseCountFeedbackText.text = ""
+        japaneseCountResultsText.text = ""
+        updateJapaneseCountDebugText()
+        updateMainMenuAvailability()
+        updateControlVisibility()
+    }
+
+    private fun navigateJapaneseCountLevel1(action: () -> Unit) {
+        if (japaneseCountMode != JapaneseCountMode.LEVEL_1) return
+        trainingOrderPlayer?.stop()
+        action()
+    }
+
+    private fun playJapaneseCountLevel1Item() {
+        val item = japaneseCountLevel1Controller.state.item ?: return
+        playJapaneseCountPrompt(item)
+    }
+
+    private fun playJapaneseCountPrompt(item: JapaneseCountLessonItem, onComplete: () -> Unit = {}) {
+        japaneseCountFullExamplePlayer.stop()
+        trainingOrderPlayer?.play(item.order, onComplete) ?: onComplete()
+    }
+
+    private fun playJapaneseCountFullExample() {
+        if (japaneseCountMode != JapaneseCountMode.LEVEL_2) return
+        trainingOrderPlayer?.stop()
+        japaneseCountFullExamplePlayer.play(
+            onError = { error ->
+                japaneseCountFeedbackText.text =
+                    "The full count example could not be played. Tap Play full example to retry."
+                if ((applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE) != 0) {
+                    Log.e(JAPANESE_COUNT_LOG_TAG, "Full count example playback failed.", error)
+                }
+            },
+        )
+    }
+
+    private fun requestJapaneseCountLiveRecognition() {
+        if (japaneseCountMode != JapaneseCountMode.LEVEL_2) return
+        val hasAudioPermission = ContextCompat.checkSelfPermission(
+            this,
+            Manifest.permission.RECORD_AUDIO,
+        ) == PackageManager.PERMISSION_GRANTED
+        if (!hasAudioPermission) {
+            pendingJapaneseCountMicrophonePermission = true
+            audioPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+            return
+        }
+        beginJapaneseCountLiveRecognition()
+    }
+
+    private fun beginJapaneseCountLiveRecognition() {
+        if (japaneseCountMode != JapaneseCountMode.LEVEL_2) return
+        trainingOrderPlayer?.stop()
+        japaneseCountFullExamplePlayer.stop()
+        updateJapaneseCountLevel2Session(
+            japaneseCountTrainingSession.copy(
+                phase = CountTrainingPhase.LISTENING,
+                partialTranscripts = emptyList(),
+                finalTranscriptAlternatives = emptyList(),
+                selectedTranscript = null,
+                normalizationTokens = emptyList(),
+                normalizedSequence = emptyList(),
+                countResults = emptyList(),
+                sequenceScore = 0f,
+                successful = false,
+                error = null,
+                technicalError = null,
+            ),
+        )
+        japaneseCountCommittedTranscript = ""
+        cancelJapaneseCountRecognitionRestart()
+        startJapaneseCountRecognitionSegment()
+    }
+
+    private fun startJapaneseCountRecognitionSegment() {
+        if (
+            japaneseCountMode != JapaneseCountMode.LEVEL_2 ||
+            japaneseCountTrainingSession.phase != CountTrainingPhase.LISTENING
+        ) return
+        japaneseCountLiveRecognizer.start(
+            onPartialResults = { partials ->
+                if (
+                    japaneseCountMode == JapaneseCountMode.LEVEL_2 &&
+                    japaneseCountTrainingSession.phase == CountTrainingPhase.LISTENING
+                ) {
+                    val combinedPartials = partials.map(::combineJapaneseCountTranscript)
+                    val candidates = combinedPartials.map(CountTranscriptNormalizer::normalizeJapaneseTranscript)
+                    val reachedCountLimit = candidates.any {
+                        JapaneseCountListeningPolicy.shouldAutoStop(it.normalizedSequence.size)
+                    }
+                    updateJapaneseCountLevel2Session(
+                        japaneseCountTrainingSession.copy(
+                            partialTranscripts = (japaneseCountTrainingSession.partialTranscripts + combinedPartials)
+                                .distinct()
+                                .takeLast(MAX_JAPANESE_PARTIAL_TRANSCRIPTS),
+                        ),
+                    )
+                    if (reachedCountLimit) finishJapaneseCountLiveRecognition()
+                }
+            },
+            onSegmentResults = { alternatives ->
+                processJapaneseCountRecognitionAlternatives(
+                    alternatives = alternatives,
+                    restartIfIncomplete = false,
+                )
+            },
+            onFinalResults = ::completeJapaneseCountLiveRecognition,
+            onRecognitionEnded = ::handleJapaneseCountRecognitionEnded,
+            onError = ::handleJapaneseCountRecognitionError,
+        )
+    }
+
+    private fun finishJapaneseCountLiveRecognition() {
+        if (
+            japaneseCountMode != JapaneseCountMode.LEVEL_2 ||
+            japaneseCountTrainingSession.phase != CountTrainingPhase.LISTENING
+        ) return
+        cancelJapaneseCountRecognitionRestart()
+        updateJapaneseCountLevel2Session(
+            japaneseCountTrainingSession.copy(phase = CountTrainingPhase.FINALIZING),
+        )
+        japaneseCountLiveRecognizer.stopListening()
+    }
+
+    private fun completeJapaneseCountLiveRecognition(alternatives: List<CountRecognitionAlternative>) {
+        processJapaneseCountRecognitionAlternatives(
+            alternatives = alternatives,
+            restartIfIncomplete = true,
+        )
+    }
+
+    private fun processJapaneseCountRecognitionAlternatives(
+        alternatives: List<CountRecognitionAlternative>,
+        restartIfIncomplete: Boolean,
+        combineWithCommittedTranscript: Boolean = true,
+    ) {
+        if (japaneseCountMode != JapaneseCountMode.LEVEL_2) return
+        val combinedAlternatives = if (combineWithCommittedTranscript) {
+            alternatives.map { alternative ->
+                alternative.copy(transcript = combineJapaneseCountTranscript(alternative.transcript))
+            }
+        } else {
+            alternatives
+        }
+        val selected = CountTranscriptNormalizer.selectStrongestAlternative(combinedAlternatives)
+        if (selected == null) {
+            handleJapaneseCountRecognitionError(
+                CountRecognitionFailure(
+                    CountRecognitionError.EMPTY_TRANSCRIPTION,
+                ),
+            )
+            return
+        }
+        val finalHistory = (
+            japaneseCountTrainingSession.finalTranscriptAlternatives +
+                combinedAlternatives.map(CountRecognitionAlternative::transcript)
+            ).distinct()
+
+        if (
+            japaneseCountTrainingSession.phase == CountTrainingPhase.LISTENING &&
+            !JapaneseCountListeningPolicy.shouldAutoStop(selected.normalizedSequence.size)
+        ) {
+            japaneseCountCommittedTranscript = selected.rawTranscript
+            updateJapaneseCountLevel2Session(
+                japaneseCountTrainingSession.copy(
+                    finalTranscriptAlternatives = finalHistory,
+                    selectedTranscript = selected.rawTranscript,
+                    normalizationTokens = selected.tokens,
+                    normalizedSequence = selected.normalizedSequence,
+                    countResults = selected.exerciseResult.countResults,
+                    sequenceScore = selected.sequenceScore,
+                ),
+            )
+            if (restartIfIncomplete) scheduleJapaneseCountRecognitionRestart()
+            return
+        }
+
+        cancelJapaneseCountRecognitionRestart()
+        japaneseCountLiveRecognizer.cancel()
+        updateJapaneseCountLevel2Session(
+            japaneseCountTrainingSession.copy(
+                phase = CountTrainingPhase.RESULT,
+                finalTranscriptAlternatives = finalHistory,
+                selectedTranscript = selected.rawTranscript,
+                normalizationTokens = selected.tokens,
+                normalizedSequence = selected.normalizedSequence,
+                countResults = selected.exerciseResult.countResults,
+                sequenceScore = selected.sequenceScore,
+                successful = selected.successful,
+                error = null,
+                technicalError = null,
+            ),
+        )
+    }
+
+    private fun handleJapaneseCountRecognitionEnded() {
+        if (japaneseCountMode != JapaneseCountMode.LEVEL_2) return
+        when (japaneseCountTrainingSession.phase) {
+            CountTrainingPhase.LISTENING -> scheduleJapaneseCountRecognitionRestart()
+            CountTrainingPhase.FINALIZING -> finalizeJapaneseCountBestAvailableTranscript()
+            else -> Unit
+        }
+    }
+
+    private fun finalizeJapaneseCountBestAvailableTranscript() {
+        val bestAvailable = CountTranscriptNormalizer.selectStrongestAlternative(
+            buildList {
+                japaneseCountCommittedTranscript.takeIf(String::isNotBlank)?.let { transcript ->
+                    add(CountRecognitionAlternative(transcript))
+                }
+                japaneseCountTrainingSession.partialTranscripts.forEach { transcript ->
+                    add(CountRecognitionAlternative(transcript))
+                }
+            },
+        )
+        if (bestAvailable == null) {
+            showJapaneseCountLevel2Error(CountRecognitionError.EMPTY_TRANSCRIPTION)
+            return
+        }
+        processJapaneseCountRecognitionAlternatives(
+            alternatives = listOf(CountRecognitionAlternative(bestAvailable.rawTranscript)),
+            restartIfIncomplete = false,
+            combineWithCommittedTranscript = false,
+        )
+    }
+
+    private fun handleJapaneseCountRecognitionError(
+        failure: CountRecognitionFailure,
+    ) {
+        if (japaneseCountMode != JapaneseCountMode.LEVEL_2) return
+        val retryableEarlyEnd = failure.error == CountRecognitionError.NO_SPEECH_DETECTED ||
+            failure.error == CountRecognitionError.BUSY ||
+            failure.error == CountRecognitionError.EMPTY_TRANSCRIPTION
+        when {
+            retryableEarlyEnd && japaneseCountTrainingSession.phase == CountTrainingPhase.LISTENING -> {
+                scheduleJapaneseCountRecognitionRestart(
+                    delayMs = if (failure.error == CountRecognitionError.BUSY) {
+                        JAPANESE_COUNT_BUSY_RETRY_DELAY_MS
+                    } else {
+                        0L
+                    },
+                )
+            }
+            retryableEarlyEnd &&
+                japaneseCountTrainingSession.phase == CountTrainingPhase.FINALIZING &&
+                (japaneseCountCommittedTranscript.isNotBlank() ||
+                    japaneseCountTrainingSession.partialTranscripts.isNotEmpty()) -> {
+                finalizeJapaneseCountBestAvailableTranscript()
+            }
+            else -> showJapaneseCountLevel2Error(
+                error = failure.error,
+                technicalMessage = failure.technicalMessage,
+            )
+        }
+    }
+
+    private fun combineJapaneseCountTranscript(transcript: String): String =
+        listOf(japaneseCountCommittedTranscript, transcript)
+            .filter(String::isNotBlank)
+            .joinToString(" ")
+
+    private fun scheduleJapaneseCountRecognitionRestart(delayMs: Long = 0L) {
+        cancelJapaneseCountRecognitionRestart()
+        pendingJapaneseCountRecognitionRestart = Runnable {
+            pendingJapaneseCountRecognitionRestart = null
+            if (
+                japaneseCountMode == JapaneseCountMode.LEVEL_2 &&
+                japaneseCountTrainingSession.phase == CountTrainingPhase.LISTENING
+            ) {
+                startJapaneseCountRecognitionSegment()
+            }
+        }.also { restart ->
+            mainHandler.postDelayed(restart, delayMs)
+        }
+    }
+
+    private fun cancelJapaneseCountRecognitionRestart() {
+        pendingJapaneseCountRecognitionRestart?.let(mainHandler::removeCallbacks)
+        pendingJapaneseCountRecognitionRestart = null
+    }
+
+    private fun resetJapaneseCountLevel2() {
+        if (japaneseCountMode != JapaneseCountMode.LEVEL_2) return
+        pendingJapaneseCountMicrophonePermission = false
+        cancelJapaneseCountRecognitionRestart()
+        japaneseCountCommittedTranscript = ""
+        japaneseCountLiveRecognizer.cancel()
+        updateJapaneseCountLevel2Session(
+            CountTrainingSession(phase = CountTrainingPhase.READY),
+        )
+    }
+
+    private fun showJapaneseCountLevel2Error(
+        error: CountRecognitionError,
+        technicalMessage: String? = null,
+    ) {
+        updateJapaneseCountLevel2Session(
+            japaneseCountTrainingSession.copy(
+                phase = CountTrainingPhase.ERROR,
+                successful = false,
+                error = error,
+                technicalError = technicalMessage,
+            ),
+        )
+    }
+
+    private fun updateJapaneseCountLevel2Session(session: CountTrainingSession) {
+        if (japaneseCountMode != JapaneseCountMode.LEVEL_2) return
+        if (session.phase != CountTrainingPhase.LISTENING) cancelJapaneseCountRecognitionRestart()
+        japaneseCountTrainingSession = session
+        if ((applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE) != 0) {
+            Log.d(JAPANESE_COUNT_LOG_TAG, session.toString())
+        }
+        japaneseCountActive = true
+        japaneseCountText.text = when (session.phase) {
+            CountTrainingPhase.READY -> "Level 2\nCount aloud from 1 to 10"
+            CountTrainingPhase.LISTENING -> session.partialTranscripts.lastOrNull()
+                ?.let { "Listening...\n$it" }
+                ?: "Listening...\nSay all ten numbers; brief pauses are okay"
+            CountTrainingPhase.FINALIZING -> "Finishing Japanese recognition..."
+            CountTrainingPhase.RESULT -> if (session.successful) "Complete count recognized" else "Count needs another try"
+            CountTrainingPhase.ERROR -> "Unable to analyze this count"
+            else -> "Level 2"
+        }
+        japaneseCountFeedbackText.text = when (session.phase) {
+            CountTrainingPhase.READY -> "Play the example, then start Japanese live recognition."
+            CountTrainingPhase.LISTENING -> "Tap Stop listening when done, or it stops after ten recognized numbers."
+            CountTrainingPhase.FINALIZING -> "Please wait for the final result."
+            CountTrainingPhase.RESULT -> if (session.successful) {
+                "Success - all ten numbers are in the correct order."
+            } else {
+                "One or more numbers were missing or out of order."
+            }
+            CountTrainingPhase.ERROR -> session.error.toJapaneseCountUserMessage()
+            else -> ""
+        }
+        japaneseCountResultsText.text = buildList {
+            session.selectedTranscript?.takeIf(String::isNotBlank)?.let { transcript ->
+                add("Recognized: $transcript")
+            }
+            session.countResults.forEach { result ->
+                add(
+                    when (result.status) {
+                        CountStatus.CORRECT -> "${result.expectedNumber}  Correct"
+                        CountStatus.INCORRECT -> buildString {
+                            append(result.expectedNumber)
+                            append("  Incorrect - heard: ")
+                            append(result.recognizedText ?: "unknown")
+                            result.normalizedNumber?.let { normalized -> append(" -> $normalized") }
+                        }
+                        CountStatus.MISSING -> "${result.expectedNumber}  Missing - no count recognized"
+                    },
+                )
+            }
+        }.joinToString("\n")
+        updateJapaneseCountDebugText()
+        updateControlVisibility()
+    }
+
+    private fun updateJapaneseCountDebugText() {
+        if (currentDebugScope() != DebugScope.COUNT_JAPANESE) return
+        analyzerDebugText.text = when (japaneseCountMode) {
+            JapaneseCountMode.LEVEL_1 -> {
+                val state = japaneseCountLevel1Controller.state
+                listOf(
+                    "Level: 1 (self-training only)",
+                    "Expected: ${state.item?.number ?: "--"} / ${state.item?.japanese ?: "--"}",
+                    "Microphone: unused",
+                    "Recognition: unused",
+                ).joinToString("\n")
+            }
+            JapaneseCountMode.LEVEL_2 -> with(japaneseCountTrainingSession) {
+                listOf(
+                    "Level: 2 / Phase: ${phase.name.lowercase()}",
+                    "Language: $recognitionLanguage",
+                    "Partial: ${partialTranscripts.joinToString(" | ").ifBlank { "--" }}",
+                    "Final alternatives: ${finalTranscriptAlternatives.joinToString(" | ").ifBlank { "--" }}",
+                    "Selected: ${selectedTranscript ?: "--"}",
+                    "Tokens: ${normalizationTokens.joinToString(" | ") { token -> "${token.recognizedText}->${token.normalizedNumber ?: "?"}/${token.normalizationRule?.name ?: "NONE"}" }.ifBlank { "--" }}",
+                    "Normalized: ${normalizedSequence.joinToString().ifBlank { "--" }}",
+                    "Results: ${countResults.joinToString { "${it.expectedNumber}:${it.status.name}" }.ifBlank { "--" }}",
+                    "Score: ${sequenceScore.format2()} / Success: $successful",
+                    "Error: ${error?.name ?: "--"}${technicalError?.let { " / $it" } ?: ""}",
+                ).joinToString("\n")
+            }
+            null -> "Analyzer: inactive"
+        }
+    }
+
+    private fun CountStatus.toJapaneseCountStatusText(): String = when (this) {
+        CountStatus.CORRECT -> "Correct"
+        CountStatus.INCORRECT -> "Incorrect"
+        CountStatus.MISSING -> "Missing"
+    }
+
+    private fun CountRecognitionError?.toJapaneseCountUserMessage(): String = when (this) {
+        CountRecognitionError.MICROPHONE_PERMISSION_DENIED -> "Microphone permission is needed for Level 2. You can retry after granting it."
+        CountRecognitionError.NO_SPEECH_DETECTED,
+        CountRecognitionError.EMPTY_TRANSCRIPTION -> "No count was detected. Please retry and speak clearly."
+        CountRecognitionError.RECOGNITION_SERVICE_UNAVAILABLE -> "Speech recognition is not available on this device."
+        CountRecognitionError.LANGUAGE_NOT_SUPPORTED,
+        CountRecognitionError.LANGUAGE_UNAVAILABLE -> "The required recognition language is unavailable."
+        CountRecognitionError.NETWORK -> "Recognition needs a working network connection. Please retry."
+        CountRecognitionError.TIMEOUT -> "Recognition timed out. Please retry."
+        CountRecognitionError.BUSY -> "Speech recognition is busy. Please retry."
+        CountRecognitionError.CLIENT,
+        CountRecognitionError.SERVER,
+        CountRecognitionError.UNKNOWN,
+        null -> "The count could not be analyzed. Please retry."
+    }
+
     private fun startFindYourWeaponSession() {
         metadataPathText.text = "Metadata: not saved"
+        resetFindYourWeaponAutoAdvance()
+        renderedFindYourWeaponStep = null
+        latestFindYourWeaponAnalysisState = null
+        findYourWeaponKnuckleGuideVisible = false
+        findYourWeaponFinishReady = false
+        findYourWeaponProgressRingView.setProgress(0f, accepted = false)
+        findYourWeaponMessageText.text = ""
+        findYourWeaponCoachTextGate.reset()
         analysisCoordinator?.reset()
         recognizerState = RecognizerLifecycleState.INITIALIZING
         updateAnalysisState(
@@ -347,11 +1597,67 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    private fun navigateFindYourWeaponManually(action: () -> Unit) {
+        resetFindYourWeaponAutoAdvance()
+        action()
+    }
+
+    private fun resetFindYourWeaponAutoAdvance() {
+        cancelPendingFindYourWeaponAdvance()
+        findYourWeaponAutoAdvanceController.reset()
+    }
+
+    private fun cancelPendingFindYourWeaponAdvance() {
+        pendingFindYourWeaponAdvance?.let(mainHandler::removeCallbacks)
+        pendingFindYourWeaponAdvance = null
+        findYourWeaponAutoAdvanceController.cancelPending()
+    }
+
+    override fun onStop() {
+        if (cameraSetupActive) closeCameraSetupSession()
+        if (punchHeightActive) cancelPunchHeightSession()
+        cancelJapaneseCountRecognitionRestart()
+        trainingOrderPlayer?.stop()
+        if (::japaneseCountFullExamplePlayer.isInitialized) {
+            japaneseCountFullExamplePlayer.stop()
+        }
+        if (
+            ::japaneseCountLiveRecognizer.isInitialized &&
+            japaneseCountMode == JapaneseCountMode.LEVEL_2 &&
+            japaneseCountTrainingSession.phase in setOf(
+                CountTrainingPhase.LISTENING,
+                CountTrainingPhase.FINALIZING,
+            )
+        ) {
+            japaneseCountLiveRecognizer.cancel()
+            showJapaneseCountLevel2Error(
+                error = CountRecognitionError.CLIENT,
+                technicalMessage = "Recognition was cancelled because the activity stopped.",
+            )
+        }
+        super.onStop()
+    }
+
     override fun onDestroy() {
+        cancelPendingFindYourWeaponAdvance()
+        if (::japaneseCountLiveRecognizer.isInitialized) {
+            japaneseCountLiveRecognizer.release()
+        }
+        if (::japaneseCountFullExamplePlayer.isInitialized) {
+            japaneseCountFullExamplePlayer.release()
+        }
         recognizerRunner?.close()
         recognizerRunner = null
+        poseRecognizerRunner?.close()
+        poseRecognizerRunner = null
+        punchHeightVoiceCoach?.close()
+        punchHeightVoiceCoach = null
+        cameraSetupVoiceCoach?.close()
+        cameraSetupVoiceCoach = null
         recognizerState = RecognizerLifecycleState.CLOSED
         recognizerExecutor.shutdownNow()
+        punchHeightStorageExecutor.shutdownNow()
+        punchHeightCaptureStore.cancelSession()
         recordingAdapter?.close()
         recordingAdapter = null
         trainingOrderPlayer?.release()
@@ -360,10 +1666,9 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun updateRecordingState(state: RecordingState) {
+        latestRecordingState = state
         recordingStateText.text = "Recording: ${state.name.lowercase()}"
-        val cameraReady = state == RecordingState.IDLE || state == RecordingState.SAVED || state == RecordingState.FAILED
-        startSessionButton.isEnabled = cameraReady && !guidedSessionActive && !findYourWeaponActive
-        findYourWeaponButton.isEnabled = cameraReady && !guidedSessionActive && !findYourWeaponActive
+        updateMainMenuAvailability()
         updateControlVisibility()
     }
 
@@ -371,19 +1676,66 @@ class MainActivity : AppCompatActivity() {
         latestGuidedState = state
         guidedSessionActive = state in ACTIVE_GUIDED_STATES
         statusText.text = "Status: ${state.name.lowercase()}"
-        startSessionButton.isEnabled = !guidedSessionActive && !findYourWeaponActive
-        findYourWeaponButton.isEnabled = !guidedSessionActive && !findYourWeaponActive
-        cancelSessionButton.isEnabled = guidedSessionActive || findYourWeaponActive
+        updateMainMenuAvailability()
         updateControlVisibility()
         TrainingOrderMapper.fromSessionState(state)?.let(::playTrainingOrder)
+    }
+
+    private fun updateJapaneseCountLevel1State(state: JapaneseCountLevel1State) {
+        if (japaneseCountMode != JapaneseCountMode.LEVEL_1) {
+            updateControlVisibility()
+            return
+        }
+        japaneseCountActive = true
+        val item = state.item
+        if (item != null) {
+            statusText.text = "Japanese count - Level 1"
+            currentCountText.text = "Count: ${state.itemIndex + 1} / ${JapaneseCountLesson.items.size}"
+            currentStrikeText.text = "Japanese: ${item.japanese}"
+            expectedSideText.text = "Number: ${item.number}"
+            japaneseCountText.text = "${item.number}\n${item.japanese}"
+            japaneseCountFeedbackText.text = "${state.itemIndex + 1} of ${JapaneseCountLesson.items.size}"
+            japaneseCountResultsText.text = ""
+            japaneseCountBackButton.isEnabled = state.itemIndex > 0
+            japaneseCountReplayButton.isEnabled = true
+            japaneseCountNextButton.text = if (state.itemIndex == JapaneseCountLesson.items.lastIndex) "Finish" else "Next"
+            playJapaneseCountPrompt(item)
+        } else {
+            trainingOrderPlayer?.stop()
+            statusText.text = if (state.isComplete) "Japanese count Level 1 complete" else "Status: idle"
+            currentCountText.text = "Count: none"
+            currentStrikeText.text = "Strike: none"
+            expectedSideText.text = "Expected side: none"
+            japaneseCountText.text = if (state.isComplete) "Level 1 complete" else ""
+            japaneseCountFeedbackText.text = if (state.isComplete) "You practiced all ten numbers." else ""
+            japaneseCountNextButton.text = "Next"
+        }
+        updateMainMenuAvailability()
+        updateJapaneseCountDebugText()
+        updateControlVisibility()
     }
 
 
     private fun updateFindYourWeaponState(state: FindYourWeaponState) {
         findYourWeaponActive = state.isActive
         val step = state.step
+        val activeStep = if (state.isActive) step else null
+        if (renderedFindYourWeaponStep != activeStep) {
+            cancelPendingFindYourWeaponAdvance()
+            findYourWeaponAutoAdvanceController.onStepChanged(activeStep)
+            findYourWeaponKnuckleGuideVisible = false
+            findYourWeaponFinishReady = false
+            findYourWeaponProgressRingView.setProgress(0f, accepted = false)
+            findYourWeaponMessageText.text = ""
+            findYourWeaponCoachTextGate.reset()
+            renderedFindYourWeaponStep = activeStep
+        }
         handGuideOverlayView.visibility = View.GONE
-        if (!state.isActive) findYourWeaponDebugOverlayView.setOverlay(null)
+        if (!state.isActive) {
+            findYourWeaponDebugOverlayView.setOverlay(null)
+            latestFindYourWeaponAnalysisState = null
+            findYourWeaponCoachTextGate.reset()
+        }
         analysisCoordinator?.setActiveStep(if (state.isActive) step else null)
         recordingAdapter?.setAnalysisEnabled(state.isActive && step != null)
         if (!state.isActive) { analysisCoordinator?.reset() }
@@ -396,6 +1748,7 @@ class MainActivity : AppCompatActivity() {
             findYourWeaponImage.setImageResource(content.imageResId)
             findYourWeaponBackButton.isEnabled = step != FindYourWeaponStep.OPEN_PALM
             findYourWeaponNextButton.text = if (step == FindYourWeaponStep.FRONT_TWO_KNUCKLES) "Finish" else "Next"
+            updateFindYourWeaponCoachText(force = true)
         } else {
             statusText.text = if (state.isComplete) "Find Your Weapon complete" else "Status: idle"
             currentCountText.text = "Count: none"
@@ -403,25 +1756,96 @@ class MainActivity : AppCompatActivity() {
             expectedSideText.text = "Expected side: none"
             findYourWeaponImage.setImageDrawable(null)
             findYourWeaponNextButton.text = "Next"
+            findYourWeaponFinishReady = false
+            findYourWeaponProgressRingView.setProgress(0f, accepted = false)
+            findYourWeaponMessageText.text = ""
+            findYourWeaponCoachTextGate.reset()
         }
-        startSessionButton.isEnabled = !guidedSessionActive && !findYourWeaponActive
-        findYourWeaponButton.isEnabled = !guidedSessionActive && !findYourWeaponActive
-        cancelSessionButton.isEnabled = guidedSessionActive || findYourWeaponActive
+        updateMainMenuAvailability()
         updateControlVisibility()
     }
 
+    private fun updateMainMenuAvailability() {
+        val availability = mainMenuAvailability(
+            recordingState = latestRecordingState,
+            guidedSessionActive = guidedSessionActive,
+            findYourWeaponActive = findYourWeaponActive,
+            japaneseCountActive = japaneseCountActive,
+            punchHeightActive = punchHeightActive,
+            cameraSetupActive = cameraSetupActive,
+        )
+        startSessionButton.isEnabled = availability.cameraActionsEnabled
+        findYourWeaponButton.isEnabled = availability.cameraActionsEnabled
+        punchHeightButton.isEnabled = availability.cameraActionsEnabled
+        countJapaneseButton.isEnabled = availability.countActionsEnabled
+        countJapaneseLevel2Button.isEnabled = availability.countActionsEnabled
+        cancelSessionButton.isEnabled = availability.cancelEnabled
+    }
+
     private fun updateControlVisibility() {
-        val idle = !guidedSessionActive && !findYourWeaponActive
-        val active = guidedSessionActive || findYourWeaponActive
+        val idle = !guidedSessionActive && !findYourWeaponActive && !japaneseCountActive && !punchHeightActive && !cameraSetupActive
+        val active = guidedSessionActive || findYourWeaponActive || japaneseCountActive || punchHeightActive || cameraSetupActive
         val debugScope = currentDebugScope()
 
         startSessionButton.visibility = if (idle) View.VISIBLE else View.GONE
         findYourWeaponButton.visibility = if (idle) View.VISIBLE else View.GONE
+        punchHeightButton.visibility = if (idle) View.VISIBLE else View.GONE
+        countJapaneseButton.visibility = if (idle) View.VISIBLE else View.GONE
+        countJapaneseLevel2Button.visibility = if (idle) View.VISIBLE else View.GONE
         findYourWeaponImage.visibility = if (findYourWeaponActive && findYourWeaponController?.state?.step != null) View.VISIBLE else View.GONE
-        findYourWeaponDebugOverlayView.visibility = if (debugUiVisible && findYourWeaponActive && findYourWeaponController?.state?.step != null) View.VISIBLE else View.GONE
-        findYourWeaponNextButton.visibility = if (findYourWeaponActive) View.VISIBLE else View.GONE
+        findYourWeaponDebugOverlayView.visibility = if ((debugUiVisible || findYourWeaponKnuckleGuideVisible) && findYourWeaponActive && findYourWeaponController?.state?.step != null) View.VISIBLE else View.GONE
+        findYourWeaponProgressRingView.visibility = if (shouldShowFindYourWeaponProgressRing()) View.VISIBLE else View.GONE
+        findYourWeaponMessageText.visibility = if (findYourWeaponActive && findYourWeaponController?.state?.step != null) View.VISIBLE else View.GONE
+        val level1ItemActive = japaneseCountMode == JapaneseCountMode.LEVEL_1 && japaneseCountLevel1Controller.state.item != null
+        val level2Active = japaneseCountMode == JapaneseCountMode.LEVEL_2
+        val level2Phase = japaneseCountTrainingSession.phase
+        val level2CanPlayExample = level2Phase == CountTrainingPhase.READY ||
+            level2Phase == CountTrainingPhase.RESULT ||
+            level2Phase == CountTrainingPhase.ERROR
+        japaneseCountText.visibility = if (japaneseCountActive) View.VISIBLE else View.GONE
+        japaneseCountFeedbackText.visibility = if (japaneseCountActive) View.VISIBLE else View.GONE
+        japaneseCountResultsText.visibility = if (level2Active && japaneseCountTrainingSession.countResults.isNotEmpty()) View.VISIBLE else View.GONE
+        japaneseCountBackButton.visibility = if (level1ItemActive) View.VISIBLE else View.GONE
+        japaneseCountPlayButton.visibility = if (level2Active && level2CanPlayExample) View.VISIBLE else View.GONE
+        japaneseCountReplayButton.visibility = if (level1ItemActive) View.VISIBLE else View.GONE
+        japaneseCountNextButton.visibility = if (level1ItemActive) View.VISIBLE else View.GONE
+        japaneseCountListenButton.visibility = if (level2Active && level2Phase == CountTrainingPhase.READY) View.VISIBLE else View.GONE
+        japaneseCountFinishButton.visibility = if (level2Active && level2Phase == CountTrainingPhase.LISTENING) View.VISIBLE else View.GONE
+        japaneseCountRetryButton.visibility = if (
+            level2Active && (level2Phase == CountTrainingPhase.RESULT || level2Phase == CountTrainingPhase.ERROR)
+        ) View.VISIBLE else View.GONE
+        findYourWeaponNextButton.visibility = if (findYourWeaponActive && shouldShowFindYourWeaponNextButton()) View.VISIBLE else View.GONE
         findYourWeaponBackButton.visibility = if (debugUiVisible && findYourWeaponActive) View.VISIBLE else View.GONE
-        cancelSessionButton.visibility = if (debugUiVisible && active) View.VISIBLE else View.GONE
+        val cameraSetupCaptured = cameraSetupActive && latestCameraSetupState.stage == CameraSetupStage.CAPTURED && completedCameraSetupCapture != null
+        val cameraSetupNeedsAdjustment = cameraSetupActive && latestCameraSetupState.stage == CameraSetupStage.ADJUST_CAMERA
+        cameraSetupTitleText.visibleWhen(cameraSetupActive)
+        cameraSetupMessageText.visibleWhen(cameraSetupActive)
+        cameraSetupViewButtons.visibleWhen(cameraSetupActive && latestCameraSetupState.stage == CameraSetupStage.SELECT_VIEW)
+        cameraSetupProgress.visibleWhen(cameraSetupActive && latestCameraSetupState.stage == CameraSetupStage.POSITIONING)
+        cameraSetupCapturedImage.visibleWhen(cameraSetupCaptured)
+        cameraSetupRetakeButton.text = if (cameraSetupNeedsAdjustment) "Camera adjusted - restart" else "Retake"
+        cameraSetupRetakeButton.visibleWhen(cameraSetupCaptured || cameraSetupNeedsAdjustment)
+        cameraSetupDoneButton.visibleWhen(cameraSetupCaptured)
+        val punchHeightReviewVisible = punchHeightActive && latestPunchHeightState.stage == PunchHeightSessionStage.SESSION_REVIEW && completedPunchHeightSession != null
+        punchHeightTitleText.visibleWhen(punchHeightActive)
+        punchHeightMessageText.visibleWhen(punchHeightActive && !punchHeightReviewVisible)
+        punchHeightProgress.visibleWhen(punchHeightActive && !punchHeightReviewVisible)
+        val multiplierDebugVisible = debugUiVisible && punchHeightActive && latestPunchHeightState.targetType == PunchHeightTargetType.JODAN
+        punchHeightMultiplierText.visibleWhen(multiplierDebugVisible)
+        punchHeightMultiplierControls.visibleWhen(multiplierDebugVisible)
+        punchHeightReviewLargeImage.visibleWhen(punchHeightReviewVisible)
+        punchHeightReviewThumbnails.visibleWhen(punchHeightReviewVisible)
+        punchHeightReviewExplanation.visibleWhen(punchHeightReviewVisible)
+        punchHeightPracticeAgainButton.visibleWhen(punchHeightReviewVisible)
+        punchHeightCloseButton.visibleWhen(punchHeightReviewVisible)
+        punchHeightOverlayView.visibleWhen(punchHeightActive && !punchHeightReviewVisible)
+        cancelSessionButton.text = if (japaneseCountActive || punchHeightReviewVisible || cameraSetupCaptured) "Close" else "Cancel Session"
+        cancelSessionButton.visibility = if (
+            japaneseCountActive ||
+            (cameraSetupActive && !cameraSetupCaptured) ||
+            (punchHeightActive && !punchHeightReviewVisible) ||
+            (debugUiVisible && active && !punchHeightReviewVisible)
+        ) View.VISIBLE else View.GONE
 
         debugScopeText.text = "Debug: ${debugScope.label}"
         debugScopeText.visibleWhen(debugUiVisible)
@@ -432,11 +1856,14 @@ class MainActivity : AppCompatActivity() {
         recordingStateText.visibleWhen(debugUiVisible && debugScope != DebugScope.FIND_YOUR_WEAPON)
         savedClipText.visibleWhen(debugUiVisible && debugScope != DebugScope.FIND_YOUR_WEAPON)
         captureProfileText.visibleWhen(debugUiVisible && debugScope != DebugScope.FIND_YOUR_WEAPON)
-        analyzerDebugText.visibleWhen(debugUiVisible && debugScope == DebugScope.FIND_YOUR_WEAPON)
+        analyzerDebugText.visibleWhen(debugUiVisible && (debugScope == DebugScope.FIND_YOUR_WEAPON || debugScope == DebugScope.COUNT_JAPANESE || debugScope == DebugScope.PUNCH_HEIGHTS))
         metadataPathText.visibleWhen(debugUiVisible && debugScope != DebugScope.FIND_YOUR_WEAPON)
     }
 
     private fun currentDebugScope(): DebugScope = when {
+        cameraSetupActive -> DebugScope.PUNCH_HEIGHTS
+        punchHeightActive -> DebugScope.PUNCH_HEIGHTS
+        japaneseCountActive -> DebugScope.COUNT_JAPANESE
         findYourWeaponActive -> DebugScope.FIND_YOUR_WEAPON
         guidedSessionActive -> DebugScope.GUIDED_SESSION
         else -> DebugScope.CAMERA
@@ -444,6 +1871,20 @@ class MainActivity : AppCompatActivity() {
 
     private fun View.visibleWhen(visible: Boolean) {
         visibility = if (visible) View.VISIBLE else View.GONE
+    }
+
+    private fun shouldShowFindYourWeaponNextButton(): Boolean {
+        val step = findYourWeaponController?.state?.step
+        return step != FindYourWeaponStep.FRONT_TWO_KNUCKLES || findYourWeaponFinishReady
+    }
+
+    private fun shouldShowFindYourWeaponProgressRing(): Boolean {
+        val state = findYourWeaponController?.state
+        val step = state?.step
+        return findYourWeaponActive &&
+            state?.isActive == true &&
+            step != null &&
+            step != FindYourWeaponStep.FRONT_TWO_KNUCKLES
     }
 
     private fun createRecognizerRunner(): LiveGestureRecognizerRunner = LiveGestureRecognizerRunner(
@@ -456,9 +1897,12 @@ class MainActivity : AppCompatActivity() {
     )
 
     private fun updateAnalysisState(state: FindYourWeaponAnalysisState) {
-        findYourWeaponDebugOverlayView.setOverlay(
-            if (debugUiVisible && findYourWeaponActive && state.activeStep != null) state.debugOverlay else null,
-        )
+        latestFindYourWeaponAnalysisState = state
+        updateFindYourWeaponProgress(state)
+        updateFindYourWeaponFinishState(state)
+        updateFindYourWeaponCoachText(state)
+        updateFindYourWeaponOverlay(state)
+        maybeScheduleFindYourWeaponAutoAdvance(state)
         analyzerDebugText.text = if (state.errorMessage != null) {
             "Analyzer error: ${state.errorMessage}"
         } else if (state.recognizerState == RecognizerLifecycleState.INITIALIZING) {
@@ -487,11 +1931,104 @@ class MainActivity : AppCompatActivity() {
                 "Thumb distance: ${state.thumbFingerDistanceRatio?.format2() ?: "--"}",
                 "Thumb inside: ${state.thumbInsideBoundary?.let { it.toString() } ?: "--"}",
                 "Thumb line: ${state.thumbInsideBoundaryRatio?.format2() ?: "--"}",
+                "Thumb past middle: ${state.thumbInsideMiddleBoundary?.let { it.toString() } ?: "--"}",
+                "Middle line: ${state.thumbInsideMiddleBoundaryRatio?.format2() ?: "--"}",
                 "Timestamp: ${state.timestampMs ?: "--"}",
                 "Frames: submitted=${submittedFrameCount.get()} processed=${processedFrameCount.get()} dropped=${droppedFrameCount.get()}",
                 "Recognizer: ${state.recognizerState.name.lowercase()}",
             ).joinToString("\n")
         }
+    }
+
+    private fun updateFindYourWeaponProgress(state: FindYourWeaponAnalysisState) {
+        val currentState = findYourWeaponController?.state
+        val currentStep = currentState?.step
+        if (
+            currentState?.isActive != true ||
+            currentStep == null ||
+            currentStep == FindYourWeaponStep.FRONT_TWO_KNUCKLES ||
+            state.activeStep != currentStep
+        ) {
+            findYourWeaponProgressRingView.setProgress(0f, accepted = false)
+            return
+        }
+        findYourWeaponProgressRingView.setProgress(
+            progress = state.temporalResult?.progress ?: 0f,
+            accepted = state.temporalResult?.accepted == true,
+        )
+    }
+
+    private fun updateFindYourWeaponFinishState(state: FindYourWeaponAnalysisState) {
+        val currentState = findYourWeaponController?.state
+        val currentStep = currentState?.step
+        if (
+            currentState?.isActive == true &&
+            currentStep == FindYourWeaponStep.FRONT_TWO_KNUCKLES &&
+            state.activeStep == currentStep &&
+            state.temporalResult?.accepted == true
+        ) {
+            findYourWeaponFinishReady = true
+        }
+    }
+
+    private fun updateFindYourWeaponCoachText(
+        state: FindYourWeaponAnalysisState? = latestFindYourWeaponAnalysisState,
+        force: Boolean = false,
+    ) {
+        val currentStep = findYourWeaponController?.state?.step
+        findYourWeaponMessageText.text = if (findYourWeaponActive && currentStep != null) {
+            val candidateText = FindYourWeaponCoachCopy.messageText(
+                step = currentStep,
+                state = state,
+                finalAccepted = findYourWeaponFinishReady,
+            )
+            findYourWeaponCoachTextGate.displayText(
+                candidateText = candidateText,
+                nowMs = SystemClock.uptimeMillis(),
+                force = force,
+            )
+        } else {
+            findYourWeaponCoachTextGate.reset()
+            ""
+        }
+    }
+
+    private fun updateFindYourWeaponOverlay(state: FindYourWeaponAnalysisState?) {
+        val currentStep = findYourWeaponController?.state?.step
+        val overlay = state?.debugOverlay
+        val analyzerMatchesCurrentStep = currentStep != null && state?.activeStep == currentStep
+        val showDebugGuides = debugUiVisible && findYourWeaponActive && analyzerMatchesCurrentStep
+        findYourWeaponKnuckleGuideVisible = findYourWeaponActive &&
+            currentStep == FindYourWeaponStep.FRONT_TWO_KNUCKLES &&
+            analyzerMatchesCurrentStep &&
+            overlay?.highlightPoints?.isNotEmpty() == true
+        findYourWeaponDebugOverlayView.setOverlay(
+            overlay = if (showDebugGuides || findYourWeaponKnuckleGuideVisible) overlay else null,
+            showDebugGuides = showDebugGuides,
+        )
+        updateControlVisibility()
+    }
+
+    private fun maybeScheduleFindYourWeaponAutoAdvance(state: FindYourWeaponAnalysisState) {
+        val currentState = findYourWeaponController?.state
+        if (currentState?.step == FindYourWeaponStep.FRONT_TWO_KNUCKLES) return
+        val decision = findYourWeaponAutoAdvanceController.onAnalysis(
+            state = state,
+            currentStep = currentState?.step,
+            isSessionActive = currentState?.isActive == true,
+        )
+        if (decision !is FindYourWeaponAutoAdvanceDecision.Schedule) return
+
+        pendingFindYourWeaponAdvance?.let(mainHandler::removeCallbacks)
+        val advance = Runnable {
+            pendingFindYourWeaponAdvance = null
+            val latestState = findYourWeaponController?.state
+            if (findYourWeaponAutoAdvanceController.consumePendingAdvance(latestState?.step, latestState?.isActive == true)) {
+                findYourWeaponController?.next()
+            }
+        }
+        pendingFindYourWeaponAdvance = advance
+        mainHandler.postDelayed(advance, decision.delayMs)
     }
 
     private fun Float.format2(): String = String.format(java.util.Locale.US, "%.2f", this)
@@ -555,7 +2092,7 @@ class MainActivity : AppCompatActivity() {
         FindYourWeaponStep.OPEN_PALM -> FindYourWeaponStepContent(
             stepNumber = 1,
             title = "Find Your Weapon",
-            instruction = "Place your open palm inside the blue hand guide.",
+            instruction = "Place your open palm inside the bright hand guide.",
             detail = "Keep your fingers open and face your palm toward the camera.",
             imageResId = R.drawable.find_weapon_01_open_palm,
         )
@@ -598,6 +2135,12 @@ class MainActivity : AppCompatActivity() {
     )
 
     companion object {
+        private const val JAPANESE_COUNT_LOG_TAG = "JapaneseCountTraining"
+        private const val MAX_JAPANESE_PARTIAL_TRANSCRIPTS = 20
+        private const val JAPANESE_COUNT_BUSY_RETRY_DELAY_MS = 250L
+        private const val PUNCH_HEIGHT_CAPTURE_PAUSE_MS = 800L
+        private const val MAX_CONTROLS_HEIGHT_RATIO = 0.82f
+
         private val ACTIVE_GUIDED_STATES = setOf(
             GuidedSessionState.READY,
             GuidedSessionState.YOI,
@@ -611,5 +2154,12 @@ class MainActivity : AppCompatActivity() {
 private enum class DebugScope(val label: String) {
     CAMERA("camera"),
     GUIDED_SESSION("guided session"),
+    COUNT_JAPANESE("count to 10"),
     FIND_YOUR_WEAPON("Find Your Weapon"),
+    PUNCH_HEIGHTS("Punch Heights - Level 1"),
+}
+
+private enum class JapaneseCountMode {
+    LEVEL_1,
+    LEVEL_2,
 }

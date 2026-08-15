@@ -21,16 +21,27 @@ import dk.lasse.karatecliprecorder.mediapipehandadapter.MediaPipeHandFrameMapper
 import dk.lasse.karatecliprecorder.mediapipehandadapter.RecognizerLifecycleState
 
 
+data class FindYourWeaponOverlayPoint(
+    val x: Float,
+    val y: Float,
+)
+
 data class FindYourWeaponDebugOverlay(
     val inputWidth: Int,
     val inputHeight: Int,
-    val boundaryStartX: Float,
-    val boundaryStartY: Float,
-    val boundaryEndX: Float,
-    val boundaryEndY: Float,
+    val analysisToPreviewTransform: FloatArray? = null,
+    val boundaryStartX: Float?,
+    val boundaryStartY: Float?,
+    val boundaryEndX: Float?,
+    val boundaryEndY: Float?,
+    val middleBoundaryStartX: Float?,
+    val middleBoundaryStartY: Float?,
+    val middleBoundaryEndX: Float?,
+    val middleBoundaryEndY: Float?,
     val thumbTipX: Float?,
     val thumbTipY: Float?,
     val thumbInsideBoundary: Boolean?,
+    val highlightPoints: List<FindYourWeaponOverlayPoint> = emptyList(),
 )
 
 data class FindYourWeaponAnalysisState(
@@ -48,6 +59,8 @@ data class FindYourWeaponAnalysisState(
     val thumbFingerDistanceRatio: Float? = null,
     val thumbInsideBoundaryRatio: Float? = null,
     val thumbInsideBoundary: Boolean? = null,
+    val thumbInsideMiddleBoundaryRatio: Float? = null,
+    val thumbInsideMiddleBoundary: Boolean? = null,
     val debugOverlay: FindYourWeaponDebugOverlay? = null,
     val errorMessage: String? = null,
     val recognizerState: RecognizerLifecycleState = RecognizerLifecycleState.INACTIVE,
@@ -111,7 +124,17 @@ class FindYourWeaponAnalysisCoordinator(
             thumbDistance = features.thumb.weightedFingerDistanceRatio,
             thumbInsideBoundaryRatio = features.thumb.tipInsideIndexBoundaryRatio,
             thumbInsideBoundary = features.thumb.tipInsideIndexBoundary,
-            debugOverlay = debugOverlay(output, tracked, features.thumb.indexBoundaryLine, features.thumb.tipInsideIndexBoundary),
+            thumbInsideMiddleBoundaryRatio = features.thumb.tipInsideMiddleBoundaryRatio,
+            thumbInsideMiddleBoundary = features.thumb.tipInsideMiddleBoundary,
+            debugOverlay = debugOverlay(
+                output,
+                tracked,
+                observedFrame,
+                instant,
+                features.thumb.indexBoundaryLine,
+                features.thumb.middleBoundaryLine,
+                features.thumb.tipInsideIndexBoundary,
+            ),
         )
     }
 
@@ -156,6 +179,8 @@ class FindYourWeaponAnalysisCoordinator(
         thumbDistance: Float? = null,
         thumbInsideBoundaryRatio: Float? = null,
         thumbInsideBoundary: Boolean? = null,
+        thumbInsideMiddleBoundaryRatio: Float? = null,
+        thumbInsideMiddleBoundary: Boolean? = null,
         debugOverlay: FindYourWeaponDebugOverlay? = null,
     ) {
         onStateChanged(
@@ -174,6 +199,8 @@ class FindYourWeaponAnalysisCoordinator(
                 thumbDistance?.takeIf { it.isFinite() },
                 thumbInsideBoundaryRatio?.takeIf { it.isFinite() },
                 thumbInsideBoundary,
+                thumbInsideMiddleBoundaryRatio?.takeIf { it.isFinite() },
+                thumbInsideMiddleBoundary,
                 debugOverlay,
             ),
         )
@@ -182,24 +209,45 @@ class FindYourWeaponAnalysisCoordinator(
     private fun debugOverlay(
         output: LiveGestureRecognizerOutput,
         frame: TrackedHandFrame,
+        observedFrame: HandFrame?,
+        instant: InstantStepResult?,
         boundaryLine: dk.lasse.karateanalyzer.core.ThumbBoundaryLine?,
+        middleBoundaryLine: dk.lasse.karateanalyzer.core.ThumbBoundaryLine?,
         thumbInsideBoundary: Boolean?,
     ): FindYourWeaponDebugOverlay? {
         if (output.inputWidth <= 0 || output.inputHeight <= 0) return null
-        val line = boundaryLine ?: return null
-        val start = line.start.takeIf { it.hasFiniteImageCoordinates() } ?: return null
-        val end = line.end.takeIf { it.hasFiniteImageCoordinates() } ?: return null
+        val line = boundaryLine?.let { boundary ->
+            val start = boundary.start.takeIf { it.hasFiniteImageCoordinates() }
+            val end = boundary.end.takeIf { it.hasFiniteImageCoordinates() }
+            if (start != null && end != null) start to end else null
+        }
+        val middleLine = middleBoundaryLine?.let { boundary ->
+            val start = boundary.start.takeIf { it.hasFiniteImageCoordinates() }
+            val end = boundary.end.takeIf { it.hasFiniteImageCoordinates() }
+            if (start != null && end != null) start to end else null
+        }
         val thumbTip = frame.landmarks[HandLandmarkId.THUMB_TIP]?.position?.takeIf { it.hasFiniteImageCoordinates() }
+        val highlightSamples = observedFrame?.landmarks ?: frame.landmarks
+        val highlightPoints = instant?.highlightLandmarks.orEmpty()
+            .mapNotNull { id -> highlightSamples[id]?.position?.takeIf { it.hasFiniteImageCoordinates() } }
+            .map { point -> FindYourWeaponOverlayPoint(point.x, point.y) }
+        if (line == null && middleLine == null && thumbTip == null && highlightPoints.isEmpty()) return null
         return FindYourWeaponDebugOverlay(
             inputWidth = output.inputWidth,
             inputHeight = output.inputHeight,
-            boundaryStartX = start.x,
-            boundaryStartY = start.y,
-            boundaryEndX = end.x,
-            boundaryEndY = end.y,
+            analysisToPreviewTransform = output.analysisToPreviewTransform?.copyOf(),
+            boundaryStartX = line?.first?.x,
+            boundaryStartY = line?.first?.y,
+            boundaryEndX = line?.second?.x,
+            boundaryEndY = line?.second?.y,
+            middleBoundaryStartX = middleLine?.first?.x,
+            middleBoundaryStartY = middleLine?.first?.y,
+            middleBoundaryEndX = middleLine?.second?.x,
+            middleBoundaryEndY = middleLine?.second?.y,
             thumbTipX = thumbTip?.x,
             thumbTipY = thumbTip?.y,
             thumbInsideBoundary = thumbInsideBoundary,
+            highlightPoints = highlightPoints,
         )
     }
 

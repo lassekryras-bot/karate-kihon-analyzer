@@ -23,7 +23,25 @@ This folder contains the Android phone milestone for the Karate Clip Recorder. I
 - Saves a session metadata JSON file after the session completes, including the selected camera profile when available.
 - Shows a completion summary with the expected clip count, saved clip count, and metadata path.
 
-Text-to-speech is intentionally not included in this PR; prompts are visible text only.
+Japanese prompts use prerecorded audio rather than text-to-speech.
+
+## Punch Heights - Level 1
+
+- **Punch Heights - Level 1** is a separate main-menu practice session; it does not replace the recorded Jodan session, Find Your Weapon, or Japanese count training.
+- The back-camera 640 x 480 analysis stream uses `mediapipe/pose_landmarker_full.task` on CPU. Setup checks framing and a sideways stance, initializes a session-only body reference, then practices static Jodan, Chudan, and Gedan in order.
+- The overlay shows the body-relative target band, fist and elbow guidance, raise/lower direction, and the 1.2-second hold. Debug mode adds tracked landmarks, torso/chin geometry, confidence information, and session-only Jodan chin-projection controls.
+- Calm English Android text-to-speech announces target and guidance changes. Visible instructions remain available when English TTS is unavailable.
+- Each accepted pose saves the exact analyzed frame and an annotated JPEG. After all three captures, `session.json` and the six images are published together to app-private external storage at `Pictures/punch_height_level_1/latest`.
+- A cancelled or failed practice removes only its staging files, leaving the previous completed `latest` session untouched. The review screen shows all three annotated images and provides **Practice again** and **Close**.
+
+## Japanese count training
+
+- **Level 1** teaches `"1"` through `"10"` one at a time using the short martial-arts pronunciations `ich, ni, san, shi, go, rok, shich, hach, kyu, ju`. `Ichi`, `roku`, `shichi`, and `hachi` remain the standard spellings; their final unstressed vowel is clipped in the prerecorded cues. Each number plays automatically; replay, previous, and next are manual. This level never requests microphone permission or starts speech recognition.
+- **Level 2** plays one continuous example, then runs one live Android speech-recognition session configured for `ja-JP`. It does not store microphone audio and does not run an English fallback.
+- Final Japanese alternatives are normalized from Arabic digits, kanji, hiragana, katakana, or Japanese romaji. Compact unspaced Japanese output and the common `yon`, `nana`, and `ku` alternatives are supported.
+- The live recognizer requests a 15-second minimum session plus a 10–12 second silence window. On Android 13 and newer it also requests segmented-session recognition, allowing Android to return a completed speech segment while keeping the microphone session open for the next number. If the recognition service still ends a pass early, the app retains that transcript and immediately starts another live pass; temporary recognizer-busy responses are retried. Segments are combined without storing audio. An incomplete attempt continues through hesitations until the user taps **Stop listening**. It still stops automatically once ten recognizable counts are present in any order; final alternatives determine the result.
+- Result feedback shows the selected raw Japanese transcript. Incorrect positions show the recognized text and normalized number; missing positions explicitly say that no count was recognized.
+- The ninth cue reuses the original `ku` recording, renamed to the Android resource `order_kyu.wav` so its filename matches the app's `Kyu` count label.
 
 ## Expected clip filenames
 
@@ -133,11 +151,12 @@ The metadata schema is:
 
 ## Permissions
 
-The app requests only:
+The app declares:
 
 - `CAMERA`
+- `RECORD_AUDIO`
 
-Audio is intentionally disabled in this MVP, so `RECORD_AUDIO` is not requested.
+Camera permission is requested for the camera preview. Microphone permission is requested only when the user starts Level 2 Japanese live recognition; Level 1 does not request it.
 
 ## Where clips are saved
 
@@ -183,19 +202,15 @@ The Android app includes:
 - `RecordingState.kt` defines the low-level recording states: `IDLE`, `PREPARING`, `RECORDING`, `SAVED`, and `FAILED`.
 - `RecordingResult.kt` carries the saved file name, path, and URI.
 - `captureprofile/` contains the pure capture profile models/selector plus CameraX/Camera2 capability initialization.
+- `learning/CountTranscriptNormalizer.kt` normalizes Japanese live transcripts and selects the strongest final alternative.
+- `learning/JapaneseCountSpeechRecognizer.kt` provides live `ja-JP` recognition without storing microphone audio.
 
-## Intentionally out of scope
+## Still out of scope
 
-This PR does not add:
+The current Android milestone does not add:
 
-- MediaPipe
-- Pose detection
 - Automatic punch detection
-- Analyzer integration
 - Jodan scoring
-- Voice commands or speech recognition
-- Text-to-speech
-- Debug overlays
 
 ## Troubleshooting
 

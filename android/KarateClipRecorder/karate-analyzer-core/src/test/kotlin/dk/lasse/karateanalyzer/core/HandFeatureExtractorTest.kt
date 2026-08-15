@@ -62,6 +62,7 @@ class HandFeatureExtractorTest {
         assertEquals(base.index.tipToMcpRatio!!, moved.index.tipToMcpRatio!!, 0.001f)
         assertEquals(base.openPalmScore!!, moved.openPalmScore!!, 0.001f)
         assertEquals(base.thumb.tipInsideIndexBoundaryRatio!!, moved.thumb.tipInsideIndexBoundaryRatio!!, 0.001f)
+        assertEquals(base.thumb.tipInsideMiddleBoundaryRatio!!, moved.thumb.tipInsideMiddleBoundaryRatio!!, 0.001f)
     }
 
     @Test fun mirroredHandsProduceComparableScores() {
@@ -97,7 +98,25 @@ class HandFeatureExtractorTest {
         assertEquals(0.083f, rightAtIndexEdge.tipInsideIndexBoundaryRatio!!, 0.001f)
         assertEquals(-0.083f, rightOutsideIndexEdge.tipInsideIndexBoundaryRatio!!, 0.001f)
         assertEquals(rightExtended.tipInsideIndexBoundaryRatio!!, leftExtended.tipInsideIndexBoundaryRatio!!, 0.001f)
+        assertEquals(rightExtended.tipInsideMiddleBoundaryRatio!!, leftExtended.tipInsideMiddleBoundaryRatio!!, 0.001f)
         assertNotNull(rightExtended.tipToIndexMcpRatio)
+    }
+
+    @Test fun thumbBoundaryLineUsesIndexMiddleMcpAndPipSpacing() {
+        val features = extractor.extract(openHand(Handedness.RIGHT, thumbTipX = -0.9f, middlePipOffsetX = 0.4f))
+        val line = features.thumb.indexBoundaryLine!!
+        val middleLine = features.thumb.middleBoundaryLine!!
+
+        assertEquals(-0.8f, line.start.x, 0.001f)
+        assertEquals(1f, line.start.y, 0.001f)
+        assertEquals(-1.0f, line.end.x, 0.001f)
+        assertEquals(1.7f, line.end.y, 0.001f)
+        assertEquals(-0.2f, middleLine.start.x, 0.001f)
+        assertEquals(1f, middleLine.start.y, 0.001f)
+        assertEquals(0.2f, middleLine.end.x, 0.001f)
+        assertEquals(1.7f, middleLine.end.y, 0.001f)
+        assertTrue(features.thumb.tipInsideIndexBoundaryRatio!! < 0f)
+        assertTrue(features.thumb.tipInsideMiddleBoundaryRatio!! < 0f)
     }
 
     @Test fun thumbOpenClosedScoresUseWeightedFingerDistances() {
@@ -155,6 +174,8 @@ class HandFeatureExtractorTest {
         assertNull(features.thumb.crossesPalmAxis)
         assertNull(features.thumb.tipInsideIndexBoundaryRatio)
         assertNull(features.thumb.tipInsideIndexBoundary)
+        assertNull(features.thumb.tipInsideMiddleBoundaryRatio)
+        assertNull(features.thumb.tipInsideMiddleBoundary)
     }
 
     @Test fun missingOneFingerJointNullsDependentMeasurementsWithoutCrashing() {
@@ -163,7 +184,14 @@ class HandFeatureExtractorTest {
         assertNull(features.index.mcpAngleDegrees)
         assertNull(features.thumb.tipInsideIndexBoundaryRatio)
         assertNull(features.thumb.tipInsideIndexBoundary)
+        assertNull(features.thumb.tipInsideMiddleBoundaryRatio)
+        assertNull(features.thumb.middleBoundaryLine)
         assertNotNull(features.middle.extensionScore)
+        val missingMiddlePip = extractor.extract(openHand(Handedness.RIGHT, missing = setOf(HandLandmarkId.MIDDLE_PIP)))
+        assertNull(missingMiddlePip.thumb.tipInsideIndexBoundaryRatio)
+        assertNull(missingMiddlePip.thumb.indexBoundaryLine)
+        assertNull(missingMiddlePip.thumb.tipInsideMiddleBoundaryRatio)
+        assertNull(missingMiddlePip.thumb.middleBoundaryLine)
     }
 
     @Test fun qualityDecreasesForPredictedAndInterpolatedInputs() {
@@ -209,12 +237,16 @@ class HandFeatureExtractorTest {
         assertTrue(cross.dot(palm.zAxis)!! > 0.999f)
     }
 
-    private fun openHand(handedness: Handedness, pipAngle: Float = 175f, dipAngle: Float = 175f, scale: Float = 1f, offset: Point3 = Point3(0f, 0f, 0f), thumbCrossing: Boolean = false, missing: Set<HandLandmarkId> = emptySet(), source: LandmarkSource = LandmarkSource.OBSERVED, noise: Float = 0f, skewPalm: Boolean = false, thumbTipX: Float? = null): TrackedHandFrame {
+    private fun openHand(handedness: Handedness, pipAngle: Float = 175f, dipAngle: Float = 175f, scale: Float = 1f, offset: Point3 = Point3(0f, 0f, 0f), thumbCrossing: Boolean = false, missing: Set<HandLandmarkId> = emptySet(), source: LandmarkSource = LandmarkSource.OBSERVED, noise: Float = 0f, skewPalm: Boolean = false, thumbTipX: Float? = null, middlePipOffsetX: Float = 0f): TrackedHandFrame {
         val mirror = if (handedness == Handedness.LEFT) -1f else 1f
         val map = mutableMapOf<HandLandmarkId, Point3>()
         map[HandLandmarkId.WRIST] = p(0f, 0f, scale, offset, mirror)
         finger(map, HandLandmarkId.INDEX_MCP, HandLandmarkId.INDEX_PIP, HandLandmarkId.INDEX_DIP, HandLandmarkId.INDEX_TIP, -0.6f, 1f, pipAngle, dipAngle, scale, offset, mirror)
         finger(map, HandLandmarkId.MIDDLE_MCP, HandLandmarkId.MIDDLE_PIP, HandLandmarkId.MIDDLE_DIP, HandLandmarkId.MIDDLE_TIP, -0.2f, if (skewPalm) 1.25f else 1f, pipAngle, dipAngle, scale, offset, mirror)
+        if (middlePipOffsetX != 0f) {
+            val middlePip = map.getValue(HandLandmarkId.MIDDLE_PIP)
+            map[HandLandmarkId.MIDDLE_PIP] = middlePip.copy(x = middlePip.x + middlePipOffsetX * scale * mirror)
+        }
         finger(map, HandLandmarkId.RING_MCP, HandLandmarkId.RING_PIP, HandLandmarkId.RING_DIP, HandLandmarkId.RING_TIP, 0.2f, if (skewPalm) 0.95f else 1f, pipAngle, dipAngle, scale, offset, mirror)
         finger(map, HandLandmarkId.LITTLE_MCP, HandLandmarkId.LITTLE_PIP, HandLandmarkId.LITTLE_DIP, HandLandmarkId.LITTLE_TIP, 0.6f, if (skewPalm) 0.75f else 1f, pipAngle, dipAngle, scale, offset, mirror)
         val tx = thumbTipX ?: if (thumbCrossing) 0.45f else -2.2f

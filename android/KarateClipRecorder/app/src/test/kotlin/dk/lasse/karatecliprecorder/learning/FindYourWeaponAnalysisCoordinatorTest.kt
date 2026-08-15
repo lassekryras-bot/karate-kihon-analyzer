@@ -77,6 +77,19 @@ class FindYourWeaponAnalysisCoordinatorTest {
         assertFalse(states.last().temporalResult?.accepted ?: true)
     }
 
+    @Test fun frontTwoKnucklesOverlayCarriesOnlyKnuckleHighlights() {
+        val states = mutableListOf<FindYourWeaponAnalysisState>()
+        val coordinator = FindYourWeaponAnalysisCoordinator(states::add)
+        coordinator.setActiveStep(FindYourWeaponStep.FRONT_TWO_KNUCKLES)
+
+        coordinator.process(output(100, listOf(hand("Right")), coordinator.currentGenerationToken()))
+
+        val highlights = states.last().debugOverlay?.highlightPoints.orEmpty()
+        assertEquals(2, highlights.size)
+        assertTrue(highlights.any { it.x in 0.049f..0.051f && it.y in 0.049f..0.051f })
+        assertTrue(highlights.any { it.x in 0.089f..0.091f && it.y in 0.089f..0.091f })
+    }
+
     private fun output(timestamp: Long, observations: List<MediaPipeHandObservation>, token: Long) = LiveGestureRecognizerOutput(
         timestampMs = timestamp,
         observations = observations,

@@ -13,6 +13,9 @@ class FindYourWeaponVerifierTest {
         assertEquals(InstantVerificationStatus.MATCHING, verify(HandLessonStep.OPEN_PALM, hand(Handedness.RIGHT)).status)
         assertEquals(InstantVerificationStatus.MATCHING, verify(HandLessonStep.OPEN_PALM, hand(Handedness.LEFT)).status)
         assertNotEquals(InstantVerificationStatus.MATCHING, verify(HandLessonStep.OPEN_PALM, hand(curl = 70f)).status)
+        val outsideLineCloseDistance = hand(thumbTipX = -0.82f)
+        assertTrue(extractor.extract(outsideLineCloseDistance).thumb.openScore!! < FindYourWeaponVerifierConfiguration().thumbOpenScoreThreshold)
+        assertEquals(InstantVerificationStatus.MATCHING, verify(HandLessonStep.OPEN_PALM, outsideLineCloseDistance).status)
         val closedThumb = verify(HandLessonStep.OPEN_PALM, hand(thumbCrossing = true))
         assertNotEquals(InstantVerificationStatus.MATCHING, closedThumb.status)
         assertEquals(FeedbackCode.OPEN_THUMB, closedThumb.feedbackCode)
@@ -36,10 +39,13 @@ class FindYourWeaponVerifierTest {
         assertNotEquals(InstantVerificationStatus.MATCHING, verify(HandLessonStep.OPEN_PALM, hand(source = LandmarkSource.PREDICTED)).status)
     }
 
-    @Test fun bendFingertipsRecognizesOnlyIntermediateShape() {
+    @Test fun bendFingertipsRecognizesIntermediateShapeWithSomeUnevenness() {
         assertNotEquals(InstantVerificationStatus.MATCHING, verify(HandLessonStep.BEND_FINGERTIPS, hand(curl = 175f)).status)
         assertEquals(InstantVerificationStatus.MATCHING, verify(HandLessonStep.BEND_FINGERTIPS, hand(curl = 125f)).status)
         assertNotEquals(InstantVerificationStatus.MATCHING, verify(HandLessonStep.BEND_FINGERTIPS, hand(curl = 70f)).status)
+        val outsideLineCloseDistance = hand(curl = 125f, thumbTipX = -0.82f)
+        assertTrue(extractor.extract(outsideLineCloseDistance).thumb.openScore!! < FindYourWeaponVerifierConfiguration().thumbOpenScoreThreshold)
+        assertEquals(InstantVerificationStatus.MATCHING, verify(HandLessonStep.BEND_FINGERTIPS, outsideLineCloseDistance).status)
         val closedThumb = verify(HandLessonStep.BEND_FINGERTIPS, hand(curl = 125f, thumbCrossing = true))
         assertNotEquals(InstantVerificationStatus.MATCHING, closedThumb.status)
         assertEquals(FeedbackCode.OPEN_THUMB, closedThumb.feedbackCode)
@@ -47,14 +53,20 @@ class FindYourWeaponVerifierTest {
         assertNotEquals(InstantVerificationStatus.MATCHING, folded.status)
         assertEquals(FeedbackCode.DO_NOT_CLOSE_YET, folded.feedbackCode)
         val uneven = verify(HandLessonStep.BEND_FINGERTIPS, hand(perFinger = listOf(125f,125f,95f,160f)))
-        assertNotEquals(InstantVerificationStatus.MATCHING, uneven.status)
-        assertEquals(FeedbackCode.FINGERS_UNEVEN, uneven.feedbackCode)
+        assertEquals(InstantVerificationStatus.MATCHING, uneven.status)
+        assertTrue(uneven.score < verify(HandLessonStep.BEND_FINGERTIPS, hand(curl = 125f)).score)
     }
 
-    @Test fun closedFingersRequiresThumbOpenAndReportsUnevenClosure() {
+    @Test fun closedFingersUsesLiveLineForThumbAndAllowsSomeUnevenClosure() {
         assertEquals(InstantVerificationStatus.MATCHING, verify(HandLessonStep.CLOSE_FINGERS, hand(curl = 70f)).status)
         assertNotEquals(InstantVerificationStatus.MATCHING, verify(HandLessonStep.CLOSE_FINGERS, hand()).status)
         assertEquals(InstantVerificationStatus.MATCHING, verify(HandLessonStep.CLOSE_FINGERS, hand(curl = 70f, thumbCrossing = false)).status)
+        val outsideLineCloseDistance = hand(curl = 70f, thumbTipX = -0.82f)
+        assertTrue(extractor.extract(outsideLineCloseDistance).thumb.openScore!! < FindYourWeaponVerifierConfiguration().thumbOpenScoreThreshold)
+        assertEquals(InstantVerificationStatus.MATCHING, verify(HandLessonStep.CLOSE_FINGERS, outsideLineCloseDistance).status)
+        val crossedLine = verify(HandLessonStep.CLOSE_FINGERS, hand(curl = 70f, thumbTipX = -0.7f))
+        assertNotEquals(InstantVerificationStatus.MATCHING, crossedLine.status)
+        assertEquals(FeedbackCode.OPEN_THUMB, crossedLine.feedbackCode)
         val closedThumb = verify(HandLessonStep.CLOSE_FINGERS, hand(curl = 70f, thumbCrossing = true))
         assertNotEquals(InstantVerificationStatus.MATCHING, closedThumb.status)
         assertEquals(FeedbackCode.OPEN_THUMB, closedThumb.feedbackCode)
@@ -62,17 +74,20 @@ class FindYourWeaponVerifierTest {
         val uneven = verify(HandLessonStep.CLOSE_FINGERS, hand(perFinger = listOf(70f,70f,70f,175f)))
         assertTrue(uneven.score < verify(HandLessonStep.CLOSE_FINGERS, hand(curl = 70f)).score)
         val moderatelyUneven = verify(HandLessonStep.CLOSE_FINGERS, hand(perFinger = listOf(70f,70f,70f,120f)))
-        assertNotEquals(InstantVerificationStatus.MATCHING, moderatelyUneven.status)
-        assertEquals(FeedbackCode.FINGERS_UNEVEN, moderatelyUneven.feedbackCode)
+        assertEquals(InstantVerificationStatus.MATCHING, moderatelyUneven.status)
+        assertTrue(moderatelyUneven.score < verify(HandLessonStep.CLOSE_FINGERS, hand(curl = 70f)).score)
     }
 
     @Test fun thumbOnTopRequiresReliableThumbAcrossAndMirrors() {
-        assertEquals(InstantVerificationStatus.MATCHING, verify(HandLessonStep.THUMB_ON_TOP, hand(curl = 70f, thumbCrossing = true)).status)
+        assertNotEquals(InstantVerificationStatus.MATCHING, verify(HandLessonStep.THUMB_ON_TOP, hand(curl = 70f, thumbCrossing = true)).status)
         assertEquals(InstantVerificationStatus.MATCHING, verify(HandLessonStep.THUMB_ON_TOP, hand(curl = 70f, thumbTipX = -0.25f)).status)
+        assertEquals(InstantVerificationStatus.MATCHING, verify(HandLessonStep.THUMB_ON_TOP, hand(curl = 70f, thumbTipX = -0.55f)).status)
         assertNotEquals(InstantVerificationStatus.MATCHING, verify(HandLessonStep.THUMB_ON_TOP, hand(curl = 70f, thumbCrossing = false)).status)
         val openThumb = verify(HandLessonStep.THUMB_ON_TOP, hand(curl = 70f, thumbTipX = -0.9f))
         assertNotEquals(InstantVerificationStatus.MATCHING, openThumb.status)
         assertEquals(FeedbackCode.MOVE_THUMB_ACROSS, openThumb.feedbackCode)
+        val pastMiddle = verify(HandLessonStep.THUMB_ON_TOP, hand(curl = 70f, thumbTipX = 0.05f))
+        assertEquals(FeedbackCode.OPEN_THUMB, pastMiddle.feedbackCode)
         val outsideIndexLine = verify(HandLessonStep.THUMB_ON_TOP, hand(curl = 70f, thumbTipX = -0.9f))
         assertNotEquals(InstantVerificationStatus.MATCHING, outsideIndexLine.status)
         assertEquals(FeedbackCode.MOVE_THUMB_ACROSS, outsideIndexLine.feedbackCode)
@@ -80,19 +95,25 @@ class FindYourWeaponVerifierTest {
         assertEquals(InstantVerificationStatus.INSUFFICIENT_DATA, missingThumb.status)
         assertEquals(FeedbackCode.INSUFFICIENT_VISIBILITY, missingThumb.feedbackCode)
         assertNotEquals(InstantVerificationStatus.MATCHING, verify(HandLessonStep.THUMB_ON_TOP, hand(curl = 70f, thumbCrossing = true, source = LandmarkSource.PREDICTED)).status)
-        assertEquals(verify(HandLessonStep.THUMB_ON_TOP, hand(Handedness.RIGHT, 70f, true)).status, verify(HandLessonStep.THUMB_ON_TOP, hand(Handedness.LEFT, 70f, true)).status)
+        assertEquals(
+            verify(HandLessonStep.THUMB_ON_TOP, hand(Handedness.RIGHT, 70f, thumbTipX = -0.55f)).status,
+            verify(HandLessonStep.THUMB_ON_TOP, hand(Handedness.LEFT, 70f, thumbTipX = -0.55f)).status,
+        )
     }
 
     @Test fun frontTwoKnucklesHighlightsAndHandlesLimitedOrientation() {
-        val ok = verify(HandLessonStep.FRONT_TWO_KNUCKLES, hand(curl = 70f, thumbCrossing = true))
+        val ok = verify(HandLessonStep.FRONT_TWO_KNUCKLES, hand(curl = 70f, thumbCrossing = true, backOfHandFacingCamera = true))
         assertEquals(InstantVerificationStatus.MATCHING, ok.status)
         assertTrue(ok.highlightLandmarks.containsAll(setOf(HandLandmarkId.INDEX_MCP, HandLandmarkId.MIDDLE_MCP)))
-        val thumbNotReady = verify(HandLessonStep.FRONT_TWO_KNUCKLES, hand(curl = 70f, thumbCrossing = false))
-        assertNotEquals(InstantVerificationStatus.MATCHING, thumbNotReady.status)
-        assertEquals(FeedbackCode.MOVE_THUMB_ACROSS, thumbNotReady.feedbackCode)
-        assertNotEquals(InstantVerificationStatus.MATCHING, verify(HandLessonStep.FRONT_TWO_KNUCKLES, hand(curl = 70f, thumbTipX = -0.9f)).status)
+        val palmSide = verify(HandLessonStep.FRONT_TWO_KNUCKLES, hand(curl = 70f, thumbCrossing = true))
+        assertNotEquals(InstantVerificationStatus.MATCHING, palmSide.status)
+        assertEquals(FeedbackCode.TURN_FIST_TOWARD_CAMERA, palmSide.feedbackCode)
+        val thumbNotReady = verify(HandLessonStep.FRONT_TWO_KNUCKLES, hand(curl = 70f, thumbCrossing = false, backOfHandFacingCamera = true))
+        assertEquals(InstantVerificationStatus.MATCHING, thumbNotReady.status)
+        assertEquals(FeedbackCode.GOOD, thumbNotReady.feedbackCode)
+        assertEquals(InstantVerificationStatus.MATCHING, verify(HandLessonStep.FRONT_TWO_KNUCKLES, hand(curl = 70f, thumbTipX = -0.9f, backOfHandFacingCamera = true)).status)
         assertNotEquals(InstantVerificationStatus.MATCHING, verify(HandLessonStep.FRONT_TWO_KNUCKLES, hand()).status)
-        val missingKnuckle = verify(HandLessonStep.FRONT_TWO_KNUCKLES, hand(curl = 70f, thumbCrossing = true, missing = setOf(HandLandmarkId.INDEX_MCP)))
+        val missingKnuckle = verify(HandLessonStep.FRONT_TWO_KNUCKLES, hand(curl = 70f, thumbCrossing = true, backOfHandFacingCamera = true, missing = setOf(HandLandmarkId.INDEX_MCP)))
         assertEquals(InstantVerificationStatus.INSUFFICIENT_DATA, missingKnuckle.status)
         assertFalse(HandLandmarkId.INDEX_MCP in missingKnuckle.highlightLandmarks)
         assertTrue(HandLandmarkId.MIDDLE_MCP in missingKnuckle.highlightLandmarks)
@@ -107,12 +128,14 @@ class FindYourWeaponVerifierTest {
             ),
         )
         val centerLine = hand(curl = 70f, thumbTipX = -0.6f)
+        val centerLineBack = hand(curl = 70f, thumbTipX = -0.6f, backOfHandFacingCamera = true)
         val outsideEdge = hand(curl = 70f, thumbTipX = -0.9f)
+        val outsideEdgeBack = hand(curl = 70f, thumbTipX = -0.9f, backOfHandFacingCamera = true)
 
         assertEquals(InstantVerificationStatus.MATCHING, relaxed.verify(HandLessonStep.THUMB_ON_TOP, centerLine, extractor.extract(centerLine)).status)
-        assertEquals(InstantVerificationStatus.MATCHING, relaxed.verify(HandLessonStep.FRONT_TWO_KNUCKLES, centerLine, extractor.extract(centerLine)).status)
+        assertEquals(InstantVerificationStatus.MATCHING, relaxed.verify(HandLessonStep.FRONT_TWO_KNUCKLES, centerLineBack, extractor.extract(centerLineBack)).status)
         assertNotEquals(InstantVerificationStatus.MATCHING, relaxed.verify(HandLessonStep.THUMB_ON_TOP, outsideEdge, extractor.extract(outsideEdge)).status)
-        assertNotEquals(InstantVerificationStatus.MATCHING, relaxed.verify(HandLessonStep.FRONT_TWO_KNUCKLES, outsideEdge, extractor.extract(outsideEdge)).status)
+        assertEquals(InstantVerificationStatus.MATCHING, relaxed.verify(HandLessonStep.FRONT_TWO_KNUCKLES, outsideEdgeBack, extractor.extract(outsideEdgeBack)).status)
     }
 
     @Test fun matchingResultsAlwaysUseGoodFeedback() {

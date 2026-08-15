@@ -43,7 +43,7 @@ class CameraXRecordingAdapter(
     val analysisInputMirrored: Boolean = false,
     private val onAnalysisFramePermit: (Long) -> Any? = { null },
     private val onAnalysisPermitRelease: (Any) -> Unit = {},
-    private val onAnalysisFrame: (Bitmap, Long, Any?) -> Boolean = { _, _, _ -> false },
+    private val onAnalysisFrame: (Bitmap, Long, Any?, FloatArray?) -> Boolean = { _, _, _, _ -> false },
 ) : AutoCloseable {
     private var videoCapture: VideoCapture<Recorder>? = null
     private var imageAnalysis: ImageAnalysis? = null
@@ -121,7 +121,7 @@ class CameraXRecordingAdapter(
             }
             var bitmapOwnershipTransferred = false
             try {
-                bitmapOwnershipTransferred = onAnalysisFrame(bitmap, timestampMs, permit)
+                bitmapOwnershipTransferred = onAnalysisFrame(bitmap, timestampMs, permit, null)
             } finally {
                 if (!bitmapOwnershipTransferred && !bitmap.isRecycled) {
                     bitmap.recycle()

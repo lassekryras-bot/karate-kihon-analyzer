@@ -14,6 +14,11 @@ class ArchitectureStabilizationTest {
         assertTrue(buildFile.contains("implementation(project(\":mediapipe-hand-adapter\"))"))
     }
 
+    @Test fun appIntentionallyDependsOnMediaPipePoseAdapter() {
+        val buildFile = root.resolve("app/build.gradle.kts").readText()
+        assertTrue(buildFile.contains("implementation(project(\":mediapipe-pose-adapter\"))"))
+    }
+
     @Test fun mediaPipeHandAdapterDoesNotCallTemporalVerifier() {
         val adapterSources = root.resolve("mediapipe-hand-adapter/src/main/kotlin").walkTopDown().filter { it.isFile }.joinToString("\n") { it.readText() }
         assertFalse(adapterSources.contains("FindYourWeaponTemporalVerifier"))

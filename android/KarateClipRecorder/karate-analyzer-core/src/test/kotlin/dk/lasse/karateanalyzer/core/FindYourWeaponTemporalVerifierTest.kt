@@ -42,6 +42,39 @@ class FindYourWeaponTemporalVerifierTest {
         }
     }
 
+    @Test fun exerciseStepsRequireTwoSecondHold() {
+        val cases = listOf(
+            HandLessonStep.BEND_FINGERTIPS to { timestampMs: Long -> hand(timestampMs, curl = 125f) },
+            HandLessonStep.CLOSE_FINGERS to { timestampMs: Long -> hand(timestampMs, curl = 70f) },
+            HandLessonStep.THUMB_ON_TOP to { timestampMs: Long -> hand(timestampMs, curl = 70f, thumbTipX = -0.55f) },
+        )
+
+        for ((step, frameAt) in cases) {
+            val verifier = FindYourWeaponTemporalVerifier()
+            val before = runStep(verifier, step, listOf(0L, 500L, 1000L, 1500L).map(frameAt)).last()
+            assertFalse(before.accepted, "Expected $step to keep holding before 2 seconds")
+            assertEquals(0.75f, before.progress, 0.001f)
+
+            val accepted = update(verifier, step, frameAt(2000L))
+            assertTrue(accepted.accepted, "Expected $step to accept after 2 seconds")
+            assertEquals(1f, accepted.progress)
+        }
+    }
+
+    @Test fun finalKnuckleStepRequiresOneSecondHold() {
+        val verifier = FindYourWeaponTemporalVerifier()
+        val matching = matching(HandLessonStep.FRONT_TWO_KNUCKLES, quality = 0.9f)
+        val before = listOf(0L, 250L, 500L, 750L)
+            .map { timestamp -> verifier.update(hand(timestamp, curl = 70f, thumbCrossing = true), matching) }
+            .last()
+        assertFalse(before.accepted)
+        assertEquals(0.75f, before.progress, 0.001f)
+
+        val accepted = verifier.update(hand(1000L, curl = 70f, thumbCrossing = true), matching)
+        assertTrue(accepted.accepted)
+        assertEquals(1f, accepted.progress)
+    }
+
 
     @Test fun twoFramesSixHundredMsApartDoNotAcceptWithDefaultFrameGap() {
         val result = runOpenPalm(LandmarkSource.OBSERVED, listOf(0L, 600L)).last()
@@ -59,6 +92,28 @@ class FindYourWeaponTemporalVerifierTest {
         assertEquals(600.0, result.accumulatedMatchingMs, 0.001)
         assertEquals(0.0, result.reliableMatchingMs, 0.001)
         assertEquals(0.0, result.reliableHoldCreditMs, 0.001)
+    }
+
+    @Test fun matchingGoodAtInstantMatchingQualityBuildsTemporalProgress() {
+        val verifier = FindYourWeaponTemporalVerifier()
+        verifier.update(hand(0), matching(HandLessonStep.OPEN_PALM, quality = 0.56f))
+        val result = verifier.update(hand(200), matching(HandLessonStep.OPEN_PALM, quality = 0.56f))
+
+        assertEquals(TemporalVerificationStatus.BUILDING_PROGRESS, result.status)
+        assertTrue(result.progress > 0f)
+        assertEquals(200.0, result.reliableHoldCreditMs, 0.001)
+    }
+
+    @Test fun slowerLiveRecognizerGapsStillBuildProgress() {
+        val verifier = FindYourWeaponTemporalVerifier()
+        verifier.update(hand(0), matching(HandLessonStep.OPEN_PALM, quality = 0.9f))
+        val second = verifier.update(hand(400), matching(HandLessonStep.OPEN_PALM, quality = 0.9f))
+        val third = verifier.update(hand(800), matching(HandLessonStep.OPEN_PALM, quality = 0.9f))
+
+        assertEquals(TemporalVerificationStatus.BUILDING_PROGRESS, second.status)
+        assertTrue(second.progress > 0f)
+        assertTrue(third.accepted)
+        assertEquals(1f, third.progress)
     }
 
     @Test fun lowQualityMatchingFollowedByOneHighQualityFrameCannotAccept() {
@@ -281,6 +336,12 @@ class FindYourWeaponTemporalVerifierTest {
             FindYourWeaponTemporalVerifier(FindYourWeaponTemporalConfiguration(requiredHoldDurationMs = 0))
         }
         assertFailsWith<IllegalArgumentException> {
+            FindYourWeaponTemporalVerifier(FindYourWeaponTemporalConfiguration(exerciseHoldDurationMs = 0))
+        }
+        assertFailsWith<IllegalArgumentException> {
+            FindYourWeaponTemporalVerifier(FindYourWeaponTemporalConfiguration(finalKnuckleHoldDurationMs = 0))
+        }
+        assertFailsWith<IllegalArgumentException> {
             FindYourWeaponTemporalVerifier(FindYourWeaponTemporalConfiguration(minimumReliableMatchingRatio = Double.NaN))
         }
         assertFailsWith<IllegalArgumentException> {
@@ -327,30 +388,30 @@ class FindYourWeaponTemporalVerifierTest {
         assertFalse(missing.accepted)
     }
 
-    @Test fun knuckleStepCannotAcceptWhenClosedFingerLandmarksArePredictedOrMissing() {
+    @Test fun knuckleStepAcceptsWhenNonWeaponFingerLandmarksArePredictedOrMissing() {
         val predicted = runStep(
             HandLessonStep.FRONT_TWO_KNUCKLES,
-            listOf(hand(0, curl = 70f, thumbCrossing = true, predicted = setOf(HandLandmarkId.MIDDLE_PIP)), hand(200, curl = 70f, thumbCrossing = true, predicted = setOf(HandLandmarkId.MIDDLE_PIP)), hand(400, curl = 70f, thumbCrossing = true, predicted = setOf(HandLandmarkId.MIDDLE_PIP)), hand(600, curl = 70f, thumbCrossing = true, predicted = setOf(HandLandmarkId.MIDDLE_PIP)), hand(800, curl = 70f, thumbCrossing = true, predicted = setOf(HandLandmarkId.MIDDLE_PIP))),
+            listOf(hand(0, curl = 70f, thumbCrossing = true, predicted = setOf(HandLandmarkId.MIDDLE_PIP), backOfHandFacingCamera = true), hand(200, curl = 70f, thumbCrossing = true, predicted = setOf(HandLandmarkId.MIDDLE_PIP), backOfHandFacingCamera = true), hand(400, curl = 70f, thumbCrossing = true, predicted = setOf(HandLandmarkId.MIDDLE_PIP), backOfHandFacingCamera = true), hand(600, curl = 70f, thumbCrossing = true, predicted = setOf(HandLandmarkId.MIDDLE_PIP), backOfHandFacingCamera = true), hand(800, curl = 70f, thumbCrossing = true, predicted = setOf(HandLandmarkId.MIDDLE_PIP), backOfHandFacingCamera = true), hand(1000, curl = 70f, thumbCrossing = true, predicted = setOf(HandLandmarkId.MIDDLE_PIP), backOfHandFacingCamera = true)),
         ).last()
         val missing = runStep(
             HandLessonStep.FRONT_TWO_KNUCKLES,
-            listOf(hand(0, curl = 70f, thumbCrossing = true, missing = setOf(HandLandmarkId.LITTLE_DIP)), hand(200, curl = 70f, thumbCrossing = true, missing = setOf(HandLandmarkId.LITTLE_DIP)), hand(400, curl = 70f, thumbCrossing = true, missing = setOf(HandLandmarkId.LITTLE_DIP)), hand(600, curl = 70f, thumbCrossing = true, missing = setOf(HandLandmarkId.LITTLE_DIP)), hand(800, curl = 70f, thumbCrossing = true, missing = setOf(HandLandmarkId.LITTLE_DIP))),
+            listOf(hand(0, curl = 70f, thumbCrossing = true, missing = setOf(HandLandmarkId.LITTLE_DIP), backOfHandFacingCamera = true), hand(200, curl = 70f, thumbCrossing = true, missing = setOf(HandLandmarkId.LITTLE_DIP), backOfHandFacingCamera = true), hand(400, curl = 70f, thumbCrossing = true, missing = setOf(HandLandmarkId.LITTLE_DIP), backOfHandFacingCamera = true), hand(600, curl = 70f, thumbCrossing = true, missing = setOf(HandLandmarkId.LITTLE_DIP), backOfHandFacingCamera = true), hand(800, curl = 70f, thumbCrossing = true, missing = setOf(HandLandmarkId.LITTLE_DIP), backOfHandFacingCamera = true), hand(1000, curl = 70f, thumbCrossing = true, missing = setOf(HandLandmarkId.LITTLE_DIP), backOfHandFacingCamera = true)),
         ).last()
-        assertFalse(predicted.accepted)
-        assertFalse(missing.accepted)
+        assertTrue(predicted.accepted)
+        assertTrue(missing.accepted)
     }
 
-    @Test fun knuckleStepCannotAcceptWhenThumbLandmarksArePredictedOrMissing() {
+    @Test fun knuckleStepAcceptsWhenThumbLandmarksArePredictedOrMissing() {
         val predicted = runStep(
             HandLessonStep.FRONT_TWO_KNUCKLES,
-            listOf(hand(0, curl = 70f, thumbCrossing = true, predicted = setOf(HandLandmarkId.THUMB_TIP)), hand(200, curl = 70f, thumbCrossing = true, predicted = setOf(HandLandmarkId.THUMB_TIP)), hand(400, curl = 70f, thumbCrossing = true, predicted = setOf(HandLandmarkId.THUMB_TIP)), hand(600, curl = 70f, thumbCrossing = true, predicted = setOf(HandLandmarkId.THUMB_TIP)), hand(800, curl = 70f, thumbCrossing = true, predicted = setOf(HandLandmarkId.THUMB_TIP))),
+            listOf(hand(0, curl = 70f, thumbCrossing = true, predicted = setOf(HandLandmarkId.THUMB_TIP), backOfHandFacingCamera = true), hand(200, curl = 70f, thumbCrossing = true, predicted = setOf(HandLandmarkId.THUMB_TIP), backOfHandFacingCamera = true), hand(400, curl = 70f, thumbCrossing = true, predicted = setOf(HandLandmarkId.THUMB_TIP), backOfHandFacingCamera = true), hand(600, curl = 70f, thumbCrossing = true, predicted = setOf(HandLandmarkId.THUMB_TIP), backOfHandFacingCamera = true), hand(800, curl = 70f, thumbCrossing = true, predicted = setOf(HandLandmarkId.THUMB_TIP), backOfHandFacingCamera = true), hand(1000, curl = 70f, thumbCrossing = true, predicted = setOf(HandLandmarkId.THUMB_TIP), backOfHandFacingCamera = true)),
         ).last()
         val missing = runStep(
             HandLessonStep.FRONT_TWO_KNUCKLES,
-            listOf(hand(0, curl = 70f, thumbCrossing = true, missing = setOf(HandLandmarkId.THUMB_TIP)), hand(200, curl = 70f, thumbCrossing = true, missing = setOf(HandLandmarkId.THUMB_TIP)), hand(400, curl = 70f, thumbCrossing = true, missing = setOf(HandLandmarkId.THUMB_TIP)), hand(600, curl = 70f, thumbCrossing = true, missing = setOf(HandLandmarkId.THUMB_TIP)), hand(800, curl = 70f, thumbCrossing = true, missing = setOf(HandLandmarkId.THUMB_TIP))),
+            listOf(hand(0, curl = 70f, thumbCrossing = true, missing = setOf(HandLandmarkId.THUMB_TIP), backOfHandFacingCamera = true), hand(200, curl = 70f, thumbCrossing = true, missing = setOf(HandLandmarkId.THUMB_TIP), backOfHandFacingCamera = true), hand(400, curl = 70f, thumbCrossing = true, missing = setOf(HandLandmarkId.THUMB_TIP), backOfHandFacingCamera = true), hand(600, curl = 70f, thumbCrossing = true, missing = setOf(HandLandmarkId.THUMB_TIP), backOfHandFacingCamera = true), hand(800, curl = 70f, thumbCrossing = true, missing = setOf(HandLandmarkId.THUMB_TIP), backOfHandFacingCamera = true), hand(1000, curl = 70f, thumbCrossing = true, missing = setOf(HandLandmarkId.THUMB_TIP), backOfHandFacingCamera = true)),
         ).last()
-        assertFalse(predicted.accepted)
-        assertFalse(missing.accepted)
+        assertTrue(predicted.accepted)
+        assertTrue(missing.accepted)
     }
 
     @Test fun acceptedProgressRemainsOneAfterLaterIncorrectFrames() {
@@ -419,21 +480,24 @@ class FindYourWeaponTemporalVerifierTest {
         missing: Set<HandLandmarkId> = emptySet(),
         predicted: Set<HandLandmarkId> = emptySet(),
         mcpDirection: Double = 90.0,
+        thumbTipX: Float? = null,
+        backOfHandFacingCamera: Boolean = false,
     ): TrackedHandFrame {
         val scale = 1f
         val offset = Point3(0f, 0f, 0f)
-        val mirror = if (handedness == Handedness.LEFT) -1f else 1f
+        val handednessMirror = if (handedness == Handedness.LEFT) -1f else 1f
+        val mirror = if (backOfHandFacingCamera) -handednessMirror else handednessMirror
         val map = mutableMapOf<HandLandmarkId, Point3>()
         map[HandLandmarkId.WRIST] = transform(0f, 0f, scale, offset, mirror)
         finger(map, HandLandmarkId.INDEX_MCP, HandLandmarkId.INDEX_PIP, HandLandmarkId.INDEX_DIP, HandLandmarkId.INDEX_TIP, -.6f, 1f, curl, scale, offset, mirror, mcpDirection)
         finger(map, HandLandmarkId.MIDDLE_MCP, HandLandmarkId.MIDDLE_PIP, HandLandmarkId.MIDDLE_DIP, HandLandmarkId.MIDDLE_TIP, -.2f, 1f, curl, scale, offset, mirror, mcpDirection)
         finger(map, HandLandmarkId.RING_MCP, HandLandmarkId.RING_PIP, HandLandmarkId.RING_DIP, HandLandmarkId.RING_TIP, .2f, 1f, curl, scale, offset, mirror, mcpDirection)
         finger(map, HandLandmarkId.LITTLE_MCP, HandLandmarkId.LITTLE_PIP, HandLandmarkId.LITTLE_DIP, HandLandmarkId.LITTLE_TIP, .6f, 1f, curl, scale, offset, mirror, mcpDirection)
-        val thumbTipX = if (thumbCrossing) 0.05f else -2.2f
+        val resolvedThumbTipX = thumbTipX ?: if (thumbCrossing) 0.05f else -2.2f
         map[HandLandmarkId.THUMB_CMC] = transform(-.75f, .45f, scale, offset, mirror)
         map[HandLandmarkId.THUMB_MCP] = transform(-.95f, .9f, scale, offset, mirror)
-        map[HandLandmarkId.THUMB_IP] = transform(thumbTipX - .2f, 1.1f, scale, offset, mirror)
-        map[HandLandmarkId.THUMB_TIP] = transform(thumbTipX, 1.15f, scale, offset, mirror)
+        map[HandLandmarkId.THUMB_IP] = transform(resolvedThumbTipX - .2f, 1.1f, scale, offset, mirror)
+        map[HandLandmarkId.THUMB_TIP] = transform(resolvedThumbTipX, 1.15f, scale, offset, mirror)
         return TrackedHandFrame(
             timestampMs = timestampMs,
             handedness = handedness,
