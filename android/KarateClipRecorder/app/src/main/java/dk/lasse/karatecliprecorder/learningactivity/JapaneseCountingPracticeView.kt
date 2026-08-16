@@ -247,7 +247,7 @@ class JapaneseCountingPracticeView(
                 context = context,
                 faceVariant = DEFAULT_FACE_VARIANT,
                 beltRank = KarateBeltRank.WHITE,
-            ), LinearLayout.LayoutParams(116.dp(), 202.dp()).apply { marginEnd = 14.dp() })
+            ), LinearLayout.LayoutParams(116.dp(), 302.dp()).apply { marginEnd = 14.dp() })
             addView(LinearLayout(context).apply {
                 orientation = LinearLayout.VERTICAL
                 addView(label("You completed the full set", 18f, Typeface.BOLD).apply { setTextColor(red) })
