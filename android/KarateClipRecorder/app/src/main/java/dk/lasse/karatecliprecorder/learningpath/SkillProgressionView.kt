@@ -81,15 +81,16 @@ class SkillProgressionView(
             onProgress = onProgress,
             onSettings = onSettings,
         )
-        addView(navigation, LayoutParams(LayoutParams.MATCH_PARENT, 82.dp(), Gravity.BOTTOM))
+        addView(navigation, LayoutParams(
+            LayoutParams.MATCH_PARENT,
+            AppBottomNavigationView.BASE_HEIGHT_DP.dp(),
+            Gravity.BOTTOM,
+        ))
 
         ViewCompat.setOnApplyWindowInsetsListener(this) { _, insets ->
             val systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
             val navigationBars = insets.getInsets(WindowInsetsCompat.Type.navigationBars())
             content.setPadding(16.dp(), systemBars.top + 8.dp(), 16.dp(), navigationBars.bottom + 112.dp())
-            navigation.layoutParams = (navigation.layoutParams as LayoutParams).apply {
-                bottomMargin = navigationBars.bottom
-            }
             insets
         }
         ViewCompat.requestApplyInsets(this)

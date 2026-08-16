@@ -71,16 +71,12 @@ class SettingsScreenView(
             onProgress = onProgress,
             onSettings = {},
         )
-        addView(navigation, LayoutParams(LayoutParams.MATCH_PARENT, 82.dp(), Gravity.BOTTOM))
+        addView(navigation, LayoutParams(LayoutParams.MATCH_PARENT, AppBottomNavigationView.BASE_HEIGHT_DP.dp(), Gravity.BOTTOM))
 
         ViewCompat.setOnApplyWindowInsetsListener(this) { _, insets ->
             val systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
             val navigationBars = insets.getInsets(WindowInsetsCompat.Type.navigationBars())
             content.setPadding(20.dp(), systemBars.top + 16.dp(), 20.dp(), navigationBars.bottom + 110.dp())
-            navigation.layoutParams = (navigation.layoutParams as LayoutParams).apply {
-                height = 82.dp()
-                bottomMargin = navigationBars.bottom
-            }
             insets
         }
         ViewCompat.requestApplyInsets(this)

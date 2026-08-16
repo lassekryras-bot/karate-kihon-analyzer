@@ -8,6 +8,7 @@ import android.widget.LinearLayout
 import android.widget.TextView
 import androidx.core.content.ContextCompat
 import androidx.core.view.ViewCompat
+import androidx.core.view.WindowInsetsCompat
 
 enum class AppDestination {
     HOME,
@@ -29,7 +30,7 @@ class AppBottomNavigationView(
         orientation = HORIZONTAL
         gravity = Gravity.CENTER
         elevation = 12.dp().toFloat()
-        setPadding(12.dp(), 6.dp(), 12.dp(), 6.dp())
+        setPadding(HORIZONTAL_PADDING_DP.dp(), VERTICAL_PADDING_DP.dp(), HORIZONTAL_PADDING_DP.dp(), VERTICAL_PADDING_DP.dp())
         setBackgroundColor(ContextCompat.getColor(context, R.color.app_card_surface))
 
         listOf(
@@ -40,6 +41,33 @@ class AppBottomNavigationView(
         ).forEach { item ->
             addView(item, LayoutParams(0, LayoutParams.MATCH_PARENT, 1f))
         }
+
+        // Android 15 enforces edge-to-edge. Keep the navigation surface at the physical bottom,
+        // then reserve the system navigation inset inside it so OEM bars cannot cover controls.
+        ViewCompat.setOnApplyWindowInsetsListener(this) { view, insets ->
+            val navigationBarBottom = insets
+                .getInsets(WindowInsetsCompat.Type.navigationBars())
+                .bottom
+            view.setPadding(
+                HORIZONTAL_PADDING_DP.dp(),
+                VERTICAL_PADDING_DP.dp(),
+                HORIZONTAL_PADDING_DP.dp(),
+                VERTICAL_PADDING_DP.dp() + navigationBarBottom,
+            )
+            val safeHeight = BASE_HEIGHT_DP.dp() + navigationBarBottom
+            view.layoutParams?.let { params ->
+                if (params.height != safeHeight) {
+                    params.height = safeHeight
+                    view.layoutParams = params
+                }
+            }
+            insets
+        }
+    }
+
+    override fun onAttachedToWindow() {
+        super.onAttachedToWindow()
+        ViewCompat.requestApplyInsets(this)
     }
 
     private fun navigationItem(
@@ -77,4 +105,10 @@ class AppBottomNavigationView(
     }
 
     private fun Int.dp() = (this * resources.displayMetrics.density).toInt()
+
+    companion object {
+        const val BASE_HEIGHT_DP = 82
+        private const val HORIZONTAL_PADDING_DP = 12
+        private const val VERTICAL_PADDING_DP = 6
+    }
 }

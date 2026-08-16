@@ -58,10 +58,14 @@ class SettingsScreenArchitectureTest {
 
     @Test fun selectedNavigationAndSafeAreaStayResponsive() {
         val screen = sources.resolve("SettingsScreenView.kt").readText()
+        val navigation = sources.resolve("AppBottomNavigationView.kt").readText()
         assertTrue(screen.contains("selectedDestination = AppDestination.SETTINGS"))
         assertTrue(screen.contains("WindowInsetsCompat.Type.systemBars()"))
         assertTrue(screen.contains("WindowInsetsCompat.Type.navigationBars()"))
-        assertTrue(screen.contains("bottomMargin = navigationBars.bottom"))
+        assertTrue(screen.contains("AppBottomNavigationView.BASE_HEIGHT_DP.dp()"))
+        assertTrue(navigation.contains("BASE_HEIGHT_DP.dp() + navigationBarBottom"))
+        assertTrue(navigation.contains("VERTICAL_PADDING_DP.dp() + navigationBarBottom"))
+        assertFalse(screen.contains("bottomMargin = navigationBars.bottom"))
         assertTrue(resources.resolve("drawable/ic_nav_train_belt.xml").readText().contains("viewportWidth=\"640\""))
     }
 }

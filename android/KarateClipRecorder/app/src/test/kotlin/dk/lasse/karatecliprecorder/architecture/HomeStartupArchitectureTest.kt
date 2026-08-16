@@ -101,10 +101,30 @@ class HomeStartupArchitectureTest {
 
     @Test fun bottomNavigationStaysAboveSystemNavigation() {
         val home = appSources.resolve("HomeScreenView.kt").readText()
+        val settings = appSources.resolve("SettingsScreenView.kt").readText()
+        val learn = appSources.resolve("learningpath/LearnScreenView.kt").readText()
+        val progression = appSources.resolve("learningpath/SkillProgressionView.kt").readText()
+        val navigation = appSources.resolve("AppBottomNavigationView.kt").readText()
 
-        assertTrue(home.contains("WindowInsetsCompat.Type.navigationBars()"))
-        assertTrue(home.contains("bottomMargin = navigationBars.bottom"))
-        assertFalse(home.contains("navigation.layoutParams.height = 82.dp() +"))
+        assertTrue(navigation.contains("WindowInsetsCompat.Type.navigationBars()"))
+        assertTrue(navigation.contains("BASE_HEIGHT_DP.dp() + navigationBarBottom"))
+        assertTrue(navigation.contains("VERTICAL_PADDING_DP.dp() + navigationBarBottom"))
+        assertTrue(navigation.contains("ViewCompat.requestApplyInsets(this)"))
+        listOf(home, settings, learn, progression).forEach { screen ->
+            assertTrue(screen.contains("AppBottomNavigationView.BASE_HEIGHT_DP.dp()"))
+            assertFalse(screen.contains("bottomMargin = navigationBars.bottom"))
+        }
+
+        val lightColors = appRoot.resolve("app/src/main/res/values/colors.xml").readText()
+        val darkColors = appRoot.resolve("app/src/main/res/values-night/colors.xml").readText()
+        val lightStyle = appRoot.resolve("app/src/main/res/values/styles.xml").readText()
+        val darkStyle = appRoot.resolve("app/src/main/res/values-night/styles.xml").readText()
+        assertTrue(lightColors.contains("<color name=\"app_system_navigation\">#FFFFFF</color>"))
+        assertTrue(darkColors.contains("<color name=\"app_system_navigation\">#1E1E1E</color>"))
+        assertTrue(lightStyle.contains("<item name=\"android:windowLightNavigationBar\">true</item>"))
+        assertTrue(darkStyle.contains("<item name=\"android:windowLightNavigationBar\">false</item>"))
+        assertTrue(lightStyle.contains("<item name=\"android:enforceNavigationBarContrast\">false</item>"))
+        assertTrue(darkStyle.contains("<item name=\"android:enforceNavigationBarContrast\">false</item>"))
     }
 
     @Test fun cameraStartupRequiresExplicitTrainingNavigation() {

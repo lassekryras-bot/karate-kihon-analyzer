@@ -12,7 +12,7 @@
     <color name="app_success">#16803A</color>
     <color name="app_switch_track_inactive">#CDC9C4</color>
     <color name="app_switch_thumb">#FFFFFF</color>
-    <color name="app_system_navigation">#000000</color>
+    <color name="app_system_navigation">#FFFFFF</color>
     <color name="progress_red">#BE000C</color>
     <color name="progress_gray">#A1A1A1</color>
     <color name="progress_locked_surface">#EFEFEF</color>
