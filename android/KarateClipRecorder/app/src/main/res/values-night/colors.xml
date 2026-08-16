@@ -14,6 +14,7 @@
     <color name="app_switch_thumb">#FFFFFF</color>
     <color name="app_system_navigation">#1E1E1E</color>
     <color name="progress_red">#FF5963</color>
+    <color name="progress_pale_fill">#3A2023</color>
     <color name="progress_gray">#A7A3A0</color>
     <color name="progress_locked_surface">#34302E</color>
     <color name="progress_icon_black">#F5F3F0</color>

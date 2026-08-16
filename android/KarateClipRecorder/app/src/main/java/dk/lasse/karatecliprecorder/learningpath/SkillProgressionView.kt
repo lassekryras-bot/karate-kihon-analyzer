@@ -4,6 +4,7 @@ import android.content.Context
 import android.content.res.ColorStateList
 import android.graphics.Canvas
 import android.graphics.Paint
+import android.graphics.RectF
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
 import android.view.Gravity
@@ -44,6 +45,20 @@ class SkillProgressionView(
 
     init {
         setBackgroundColor(backgroundColor)
+        val timeline = ProgressionTimelineLayout(context, red, gray).apply {
+            path.steps.forEach { step ->
+                addProgressCard(
+                    card = stepCard(step, onStart),
+                    type = LearningStepType.REGULAR,
+                    state = step.progressState,
+                )
+            }
+            addProgressCard(
+                card = milestoneCard(),
+                type = LearningStepType.MILESTONE,
+                state = path.milestone.progressState,
+            )
+        }
         val content = LinearLayout(context).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(16.dp(), 8.dp(), 16.dp(), 112.dp())
@@ -55,23 +70,27 @@ class SkillProgressionView(
             addView(label("Your learning path", 21f, Typeface.BOLD).apply {
                 setPadding(2.dp(), 24.dp(), 0, 8.dp())
             })
-            path.steps.forEachIndexed { index, step ->
-                val previous = path.steps.getOrNull(index - 1)?.progressState
-                addView(stepRow(
-                    step = step,
-                    first = index == 0,
-                    incomingRed = previous == LearningProgressState.COMPLETED,
-                    onStart = onStart,
-                ))
-            }
-            addView(milestoneRow(path.steps.lastOrNull()?.progressState))
+            addView(timeline, LinearLayout.LayoutParams(
+                LayoutParams.MATCH_PARENT,
+                LayoutParams.WRAP_CONTENT,
+                1f,
+            ))
         }
 
-        addView(ScrollView(context).apply {
+        val scroller = ScrollView(context).apply {
             isFillViewport = true
             clipToPadding = false
             addView(content)
-        }, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT))
+        }
+        addView(scroller, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT))
+        content.addOnLayoutChangeListener { _, _, _, _, _, _, _, _, _ ->
+            val remainingViewportHeight = (
+                scroller.height - timeline.top - content.paddingBottom
+            ).coerceAtLeast(0)
+            if (timeline.minimumHeight != remainingViewportHeight) {
+                timeline.minimumHeight = remainingViewportHeight
+            }
+        }
 
         val navigation = AppBottomNavigationView(
             context = context,
@@ -115,7 +134,7 @@ class SkillProgressionView(
 
     private fun pathHeader() = card(strokeColor = border).apply {
         gravity = Gravity.CENTER_VERTICAL
-        setPadding(10.dp(), 11.dp(), 15.dp(), 11.dp())
+        setCardContentPadding(10.dp(), 11.dp(), 15.dp(), 11.dp())
         addView(LearningPathArtworkView(context).apply {
             setPathArtwork(path.artwork, path.ensoVariant)
             contentDescription = "${path.title} artwork"
@@ -140,32 +159,9 @@ class SkillProgressionView(
         }, LinearLayout.LayoutParams(0, LayoutParams.WRAP_CONTENT, 1f))
     }
 
-    private fun stepRow(
-        step: LearningStep,
-        first: Boolean,
-        incomingRed: Boolean,
-        onStart: (LearningDestination) -> Unit,
-    ) = LinearLayout(context).apply {
-        orientation = LinearLayout.HORIZONTAL
-        minimumHeight = if (step.progressState == LearningProgressState.CURRENT) 176.dp() else 96.dp()
-        addView(TimelineMarkerColumn(
-            context = context,
-            type = LearningStepType.REGULAR,
-            state = step.progressState,
-            showTop = !first,
-            showBottom = true,
-            topColor = if (incomingRed) red else gray,
-            bottomColor = if (step.progressState == LearningProgressState.COMPLETED) red else gray,
-        ), LayoutParams(54.dp(), LayoutParams.MATCH_PARENT))
-        addView(stepCard(step, onStart), LinearLayout.LayoutParams(0, LayoutParams.WRAP_CONTENT, 1f).apply {
-            topMargin = 6.dp()
-            bottomMargin = 7.dp()
-        })
-    }
-
     private fun stepCard(step: LearningStep, onStart: (LearningDestination) -> Unit) =
         card(strokeColor = if (step.progressState == LearningProgressState.CURRENT) red else border).apply {
-            setPadding(12.dp(), 12.dp(), 12.dp(), 12.dp())
+            setCardContentPadding(12.dp(), 12.dp(), 12.dp(), 12.dp())
             gravity = Gravity.CENTER_VERTICAL
             addView(label(step.number.toString(), 16f, Typeface.BOLD, Gravity.TOP or Gravity.CENTER_HORIZONTAL), LayoutParams(
                 34.dp(),
@@ -207,34 +203,18 @@ class SkillProgressionView(
         })
     }
 
-    private fun milestoneRow(previousState: LearningProgressState?) = LinearLayout(context).apply {
-        orientation = LinearLayout.HORIZONTAL
-        minimumHeight = 112.dp()
-        addView(TimelineMarkerColumn(
-            context = context,
-            type = LearningStepType.MILESTONE,
-            state = path.milestone.progressState,
-            showTop = true,
-            showBottom = false,
-            topColor = if (previousState == LearningProgressState.COMPLETED) red else gray,
-            bottomColor = gray,
-        ), LayoutParams(54.dp(), LayoutParams.MATCH_PARENT))
-        addView(card(strokeColor = border).apply {
-            gravity = Gravity.CENTER_VERTICAL
-            setPadding(14.dp(), 12.dp(), 14.dp(), 12.dp())
-            addView(LinearLayout(context).apply {
-                orientation = LinearLayout.VERTICAL
-                addView(label("Skill milestone", 12f).apply { setTextColor(muted) })
-                addView(label(path.milestone.title, 18f, Typeface.BOLD))
-                addView(label(path.milestone.description, 13f).apply {
-                    setTextColor(muted)
-                    setPadding(0, 2.dp(), 0, 0)
-                })
-            }, LinearLayout.LayoutParams(0, LayoutParams.WRAP_CONTENT, 1f))
-        }, LinearLayout.LayoutParams(0, LayoutParams.WRAP_CONTENT, 1f).apply {
-            topMargin = 6.dp()
-            bottomMargin = 7.dp()
-        })
+    private fun milestoneCard() = card(strokeColor = border).apply {
+        gravity = Gravity.CENTER_VERTICAL
+        setCardContentPadding(14.dp(), 12.dp(), 14.dp(), 12.dp())
+        addView(LinearLayout(context).apply {
+            orientation = LinearLayout.VERTICAL
+            addView(label("Skill milestone", 12f).apply { setTextColor(muted) })
+            addView(label(path.milestone.title, 18f, Typeface.BOLD))
+            addView(label(path.milestone.description, 13f).apply {
+                setTextColor(muted)
+                setPadding(0, 2.dp(), 0, 0)
+            })
+        }, LinearLayout.LayoutParams(0, LayoutParams.WRAP_CONTENT, 1f))
     }
 
     private fun actionButton(text: String, onClick: () -> Unit) = label(
@@ -253,14 +233,11 @@ class SkillProgressionView(
         setOnClickListener { onClick() }
     }
 
-    private fun card(strokeColor: Int) = LinearLayout(context).apply {
-        background = GradientDrawable().apply {
-            setColor(paper)
-            cornerRadius = 15.dp().toFloat()
-            setStroke(1.dp(), strokeColor)
-        }
-        elevation = 1.dp().toFloat()
-    }
+    private fun card(strokeColor: Int) = ProgressCardView(
+        context = context,
+        surfaceColor = paper,
+        borderColor = strokeColor,
+    )
 
     private fun label(text: String, size: Float, style: Int = Typeface.NORMAL, gravity: Int = Gravity.START) =
         TextView(context).apply {
@@ -274,44 +251,222 @@ class SkillProgressionView(
     private fun Int.dp() = (this * resources.displayMetrics.density).toInt()
 }
 
-/** Paints the connector behind the marker so the line never crosses the SVG. */
-private class TimelineMarkerColumn(
+internal object ProgressionGapCalculator {
+    fun calculate(
+        availableHeight: Int?,
+        totalCardHeight: Int,
+        verticalPadding: Int,
+        gapCount: Int,
+        minimumGap: Int,
+        targetGap: Int,
+        maximumGap: Int,
+    ): Int {
+        if (gapCount <= 0) return 0
+        if (availableHeight == null) return targetGap.coerceIn(minimumGap, maximumGap)
+        val spaceForGaps = availableHeight - totalCardHeight - verticalPadding
+        return (spaceForGaps / gapCount).coerceIn(minimumGap, maximumGap)
+    }
+}
+
+/**
+ * Cards own the geometry. This layout measures every card first, derives a clamped gap from the
+ * remaining height, then anchors markers and connector segments to the measured card positions.
+ */
+private class ProgressionTimelineLayout(
     context: Context,
-    type: LearningStepType,
-    state: LearningProgressState,
-    private val showTop: Boolean,
-    private val showBottom: Boolean,
-    private val topColor: Int,
-    private val bottomColor: Int,
-) : FrameLayout(context) {
-    private val markerSize = 42.dp()
-    private val markerTop = 10.dp()
+    private val red: Int,
+    private val gray: Int,
+) : ViewGroup(context) {
+    private data class Entry(
+        val card: View,
+        val marker: ProgressMarkerView,
+        val type: LearningStepType,
+        val state: LearningProgressState,
+    )
+
+    private val entries = mutableListOf<Entry>()
+    private val markerCenters = mutableListOf<Float>()
     private val railPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         strokeWidth = 2.dp().toFloat()
+        strokeCap = Paint.Cap.ROUND
     }
+    private var resolvedGap = TARGET_GAP_DP.dp()
 
     init {
         setWillNotDraw(false)
-        addView(ProgressMarkerView(context).apply {
-            setMarker(type, state)
-        }, LayoutParams(markerSize, markerSize, Gravity.TOP or Gravity.CENTER_HORIZONTAL).apply {
-            topMargin = markerTop
-        })
+        clipChildren = false
+        clipToPadding = false
+        setPadding(0, TOP_PADDING_DP.dp(), 0, BOTTOM_PADDING_DP.dp())
+    }
+
+    fun addProgressCard(card: View, type: LearningStepType, state: LearningProgressState) {
+        val marker = ProgressMarkerView(context).apply { setMarker(type, state) }
+        entries += Entry(card, marker, type, state)
+        addView(marker)
+        addView(card)
+    }
+
+    override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
+        val measuredWidth = MeasureSpec.getSize(widthMeasureSpec)
+        val cardWidth = (measuredWidth - MARKER_COLUMN_WIDTH_DP.dp()).coerceAtLeast(0)
+        val cardWidthSpec = MeasureSpec.makeMeasureSpec(cardWidth, MeasureSpec.EXACTLY)
+        val naturalHeightSpec = MeasureSpec.makeMeasureSpec(0, MeasureSpec.UNSPECIFIED)
+        val markerSpec = MeasureSpec.makeMeasureSpec(MARKER_SIZE_DP.dp(), MeasureSpec.EXACTLY)
+
+        entries.forEach { entry ->
+            entry.card.measure(cardWidthSpec, naturalHeightSpec)
+            entry.marker.measure(markerSpec, markerSpec)
+        }
+
+        val totalCardHeight = entries.sumOf { it.card.measuredHeight }
+        val gapCount = (entries.size - 1).coerceAtLeast(0)
+        val heightMode = MeasureSpec.getMode(heightMeasureSpec)
+        val availableHeight = when {
+            heightMode != MeasureSpec.UNSPECIFIED -> MeasureSpec.getSize(heightMeasureSpec)
+            suggestedMinimumHeight > 0 -> suggestedMinimumHeight
+            else -> null
+        }
+        resolvedGap = ProgressionGapCalculator.calculate(
+            availableHeight = availableHeight,
+            totalCardHeight = totalCardHeight,
+            verticalPadding = paddingTop + paddingBottom,
+            gapCount = gapCount,
+            minimumGap = MINIMUM_GAP_DP.dp(),
+            targetGap = TARGET_GAP_DP.dp(),
+            maximumGap = MAXIMUM_GAP_DP.dp(),
+        )
+        val desiredHeight = maxOf(
+            paddingTop + paddingBottom + totalCardHeight + resolvedGap * gapCount,
+            suggestedMinimumHeight,
+        )
+        setMeasuredDimension(
+            resolveSize(measuredWidth, widthMeasureSpec),
+            resolveSize(desiredHeight, heightMeasureSpec),
+        )
+    }
+
+    override fun onLayout(changed: Boolean, left: Int, top: Int, right: Int, bottom: Int) {
+        markerCenters.clear()
+        val markerLeft = (MARKER_COLUMN_WIDTH_DP.dp() - MARKER_SIZE_DP.dp()) / 2
+        val cardLeft = MARKER_COLUMN_WIDTH_DP.dp()
+        var cardTop = paddingTop
+        entries.forEach { entry ->
+            val cardBottom = cardTop + entry.card.measuredHeight
+            entry.card.layout(cardLeft, cardTop, width, cardBottom)
+            val anchor = cardTop + minOf(CARD_ANCHOR_DP.dp(), entry.card.measuredHeight / 2)
+            val markerTop = anchor - MARKER_SIZE_DP.dp() / 2
+            entry.marker.layout(
+                markerLeft,
+                markerTop,
+                markerLeft + MARKER_SIZE_DP.dp(),
+                markerTop + MARKER_SIZE_DP.dp(),
+            )
+            markerCenters += anchor.toFloat()
+            cardTop = cardBottom + resolvedGap
+        }
     }
 
     override fun onDraw(canvas: Canvas) {
         super.onDraw(canvas)
-        val centerX = width / 2f
-        val markerCenter = markerTop + markerSize / 2f
-        if (showTop) {
-            railPaint.color = topColor
-            canvas.drawLine(centerX, 0f, centerX, markerCenter, railPaint)
-        }
-        if (showBottom) {
-            railPaint.color = bottomColor
-            canvas.drawLine(centerX, markerCenter, centerX, height.toFloat(), railPaint)
+        val railX = MARKER_COLUMN_WIDTH_DP.dp() / 2f
+        val markerRadius = MARKER_SIZE_DP.dp() * 0.43f
+        entries.forEachIndexed { index, entry ->
+            val centerY = markerCenters.getOrNull(index) ?: return@forEachIndexed
+            railPaint.color = markerColor(entry)
+            canvas.drawLine(
+                railX + markerRadius,
+                centerY,
+                MARKER_COLUMN_WIDTH_DP.dp().toFloat() + CARD_SHADOW_INSET_DP.dp(),
+                centerY,
+                railPaint,
+            )
+            val nextCenter = markerCenters.getOrNull(index + 1) ?: return@forEachIndexed
+            railPaint.color = if (entry.state == LearningProgressState.COMPLETED) red else gray
+            canvas.drawLine(
+                railX,
+                centerY + markerRadius,
+                railX,
+                nextCenter - markerRadius,
+                railPaint,
+            )
         }
     }
 
+    private fun markerColor(entry: Entry): Int = when {
+        entry.type == LearningStepType.MILESTONE && entry.state != LearningProgressState.COMPLETED -> gray
+        entry.state == LearningProgressState.LOCKED -> gray
+        else -> red
+    }
+
     private fun Int.dp() = (this * resources.displayMetrics.density).toInt()
+
+    companion object {
+        private const val MARKER_COLUMN_WIDTH_DP = 54
+        private const val MARKER_SIZE_DP = 42
+        private const val CARD_ANCHOR_DP = 28
+        private const val CARD_SHADOW_INSET_DP = 4
+        private const val TOP_PADDING_DP = 6
+        private const val BOTTOM_PADDING_DP = 10
+        private const val MINIMUM_GAP_DP = 28
+        private const val TARGET_GAP_DP = 48
+        private const val MAXIMUM_GAP_DP = 56
+    }
+}
+
+/** Rounded card with a controlled low-opacity shadow offset below the independent state border. */
+private class ProgressCardView(
+    context: Context,
+    private val surfaceColor: Int,
+    private val borderColor: Int,
+) : LinearLayout(context) {
+    private val surfaceBounds = RectF()
+    private val surfacePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        style = Paint.Style.FILL
+        color = surfaceColor
+        setShadowLayer(8.dp().toFloat(), 0f, 3.dp().toFloat(), 0x14000000)
+    }
+    private val borderPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        style = Paint.Style.STROKE
+        strokeWidth = 1.25f.dp()
+        color = borderColor
+    }
+
+    init {
+        setWillNotDraw(false)
+        setLayerType(LAYER_TYPE_SOFTWARE, null)
+        stateListAnimator = null
+        elevation = 0f
+    }
+
+    fun setCardContentPadding(left: Int, top: Int, right: Int, bottom: Int) {
+        setPadding(
+            left + HORIZONTAL_SHADOW_INSET_DP.dp(),
+            top + SURFACE_TOP_INSET_DP.dp(),
+            right + HORIZONTAL_SHADOW_INSET_DP.dp(),
+            bottom + SHADOW_BOTTOM_SPACE_DP.dp(),
+        )
+    }
+
+    override fun onDraw(canvas: Canvas) {
+        surfaceBounds.set(
+            HORIZONTAL_SHADOW_INSET_DP.dp().toFloat(),
+            SURFACE_TOP_INSET_DP.dp().toFloat(),
+            width - HORIZONTAL_SHADOW_INSET_DP.dp().toFloat(),
+            height - SHADOW_BOTTOM_SPACE_DP.dp().toFloat(),
+        )
+        val radius = CORNER_RADIUS_DP.dp().toFloat()
+        canvas.drawRoundRect(surfaceBounds, radius, radius, surfacePaint)
+        canvas.drawRoundRect(surfaceBounds, radius, radius, borderPaint)
+        super.onDraw(canvas)
+    }
+
+    private fun Int.dp() = (this * resources.displayMetrics.density).toInt()
+    private fun Float.dp() = this * resources.displayMetrics.density
+
+    companion object {
+        private const val CORNER_RADIUS_DP = 30
+        private const val HORIZONTAL_SHADOW_INSET_DP = 4
+        private const val SURFACE_TOP_INSET_DP = 2
+        private const val SHADOW_BOTTOM_SPACE_DP = 9
+    }
 }

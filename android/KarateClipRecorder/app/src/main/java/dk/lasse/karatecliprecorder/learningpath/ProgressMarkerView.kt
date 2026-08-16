@@ -28,11 +28,12 @@ enum class ProgressMarkerAsset(@RawRes val rawResourceId: Int) {
     LOCK_OVERLAY(R.raw.progress_lock_overlay),
 }
 
-enum class ProgressMarkerTint { RED, GRAY, BLACK }
+enum class ProgressMarkerTint { RED, PALE_RED, GRAY, BLACK }
 
 data class ProgressMarkerVisual(
     val baseAsset: ProgressMarkerAsset?,
     val baseTint: ProgressMarkerTint?,
+    val centerFillTint: ProgressMarkerTint? = null,
     val drawLockedSurface: Boolean = false,
     val lockOverlay: Boolean = false,
 )
@@ -55,14 +56,17 @@ object ProgressMarkerVisualResolver {
                 LearningProgressState.COMPLETED -> ProgressMarkerVisual(
                     ProgressMarkerAsset.COMPLETED,
                     ProgressMarkerTint.RED,
+                    centerFillTint = ProgressMarkerTint.RED,
                 )
                 LearningProgressState.CURRENT -> ProgressMarkerVisual(
                     ProgressMarkerAsset.CURRENT,
                     ProgressMarkerTint.RED,
+                    centerFillTint = ProgressMarkerTint.RED,
                 )
                 LearningProgressState.AVAILABLE -> ProgressMarkerVisual(
                     ProgressMarkerAsset.AVAILABLE,
-                    ProgressMarkerTint.GRAY,
+                    ProgressMarkerTint.RED,
+                    centerFillTint = ProgressMarkerTint.PALE_RED,
                 )
                 LearningProgressState.LOCKED -> ProgressMarkerVisual(
                     baseAsset = null,
@@ -132,6 +136,15 @@ class ProgressMarkerView @JvmOverloads constructor(
             val radius = min(width, height) * 0.46f
             canvas.drawCircle(width / 2f, height / 2f, radius, paint)
         }
+        visual.centerFillTint?.let { tint ->
+            paint.color = tintColor(tint)
+            canvas.drawCircle(
+                width / 2f,
+                height / 2f,
+                min(width, height) * CENTER_FILL_RADIUS_FRACTION,
+                paint,
+            )
+        }
         baseArtwork?.let { drawArtwork(canvas, it, tintColor(requireNotNull(visual.baseTint))) }
         lockArtwork?.let { drawArtwork(canvas, it, tintColor(ProgressMarkerTint.BLACK)) }
     }
@@ -151,12 +164,14 @@ class ProgressMarkerView @JvmOverloads constructor(
 
     private fun tintColor(tint: ProgressMarkerTint): Int = when (tint) {
         ProgressMarkerTint.RED -> ContextCompat.getColor(context, R.color.progress_red)
+        ProgressMarkerTint.PALE_RED -> ContextCompat.getColor(context, R.color.progress_pale_fill)
         ProgressMarkerTint.GRAY -> ContextCompat.getColor(context, R.color.progress_gray)
         ProgressMarkerTint.BLACK -> ContextCompat.getColor(context, R.color.progress_icon_black)
     }
 
     companion object {
         private const val TAG = "ProgressMarker"
+        private const val CENTER_FILL_RADIUS_FRACTION = 0.27f
     }
 }
 
