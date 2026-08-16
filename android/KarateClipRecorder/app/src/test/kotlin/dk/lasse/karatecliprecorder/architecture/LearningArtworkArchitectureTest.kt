@@ -82,14 +82,10 @@ class LearningArtworkArchitectureTest {
 
     private fun File.sha256(): String {
         val digest = MessageDigest.getInstance("SHA-256")
-        inputStream().use { stream ->
-            val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
-            while (true) {
-                val count = stream.read(buffer)
-                if (count < 0) break
-                digest.update(buffer, 0, count)
-            }
-        }
+        val normalizedBytes = readText(Charsets.UTF_8)
+            .replace("\r\n", "\n")
+            .toByteArray(Charsets.UTF_8)
+        digest.update(normalizedBytes)
         return digest.digest().joinToString("") { "%02X".format(it) }
     }
 

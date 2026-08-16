@@ -15,6 +15,7 @@ class GuidedJodanSessionController(
     private val onComplete: (GuidedSessionResult) -> Unit,
     private val onError: (String) -> Unit,
     var captureProfile: SelectedCaptureProfile? = null,
+    private val countdownBeforeTrainingMs: Long = DEFAULT_COUNTDOWN_BEFORE_TRAINING_MS,
 ) {
     private val handler = Handler(Looper.getMainLooper())
     private val plan = createPlan()
@@ -35,7 +36,7 @@ class GuidedJodanSessionController(
         onStrikeChanged(null)
         onStateChanged(GuidedSessionState.READY)
         onPromptChanged("Setup / ready")
-        handler.postDelayed({ showYoi() }, READY_DELAY_MS)
+        handler.postDelayed({ showYoi() }, countdownBeforeTrainingMs.coerceAtLeast(0L))
     }
 
     fun cancel() {
@@ -200,7 +201,7 @@ $clipsJson
 
     companion object {
         const val FIXED_CLIP_DURATION_MS = 4_000L
-        private const val READY_DELAY_MS = 500L
+        const val DEFAULT_COUNTDOWN_BEFORE_TRAINING_MS = 3_000L
         private const val YOI_DELAY_MS = 1_000L
         private const val PROMPT_DELAY_MS = 500L
         private const val BETWEEN_STRIKE_PAUSE_MS = 500L

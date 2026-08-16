@@ -4,7 +4,7 @@
         <item name="android:windowActionBar">false</item>
         <item name="colorAccent">@color/app_accent</item>
         <item name="colorControlActivated">@color/app_accent</item>
-        <item name="android:windowLightStatusBar">true</item>
+        <item name="android:windowLightStatusBar">false</item>
         <item name="android:statusBarColor">@color/app_background</item>
         <item name="android:navigationBarColor">@color/app_system_navigation</item>
     </style>
