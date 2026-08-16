@@ -60,7 +60,7 @@ class JapaneseCountingActivityShellArchitectureTest {
         assertTrue(character.contains("faceMale: RectF"))
         assertTrue(character.contains("faceFemale: RectF"))
         assertTrue(character.contains("belt: RectF"))
-        assertTrue(character.contains("beltOpticalScale: Float = 1.03f"))
+        assertTrue(character.contains("beltOpticalScale: Float = 0.9785f"))
         assertTrue(character.contains("tonePalette = beltRank.tonesDarkToLight"))
     }
 }
