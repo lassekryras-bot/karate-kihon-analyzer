@@ -82,11 +82,16 @@ class HomeStartupArchitectureTest {
         val activity = appSources.resolve("MainActivity.kt").readText()
         val homeConstruction = activity.substringAfter("homeScreen = HomeScreenView").substringBefore("setContentView")
         val placeholder = activity.substringAfter("private fun showHomeDestinationPlaceholder").substringBefore("private fun openTrainingHub")
+        val settings = activity.substringAfter("private fun openSettings").substringBefore("private fun closeEnsoDebugGallery")
 
         assertTrue(homeConstruction.contains("onProgress = { showHomeDestinationPlaceholder"))
-        assertTrue(homeConstruction.contains("onSettings = { showHomeDestinationPlaceholder"))
+        assertTrue(homeConstruction.contains("onSettings = ::openSettings"))
         assertFalse(placeholder.contains("showTrainingUi"))
         assertFalse(placeholder.contains("requestCameraPermissionIfNeeded"))
+        assertTrue(settings.contains("ApplicationInfo.FLAG_DEBUGGABLE"))
+        assertTrue(settings.contains("EnsoDebugGalleryView"))
+        assertFalse(settings.contains("showTrainingUi"))
+        assertFalse(settings.contains("requestCameraPermissionIfNeeded"))
     }
 
     @Test fun bottomNavigationStaysAboveSystemNavigation() {

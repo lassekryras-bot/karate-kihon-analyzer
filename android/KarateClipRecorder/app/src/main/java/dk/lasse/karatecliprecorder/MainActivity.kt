@@ -30,6 +30,10 @@ import androidx.camera.view.PreviewView
 import androidx.core.content.ContextCompat
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
+import dk.lasse.karatecliprecorder.enso.EnsoDebugGalleryView
+import dk.lasse.karatecliprecorder.enso.EnsoLibrary
+import dk.lasse.karatecliprecorder.learningartwork.LearningActivityEntryView
+import dk.lasse.karatecliprecorder.learningartwork.LearningActivityType
 import dk.lasse.karatecliprecorder.orders.SoundFileTrainingOrderPlayer
 import dk.lasse.karatecliprecorder.orders.TrainingOrder
 import dk.lasse.karatecliprecorder.orders.TrainingOrderMapper
@@ -89,8 +93,10 @@ import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicLong
 
 class MainActivity : AppCompatActivity() {
+    private lateinit var appRoot: FrameLayout
     private lateinit var trainingRoot: View
     private lateinit var homeScreen: HomeScreenView
+    private var ensoDebugGallery: View? = null
     private var cameraStartupRequested = false
     private lateinit var previewView: PreviewView
     private lateinit var startSessionButton: Button
@@ -103,8 +109,8 @@ class MainActivity : AppCompatActivity() {
     private lateinit var cameraSetupCapturedImage: ImageView
     private lateinit var cameraSetupRetakeButton: Button
     private lateinit var cameraSetupDoneButton: Button
-    private lateinit var countJapaneseButton: Button
-    private lateinit var countJapaneseLevel2Button: Button
+    private lateinit var countJapanesePracticeEntry: LearningActivityEntryView
+    private lateinit var countJapaneseTestEntry: LearningActivityEntryView
     private lateinit var cancelSessionButton: Button
     private lateinit var findYourWeaponBackButton: Button
     private lateinit var findYourWeaponNextButton: Button
@@ -190,7 +196,7 @@ class MainActivity : AppCompatActivity() {
     private var pendingFindYourWeaponAdvance: Runnable? = null
     private var pendingJapaneseCountRecognitionRestart: Runnable? = null
     private var japaneseCountCommittedTranscript = ""
-    private var japaneseCountMode: JapaneseCountMode? = null
+    private var japaneseCountMode: LearningActivityType? = null
     private var pendingJapaneseCountMicrophonePermission = false
     private var japaneseCountTrainingSession = CountTrainingSession()
     private var recognizerState: RecognizerLifecycleState = RecognizerLifecycleState.INACTIVE
@@ -234,18 +240,19 @@ class MainActivity : AppCompatActivity() {
             onContinue = ::openTrainingHub,
             onLearn = {
                 showTrainingUi()
-                startJapaneseCountLevel1()
+                startJapaneseCountingPractice()
             },
             onPractice = ::openTrainingHub,
             onSkillCoach = ::openTrainingHub,
             onTrain = ::openTrainingHub,
             onProgress = { showHomeDestinationPlaceholder("Progress") },
-            onSettings = { showHomeDestinationPlaceholder("Settings") },
+            onSettings = ::openSettings,
         )
-        setContentView(FrameLayout(this).apply {
+        appRoot = FrameLayout(this).apply {
             addView(trainingRoot)
             addView(homeScreen)
-        })
+        }
+        setContentView(appRoot)
         trainingOrderPlayer = SoundFileTrainingOrderPlayer(this)
         japaneseCountFullExamplePlayer = JapaneseCountFullExamplePlayer(this)
         japaneseCountLiveRecognizer = JapaneseCountLiveRecognizer(this)
@@ -253,6 +260,32 @@ class MainActivity : AppCompatActivity() {
 
     private fun showHomeDestinationPlaceholder(destination: String) {
         Toast.makeText(this, "$destination coming soon.", Toast.LENGTH_SHORT).show()
+    }
+
+    private fun openSettings() {
+        if ((applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE) == 0) {
+            showHomeDestinationPlaceholder("Settings")
+            return
+        }
+        if (ensoDebugGallery != null) return
+
+        ensoDebugGallery = EnsoDebugGalleryView(
+            context = this,
+            onClose = ::closeEnsoDebugGallery,
+        ).also { gallery ->
+            appRoot.addView(
+                gallery,
+                FrameLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                ),
+            )
+        }
+    }
+
+    private fun closeEnsoDebugGallery() {
+        ensoDebugGallery?.let(appRoot::removeView)
+        ensoDebugGallery = null
     }
 
     private fun openTrainingHub() {
@@ -445,16 +478,21 @@ class MainActivity : AppCompatActivity() {
             isEnabled = false
             setOnClickListener { startCameraSetupSession() }
         }
-        countJapaneseButton = Button(this).apply {
-            text = "Japanese Count - Level 1"
-            isEnabled = true
-            setOnClickListener { startJapaneseCountLevel1() }
-        }
-        countJapaneseLevel2Button = Button(this).apply {
-            text = "Japanese Count - Level 2"
-            isEnabled = true
-            setOnClickListener { startJapaneseCountLevel2() }
-        }
+        val learningArtworkBag = EnsoLibrary().newShuffleBag()
+        countJapanesePracticeEntry = LearningActivityEntryView(
+            context = this,
+            title = "Japanese Counting",
+            activityType = LearningActivityType.PRACTICE,
+            ensoVariant = learningArtworkBag.next(),
+            onClick = ::startJapaneseCountingPractice,
+        )
+        countJapaneseTestEntry = LearningActivityEntryView(
+            context = this,
+            title = "Japanese Counting",
+            activityType = LearningActivityType.TEST,
+            ensoVariant = learningArtworkBag.next(),
+            onClick = ::startJapaneseCountingTest,
+        )
         cancelSessionButton = Button(this).apply {
             text = "Cancel Session"
             isEnabled = false
@@ -595,8 +633,14 @@ class MainActivity : AppCompatActivity() {
             addView(startSessionButton)
             addView(findYourWeaponButton)
             addView(punchHeightButton)
-            addView(countJapaneseButton)
-            addView(countJapaneseLevel2Button)
+            addView(countJapanesePracticeEntry, LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+            ).apply { bottomMargin = 8.dp() })
+            addView(countJapaneseTestEntry, LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+            ).apply { bottomMargin = 8.dp() })
             addView(cameraSetupTitleText)
             addView(cameraSetupMessageText)
             addView(cameraSetupViewButtons)
@@ -1142,18 +1186,18 @@ class MainActivity : AppCompatActivity() {
         updateControlVisibility()
     }
 
-    private fun startJapaneseCountLevel1() {
+    private fun startJapaneseCountingPractice() {
         stopJapaneseCountSession()
         metadataPathText.text = "Metadata: not saved"
-        japaneseCountMode = JapaneseCountMode.LEVEL_1
+        japaneseCountMode = LearningActivityType.PRACTICE
         japaneseCountActive = true
         japaneseCountLevel1Controller.start()
     }
 
-    private fun startJapaneseCountLevel2() {
+    private fun startJapaneseCountingTest() {
         stopJapaneseCountSession()
         metadataPathText.text = "Metadata: not saved"
-        japaneseCountMode = JapaneseCountMode.LEVEL_2
+        japaneseCountMode = LearningActivityType.TEST
         japaneseCountActive = true
         resetJapaneseCountLevel2()
         if (japaneseCountTrainingSession.phase == CountTrainingPhase.READY) {
@@ -1187,7 +1231,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun navigateJapaneseCountLevel1(action: () -> Unit) {
-        if (japaneseCountMode != JapaneseCountMode.LEVEL_1) return
+        if (japaneseCountMode != LearningActivityType.PRACTICE) return
         trainingOrderPlayer?.stop()
         action()
     }
@@ -1203,7 +1247,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun playJapaneseCountFullExample() {
-        if (japaneseCountMode != JapaneseCountMode.LEVEL_2) return
+        if (japaneseCountMode != LearningActivityType.TEST) return
         trainingOrderPlayer?.stop()
         japaneseCountFullExamplePlayer.play(
             onError = { error ->
@@ -1217,7 +1261,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun requestJapaneseCountLiveRecognition() {
-        if (japaneseCountMode != JapaneseCountMode.LEVEL_2) return
+        if (japaneseCountMode != LearningActivityType.TEST) return
         val hasAudioPermission = ContextCompat.checkSelfPermission(
             this,
             Manifest.permission.RECORD_AUDIO,
@@ -1231,7 +1275,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun beginJapaneseCountLiveRecognition() {
-        if (japaneseCountMode != JapaneseCountMode.LEVEL_2) return
+        if (japaneseCountMode != LearningActivityType.TEST) return
         trainingOrderPlayer?.stop()
         japaneseCountFullExamplePlayer.stop()
         updateJapaneseCountLevel2Session(
@@ -1256,13 +1300,13 @@ class MainActivity : AppCompatActivity() {
 
     private fun startJapaneseCountRecognitionSegment() {
         if (
-            japaneseCountMode != JapaneseCountMode.LEVEL_2 ||
+            japaneseCountMode != LearningActivityType.TEST ||
             japaneseCountTrainingSession.phase != CountTrainingPhase.LISTENING
         ) return
         japaneseCountLiveRecognizer.start(
             onPartialResults = { partials ->
                 if (
-                    japaneseCountMode == JapaneseCountMode.LEVEL_2 &&
+                    japaneseCountMode == LearningActivityType.TEST &&
                     japaneseCountTrainingSession.phase == CountTrainingPhase.LISTENING
                 ) {
                     val combinedPartials = partials.map(::combineJapaneseCountTranscript)
@@ -1294,7 +1338,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun finishJapaneseCountLiveRecognition() {
         if (
-            japaneseCountMode != JapaneseCountMode.LEVEL_2 ||
+            japaneseCountMode != LearningActivityType.TEST ||
             japaneseCountTrainingSession.phase != CountTrainingPhase.LISTENING
         ) return
         cancelJapaneseCountRecognitionRestart()
@@ -1316,7 +1360,7 @@ class MainActivity : AppCompatActivity() {
         restartIfIncomplete: Boolean,
         combineWithCommittedTranscript: Boolean = true,
     ) {
-        if (japaneseCountMode != JapaneseCountMode.LEVEL_2) return
+        if (japaneseCountMode != LearningActivityType.TEST) return
         val combinedAlternatives = if (combineWithCommittedTranscript) {
             alternatives.map { alternative ->
                 alternative.copy(transcript = combineJapaneseCountTranscript(alternative.transcript))
@@ -1376,7 +1420,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun handleJapaneseCountRecognitionEnded() {
-        if (japaneseCountMode != JapaneseCountMode.LEVEL_2) return
+        if (japaneseCountMode != LearningActivityType.TEST) return
         when (japaneseCountTrainingSession.phase) {
             CountTrainingPhase.LISTENING -> scheduleJapaneseCountRecognitionRestart()
             CountTrainingPhase.FINALIZING -> finalizeJapaneseCountBestAvailableTranscript()
@@ -1409,7 +1453,7 @@ class MainActivity : AppCompatActivity() {
     private fun handleJapaneseCountRecognitionError(
         failure: CountRecognitionFailure,
     ) {
-        if (japaneseCountMode != JapaneseCountMode.LEVEL_2) return
+        if (japaneseCountMode != LearningActivityType.TEST) return
         val retryableEarlyEnd = failure.error == CountRecognitionError.NO_SPEECH_DETECTED ||
             failure.error == CountRecognitionError.BUSY ||
             failure.error == CountRecognitionError.EMPTY_TRANSCRIPTION
@@ -1446,7 +1490,7 @@ class MainActivity : AppCompatActivity() {
         pendingJapaneseCountRecognitionRestart = Runnable {
             pendingJapaneseCountRecognitionRestart = null
             if (
-                japaneseCountMode == JapaneseCountMode.LEVEL_2 &&
+                japaneseCountMode == LearningActivityType.TEST &&
                 japaneseCountTrainingSession.phase == CountTrainingPhase.LISTENING
             ) {
                 startJapaneseCountRecognitionSegment()
@@ -1462,7 +1506,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun resetJapaneseCountLevel2() {
-        if (japaneseCountMode != JapaneseCountMode.LEVEL_2) return
+        if (japaneseCountMode != LearningActivityType.TEST) return
         pendingJapaneseCountMicrophonePermission = false
         cancelJapaneseCountRecognitionRestart()
         japaneseCountCommittedTranscript = ""
@@ -1487,7 +1531,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun updateJapaneseCountLevel2Session(session: CountTrainingSession) {
-        if (japaneseCountMode != JapaneseCountMode.LEVEL_2) return
+        if (japaneseCountMode != LearningActivityType.TEST) return
         if (session.phase != CountTrainingPhase.LISTENING) cancelJapaneseCountRecognitionRestart()
         japaneseCountTrainingSession = session
         if ((applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE) != 0) {
@@ -1495,14 +1539,14 @@ class MainActivity : AppCompatActivity() {
         }
         japaneseCountActive = true
         japaneseCountText.text = when (session.phase) {
-            CountTrainingPhase.READY -> "Level 2\nCount aloud from 1 to 10"
+            CountTrainingPhase.READY -> "Japanese Counting Test\nCount aloud from 1 to 10"
             CountTrainingPhase.LISTENING -> session.partialTranscripts.lastOrNull()
                 ?.let { "Listening...\n$it" }
                 ?: "Listening...\nSay all ten numbers; brief pauses are okay"
             CountTrainingPhase.FINALIZING -> "Finishing Japanese recognition..."
             CountTrainingPhase.RESULT -> if (session.successful) "Complete count recognized" else "Count needs another try"
             CountTrainingPhase.ERROR -> "Unable to analyze this count"
-            else -> "Level 2"
+            else -> "Japanese Counting Test"
         }
         japaneseCountFeedbackText.text = when (session.phase) {
             CountTrainingPhase.READY -> "Play the example, then start Japanese live recognition."
@@ -1542,18 +1586,18 @@ class MainActivity : AppCompatActivity() {
     private fun updateJapaneseCountDebugText() {
         if (currentDebugScope() != DebugScope.COUNT_JAPANESE) return
         analyzerDebugText.text = when (japaneseCountMode) {
-            JapaneseCountMode.LEVEL_1 -> {
+            LearningActivityType.PRACTICE -> {
                 val state = japaneseCountLevel1Controller.state
                 listOf(
-                    "Level: 1 (self-training only)",
+                    "Activity: practice (self-training only)",
                     "Expected: ${state.item?.number ?: "--"} / ${state.item?.japanese ?: "--"}",
                     "Microphone: unused",
                     "Recognition: unused",
                 ).joinToString("\n")
             }
-            JapaneseCountMode.LEVEL_2 -> with(japaneseCountTrainingSession) {
+            LearningActivityType.TEST -> with(japaneseCountTrainingSession) {
                 listOf(
-                    "Level: 2 / Phase: ${phase.name.lowercase()}",
+                    "Activity: test / Phase: ${phase.name.lowercase()}",
                     "Language: $recognitionLanguage",
                     "Partial: ${partialTranscripts.joinToString(" | ").ifBlank { "--" }}",
                     "Final alternatives: ${finalTranscriptAlternatives.joinToString(" | ").ifBlank { "--" }}",
@@ -1576,7 +1620,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun CountRecognitionError?.toJapaneseCountUserMessage(): String = when (this) {
-        CountRecognitionError.MICROPHONE_PERMISSION_DENIED -> "Microphone permission is needed for Level 2. You can retry after granting it."
+        CountRecognitionError.MICROPHONE_PERMISSION_DENIED -> "Microphone permission is needed for the Japanese Counting Test. You can retry after granting it."
         CountRecognitionError.NO_SPEECH_DETECTED,
         CountRecognitionError.EMPTY_TRANSCRIPTION -> "No count was detected. Please retry and speak clearly."
         CountRecognitionError.RECOGNITION_SERVICE_UNAVAILABLE -> "Speech recognition is not available on this device."
@@ -1659,7 +1703,7 @@ class MainActivity : AppCompatActivity() {
         }
         if (
             ::japaneseCountLiveRecognizer.isInitialized &&
-            japaneseCountMode == JapaneseCountMode.LEVEL_2 &&
+            japaneseCountMode == LearningActivityType.TEST &&
             japaneseCountTrainingSession.phase in setOf(
                 CountTrainingPhase.LISTENING,
                 CountTrainingPhase.FINALIZING,
@@ -1718,14 +1762,14 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun updateJapaneseCountLevel1State(state: JapaneseCountLevel1State) {
-        if (japaneseCountMode != JapaneseCountMode.LEVEL_1) {
+        if (japaneseCountMode != LearningActivityType.PRACTICE) {
             updateControlVisibility()
             return
         }
         japaneseCountActive = true
         val item = state.item
         if (item != null) {
-            statusText.text = "Japanese count - Level 1"
+            statusText.text = "Japanese Counting — Practice"
             currentCountText.text = "Count: ${state.itemIndex + 1} / ${JapaneseCountLesson.items.size}"
             currentStrikeText.text = "Japanese: ${item.japanese}"
             expectedSideText.text = "Number: ${item.number}"
@@ -1738,11 +1782,11 @@ class MainActivity : AppCompatActivity() {
             playJapaneseCountPrompt(item)
         } else {
             trainingOrderPlayer?.stop()
-            statusText.text = if (state.isComplete) "Japanese count Level 1 complete" else "Status: idle"
+            statusText.text = if (state.isComplete) "Japanese Counting practice complete" else "Status: idle"
             currentCountText.text = "Count: none"
             currentStrikeText.text = "Strike: none"
             expectedSideText.text = "Expected side: none"
-            japaneseCountText.text = if (state.isComplete) "Level 1 complete" else ""
+            japaneseCountText.text = if (state.isComplete) "Practice complete" else ""
             japaneseCountFeedbackText.text = if (state.isComplete) "You practiced all ten numbers." else ""
             japaneseCountNextButton.text = "Next"
         }
@@ -1813,8 +1857,8 @@ class MainActivity : AppCompatActivity() {
         startSessionButton.isEnabled = availability.cameraActionsEnabled
         findYourWeaponButton.isEnabled = availability.cameraActionsEnabled
         punchHeightButton.isEnabled = availability.cameraActionsEnabled
-        countJapaneseButton.isEnabled = availability.countActionsEnabled
-        countJapaneseLevel2Button.isEnabled = availability.countActionsEnabled
+        countJapanesePracticeEntry.isEnabled = availability.countActionsEnabled
+        countJapaneseTestEntry.isEnabled = availability.countActionsEnabled
         cancelSessionButton.isEnabled = availability.cancelEnabled
     }
 
@@ -1826,29 +1870,29 @@ class MainActivity : AppCompatActivity() {
         startSessionButton.visibility = if (idle) View.VISIBLE else View.GONE
         findYourWeaponButton.visibility = if (idle) View.VISIBLE else View.GONE
         punchHeightButton.visibility = if (idle) View.VISIBLE else View.GONE
-        countJapaneseButton.visibility = if (idle) View.VISIBLE else View.GONE
-        countJapaneseLevel2Button.visibility = if (idle) View.VISIBLE else View.GONE
+        countJapanesePracticeEntry.visibility = if (idle) View.VISIBLE else View.GONE
+        countJapaneseTestEntry.visibility = if (idle) View.VISIBLE else View.GONE
         findYourWeaponImage.visibility = if (findYourWeaponActive && findYourWeaponController?.state?.step != null) View.VISIBLE else View.GONE
         findYourWeaponDebugOverlayView.visibility = if ((debugUiVisible || findYourWeaponKnuckleGuideVisible) && findYourWeaponActive && findYourWeaponController?.state?.step != null) View.VISIBLE else View.GONE
         findYourWeaponProgressRingView.visibility = if (shouldShowFindYourWeaponProgressRing()) View.VISIBLE else View.GONE
         findYourWeaponMessageText.visibility = if (findYourWeaponActive && findYourWeaponController?.state?.step != null) View.VISIBLE else View.GONE
-        val level1ItemActive = japaneseCountMode == JapaneseCountMode.LEVEL_1 && japaneseCountLevel1Controller.state.item != null
-        val level2Active = japaneseCountMode == JapaneseCountMode.LEVEL_2
-        val level2Phase = japaneseCountTrainingSession.phase
-        val level2CanPlayExample = level2Phase == CountTrainingPhase.READY ||
-            level2Phase == CountTrainingPhase.RESULT ||
-            level2Phase == CountTrainingPhase.ERROR
+        val practiceItemActive = japaneseCountMode == LearningActivityType.PRACTICE && japaneseCountLevel1Controller.state.item != null
+        val testActive = japaneseCountMode == LearningActivityType.TEST
+        val testPhase = japaneseCountTrainingSession.phase
+        val testCanPlayExample = testPhase == CountTrainingPhase.READY ||
+            testPhase == CountTrainingPhase.RESULT ||
+            testPhase == CountTrainingPhase.ERROR
         japaneseCountText.visibility = if (japaneseCountActive) View.VISIBLE else View.GONE
         japaneseCountFeedbackText.visibility = if (japaneseCountActive) View.VISIBLE else View.GONE
-        japaneseCountResultsText.visibility = if (level2Active && japaneseCountTrainingSession.countResults.isNotEmpty()) View.VISIBLE else View.GONE
-        japaneseCountBackButton.visibility = if (level1ItemActive) View.VISIBLE else View.GONE
-        japaneseCountPlayButton.visibility = if (level2Active && level2CanPlayExample) View.VISIBLE else View.GONE
-        japaneseCountReplayButton.visibility = if (level1ItemActive) View.VISIBLE else View.GONE
-        japaneseCountNextButton.visibility = if (level1ItemActive) View.VISIBLE else View.GONE
-        japaneseCountListenButton.visibility = if (level2Active && level2Phase == CountTrainingPhase.READY) View.VISIBLE else View.GONE
-        japaneseCountFinishButton.visibility = if (level2Active && level2Phase == CountTrainingPhase.LISTENING) View.VISIBLE else View.GONE
+        japaneseCountResultsText.visibility = if (testActive && japaneseCountTrainingSession.countResults.isNotEmpty()) View.VISIBLE else View.GONE
+        japaneseCountBackButton.visibility = if (practiceItemActive) View.VISIBLE else View.GONE
+        japaneseCountPlayButton.visibility = if (testActive && testCanPlayExample) View.VISIBLE else View.GONE
+        japaneseCountReplayButton.visibility = if (practiceItemActive) View.VISIBLE else View.GONE
+        japaneseCountNextButton.visibility = if (practiceItemActive) View.VISIBLE else View.GONE
+        japaneseCountListenButton.visibility = if (testActive && testPhase == CountTrainingPhase.READY) View.VISIBLE else View.GONE
+        japaneseCountFinishButton.visibility = if (testActive && testPhase == CountTrainingPhase.LISTENING) View.VISIBLE else View.GONE
         japaneseCountRetryButton.visibility = if (
-            level2Active && (level2Phase == CountTrainingPhase.RESULT || level2Phase == CountTrainingPhase.ERROR)
+            testActive && (testPhase == CountTrainingPhase.RESULT || testPhase == CountTrainingPhase.ERROR)
         ) View.VISIBLE else View.GONE
         findYourWeaponNextButton.visibility = if (findYourWeaponActive && shouldShowFindYourWeaponNextButton()) View.VISIBLE else View.GONE
         findYourWeaponBackButton.visibility = if (debugUiVisible && findYourWeaponActive) View.VISIBLE else View.GONE
@@ -2193,9 +2237,4 @@ private enum class DebugScope(val label: String) {
     COUNT_JAPANESE("count to 10"),
     FIND_YOUR_WEAPON("Find Your Weapon"),
     PUNCH_HEIGHTS("Punch Heights - Level 1"),
-}
-
-private enum class JapaneseCountMode {
-    LEVEL_1,
-    LEVEL_2,
 }
