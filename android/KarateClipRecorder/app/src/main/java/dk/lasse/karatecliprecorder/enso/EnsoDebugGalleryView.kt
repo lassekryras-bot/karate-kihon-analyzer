@@ -6,12 +6,14 @@ import android.graphics.Typeface
 import android.view.Gravity
 import android.view.ViewGroup
 import android.widget.FrameLayout
-import android.widget.GridLayout
 import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
+import dk.lasse.karatecliprecorder.learningartwork.LearningActivityType
+import dk.lasse.karatecliprecorder.learningartwork.LearningArtworkForeground
+import dk.lasse.karatecliprecorder.learningartwork.LearningPathArtworkView
 
 /** Debug-only gallery entry point; callers are responsible for guarding it with debuggable state. */
 class EnsoDebugGalleryView(
@@ -40,12 +42,21 @@ class EnsoDebugGalleryView(
                 setTextColor(Color.rgb(24, 24, 24))
             })
             addView(TextView(context).apply {
-                text = "20 variants · 15 tones · base ${EnsoThemeTokens.ensoBaseColor.toHexColor()}"
+                text = "20 variants · 15 tones · same black Japanese Counting foreground"
                 textSize = 14f
                 setTextColor(Color.rgb(92, 92, 92))
-                setPadding(0, 4.dp(), 0, 16.dp())
+                setPadding(0, 4.dp(), 0, 8.dp())
             })
-            addView(gallery())
+            addView(LinearLayout(context).apply {
+                orientation = LinearLayout.HORIZONTAL
+                addView(columnHeading(
+                    "PRACTICE\n${EnsoThemeTokens.ensoPracticeBaseColor.toHexColor()}",
+                ), LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+                addView(columnHeading(
+                    "TEST\n${EnsoThemeTokens.ensoTestBaseColor.toHexColor()}",
+                ), LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+            })
+            EnsoVariant.all.forEach { variant -> addView(comparisonRow(variant)) }
         }
         addView(ScrollView(context).apply {
             isFillViewport = true
@@ -60,32 +71,52 @@ class EnsoDebugGalleryView(
         ViewCompat.requestApplyInsets(this)
     }
 
-    private fun gallery() = GridLayout(context).apply {
-        columnCount = 2
-        EnsoVariant.all.forEach { variant ->
-            addView(variantCell(variant), GridLayout.LayoutParams().apply {
-                width = 0
-                height = ViewGroup.LayoutParams.WRAP_CONTENT
-                columnSpec = GridLayout.spec(GridLayout.UNDEFINED, 1f)
-                setMargins(4.dp(), 4.dp(), 4.dp(), 8.dp())
-            })
-        }
+    private fun columnHeading(copy: String) = TextView(context).apply {
+        text = copy
+        textSize = 13f
+        gravity = Gravity.CENTER
+        typeface = Typeface.DEFAULT_BOLD
+        setTextColor(Color.rgb(92, 92, 92))
+        setPadding(0, 4.dp(), 0, 6.dp())
     }
 
-    private fun variantCell(variant: EnsoVariant) = LinearLayout(context).apply {
+    private fun comparisonRow(variant: EnsoVariant) = LinearLayout(context).apply {
+        orientation = LinearLayout.HORIZONTAL
+        addView(variantCell(variant, LearningActivityType.PRACTICE), LinearLayout.LayoutParams(
+            0,
+            ViewGroup.LayoutParams.WRAP_CONTENT,
+            1f,
+        ).apply { marginEnd = 4.dp() })
+        addView(variantCell(variant, LearningActivityType.TEST), LinearLayout.LayoutParams(
+            0,
+            ViewGroup.LayoutParams.WRAP_CONTENT,
+            1f,
+        ).apply { marginStart = 4.dp() })
+    }
+
+    private fun variantCell(
+        variant: EnsoVariant,
+        activityType: LearningActivityType,
+    ) = LinearLayout(context).apply {
         orientation = LinearLayout.VERTICAL
         gravity = Gravity.CENTER
-        contentDescription = "Ensō variant ${variant.debugLabel}"
-        addView(EnsoBackgroundView(context).apply {
-            setArtwork(variant, EnsoThemeTokens.ensoBaseColor)
-        }, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 160.dp()))
+        contentDescription = "Ensō variant ${variant.debugLabel}, ${activityType.name.lowercase()}"
+        addView(LearningPathArtworkView(context).apply {
+            setArtwork(
+                foreground = LearningArtworkForeground.JAPANESE_COUNTING,
+                activityType = activityType,
+                ensoVariant = variant,
+            )
+        }, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 154.dp()))
         addView(TextView(context).apply {
             text = variant.debugLabel
             textSize = 13f
             gravity = Gravity.CENTER
             typeface = Typeface.DEFAULT_BOLD
             setTextColor(Color.rgb(24, 24, 24))
-        }, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
+        }, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
+            bottomMargin = 8.dp()
+        })
     }
 
     private fun Int.dp() = (this * resources.displayMetrics.density).toInt()

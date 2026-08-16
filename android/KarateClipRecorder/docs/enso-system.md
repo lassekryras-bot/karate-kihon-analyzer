@@ -4,7 +4,7 @@ The app includes the complete 20-variant Ensō library as reusable background ar
 
 ## Theme color and tones
 
-All artwork uses one app-level token: `EnsoThemeTokens.ensoBaseColor` in `enso/EnsoTheme.kt`. Change that value to retune the full library.
+All artwork colors are centralized in `EnsoThemeTokens` in `enso/EnsoTheme.kt`. `ensoBaseColor` controls product-accent Ensō artwork such as the Continue card. `ensoPracticeBaseColor` and `ensoTestBaseColor` control the semantic learning-artwork palettes. Change these tokens to retune every use without editing an SVG.
 
 `EnsoTonePalette` derives the required 15 ink tones from that base color. The source gray levels represent how much white is mixed into the base, so their relative light/dark hierarchy remains intact. Pure white source layers stay white.
 

@@ -2,8 +2,14 @@ package dk.lasse.karatecliprecorder.enso
 
 /** App-level design token for every Enso background in the application. */
 object EnsoThemeTokens {
-    /** Change this one value to retune the complete 20-variant Enso library. */
+    /** Product-accent Enso used where activity semantics do not apply, such as Continue. */
     val ensoBaseColor: Int = 0xFFBE000C.toInt()
+
+    /** Warm neutral artwork color for learning and self-practice activities. */
+    val ensoPracticeBaseColor: Int = 0xFFC6AE86.toInt()
+
+    /** Muted iron-red artwork color for tests and assessments; it is not an error token. */
+    val ensoTestBaseColor: Int = 0xFF9E4032.toInt()
 }
 
 /**
