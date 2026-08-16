@@ -1,0 +1,225 @@
+package dk.lasse.karatecliprecorder.learningpath
+
+import android.content.Context
+import android.content.res.ColorStateList
+import android.graphics.Typeface
+import android.graphics.drawable.GradientDrawable
+import android.text.SpannableString
+import android.text.Spanned
+import android.text.style.ForegroundColorSpan
+import android.view.Gravity
+import android.view.View
+import android.view.ViewGroup
+import android.widget.FrameLayout
+import android.widget.LinearLayout
+import android.widget.ProgressBar
+import android.widget.ScrollView
+import android.widget.TextView
+import androidx.core.content.ContextCompat
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowInsetsCompat
+import dk.lasse.karatecliprecorder.AppBottomNavigationView
+import dk.lasse.karatecliprecorder.AppDestination
+import dk.lasse.karatecliprecorder.AppIcon
+import dk.lasse.karatecliprecorder.AppIconView
+import dk.lasse.karatecliprecorder.R
+import dk.lasse.karatecliprecorder.learningartwork.LearningPathArtworkView
+
+/** Passive Train destination: choosing a path never starts camera or speech infrastructure. */
+class LearnScreenView(
+    context: Context,
+    private val paths: List<LearningPath>,
+    onPathSelected: (LearningPath) -> Unit,
+    onHome: () -> Unit,
+    onProgress: () -> Unit,
+    onSettings: () -> Unit,
+) : FrameLayout(context) {
+    private val red = ContextCompat.getColor(context, R.color.app_accent)
+    private val ink = ContextCompat.getColor(context, R.color.app_text_primary)
+    private val muted = ContextCompat.getColor(context, R.color.app_text_secondary)
+    private val paper = ContextCompat.getColor(context, R.color.home_card_surface)
+    private val border = ContextCompat.getColor(context, R.color.app_border)
+    private val backgroundColor = ContextCompat.getColor(context, R.color.app_background)
+
+    init {
+        setBackgroundColor(backgroundColor)
+        val content = LinearLayout(context).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(20.dp(), 14.dp(), 20.dp(), 112.dp())
+            addView(label("Learn", 38f, Typeface.BOLD))
+            addView(label("Build your skills step by step.", 19f).apply {
+                setTextColor(muted)
+                setPadding(0, 2.dp(), 0, 18.dp())
+            })
+
+            val currentPath = paths.first { it.id == LearningPathId.JODAN_PUNCH }
+            addView(continueCard(currentPath) { onPathSelected(currentPath) })
+
+            paths.groupBy(LearningPath::category).forEach { (category, categoryPaths) ->
+                addView(sectionTitle(category))
+                categoryPaths.forEachIndexed { index, path ->
+                    addView(pathCard(path) { onPathSelected(path) }, LinearLayout.LayoutParams(
+                        LayoutParams.MATCH_PARENT,
+                        LayoutParams.WRAP_CONTENT,
+                    ).apply { if (index > 0) topMargin = 8.dp() })
+                }
+            }
+        }
+
+        addView(ScrollView(context).apply {
+            clipToPadding = false
+            isFillViewport = true
+            addView(content)
+        }, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT))
+
+        val navigation = AppBottomNavigationView(
+            context = context,
+            selectedDestination = AppDestination.TRAIN,
+            onHome = onHome,
+            onTrain = {},
+            onProgress = onProgress,
+            onSettings = onSettings,
+        )
+        addView(navigation, LayoutParams(LayoutParams.MATCH_PARENT, 82.dp(), Gravity.BOTTOM))
+
+        ViewCompat.setOnApplyWindowInsetsListener(this) { _, insets ->
+            val systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
+            val navigationBars = insets.getInsets(WindowInsetsCompat.Type.navigationBars())
+            content.setPadding(20.dp(), systemBars.top + 14.dp(), 20.dp(), navigationBars.bottom + 112.dp())
+            navigation.layoutParams = (navigation.layoutParams as LayoutParams).apply {
+                bottomMargin = navigationBars.bottom
+            }
+            insets
+        }
+        ViewCompat.requestApplyInsets(this)
+    }
+
+    private fun continueCard(path: LearningPath, onClick: () -> Unit) = card().apply {
+        orientation = LinearLayout.VERTICAL
+        setPadding(16.dp(), 15.dp(), 16.dp(), 16.dp())
+        isClickable = true
+        isFocusable = true
+        contentDescription = "Continue learning ${path.title}, ${path.progressValue} of ${path.totalSteps} steps"
+        setOnClickListener { onClick() }
+        addView(label("Continue learning", 17f, Typeface.BOLD).apply { setTextColor(red) })
+        addView(LinearLayout(context).apply {
+            gravity = Gravity.CENTER_VERTICAL
+            addView(pathArtwork(path), LinearLayout.LayoutParams(0, 150.dp(), 0.42f).apply { marginEnd = 8.dp() })
+            addView(LinearLayout(context).apply {
+                orientation = LinearLayout.VERTICAL
+                gravity = Gravity.CENTER_VERTICAL
+                addView(label(path.title, 22f, Typeface.BOLD))
+                addView(label(path.category, 15f).apply {
+                    setTextColor(muted)
+                    setPadding(0, 2.dp(), 0, 11.dp())
+                })
+                addView(progressCopy(path, "of"), LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT)
+                addView(progressBar(path), LayoutParams(LayoutParams.MATCH_PARENT, 7.dp()).apply {
+                    topMargin = 5.dp()
+                    bottomMargin = 13.dp()
+                })
+                addView(actionLabel("Continue  ›", onClick), LayoutParams(132.dp(), 46.dp()).apply {
+                    gravity = Gravity.END
+                })
+            }, LinearLayout.LayoutParams(0, LayoutParams.WRAP_CONTENT, 0.58f))
+        }, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT))
+    }
+
+    private fun pathCard(path: LearningPath, onClick: () -> Unit) = card().apply {
+        gravity = Gravity.CENTER_VERTICAL
+        setPadding(8.dp(), 7.dp(), 10.dp(), 7.dp())
+        minimumHeight = 128.dp()
+        isClickable = true
+        isFocusable = true
+        contentDescription = buildString {
+            append(path.title).append(", ").append(path.subtitle).append(", ")
+            append(if (path.progressValue == 0) "Not started" else "${path.progressValue} of ${path.totalSteps} steps")
+        }
+        setOnClickListener { onClick() }
+        addView(pathArtwork(path), LayoutParams(118.dp(), 118.dp()))
+        addView(LinearLayout(context).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(10.dp(), 0, 6.dp(), 0)
+            addView(label(path.title, 18f, Typeface.BOLD))
+            addView(label(path.subtitle, 14f).apply {
+                setTextColor(muted)
+                setPadding(0, 2.dp(), 0, 5.dp())
+            })
+            if (path.progressValue == 0) {
+                addView(label("Not started", 14f).apply { setTextColor(muted) })
+            } else {
+                addView(progressCopy(path, "/"))
+                addView(progressBar(path), LayoutParams(LayoutParams.MATCH_PARENT, 6.dp()).apply { topMargin = 4.dp() })
+            }
+        }, LinearLayout.LayoutParams(0, LayoutParams.WRAP_CONTENT, 1f))
+        addView(AppIconView(context, AppIcon.CHEVRON_RIGHT).apply {
+            setIconColor(ink)
+        }, LayoutParams(24.dp(), 44.dp()))
+    }
+
+    private fun pathArtwork(path: LearningPath) = LearningPathArtworkView(context).apply {
+        setPathArtwork(path.artwork, path.ensoVariant)
+        contentDescription = "${path.title} artwork"
+    }
+
+    private fun progressCopy(path: LearningPath, separator: String): TextView {
+        val value = path.progressValue.toString()
+        val copy = if (separator == "/") "$value / ${path.totalSteps} steps" else "$value of ${path.totalSteps} steps"
+        return label("", 14f, Typeface.BOLD).apply {
+            text = SpannableString(copy).also {
+                it.setSpan(ForegroundColorSpan(red), 0, value.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+            }
+        }
+    }
+
+    private fun progressBar(path: LearningPath) = ProgressBar(
+        context,
+        null,
+        android.R.attr.progressBarStyleHorizontal,
+    ).apply {
+        max = path.totalSteps.coerceAtLeast(1)
+        progress = path.progressValue.coerceIn(0, max)
+        progressTintList = ColorStateList.valueOf(red)
+        progressBackgroundTintList = ColorStateList.valueOf(border)
+    }
+
+    private fun sectionTitle(text: String) = label(text, 22f, Typeface.BOLD).apply {
+        setPadding(2.dp(), 24.dp(), 0, 10.dp())
+    }
+
+    private fun card() = LinearLayout(context).apply {
+        background = GradientDrawable().apply {
+            setColor(paper)
+            cornerRadius = 16.dp().toFloat()
+            setStroke(1.dp(), border)
+        }
+        elevation = 2.dp().toFloat()
+    }
+
+    private fun actionLabel(text: String, onClick: () -> Unit) = label(
+        text,
+        17f,
+        Typeface.BOLD,
+        Gravity.CENTER,
+    ).apply {
+        setTextColor(android.graphics.Color.WHITE)
+        background = GradientDrawable().apply {
+            setColor(red)
+            cornerRadius = 11.dp().toFloat()
+        }
+        isClickable = true
+        isFocusable = true
+        setOnClickListener { onClick() }
+    }
+
+    private fun label(text: String, size: Float, style: Int = Typeface.NORMAL, gravity: Int = Gravity.START) =
+        TextView(context).apply {
+            this.text = text
+            textSize = size
+            setTextColor(ink)
+            typeface = Typeface.create("sans-serif", style)
+            this.gravity = gravity
+        }
+
+    private fun Int.dp() = (this * resources.displayMetrics.density).toInt()
+}

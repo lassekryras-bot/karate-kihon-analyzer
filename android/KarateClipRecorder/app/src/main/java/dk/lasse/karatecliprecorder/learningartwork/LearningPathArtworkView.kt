@@ -15,6 +15,7 @@ import androidx.core.graphics.PathParser
 import dk.lasse.karatecliprecorder.enso.EnsoBackgroundView
 import dk.lasse.karatecliprecorder.enso.EnsoLibrary
 import dk.lasse.karatecliprecorder.enso.EnsoVariant
+import dk.lasse.karatecliprecorder.enso.EnsoThemeTokens
 import org.xmlpull.v1.XmlPullParser
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.Executors
@@ -53,6 +54,21 @@ class LearningPathArtworkView @JvmOverloads constructor(
         ensoView.setArtwork(
             selectedVariant = requireNotNull(selectedEnso),
             baseColor = LearningArtworkStyleResolver.ensoBaseColor(activityType),
+        )
+        foregroundView.setArtwork(foreground.rawResourceId)
+    }
+
+    /** Path identity is always neutral; assessment red belongs to the activity screen. */
+    fun setPathArtwork(
+        foreground: LearningArtworkForeground,
+        ensoVariant: EnsoVariant? = null,
+    ) {
+        if (selectedEnso == null) {
+            selectedEnso = ensoVariant ?: EnsoLibrary().createInstance().variant
+        }
+        ensoView.setArtwork(
+            selectedVariant = requireNotNull(selectedEnso),
+            baseColor = EnsoThemeTokens.ensoPracticeBaseColor,
         )
         foregroundView.setArtwork(foreground.rawResourceId)
     }

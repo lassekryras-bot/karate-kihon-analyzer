@@ -11,6 +11,9 @@ enum class LearningActivityType {
 
 /** Foreground identity is independent from activity type and Enso treatment. */
 enum class LearningArtworkForeground(internal val rawResourceId: Int) {
+    JODAN_PUNCH(R.raw.punch_jodan),
+    CHUDAN_PUNCH(R.raw.punch_chudan),
+    GEDAN_PUNCH(R.raw.punch_gedan),
     JAPANESE_COUNTING(R.raw.japanese_counting),
 }
 

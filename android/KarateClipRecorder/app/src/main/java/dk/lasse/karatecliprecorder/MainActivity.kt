@@ -37,6 +37,12 @@ import dk.lasse.karatecliprecorder.enso.EnsoDebugGalleryView
 import dk.lasse.karatecliprecorder.enso.EnsoLibrary
 import dk.lasse.karatecliprecorder.learningartwork.LearningActivityEntryView
 import dk.lasse.karatecliprecorder.learningartwork.LearningActivityType
+import dk.lasse.karatecliprecorder.learningpath.LearnScreenView
+import dk.lasse.karatecliprecorder.learningpath.LearningDestination
+import dk.lasse.karatecliprecorder.learningpath.LearningPath
+import dk.lasse.karatecliprecorder.learningpath.LearningPathCatalog
+import dk.lasse.karatecliprecorder.learningpath.LearningPathId
+import dk.lasse.karatecliprecorder.learningpath.SkillProgressionView
 import dk.lasse.karatecliprecorder.orders.SoundFileTrainingOrderPlayer
 import dk.lasse.karatecliprecorder.orders.TrainingOrder
 import dk.lasse.karatecliprecorder.orders.TrainingOrderMapper
@@ -99,7 +105,10 @@ class MainActivity : AppCompatActivity() {
     private lateinit var appRoot: FrameLayout
     private lateinit var trainingRoot: View
     private lateinit var homeScreen: HomeScreenView
+    private lateinit var learnScreen: LearnScreenView
     private lateinit var settingsScreen: SettingsScreenView
+    private var skillProgressionScreen: SkillProgressionView? = null
+    private val learningPaths by lazy(LearningPathCatalog::create)
     private lateinit var appPreferences: AppPreferences
     private var ensoDebugGallery: View? = null
     private var cameraStartupRequested = false
@@ -262,23 +271,30 @@ class MainActivity : AppCompatActivity() {
         buildUi()
         homeScreen = HomeScreenView(
             context = this,
-            onContinue = ::openTrainingHub,
-            onLearn = {
-                showTrainingUi()
-                startJapaneseCountingPractice()
-            },
+            onContinue = { showSkillProgression(requireLearningPath(LearningPathId.JODAN_PUNCH)) },
+            onLearn = ::showLearnUi,
             onPractice = ::openTrainingHub,
             onSkillCoach = ::openTrainingHub,
-            onTrain = ::openTrainingHub,
+            onTrain = ::showLearnUi,
             onProgress = { showHomeDestinationPlaceholder("Progress") },
             onSettings = ::showSettingsUi,
         )
+        learnScreen = LearnScreenView(
+            context = this,
+            paths = learningPaths,
+            onPathSelected = ::showSkillProgression,
+            onHome = ::showHomeUi,
+            onProgress = { showHomeDestinationPlaceholder("Progress") },
+            onSettings = ::showSettingsUi,
+        ).apply {
+            visibility = View.GONE
+        }
         settingsScreen = SettingsScreenView(
             context = this,
             preferences = appPreferences,
             hasCameraPermission = ::hasCameraPermission,
             onHome = ::showHomeUi,
-            onTrain = ::openTrainingHub,
+            onTrain = ::showLearnUi,
             onProgress = { showHomeDestinationPlaceholder("Progress") },
             onCameraSetup = ::openCameraSetupFromSettings,
             onCameraPermissionRequest = {
@@ -288,6 +304,7 @@ class MainActivity : AppCompatActivity() {
             onClearTrainingHistory = ::confirmClearTrainingHistory,
             onDeveloperModeChanged = ::setDeveloperMode,
             onCameraDebug = ::openCameraDebug,
+            onLearningUiDebug = ::openEnsoDebugGallery,
             onAbout = ::showAboutDialog,
             onHelp = ::showHelpDialog,
             onPrivacy = ::showPrivacyDialog,
@@ -298,6 +315,7 @@ class MainActivity : AppCompatActivity() {
         appRoot = FrameLayout(this).apply {
             addView(trainingRoot)
             addView(homeScreen)
+            addView(learnScreen)
             addView(settingsScreen)
         }
         setContentView(appRoot)
@@ -306,7 +324,11 @@ class MainActivity : AppCompatActivity() {
         japaneseCountLiveRecognizer = JapaneseCountLiveRecognizer(this)
         onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
             override fun handleOnBackPressed() {
-                if (currentAppDestination == AppDestination.SETTINGS) {
+                if (skillProgressionScreen?.visibility == View.VISIBLE) {
+                    showLearnUi()
+                } else if (currentAppDestination == AppDestination.SETTINGS) {
+                    showHomeUi()
+                } else if (currentAppDestination == AppDestination.TRAIN && learnScreen.visibility == View.VISIBLE) {
                     showHomeUi()
                 } else {
                     isEnabled = false
@@ -316,6 +338,8 @@ class MainActivity : AppCompatActivity() {
         })
         if (savedInstanceState?.getString(STATE_APP_DESTINATION) == AppDestination.SETTINGS.name) {
             showSettingsUi()
+        } else if (savedInstanceState?.getString(STATE_APP_DESTINATION) == AppDestination.TRAIN.name) {
+            showLearnUi()
         }
     }
 
@@ -326,13 +350,56 @@ class MainActivity : AppCompatActivity() {
     private fun showHomeUi() {
         currentAppDestination = AppDestination.HOME
         trainingRoot.visibility = View.GONE
+        learnScreen.visibility = View.GONE
+        skillProgressionScreen?.visibility = View.GONE
         settingsScreen.visibility = View.GONE
         homeScreen.visibility = View.VISIBLE
     }
 
+    private fun showLearnUi() {
+        currentAppDestination = AppDestination.TRAIN
+        trainingRoot.visibility = View.GONE
+        homeScreen.visibility = View.GONE
+        settingsScreen.visibility = View.GONE
+        skillProgressionScreen?.visibility = View.GONE
+        learnScreen.visibility = View.VISIBLE
+    }
+
+    private fun showSkillProgression(path: LearningPath) {
+        currentAppDestination = AppDestination.TRAIN
+        trainingRoot.visibility = View.GONE
+        homeScreen.visibility = View.GONE
+        settingsScreen.visibility = View.GONE
+        learnScreen.visibility = View.GONE
+        skillProgressionScreen?.let(appRoot::removeView)
+        skillProgressionScreen = SkillProgressionView(
+            context = this,
+            path = path,
+            onBack = ::showLearnUi,
+            onStart = ::openLearningActivity,
+            onHome = ::showHomeUi,
+            onTrain = ::showLearnUi,
+            onProgress = { showHomeDestinationPlaceholder("Progress") },
+            onSettings = ::showSettingsUi,
+        ).also { progression ->
+            appRoot.addView(
+                progression,
+                FrameLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                ),
+            )
+        }
+    }
+
+    private fun requireLearningPath(id: LearningPathId): LearningPath =
+        learningPaths.first { it.id == id }
+
     private fun showSettingsUi() {
         currentAppDestination = AppDestination.SETTINGS
         trainingRoot.visibility = View.GONE
+        learnScreen.visibility = View.GONE
+        skillProgressionScreen?.visibility = View.GONE
         homeScreen.visibility = View.GONE
         settingsScreen.refresh()
         settingsScreen.visibility = View.VISIBLE
@@ -369,9 +436,25 @@ class MainActivity : AppCompatActivity() {
         requestCameraPermissionIfNeeded()
     }
 
+    private fun openLearningActivity(destination: LearningDestination) {
+        when (destination) {
+            LearningDestination.JODAN_SESSION -> openTrainingHub()
+            LearningDestination.JAPANESE_COUNTING_PRACTICE -> {
+                showTrainingUi()
+                startJapaneseCountingPractice()
+            }
+            LearningDestination.JAPANESE_COUNTING_TEST -> {
+                showTrainingUi()
+                startJapaneseCountingTest()
+            }
+        }
+    }
+
     private fun showTrainingUi() {
         currentAppDestination = AppDestination.TRAIN
         homeScreen.visibility = View.GONE
+        learnScreen.visibility = View.GONE
+        skillProgressionScreen?.visibility = View.GONE
         settingsScreen.visibility = View.GONE
         trainingRoot.visibility = View.VISIBLE
     }

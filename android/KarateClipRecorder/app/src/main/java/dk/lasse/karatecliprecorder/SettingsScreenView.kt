@@ -28,6 +28,7 @@ class SettingsScreenView(
     private val onClearTrainingHistory: () -> Unit,
     private val onDeveloperModeChanged: (Boolean) -> Unit,
     private val onCameraDebug: () -> Unit,
+    private val onLearningUiDebug: () -> Unit,
     private val onAbout: () -> Unit,
     private val onHelp: () -> Unit,
     private val onPrivacy: () -> Unit,
@@ -245,6 +246,12 @@ class SettingsScreenView(
             "Camera Debug",
             "Open camera debug and analysis tools",
         ).apply { configureAsNavigation(onClick = onCameraDebug) })
+        addRow(SettingsRowView(
+            context,
+            AppIcon.PALETTE,
+            "Learning UI gallery",
+            "Preview artwork and every progress marker state",
+        ).apply { configureAsNavigation(onClick = onLearningUiDebug) })
     }
 
     private fun aboutSection() = SettingsSectionView(context, "ABOUT").apply {

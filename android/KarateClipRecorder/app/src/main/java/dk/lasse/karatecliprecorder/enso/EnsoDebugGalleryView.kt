@@ -14,6 +14,9 @@ import androidx.core.view.WindowInsetsCompat
 import dk.lasse.karatecliprecorder.learningartwork.LearningActivityType
 import dk.lasse.karatecliprecorder.learningartwork.LearningArtworkForeground
 import dk.lasse.karatecliprecorder.learningartwork.LearningPathArtworkView
+import dk.lasse.karatecliprecorder.learningpath.LearningProgressState
+import dk.lasse.karatecliprecorder.learningpath.LearningStepType
+import dk.lasse.karatecliprecorder.learningpath.ProgressMarkerView
 
 /** Debug-only gallery entry point; callers are responsible for guarding it with debuggable state. */
 class EnsoDebugGalleryView(
@@ -32,21 +35,26 @@ class EnsoDebugGalleryView(
                 gravity = Gravity.CENTER_VERTICAL
                 isClickable = true
                 isFocusable = true
-                contentDescription = "Close Enso gallery"
+                contentDescription = "Close learning UI gallery"
                 setOnClickListener { onClose() }
             }, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 48.dp()))
             addView(TextView(context).apply {
-                text = "Ensō library"
+                text = "Learning UI gallery"
                 textSize = 26f
                 typeface = Typeface.DEFAULT_BOLD
                 setTextColor(Color.rgb(24, 24, 24))
             })
             addView(TextView(context).apply {
-                text = "20 variants · 15 tones · same black Japanese Counting foreground"
+                text = "Path identities, all seven marker states, and the 20-variant Ensō library"
                 textSize = 14f
                 setTextColor(Color.rgb(92, 92, 92))
                 setPadding(0, 4.dp(), 0, 8.dp())
             })
+            addView(sectionHeading("PATH ARTWORK"))
+            addView(pathArtworkPreview())
+            addView(sectionHeading("PROGRESS MARKERS"))
+            addView(markerPreview())
+            addView(sectionHeading("ENSŌ ACTIVITY TREATMENTS"))
             addView(LinearLayout(context).apply {
                 orientation = LinearLayout.HORIZONTAL
                 addView(columnHeading(
@@ -69,6 +77,78 @@ class EnsoDebugGalleryView(
             insets
         }
         ViewCompat.requestApplyInsets(this)
+    }
+
+    private fun sectionHeading(copy: String) = TextView(context).apply {
+        text = copy
+        textSize = 13f
+        typeface = Typeface.DEFAULT_BOLD
+        setTextColor(Color.rgb(92, 92, 92))
+        setPadding(0, 18.dp(), 0, 8.dp())
+    }
+
+    private fun pathArtworkPreview() = LinearLayout(context).apply {
+        orientation = LinearLayout.HORIZONTAL
+        addView(pathArtworkCell("Jōdan Punch", LearningArtworkForeground.JODAN_PUNCH, EnsoVariant.ENSO_04), LinearLayout.LayoutParams(
+            0,
+            ViewGroup.LayoutParams.WRAP_CONTENT,
+            1f,
+        ))
+        addView(pathArtworkCell("Japanese Counting", LearningArtworkForeground.JAPANESE_COUNTING, EnsoVariant.ENSO_11), LinearLayout.LayoutParams(
+            0,
+            ViewGroup.LayoutParams.WRAP_CONTENT,
+            1f,
+        ))
+    }
+
+    private fun pathArtworkCell(
+        title: String,
+        foreground: LearningArtworkForeground,
+        variant: EnsoVariant,
+    ) = LinearLayout(context).apply {
+        orientation = LinearLayout.VERTICAL
+        gravity = Gravity.CENTER
+        addView(LearningPathArtworkView(context).apply {
+            setPathArtwork(foreground, variant)
+        }, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 140.dp()))
+        addView(TextView(context).apply {
+            text = title
+            textSize = 13f
+            gravity = Gravity.CENTER
+            typeface = Typeface.DEFAULT_BOLD
+            setTextColor(Color.rgb(24, 24, 24))
+        })
+    }
+
+    private fun markerPreview() = LinearLayout(context).apply {
+        orientation = LinearLayout.VERTICAL
+        listOf(
+            Triple("Completed", LearningStepType.REGULAR, LearningProgressState.COMPLETED),
+            Triple("Current", LearningStepType.REGULAR, LearningProgressState.CURRENT),
+            Triple("Available", LearningStepType.REGULAR, LearningProgressState.AVAILABLE),
+            Triple("Locked", LearningStepType.REGULAR, LearningProgressState.LOCKED),
+            Triple("Milestone", LearningStepType.MILESTONE, LearningProgressState.AVAILABLE),
+            Triple("Completed milestone", LearningStepType.MILESTONE, LearningProgressState.COMPLETED),
+            Triple("Locked milestone", LearningStepType.MILESTONE, LearningProgressState.LOCKED),
+        ).chunked(2).forEach { pair ->
+            addView(LinearLayout(context).apply {
+                orientation = LinearLayout.HORIZONTAL
+                pair.forEach { (title, type, state) ->
+                    addView(LinearLayout(context).apply {
+                        gravity = Gravity.CENTER_VERTICAL
+                        addView(ProgressMarkerView(context).apply {
+                            setMarker(type, state)
+                        }, LinearLayout.LayoutParams(42.dp(), 42.dp()))
+                        addView(TextView(context).apply {
+                            text = title
+                            textSize = 12f
+                            setTextColor(Color.rgb(24, 24, 24))
+                            setPadding(6.dp(), 0, 0, 0)
+                        }, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+                    }, LinearLayout.LayoutParams(0, 54.dp(), 1f))
+                }
+            })
+        }
     }
 
     private fun columnHeading(copy: String) = TextView(context).apply {
