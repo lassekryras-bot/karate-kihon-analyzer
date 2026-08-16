@@ -43,6 +43,7 @@ import dk.lasse.karatecliprecorder.learningpath.LearningPath
 import dk.lasse.karatecliprecorder.learningpath.LearningPathCatalog
 import dk.lasse.karatecliprecorder.learningpath.LearningPathId
 import dk.lasse.karatecliprecorder.learningpath.SkillProgressionView
+import dk.lasse.karatecliprecorder.learningactivity.JapaneseCountingPracticeView
 import dk.lasse.karatecliprecorder.orders.SoundFileTrainingOrderPlayer
 import dk.lasse.karatecliprecorder.orders.TrainingOrder
 import dk.lasse.karatecliprecorder.orders.TrainingOrderMapper
@@ -108,6 +109,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var learnScreen: LearnScreenView
     private lateinit var settingsScreen: SettingsScreenView
     private var skillProgressionScreen: SkillProgressionView? = null
+    private var japaneseCountingPracticeScreen: JapaneseCountingPracticeView? = null
     private val learningPaths by lazy(LearningPathCatalog::create)
     private lateinit var appPreferences: AppPreferences
     private var ensoDebugGallery: View? = null
@@ -213,6 +215,7 @@ class MainActivity : AppCompatActivity() {
     private var pendingJapaneseCountRecognitionRestart: Runnable? = null
     private var japaneseCountCommittedTranscript = ""
     private var japaneseCountMode: LearningActivityType? = null
+    private var lastPlayedJapaneseCountItemIndex: Int? = null
     private var pendingJapaneseCountMicrophonePermission = false
     private var japaneseCountTrainingSession = CountTrainingSession()
     private var recognizerState: RecognizerLifecycleState = RecognizerLifecycleState.INACTIVE
@@ -324,7 +327,9 @@ class MainActivity : AppCompatActivity() {
         japaneseCountLiveRecognizer = JapaneseCountLiveRecognizer(this)
         onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
             override fun handleOnBackPressed() {
-                if (skillProgressionScreen?.visibility == View.VISIBLE) {
+                if (japaneseCountingPracticeScreen?.visibility == View.VISIBLE) {
+                    exitJapaneseCountingPractice()
+                } else if (skillProgressionScreen?.visibility == View.VISIBLE) {
                     showLearnUi()
                 } else if (currentAppDestination == AppDestination.SETTINGS) {
                     showHomeUi()
@@ -439,10 +444,7 @@ class MainActivity : AppCompatActivity() {
     private fun openLearningActivity(destination: LearningDestination) {
         when (destination) {
             LearningDestination.JODAN_SESSION -> openTrainingHub()
-            LearningDestination.JAPANESE_COUNTING_PRACTICE -> {
-                showTrainingUi()
-                startJapaneseCountingPractice()
-            }
+            LearningDestination.JAPANESE_COUNTING_PRACTICE -> openJapaneseCountingPractice()
             LearningDestination.JAPANESE_COUNTING_TEST -> {
                 showTrainingUi()
                 startJapaneseCountingTest()
@@ -733,7 +735,7 @@ class MainActivity : AppCompatActivity() {
             title = "Japanese Counting",
             activityType = LearningActivityType.PRACTICE,
             ensoVariant = learningArtworkBag.next(),
-            onClick = ::startJapaneseCountingPractice,
+            onClick = ::openJapaneseCountingPractice,
         )
         countJapaneseTestEntry = LearningActivityEntryView(
             context = this,
@@ -1446,12 +1448,60 @@ class MainActivity : AppCompatActivity() {
         updateControlVisibility()
     }
 
-    private fun startJapaneseCountingPractice() {
+    private fun openJapaneseCountingPractice() {
+        stopJapaneseCountSession()
+        currentAppDestination = AppDestination.TRAIN
+        trainingRoot.visibility = View.GONE
+        homeScreen.visibility = View.GONE
+        learnScreen.visibility = View.GONE
+        settingsScreen.visibility = View.GONE
+        skillProgressionScreen?.visibility = View.GONE
+        dismissJapaneseCountingPracticeScreen()
+        japaneseCountingPracticeScreen = JapaneseCountingPracticeView(
+            context = this,
+            onExit = ::exitJapaneseCountingPractice,
+            onStartPractice = ::beginJapaneseCountingPractice,
+            onPrevious = { navigateJapaneseCountLevel1 { japaneseCountLevel1Controller.back() } },
+            onNext = { navigateJapaneseCountLevel1 { japaneseCountLevel1Controller.next() } },
+            onReplay = ::playJapaneseCountLevel1Item,
+            onPracticeAgain = ::beginJapaneseCountingPractice,
+            onContinueToTest = ::continueFromJapaneseCountingPracticeToTest,
+        ).also { activityView ->
+            appRoot.addView(
+                activityView,
+                FrameLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                ),
+            )
+        }
+    }
+
+    private fun beginJapaneseCountingPractice() {
         stopJapaneseCountSession()
         metadataPathText.text = "Metadata: not saved"
         japaneseCountMode = LearningActivityType.PRACTICE
         japaneseCountActive = true
+        lastPlayedJapaneseCountItemIndex = null
         japaneseCountLevel1Controller.start()
+    }
+
+    private fun exitJapaneseCountingPractice() {
+        stopJapaneseCountSession()
+        dismissJapaneseCountingPracticeScreen()
+        showSkillProgression(requireLearningPath(LearningPathId.JAPANESE_COUNTING))
+    }
+
+    private fun continueFromJapaneseCountingPracticeToTest() {
+        stopJapaneseCountSession()
+        dismissJapaneseCountingPracticeScreen()
+        showTrainingUi()
+        startJapaneseCountingTest()
+    }
+
+    private fun dismissJapaneseCountingPracticeScreen() {
+        japaneseCountingPracticeScreen?.let(appRoot::removeView)
+        japaneseCountingPracticeScreen = null
     }
 
     private fun startJapaneseCountingTest() {
@@ -1477,6 +1527,7 @@ class MainActivity : AppCompatActivity() {
         }
         japaneseCountMode = null
         japaneseCountActive = false
+        lastPlayedJapaneseCountItemIndex = null
         japaneseCountCommittedTranscript = ""
         japaneseCountTrainingSession = CountTrainingSession()
         if (::japaneseCountLevel1Controller.isInitialized) {
@@ -2032,6 +2083,7 @@ class MainActivity : AppCompatActivity() {
             return
         }
         japaneseCountActive = true
+        japaneseCountingPracticeScreen?.renderLevel1State(state)
         val item = state.item
         if (item != null) {
             statusText.text = "Japanese Counting — Practice"
@@ -2044,9 +2096,13 @@ class MainActivity : AppCompatActivity() {
             japaneseCountBackButton.isEnabled = state.itemIndex > 0
             japaneseCountReplayButton.isEnabled = true
             japaneseCountNextButton.text = if (state.itemIndex == JapaneseCountLesson.items.lastIndex) "Finish" else "Next"
-            playJapaneseCountPrompt(item)
+            if (lastPlayedJapaneseCountItemIndex != state.itemIndex) {
+                lastPlayedJapaneseCountItemIndex = state.itemIndex
+                playJapaneseCountPrompt(item)
+            }
         } else {
             trainingOrderPlayer?.stop()
+            lastPlayedJapaneseCountItemIndex = null
             statusText.text = if (state.isComplete) "Japanese Counting practice complete" else "Status: idle"
             currentCountText.text = "Count: none"
             currentStrikeText.text = "Strike: none"
