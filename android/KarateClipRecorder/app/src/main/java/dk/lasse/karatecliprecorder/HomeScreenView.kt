@@ -4,6 +4,9 @@ import android.content.Context
 import android.graphics.Color
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
+import android.text.SpannableString
+import android.text.Spanned
+import android.text.style.ForegroundColorSpan
 import android.view.Gravity
 import android.view.View
 import android.widget.FrameLayout
@@ -15,6 +18,16 @@ import android.widget.TextView
 import androidx.core.content.ContextCompat
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
+import dk.lasse.karatecliprecorder.enso.EnsoBackgroundView
+import dk.lasse.karatecliprecorder.enso.EnsoLibrary
+import dk.lasse.karatecliprecorder.enso.EnsoThemeTokens
+
+data class ContinueLearningContent(
+    val lessonTitle: String,
+    val category: String,
+    val currentStep: Int,
+    val totalSteps: Int,
+)
 
 /**
  * The product landing screen. It is deliberately a passive view: constructing it never touches
@@ -30,6 +43,12 @@ class HomeScreenView(
     onTrain: () -> Unit,
     onProgress: () -> Unit,
     onSettings: () -> Unit,
+    continueLearning: ContinueLearningContent = ContinueLearningContent(
+        lessonTitle = "Jōdan Punch",
+        category = "Punching",
+        currentStep = 4,
+        totalSteps = 7,
+    ),
 ) : FrameLayout(context) {
     private val red = ContextCompat.getColor(context, R.color.app_accent)
     private val ink = ContextCompat.getColor(context, R.color.app_text_primary)
@@ -38,6 +57,7 @@ class HomeScreenView(
     private val backgroundColor = ContextCompat.getColor(context, R.color.app_background)
     private val border = ContextCompat.getColor(context, R.color.app_border)
     private val dividerColor = ContextCompat.getColor(context, R.color.app_divider)
+    private val continueEnso = EnsoLibrary().createInstance()
 
     init {
         setBackgroundColor(backgroundColor)
@@ -45,8 +65,10 @@ class HomeScreenView(
             orientation = LinearLayout.VERTICAL
             setPadding(20.dp(), 12.dp(), 20.dp(), 110.dp())
             addView(header())
-            addView(sectionLabel("CONTINUE WHERE YOU LEFT OFF"))
-            addView(continueCard(onContinue))
+            addView(continueCard(continueLearning, onContinue), LinearLayout.LayoutParams(
+                LayoutParams.MATCH_PARENT,
+                LayoutParams.WRAP_CONTENT,
+            ).apply { topMargin = 12.dp() })
             addView(sectionLabel("QUICK ACTIONS"))
             addView(quickActions(onLearn, onPractice, onSkillCoach))
             addView(sectionLabel("TODAY'S FOCUS"))
@@ -94,14 +116,63 @@ class HomeScreenView(
         }, LinearLayout.LayoutParams(46.dp(), 46.dp()))
     }
 
-    private fun continueCard(onClick: () -> Unit) = card().apply {
+    private fun continueCard(content: ContinueLearningContent, onClick: () -> Unit) = card().apply {
         orientation = LinearLayout.VERTICAL
-        addView(label("◎   Skill Coach — Jōdan Punch", 19f, Typeface.BOLD).apply { setTextColor(ink) })
-        addView(label("Last used 2 days ago", 14f).apply {
-            setTextColor(muted)
-            setPadding(34.dp(), 4.dp(), 0, 14.dp())
+        setPadding(16.dp(), 15.dp(), 16.dp(), 16.dp())
+        addView(label("Continue learning", 15f, Typeface.BOLD).apply {
+            setTextColor(red)
         })
-        addView(actionButton("Continue", onClick))
+        addView(LinearLayout(context).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+
+            // The artwork area is explicitly layered so future foreground art remains independent.
+            addView(FrameLayout(context).apply {
+                clipChildren = false
+                addView(EnsoBackgroundView(context).apply {
+                    setArtwork(continueEnso.variant, EnsoThemeTokens.ensoBaseColor)
+                }, FrameLayout.LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT))
+            }, LinearLayout.LayoutParams(0, 164.dp(), 0.38f).apply {
+                marginEnd = 10.dp()
+            })
+
+            addView(LinearLayout(context).apply {
+                orientation = LinearLayout.VERTICAL
+                gravity = Gravity.CENTER_VERTICAL
+                minimumHeight = 164.dp()
+                addView(label(content.lessonTitle, 20f, Typeface.BOLD).apply {
+                    setTextColor(ink)
+                })
+                addView(label(content.category, 14f).apply {
+                    setTextColor(muted)
+                    setPadding(0, 2.dp(), 0, 12.dp())
+                })
+                addView(label("", 14f, Typeface.BOLD).apply {
+                    text = progressCopy(content)
+                })
+                addView(ProgressBar(context, null, android.R.attr.progressBarStyleHorizontal).apply {
+                    max = content.totalSteps.coerceAtLeast(1)
+                    progress = content.currentStep.coerceIn(0, max)
+                    progressTintList = android.content.res.ColorStateList.valueOf(red)
+                    progressBackgroundTintList = android.content.res.ColorStateList.valueOf(Color.rgb(225, 218, 210))
+                }, LinearLayout.LayoutParams(LayoutParams.MATCH_PARENT, 7.dp()).apply {
+                    topMargin = 5.dp()
+                    bottomMargin = 12.dp()
+                })
+                addView(actionButton("Continue ›", onClick), LinearLayout.LayoutParams(120.dp(), 44.dp()).apply {
+                    gravity = Gravity.END
+                })
+            }, LinearLayout.LayoutParams(0, LayoutParams.WRAP_CONTENT, 0.62f))
+        }, LinearLayout.LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT).apply {
+            topMargin = 4.dp()
+        })
+    }
+
+    private fun progressCopy(content: ContinueLearningContent): SpannableString {
+        val current = content.currentStep.coerceAtLeast(0).toString()
+        return SpannableString("$current of ${content.totalSteps.coerceAtLeast(0)} steps").apply {
+            setSpan(ForegroundColorSpan(red), 0, current.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+        }
     }
 
     private fun quickActions(onLearn: () -> Unit, onPractice: () -> Unit, onCoach: () -> Unit) =
