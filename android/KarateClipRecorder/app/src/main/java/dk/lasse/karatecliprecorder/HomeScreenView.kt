@@ -31,13 +31,16 @@ class HomeScreenView(
     onProgress: () -> Unit,
     onSettings: () -> Unit,
 ) : FrameLayout(context) {
-    private val red = Color.rgb(190, 0, 12)
-    private val ink = Color.rgb(24, 24, 24)
-    private val muted = Color.rgb(92, 92, 92)
-    private val paper = Color.rgb(252, 250, 247)
+    private val red = ContextCompat.getColor(context, R.color.app_accent)
+    private val ink = ContextCompat.getColor(context, R.color.app_text_primary)
+    private val muted = ContextCompat.getColor(context, R.color.app_text_secondary)
+    private val paper = ContextCompat.getColor(context, R.color.home_card_surface)
+    private val backgroundColor = ContextCompat.getColor(context, R.color.app_background)
+    private val border = ContextCompat.getColor(context, R.color.app_border)
+    private val dividerColor = ContextCompat.getColor(context, R.color.app_divider)
 
     init {
-        setBackgroundColor(Color.WHITE)
+        setBackgroundColor(backgroundColor)
         val content = LinearLayout(context).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(20.dp(), 12.dp(), 20.dp(), 110.dp())
@@ -58,7 +61,14 @@ class HomeScreenView(
             clipToPadding = false
             addView(content)
         }, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT))
-        val navigation = bottomNavigation(onTrain, onProgress, onSettings)
+        val navigation = AppBottomNavigationView(
+            context = context,
+            selectedDestination = AppDestination.HOME,
+            onHome = {},
+            onTrain = onTrain,
+            onProgress = onProgress,
+            onSettings = onSettings,
+        )
         addView(navigation, LayoutParams(LayoutParams.MATCH_PARENT, 82.dp(), Gravity.BOTTOM))
         ViewCompat.setOnApplyWindowInsetsListener(this) { _, insets ->
             val systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
@@ -152,7 +162,7 @@ class HomeScreenView(
         })
     }
 
-    private fun LinearLayout.divider() = addView(View(context).apply { setBackgroundColor(Color.rgb(232, 228, 223)) }, LayoutParams(LayoutParams.MATCH_PARENT, 1.dp()))
+    private fun LinearLayout.divider() = addView(View(context).apply { setBackgroundColor(dividerColor) }, LayoutParams(LayoutParams.MATCH_PARENT, 1.dp()))
 
     private fun progressCard() = card().apply {
         orientation = LinearLayout.VERTICAL
@@ -168,59 +178,6 @@ class HomeScreenView(
             progress = value
             progressTintList = android.content.res.ColorStateList.valueOf(red)
         }, LayoutParams(LayoutParams.MATCH_PARENT, 10.dp()).apply { bottomMargin = 12.dp() })
-    }
-
-    private fun bottomNavigation(
-        onTrain: () -> Unit,
-        onProgress: () -> Unit,
-        onSettings: () -> Unit,
-    ) = LinearLayout(context).apply {
-        orientation = LinearLayout.HORIZONTAL
-        gravity = Gravity.CENTER
-        elevation = 12.dp().toFloat()
-        setPadding(12.dp(), 6.dp(), 12.dp(), 6.dp())
-        setBackgroundColor(Color.WHITE)
-        listOf(
-            navigationItem("Home", R.drawable.ic_nav_home, selected = true, onClick = {}),
-            navigationItem("Train", R.drawable.ic_nav_train_belt, onClick = onTrain),
-            navigationItem("Progress", R.drawable.ic_nav_progress, onClick = onProgress),
-            navigationItem("Settings", R.drawable.ic_nav_settings, onClick = onSettings),
-        ).forEach { item ->
-            addView(item, LinearLayout.LayoutParams(0, LayoutParams.MATCH_PARENT, 1f))
-        }
-    }
-
-    private fun navigationItem(
-        label: String,
-        iconRes: Int,
-        selected: Boolean = false,
-        onClick: () -> Unit,
-    ) = LinearLayout(context).apply {
-        orientation = LinearLayout.VERTICAL
-        gravity = Gravity.CENTER
-        minimumWidth = 48.dp()
-        minimumHeight = 48.dp()
-        isSelected = selected
-        isClickable = true
-        isFocusable = true
-        contentDescription = label
-        ViewCompat.setStateDescription(this, if (selected) "Selected" else "Not selected")
-        setOnClickListener { onClick() }
-
-        val tint = ContextCompat.getColorStateList(context, R.color.nav_icon_tint)
-        addView(ImageView(context).apply {
-            setImageResource(iconRes)
-            imageTintList = tint
-            isSelected = selected
-            importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
-        }, LayoutParams(24.dp(), 24.dp()))
-        addView(label(label, 13f, Typeface.BOLD, Gravity.CENTER).apply {
-            setTextColor(tint)
-            isSelected = selected
-            importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
-        }, LayoutParams(LayoutParams.WRAP_CONTENT, LayoutParams.WRAP_CONTENT).apply {
-            topMargin = 4.dp()
-        })
     }
 
     private fun sectionLabel(text: String) = label(text, 13f, Typeface.BOLD).apply {
@@ -240,7 +197,7 @@ class HomeScreenView(
 
     private fun card() = LinearLayout(context).apply {
         setPadding(14.dp(), 14.dp(), 14.dp(), 14.dp())
-        background = rounded(paper, 14.dp().toFloat(), Color.rgb(230, 224, 216))
+        background = rounded(paper, 14.dp().toFloat(), border)
         elevation = 2.dp().toFloat()
     }
 
@@ -260,7 +217,7 @@ class HomeScreenView(
 
     private fun outlinedCircle() = GradientDrawable().apply {
         shape = GradientDrawable.OVAL
-        setColor(Color.WHITE)
+        setColor(paper)
         setStroke(2.dp(), ink)
     }
 

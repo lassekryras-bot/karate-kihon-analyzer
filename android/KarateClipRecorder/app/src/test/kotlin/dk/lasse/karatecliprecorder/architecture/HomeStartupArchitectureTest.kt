@@ -22,18 +22,21 @@ class HomeStartupArchitectureTest {
 
     @Test fun bottomNavigationUsesStatefulVectorResources() {
         val home = appSources.resolve("HomeScreenView.kt").readText()
+        val navigation = appSources.resolve("AppBottomNavigationView.kt").readText()
+        val icons = appSources.resolve("AppIconView.kt").readText()
+        val navigationSources = home + navigation + icons
 
         listOf("⌂", "◆", "▥", "⚙").forEach { placeholder ->
-            assertFalse(home.contains(placeholder))
+            assertFalse(navigationSources.contains(placeholder))
         }
         listOf(
             "R.drawable.ic_nav_home",
             "R.drawable.ic_nav_train_belt",
             "R.drawable.ic_nav_progress",
             "R.drawable.ic_nav_settings",
-        ).forEach { drawable -> assertTrue(home.contains(drawable)) }
-        assertTrue(home.contains("R.color.nav_icon_tint"))
-        assertTrue(home.contains("isSelected = selected"))
+        ).forEach { drawable -> assertTrue(navigationSources.contains(drawable)) }
+        assertTrue(navigation.contains("R.color.nav_icon_tint"))
+        assertTrue(navigation.contains("isSelected = selected"))
         assertTrue(home.contains("onProgress: () -> Unit"))
         assertTrue(home.contains("onSettings: () -> Unit"))
 
@@ -47,9 +50,10 @@ class HomeStartupArchitectureTest {
         ).forEach { resource -> assertTrue(resources.resolve(resource).isFile) }
 
         val tint = resources.resolve("color/nav_icon_tint.xml").readText()
-        assertTrue(tint.contains("#BE000C"))
-        assertTrue(tint.contains("#181818"))
+        assertTrue(tint.contains("@color/app_accent"))
+        assertTrue(tint.contains("@color/app_nav_inactive"))
         assertTrue(tint.contains("android:state_selected=\"true\""))
+        assertTrue(resources.resolve("values/colors.xml").readText().contains("#BE000C"))
     }
 
     @Test fun quickActionsUseSuppliedContentVectors() {
@@ -71,7 +75,8 @@ class HomeStartupArchitectureTest {
         ).forEach { resource -> assertTrue(resources.resolve(resource).isFile) }
 
         val contentTint = resources.resolve("color/content_icon_tint.xml").readText()
-        assertTrue(contentTint.contains("#BE000C"))
+        assertTrue(contentTint.contains("@color/app_accent"))
+        assertTrue(resources.resolve("values/colors.xml").readText().contains("#BE000C"))
 
         val belt = resources.resolve("drawable/ic_nav_train_belt.xml").readText()
         assertTrue(belt.contains("android:viewportWidth=\"640\""))
@@ -84,9 +89,14 @@ class HomeStartupArchitectureTest {
         val placeholder = activity.substringAfter("private fun showHomeDestinationPlaceholder").substringBefore("private fun openTrainingHub")
 
         assertTrue(homeConstruction.contains("onProgress = { showHomeDestinationPlaceholder"))
-        assertTrue(homeConstruction.contains("onSettings = { showHomeDestinationPlaceholder"))
+        assertTrue(homeConstruction.contains("onSettings = ::showSettingsUi"))
         assertFalse(placeholder.contains("showTrainingUi"))
         assertFalse(placeholder.contains("requestCameraPermissionIfNeeded"))
+
+        val settings = appSources.resolve("SettingsScreenView.kt").readText()
+        assertFalse(settings.contains("CameraXRecordingAdapter"))
+        assertFalse(settings.contains("LiveGestureRecognizerRunner"))
+        assertFalse(settings.contains("LivePoseLandmarkerRunner"))
     }
 
     @Test fun bottomNavigationStaysAboveSystemNavigation() {

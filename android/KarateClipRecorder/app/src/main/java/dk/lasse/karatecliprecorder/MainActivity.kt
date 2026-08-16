@@ -24,7 +24,10 @@ import android.widget.ScrollView
 import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.activity.OnBackPressedCallback
+import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
+import androidx.appcompat.app.AppCompatDelegate
 import androidx.appcompat.widget.SwitchCompat
 import androidx.camera.view.PreviewView
 import androidx.core.content.ContextCompat
@@ -91,7 +94,11 @@ import java.util.concurrent.atomic.AtomicLong
 class MainActivity : AppCompatActivity() {
     private lateinit var trainingRoot: View
     private lateinit var homeScreen: HomeScreenView
+    private lateinit var settingsScreen: SettingsScreenView
+    private lateinit var appPreferences: AppPreferences
     private var cameraStartupRequested = false
+    private var openCameraSetupAfterPermission = false
+    private var currentAppDestination = AppDestination.HOME
     private lateinit var previewView: PreviewView
     private lateinit var startSessionButton: Button
     private lateinit var findYourWeaponButton: Button
@@ -202,11 +209,26 @@ class MainActivity : AppCompatActivity() {
         ActivityResultContracts.RequestPermission(),
     ) { granted ->
         if (granted) {
-            startCamera()
+            startCameraIfNeeded()
+            if (openCameraSetupAfterPermission) startCameraSetupSession()
         } else {
+            cameraStartupRequested = false
             updateRecordingState(RecordingState.FAILED)
             savedClipText.text = "Camera permission is required to record clips."
         }
+        openCameraSetupAfterPermission = false
+        if (::settingsScreen.isInitialized) settingsScreen.refreshCameraPermissionState()
+    }
+
+    private val settingsCameraPermissionLauncher = registerForActivityResult(
+        ActivityResultContracts.RequestPermission(),
+    ) { granted ->
+        if (::settingsScreen.isInitialized) settingsScreen.refreshCameraPermissionState()
+        Toast.makeText(
+            this,
+            if (granted) "Camera permission allowed." else "Camera permission was not allowed.",
+            Toast.LENGTH_SHORT,
+        ).show()
     }
 
     private val audioPermissionLauncher = registerForActivityResult(
@@ -223,8 +245,11 @@ class MainActivity : AppCompatActivity() {
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        appPreferences = AppPreferences(this)
+        AppCompatDelegate.setDefaultNightMode(appPreferences.theme.nightMode)
         super.onCreate(savedInstanceState)
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        debugUiVisible = appPreferences.developerMode
         japaneseCountLevel1Controller = JapaneseCountLevel1Controller(::updateJapaneseCountLevel1State)
         punchHeightCaptureStore = PunchHeightCaptureStore(this)
         cameraSetupCaptureStore = CameraSetupCaptureStore(this)
@@ -240,32 +265,174 @@ class MainActivity : AppCompatActivity() {
             onSkillCoach = ::openTrainingHub,
             onTrain = ::openTrainingHub,
             onProgress = { showHomeDestinationPlaceholder("Progress") },
-            onSettings = { showHomeDestinationPlaceholder("Settings") },
+            onSettings = ::showSettingsUi,
         )
+        settingsScreen = SettingsScreenView(
+            context = this,
+            preferences = appPreferences,
+            hasCameraPermission = ::hasCameraPermission,
+            onHome = ::showHomeUi,
+            onTrain = ::openTrainingHub,
+            onProgress = { showHomeDestinationPlaceholder("Progress") },
+            onCameraSetup = ::openCameraSetupFromSettings,
+            onCameraPermissionRequest = {
+                settingsCameraPermissionLauncher.launch(Manifest.permission.CAMERA)
+            },
+            onTrainingData = { showHomeDestinationPlaceholder("Training data") },
+            onClearTrainingHistory = ::confirmClearTrainingHistory,
+            onDeveloperModeChanged = ::setDeveloperMode,
+            onCameraDebug = ::openCameraDebug,
+            onAbout = ::showAboutDialog,
+            onHelp = ::showHelpDialog,
+            onPrivacy = ::showPrivacyDialog,
+            onThemeChanged = { theme -> AppCompatDelegate.setDefaultNightMode(theme.nightMode) },
+        ).apply {
+            visibility = View.GONE
+        }
         setContentView(FrameLayout(this).apply {
             addView(trainingRoot)
             addView(homeScreen)
+            addView(settingsScreen)
         })
         trainingOrderPlayer = SoundFileTrainingOrderPlayer(this)
         japaneseCountFullExamplePlayer = JapaneseCountFullExamplePlayer(this)
         japaneseCountLiveRecognizer = JapaneseCountLiveRecognizer(this)
+        onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
+            override fun handleOnBackPressed() {
+                if (currentAppDestination == AppDestination.SETTINGS) {
+                    showHomeUi()
+                } else {
+                    isEnabled = false
+                    onBackPressedDispatcher.onBackPressed()
+                }
+            }
+        })
+        if (savedInstanceState?.getString(STATE_APP_DESTINATION) == AppDestination.SETTINGS.name) {
+            showSettingsUi()
+        }
     }
 
     private fun showHomeDestinationPlaceholder(destination: String) {
         Toast.makeText(this, "$destination coming soon.", Toast.LENGTH_SHORT).show()
     }
 
+    private fun showHomeUi() {
+        currentAppDestination = AppDestination.HOME
+        trainingRoot.visibility = View.GONE
+        settingsScreen.visibility = View.GONE
+        homeScreen.visibility = View.VISIBLE
+    }
+
+    private fun showSettingsUi() {
+        currentAppDestination = AppDestination.SETTINGS
+        trainingRoot.visibility = View.GONE
+        homeScreen.visibility = View.GONE
+        settingsScreen.refresh()
+        settingsScreen.visibility = View.VISIBLE
+    }
+
     private fun openTrainingHub() {
         showTrainingUi()
-        if (!cameraStartupRequested) {
-            cameraStartupRequested = true
-            requestCameraPermissionIfNeeded()
-        }
+        openCameraSetupAfterPermission = false
+        requestCameraPermissionIfNeeded()
     }
 
     private fun showTrainingUi() {
+        currentAppDestination = AppDestination.TRAIN
         homeScreen.visibility = View.GONE
+        settingsScreen.visibility = View.GONE
         trainingRoot.visibility = View.VISIBLE
+    }
+
+    private fun openCameraSetupFromSettings() {
+        showTrainingUi()
+        openCameraSetupAfterPermission = true
+        if (hasCameraPermission()) {
+            startCameraIfNeeded()
+            openCameraSetupAfterPermission = false
+            startCameraSetupSession()
+        } else {
+            cameraStartupRequested = true
+            cameraPermissionLauncher.launch(Manifest.permission.CAMERA)
+        }
+    }
+
+    private fun openCameraDebug() {
+        setDeveloperMode(true)
+        openTrainingHub()
+    }
+
+    private fun setDeveloperMode(enabled: Boolean) {
+        appPreferences.developerMode = enabled
+        debugUiVisible = enabled
+        if (::debugSwitch.isInitialized && debugSwitch.isChecked != enabled) {
+            debugSwitch.isChecked = enabled
+        }
+        if (::analyzerDebugText.isInitialized) {
+            updateJapaneseCountDebugText()
+            updateFindYourWeaponOverlay(latestFindYourWeaponAnalysisState)
+            updatePunchHeightState(latestPunchHeightState, speak = false)
+            updateControlVisibility()
+        }
+    }
+
+    private fun confirmClearTrainingHistory() {
+        AlertDialog.Builder(this)
+            .setTitle("Clear training history?")
+            .setMessage("This permanently removes all saved training sessions and results from this device. This cannot be undone.")
+            .setNegativeButton("Cancel", null)
+            .setPositiveButton("Clear") { _, _ ->
+                punchHeightStorageExecutor.execute {
+                    val result = TrainingHistoryStore(this).clear()
+                    runOnMainThread {
+                        val message = when {
+                            !result.succeeded -> "Some training history could not be removed."
+                            result.removedDirectoryCount == 0 -> "There was no saved training history to clear."
+                            else -> "Training history cleared."
+                        }
+                        Toast.makeText(this, message, Toast.LENGTH_LONG).show()
+                    }
+                }
+            }
+            .show()
+    }
+
+    private fun showAboutDialog() {
+        val version = runCatching {
+            packageManager.getPackageInfo(packageName, 0).versionName
+        }.getOrNull().orEmpty().ifBlank { "Unknown" }
+        showInformationDialog(
+            title = "Karate Kihon Analyzer",
+            message = "Version $version\n\nCamera-based tools for learning and practicing karate kihon.",
+        )
+    }
+
+    private fun showHelpDialog() = showInformationDialog(
+        title = "Help & how it works",
+        message = "Choose Learn for guided lessons, Practice for drills, or Skill Coach for camera-based technique feedback. Camera setup helps you find a reliable position before analysis.",
+    )
+
+    private fun showPrivacyDialog() = showInformationDialog(
+        title = "Privacy",
+        message = "Camera analysis runs within the app. Saved clips and training results are stored in this app's private device storage. You can remove saved training history from Settings.",
+    )
+
+    private fun showInformationDialog(title: String, message: String) {
+        AlertDialog.Builder(this)
+            .setTitle(title)
+            .setMessage(message)
+            .setPositiveButton("OK", null)
+            .show()
+    }
+
+    override fun onResume() {
+        super.onResume()
+        if (::settingsScreen.isInitialized) settingsScreen.refreshCameraPermissionState()
+    }
+
+    override fun onSaveInstanceState(outState: Bundle) {
+        outState.putString(STATE_APP_DESTINATION, currentAppDestination.name)
+        super.onSaveInstanceState(outState)
     }
 
     private fun buildUi() {
@@ -569,13 +736,9 @@ class MainActivity : AppCompatActivity() {
         debugSwitch = SwitchCompat(this).apply {
             text = "Debug"
             setTextColor(Color.WHITE)
-            isChecked = false
+            isChecked = debugUiVisible
             setOnCheckedChangeListener { _, checked ->
-                debugUiVisible = checked
-                updateJapaneseCountDebugText()
-                updateFindYourWeaponOverlay(latestFindYourWeaponAnalysisState)
-                updatePunchHeightState(latestPunchHeightState, speak = false)
-                updateControlVisibility()
+                setDeveloperMode(checked)
             }
         }
 
@@ -696,11 +859,23 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun requestCameraPermissionIfNeeded() {
-        if (ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED) {
-            startCamera()
+        if (hasCameraPermission()) {
+            startCameraIfNeeded()
         } else {
+            if (cameraStartupRequested) return
+            cameraStartupRequested = true
             cameraPermissionLauncher.launch(Manifest.permission.CAMERA)
         }
+    }
+
+    private fun hasCameraPermission(): Boolean = ContextCompat.checkSelfPermission(
+        this,
+        Manifest.permission.CAMERA,
+    ) == PackageManager.PERMISSION_GRANTED
+
+    private fun startCameraIfNeeded() {
+        cameraStartupRequested = true
+        if (recordingAdapter == null) startCamera()
     }
 
     private fun startCamera() {
@@ -772,6 +947,7 @@ class MainActivity : AppCompatActivity() {
             onComplete = ::showSessionComplete,
             onError = { message -> metadataPathText.text = "Error: $message" },
             captureProfile = adapter.selectedCaptureProfile,
+            countdownBeforeTrainingMs = appPreferences.countdownSeconds * 1_000L,
         )
         adapter.bindCameraPreview()
     }
@@ -795,7 +971,7 @@ class MainActivity : AppCompatActivity() {
         poseRecognizerRunner = null
         poseRecognizerState = PoseRecognizerLifecycleState.INITIALIZING
         cameraSetupVoiceCoach?.close()
-        cameraSetupVoiceCoach = PunchHeightVoiceCoach(this)
+        cameraSetupVoiceCoach = if (appPreferences.voiceGuidance) PunchHeightVoiceCoach(this) else null
         completedCameraSetupCapture = null
         lastSpokenCameraSetupMessage = null
         cameraSetupCapturedImage.setImageDrawable(null)
@@ -883,7 +1059,7 @@ class MainActivity : AppCompatActivity() {
         cameraSetupTitleText.text = state.selectedView?.let { "Camera setup - ${it.displayName}" } ?: "Camera setup"
         cameraSetupMessageText.text = state.message
         cameraSetupProgress.progress = (state.holdProgress * cameraSetupProgress.max).toInt()
-        if (speak && cameraSetupActive && state.message != lastSpokenCameraSetupMessage) {
+        if (appPreferences.voiceGuidance && speak && cameraSetupActive && state.message != lastSpokenCameraSetupMessage) {
             val spoken = cameraSetupVoiceCoach?.speak(state.message, SystemClock.elapsedRealtime()) == true
             if (spoken) lastSpokenCameraSetupMessage = state.message
         }
@@ -920,7 +1096,7 @@ class MainActivity : AppCompatActivity() {
         poseRecognizerRunner = null
         poseRecognizerState = PoseRecognizerLifecycleState.INITIALIZING
         punchHeightVoiceCoach?.close()
-        punchHeightVoiceCoach = PunchHeightVoiceCoach(this)
+        punchHeightVoiceCoach = if (appPreferences.voiceGuidance) PunchHeightVoiceCoach(this) else null
         completedPunchHeightSession = null
         clearPunchHeightReview()
         try {
@@ -1124,7 +1300,9 @@ class MainActivity : AppCompatActivity() {
             state.chinProjectionMultiplier,
         )
         punchHeightOverlayView.setSessionState(if (punchHeightActive && !inReview) state else null, debugUiVisible)
-        if (speak && punchHeightActive) punchHeightVoiceCoach?.speak(state.message, SystemClock.elapsedRealtime())
+        if (appPreferences.voiceGuidance && speak && punchHeightActive) {
+            punchHeightVoiceCoach?.speak(state.message, SystemClock.elapsedRealtime())
+        }
         val evaluation = state.evaluation
         analyzerDebugText.text = if (evaluation == null) {
             "Pose: ${poseRecognizerState.name.lowercase()} / stage ${state.stage.name.lowercase()}"
@@ -1199,12 +1377,17 @@ class MainActivity : AppCompatActivity() {
 
     private fun playJapaneseCountPrompt(item: JapaneseCountLessonItem, onComplete: () -> Unit = {}) {
         japaneseCountFullExamplePlayer.stop()
-        trainingOrderPlayer?.play(item.order, onComplete) ?: onComplete()
+        if (appPreferences.trainingSounds) {
+            trainingOrderPlayer?.play(item.order, onComplete) ?: onComplete()
+        } else {
+            onComplete()
+        }
     }
 
     private fun playJapaneseCountFullExample() {
         if (japaneseCountMode != JapaneseCountMode.LEVEL_2) return
         trainingOrderPlayer?.stop()
+        if (!appPreferences.trainingSounds) return
         japaneseCountFullExamplePlayer.play(
             onError = { error ->
                 japaneseCountFeedbackText.text =
@@ -2120,7 +2303,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun playTrainingOrder(order: TrainingOrder) {
-        trainingOrderPlayer?.play(order)
+        if (appPreferences.trainingSounds) trainingOrderPlayer?.play(order)
     }
 
 
@@ -2171,6 +2354,7 @@ class MainActivity : AppCompatActivity() {
     )
 
     companion object {
+        private const val STATE_APP_DESTINATION = "app_destination"
         private const val JAPANESE_COUNT_LOG_TAG = "JapaneseCountTraining"
         private const val MAX_JAPANESE_PARTIAL_TRANSCRIPTS = 20
         private const val JAPANESE_COUNT_BUSY_RETRY_DELAY_MS = 250L

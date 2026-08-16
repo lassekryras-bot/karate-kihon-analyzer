@@ -2,6 +2,7 @@ package dk.lasse.karatecliprecorder.captureprofile
 
 import android.hardware.camera2.CameraCharacteristics
 import androidx.camera.camera2.interop.Camera2CameraInfo
+import androidx.camera.camera2.interop.ExperimentalCamera2Interop
 import androidx.camera.core.CameraInfo
 import androidx.camera.core.DynamicRange
 import androidx.camera.video.Quality
@@ -20,6 +21,7 @@ object CameraCapabilityInitializer {
         )
     }
 
+    @androidx.annotation.OptIn(markerClass = [ExperimentalCamera2Interop::class])
     private fun loadFpsRanges(cameraInfo: CameraInfo): List<CaptureFpsRange> = try {
         Camera2CameraInfo.from(cameraInfo)
             .getCameraCharacteristic(CameraCharacteristics.CONTROL_AE_AVAILABLE_TARGET_FPS_RANGES)

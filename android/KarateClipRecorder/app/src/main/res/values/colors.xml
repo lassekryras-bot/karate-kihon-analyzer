@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="app_accent">#BE000C</color>
+    <color name="app_background">#F7F5F2</color>
+    <color name="app_card_surface">#FFFFFF</color>
+    <color name="home_card_surface">#FCFAF7</color>
+    <color name="app_text_primary">#181818</color>
+    <color name="app_text_secondary">#5C5C5C</color>
+    <color name="app_border">#E6E0D8</color>
+    <color name="app_divider">#EEE9E3</color>
+    <color name="app_nav_inactive">#626262</color>
+    <color name="app_success">#16803A</color>
+    <color name="app_switch_track_inactive">#CDC9C4</color>
+    <color name="app_switch_thumb">#FFFFFF</color>
+    <color name="app_system_navigation">#000000</color>
+</resources>
