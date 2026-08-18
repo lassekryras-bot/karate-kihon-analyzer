@@ -13,23 +13,28 @@ import android.view.ViewGroup
 import android.widget.FrameLayout
 import android.widget.LinearLayout
 import android.widget.ProgressBar
-import android.widget.ScrollView
 import android.widget.TextView
 import androidx.core.content.ContextCompat
-import androidx.core.view.ViewCompat
-import androidx.core.view.WindowInsetsCompat
 import dk.lasse.karatecliprecorder.AppBottomNavigationView
 import dk.lasse.karatecliprecorder.AppDestination
 import dk.lasse.karatecliprecorder.AppIcon
 import dk.lasse.karatecliprecorder.AppIconView
+import dk.lasse.karatecliprecorder.MainPageHeader
 import dk.lasse.karatecliprecorder.R
+import dk.lasse.karatecliprecorder.StickyHeaderPageLayout
 import dk.lasse.karatecliprecorder.learningartwork.LearningPathArtworkView
+import dk.lasse.karatecliprecorder.profile.ProfileAvatarButton
+import dk.lasse.karatecliprecorder.profile.ProfileRepository
 
 /** Passive Train destination: choosing a path never starts camera or speech infrastructure. */
 class LearnScreenView(
     context: Context,
+    private val profileRepository: ProfileRepository,
+    private val onProfile: () -> Unit,
     private val paths: List<LearningPath>,
-    onPathSelected: (LearningPath) -> Unit,
+    private val karateBasics: DraftLearningPathDefinition,
+    private val onPathSelected: (LearningPath) -> Unit,
+    private val onKarateBasicsSelected: () -> Unit,
     onHome: () -> Unit,
     onProgress: () -> Unit,
     onSettings: () -> Unit,
@@ -40,37 +45,27 @@ class LearnScreenView(
     private val paper = ContextCompat.getColor(context, R.color.home_card_surface)
     private val border = ContextCompat.getColor(context, R.color.app_border)
     private val backgroundColor = ContextCompat.getColor(context, R.color.app_background)
+    private val content = LinearLayout(context).apply { orientation = LinearLayout.VERTICAL }
+    private val mainHeader = MainPageHeader(
+        context = context,
+        title = "Train",
+        subtitle = "Build your skills step by step.",
+        trailingSlot = ProfileAvatarButton(context, profileRepository, onProfile),
+    )
+    private val profileListener: (dk.lasse.karatecliprecorder.profile.Profile) -> Unit = { renderContent() }
+    private var observing = false
 
     init {
         setBackgroundColor(backgroundColor)
-        val content = LinearLayout(context).apply {
-            orientation = LinearLayout.VERTICAL
-            setPadding(20.dp(), 14.dp(), 20.dp(), 112.dp())
-            addView(label("Learn", 38f, Typeface.BOLD))
-            addView(label("Build your skills step by step.", 19f).apply {
-                setTextColor(muted)
-                setPadding(0, 2.dp(), 0, 18.dp())
-            })
+        renderContent()
 
-            val currentPath = paths.first { it.id == LearningPathId.JODAN_PUNCH }
-            addView(continueCard(currentPath) { onPathSelected(currentPath) })
-
-            paths.groupBy(LearningPath::category).forEach { (category, categoryPaths) ->
-                addView(sectionTitle(category))
-                categoryPaths.forEachIndexed { index, path ->
-                    addView(pathCard(path) { onPathSelected(path) }, LinearLayout.LayoutParams(
-                        LayoutParams.MATCH_PARENT,
-                        LayoutParams.WRAP_CONTENT,
-                    ).apply { if (index > 0) topMargin = 8.dp() })
-                }
-            }
-        }
-
-        addView(ScrollView(context).apply {
-            clipToPadding = false
-            isFillViewport = true
-            addView(content)
-        }, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT))
+        addView(StickyHeaderPageLayout(
+            context = context,
+            header = mainHeader,
+            body = content,
+            topContentPaddingDp = 14,
+            bottomContentClearanceDp = AppBottomNavigationView.CONTENT_CLEARANCE_DP,
+        ), LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT))
 
         val navigation = AppBottomNavigationView(
             context = context,
@@ -86,13 +81,91 @@ class LearnScreenView(
             Gravity.BOTTOM,
         ))
 
-        ViewCompat.setOnApplyWindowInsetsListener(this) { _, insets ->
-            val systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
-            val navigationBars = insets.getInsets(WindowInsetsCompat.Type.navigationBars())
-            content.setPadding(20.dp(), systemBars.top + 14.dp(), 20.dp(), navigationBars.bottom + 112.dp())
-            insets
+    }
+
+    override fun onAttachedToWindow() {
+        super.onAttachedToWindow()
+        if (!observing) {
+            observing = true
+            profileRepository.addActiveProfileListener(profileListener)
         }
-        ViewCompat.requestApplyInsets(this)
+    }
+
+    override fun onDetachedFromWindow() {
+        if (observing) profileRepository.removeActiveProfileListener(profileListener)
+        observing = false
+        super.onDetachedFromWindow()
+    }
+
+    private fun renderContent() {
+        content.removeAllViews()
+        val scopedPaths = profileScopedPaths()
+        val currentPath = scopedPaths.first { it.id == LearningPathId.JODAN_PUNCH }
+        content.addView(continueCard(currentPath) { onPathSelected(currentPath) })
+        content.addView(sectionTitle("Foundations"))
+        content.addView(draftPathCard())
+        scopedPaths.groupBy(LearningPath::category).forEach { (category, categoryPaths) ->
+            content.addView(sectionTitle(category))
+            categoryPaths.forEachIndexed { index, path ->
+                content.addView(pathCard(path) { onPathSelected(path) }, LinearLayout.LayoutParams(
+                    LayoutParams.MATCH_PARENT,
+                    LayoutParams.WRAP_CONTENT,
+                ).apply { if (index > 0) topMargin = 8.dp() })
+            }
+        }
+    }
+
+    private fun profileScopedPaths(): List<LearningPath> {
+        return LearningPathProgressResolver.resolve(paths, profileRepository.learningProgress())
+    }
+
+    private fun draftPathCard(): LinearLayout {
+        val completedIds = profileRepository.learningProgress()
+            .asSequence()
+            .filter { it.learningPathId == karateBasics.id && it.status == dk.lasse.karatecliprecorder.profile.LearningStatus.COMPLETED }
+            .mapTo(mutableSetOf()) { it.activityId }
+        val resolved = DraftLearningPathProgressResolver.resolve(
+            karateBasics,
+            completedIds,
+            activeProfileExists = profileRepository.listProfiles().isNotEmpty(),
+        )
+        return card().apply {
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(15.dp(), 14.dp(), 10.dp(), 14.dp())
+            minimumHeight = 118.dp()
+            isClickable = true
+            isFocusable = true
+            contentDescription = "Karate Basics, ${resolved.completedCount} of ${resolved.totalCount} activities complete"
+            setOnClickListener { onKarateBasicsSelected() }
+            addView(FrameLayout(context).apply {
+                background = GradientDrawable().apply {
+                    setColor(ContextCompat.getColor(context, R.color.progress_pale_fill))
+                    shape = GradientDrawable.OVAL
+                }
+                addView(AppIconView(context, AppIcon.KARATE, sizeDp = 48).apply {
+                    setIconColor(red)
+                }, FrameLayout.LayoutParams(48.dp(), 48.dp(), Gravity.CENTER))
+            }, LayoutParams(82.dp(), 82.dp()))
+            addView(LinearLayout(context).apply {
+                orientation = LinearLayout.VERTICAL
+                setPadding(12.dp(), 0, 6.dp(), 0)
+                addView(label(karateBasics.title, 19f, Typeface.BOLD))
+                addView(label("Draft learning path", 14f).apply {
+                    setTextColor(muted)
+                    setPadding(0, 2.dp(), 0, 6.dp())
+                })
+                addView(label("${resolved.completedCount} / ${resolved.totalCount} activities", 14f, Typeface.BOLD).apply {
+                    setTextColor(if (resolved.completedCount > 0) red else muted)
+                })
+                addView(ProgressBar(context, null, android.R.attr.progressBarStyleHorizontal).apply {
+                    max = resolved.totalCount.coerceAtLeast(1)
+                    progress = resolved.completedCount
+                    progressTintList = ColorStateList.valueOf(red)
+                    progressBackgroundTintList = ColorStateList.valueOf(border)
+                }, LayoutParams(LayoutParams.MATCH_PARENT, 6.dp()).apply { topMargin = 4.dp() })
+            }, LinearLayout.LayoutParams(0, LayoutParams.WRAP_CONTENT, 1f))
+            addView(AppIconView(context, AppIcon.CHEVRON_RIGHT).apply { setIconColor(ink) }, LayoutParams(24.dp(), 44.dp()))
+        }
     }
 
     private fun continueCard(path: LearningPath, onClick: () -> Unit) = card().apply {

@@ -32,9 +32,9 @@ enum class KarateBeltRank(val tonesDarkToLight: List<Int>) {
 }
 
 data class KarateCharacterPlacement(
-    val faceMale: RectF = RectF(178f, -97f, 518f, 271f),
-    val faceFemale: RectF = RectF(165f, -92f, 531f, 220f),
-    val belt: RectF = RectF(198f, 456f, 462f, 733f),
+    val faceMale: RectF = RectF(178f, -67f, 518f, 301f),
+    val faceFemale: RectF = RectF(165f, -62f, 531f, 250f),
+    val belt: RectF = RectF(208f, 446f, 472f, 723f),
     val beltOpticalScale: Float = 0.929575f,
 )
 

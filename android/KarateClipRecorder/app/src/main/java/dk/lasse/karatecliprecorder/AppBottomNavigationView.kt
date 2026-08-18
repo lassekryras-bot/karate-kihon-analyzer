@@ -29,13 +29,18 @@ class AppBottomNavigationView(
     init {
         orientation = HORIZONTAL
         gravity = Gravity.CENTER
-        elevation = 12.dp().toFloat()
-        setPadding(HORIZONTAL_PADDING_DP.dp(), VERTICAL_PADDING_DP.dp(), HORIZONTAL_PADDING_DP.dp(), VERTICAL_PADDING_DP.dp())
-        setBackgroundColor(ContextCompat.getColor(context, R.color.app_card_surface))
+        elevation = AppChromeStyle.ELEVATION_DP.dp().toFloat()
+        setPadding(
+            HORIZONTAL_PADDING_DP.dp(),
+            TOP_PADDING_DP.dp(),
+            HORIZONTAL_PADDING_DP.dp(),
+            BOTTOM_PADDING_DP.dp(),
+        )
+        setBackgroundColor(ContextCompat.getColor(context, AppChromeStyle.SURFACE_COLOR_RES))
 
         listOf(
             navigationItem("Home", AppIcon.HOME, selectedDestination == AppDestination.HOME, onHome),
-            navigationItem("Train", AppIcon.KARATE_BELT, selectedDestination == AppDestination.TRAIN, onTrain),
+            navigationItem("Train", AppIcon.KARATE, selectedDestination == AppDestination.TRAIN, onTrain),
             navigationItem("Progress", AppIcon.CHART_BAR, selectedDestination == AppDestination.PROGRESS, onProgress),
             navigationItem("Settings", AppIcon.SETTINGS, selectedDestination == AppDestination.SETTINGS, onSettings),
         ).forEach { item ->
@@ -50,9 +55,9 @@ class AppBottomNavigationView(
                 .bottom
             view.setPadding(
                 HORIZONTAL_PADDING_DP.dp(),
-                VERTICAL_PADDING_DP.dp(),
+                TOP_PADDING_DP.dp(),
                 HORIZONTAL_PADDING_DP.dp(),
-                VERTICAL_PADDING_DP.dp() + navigationBarBottom,
+                BOTTOM_PADDING_DP.dp() + navigationBarBottom,
             )
             val safeHeight = BASE_HEIGHT_DP.dp() + navigationBarBottom
             view.layoutParams?.let { params ->
@@ -100,15 +105,17 @@ class AppBottomNavigationView(
             isSelected = selected
             importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
         }, LayoutParams(LayoutParams.WRAP_CONTENT, LayoutParams.WRAP_CONTENT).apply {
-            topMargin = 4.dp()
+            topMargin = 2.dp()
         })
     }
 
     private fun Int.dp() = (this * resources.displayMetrics.density).toInt()
 
     companion object {
-        const val BASE_HEIGHT_DP = 82
+        const val BASE_HEIGHT_DP = 68
+        const val CONTENT_CLEARANCE_DP = BASE_HEIGHT_DP + 28
         private const val HORIZONTAL_PADDING_DP = 12
-        private const val VERTICAL_PADDING_DP = 6
+        private const val TOP_PADDING_DP = 4
+        private const val BOTTOM_PADDING_DP = 0
     }
 }

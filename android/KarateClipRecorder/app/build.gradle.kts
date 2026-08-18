@@ -21,6 +21,10 @@ android {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
     }
+
+    testOptions {
+        unitTests.isIncludeAndroidResources = true
+    }
 }
 
 kotlin {
@@ -45,4 +49,6 @@ dependencies {
     implementation("androidx.camera:camera-view:$cameraxVersion")
     implementation("com.google.guava:guava:33.3.1-android")
     testImplementation(kotlin("test"))
+    testImplementation("androidx.test:core:1.6.1")
+    testImplementation("org.robolectric:robolectric:4.14.1")
 }

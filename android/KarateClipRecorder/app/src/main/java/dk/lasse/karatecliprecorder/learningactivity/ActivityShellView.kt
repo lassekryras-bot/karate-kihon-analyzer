@@ -12,14 +12,13 @@ import android.view.Gravity
 import android.view.View
 import android.view.ViewGroup
 import android.widget.FrameLayout
-import android.widget.ImageButton
 import android.widget.LinearLayout
-import android.widget.ScrollView
 import android.widget.TextView
 import androidx.core.content.ContextCompat
-import androidx.core.view.ViewCompat
-import androidx.core.view.WindowInsetsCompat
 import dk.lasse.karatecliprecorder.R
+import dk.lasse.karatecliprecorder.StickyHeaderPageLayout
+import dk.lasse.karatecliprecorder.SubPageHeader
+import dk.lasse.karatecliprecorder.installNavigationBarInsets
 
 enum class ActivityShellState { READY, ACTIVE, COMPLETE, RESULT, ERROR }
 
@@ -31,7 +30,7 @@ data class ActivityShellAction(
 
 /** Reusable focused activity frame. Activity-specific content is supplied through its slots. */
 @SuppressLint("ViewConstructor")
-class ActivityShellView(
+open class ActivityShellView(
     context: Context,
     onExit: () -> Unit,
 ) : FrameLayout(context) {
@@ -45,8 +44,20 @@ class ActivityShellView(
     private val body = LinearLayout(context).apply {
         orientation = LinearLayout.VERTICAL
     }
-    private val pathTitle = label("", 19f, Typeface.BOLD, Gravity.CENTER)
-    private val pathPosition = label("", 16f, Typeface.BOLD, Gravity.CENTER)
+    private val pathPosition = label("", 16f, Typeface.BOLD, Gravity.CENTER).apply {
+        background = GradientDrawable().apply {
+            setColor(surface)
+            cornerRadius = 18.dp().toFloat()
+            setStroke(1.dp(), border)
+        }
+        setPadding(14.dp(), 7.dp(), 14.dp(), 7.dp())
+    }
+    private val subHeader = SubPageHeader(
+        context = context,
+        title = "",
+        onBack = onExit,
+        trailingSlot = pathPosition,
+    )
     private val contextLine = label("", 12f, Typeface.BOLD)
     private val activityTitle = label("", 27f, Typeface.BOLD)
     private val activitySubtitle = label("", 16f)
@@ -61,42 +72,25 @@ class ActivityShellView(
 
     init {
         setBackgroundColor(backgroundColor)
-        body.setPadding(20.dp(), 6.dp(), 20.dp(), 112.dp())
-        actionBar.setPadding(16.dp(), 12.dp(), 16.dp(), 12.dp())
-
-        body.addView(topBar(onExit), LinearLayout.LayoutParams(
-            ViewGroup.LayoutParams.MATCH_PARENT,
-            56.dp(),
-        ))
         body.addView(contextLine, matchWrap().apply { topMargin = 16.dp() })
         body.addView(activityTitle, matchWrap().apply { topMargin = 12.dp() })
         body.addView(activitySubtitle, matchWrap().apply { topMargin = 5.dp() })
         body.addView(runnerSlot, matchWrap().apply { topMargin = 18.dp() })
         body.addView(progressSlot, matchWrap().apply { topMargin = 16.dp() })
 
-        addView(ScrollView(context).apply {
-            clipToPadding = false
-            isFillViewport = true
-            addView(body)
-        }, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT))
+        addView(StickyHeaderPageLayout(
+            context = context,
+            header = subHeader,
+            body = body,
+            topContentPaddingDp = 6,
+            bottomContentClearanceDp = 112,
+        ), LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT))
         addView(actionBar, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT, Gravity.BOTTOM))
-
-        ViewCompat.setOnApplyWindowInsetsListener(this) { _, insets ->
-            val systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
-            val navigationBars = insets.getInsets(WindowInsetsCompat.Type.navigationBars())
-            body.setPadding(20.dp(), systemBars.top + 6.dp(), 20.dp(), navigationBars.bottom + 112.dp())
-            actionBar.setPadding(16.dp(), 12.dp(), 16.dp(), navigationBars.bottom + 12.dp())
-            insets
-        }
-    }
-
-    override fun onAttachedToWindow() {
-        super.onAttachedToWindow()
-        ViewCompat.requestApplyInsets(this)
+        actionBar.installNavigationBarInsets(horizontalDp = 16, topDp = 12, bottomDp = 12)
     }
 
     fun setHeader(title: String, position: String) {
-        pathTitle.text = title
+        subHeader.setTitle(title)
         val numeratorEnd = position.indexOf('/').takeIf { it > 0 }?.let { slash ->
             position.substring(0, slash).trimEnd().length
         } ?: 0
@@ -162,37 +156,6 @@ class ActivityShellView(
             0,
             54.dp(),
             if (secondary == null) 1f else 1.35f,
-        ))
-    }
-
-    private fun topBar(onExit: () -> Unit) = FrameLayout(context).apply {
-        addView(ImageButton(context).apply {
-            setImageResource(R.drawable.ic_tabler_arrow_left)
-            imageTintList = ColorStateList.valueOf(ink)
-            background = null
-            contentDescription = "Back"
-            setPadding(12.dp(), 12.dp(), 12.dp(), 12.dp())
-            setOnClickListener { onExit() }
-        }, FrameLayout.LayoutParams(48.dp(), 48.dp(), Gravity.START or Gravity.CENTER_VERTICAL))
-        addView(pathTitle, FrameLayout.LayoutParams(
-            LayoutParams.MATCH_PARENT,
-            LayoutParams.WRAP_CONTENT,
-            Gravity.CENTER,
-        ).apply {
-            marginStart = 58.dp()
-            marginEnd = 76.dp()
-        })
-        addView(pathPosition.apply {
-            background = GradientDrawable().apply {
-                setColor(surface)
-                cornerRadius = 18.dp().toFloat()
-                setStroke(1.dp(), border)
-            }
-            setPadding(14.dp(), 7.dp(), 14.dp(), 7.dp())
-        }, FrameLayout.LayoutParams(
-            LayoutParams.WRAP_CONTENT,
-            LayoutParams.WRAP_CONTENT,
-            Gravity.END or Gravity.CENTER_VERTICAL,
         ))
     }
 

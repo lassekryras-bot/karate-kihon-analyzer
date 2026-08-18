@@ -20,9 +20,9 @@ data class CameraSetupCapture(
 
 class CameraSetupCaptureStore(context: Context) {
     private val picturesRoot = context.getExternalFilesDir(Environment.DIRECTORY_PICTURES) ?: context.filesDir
-    private val outputDirectory = File(picturesRoot, "camera_setup/latest")
 
-    @Synchronized fun save(bitmap: Bitmap, view: CameraView, poseFrame: PoseFrame): CameraSetupCapture {
+    @Synchronized fun save(bitmap: Bitmap, view: CameraView, poseFrame: PoseFrame, profileId: String): CameraSetupCapture {
+        val outputDirectory = File(picturesRoot, "camera_setup/profiles/$profileId/latest")
         try {
             check(outputDirectory.exists() || outputDirectory.mkdirs()) { "Could not create the camera setup picture directory." }
             val baseName = view.name.lowercase(Locale.ROOT)

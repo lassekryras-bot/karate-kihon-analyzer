@@ -11,8 +11,8 @@ import androidx.core.content.ContextCompat
 /**
  * Shared entry point for general-purpose application icons.
  *
- * Every resource except the belt is an outline icon converted from Tabler Icons 3.46.0 at its
- * native 24 x 24 grid and 2 px stroke. Karate-specific identity remains a custom drawable.
+ * General-purpose resources are Tabler Icons 3.46.0 outlines at their native 24 x 24 grid and
+ * 2 px stroke. The fitted belt silhouette is retained only for belt-rank profile controls.
  */
 enum class AppIcon(@DrawableRes val drawableRes: Int) {
     CAMERA(R.drawable.ic_tabler_camera),
@@ -29,10 +29,12 @@ enum class AppIcon(@DrawableRes val drawableRes: Int) {
     HELP_CIRCLE(R.drawable.ic_tabler_help_circle),
     SHIELD(R.drawable.ic_tabler_shield),
     CHEVRON_RIGHT(R.drawable.ic_tabler_chevron_right),
+    ARROW_LEFT(R.drawable.ic_tabler_arrow_left),
     HOME(R.drawable.ic_nav_home),
     CHART_BAR(R.drawable.ic_nav_progress),
     SETTINGS(R.drawable.ic_nav_settings),
-    KARATE_BELT(R.drawable.ic_nav_train_belt),
+    KARATE(R.drawable.ic_tabler_karate),
+    KARATE_BELT(R.drawable.ic_profile_belt),
 }
 
 class AppIconView(

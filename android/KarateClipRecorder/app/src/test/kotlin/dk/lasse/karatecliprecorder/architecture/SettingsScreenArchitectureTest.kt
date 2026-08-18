@@ -27,7 +27,8 @@ class SettingsScreenArchitectureTest {
         assertTrue(components.contains("class SettingsSectionView"))
         assertTrue(components.contains("class SettingsCardView"))
         assertTrue(components.contains("class SettingsRowView"))
-        assertTrue(screen.contains("ScrollView"))
+        assertTrue(screen.contains("MainPageHeader"))
+        assertTrue(screen.contains("StickyHeaderPageLayout"))
     }
 
     @Test fun requestedGenericIconsRouteThroughSharedTablerAbstraction() {
@@ -35,9 +36,10 @@ class SettingsScreenArchitectureTest {
         listOf(
             "CAMERA", "SHIELD_CHECK", "VOLUME", "MICROPHONE", "CLOCK", "PALETTE",
             "DATABASE", "TRASH", "CODE", "BUG", "INFO_CIRCLE", "HELP_CIRCLE",
-            "SHIELD", "CHEVRON_RIGHT", "HOME", "CHART_BAR", "SETTINGS",
+            "SHIELD", "CHEVRON_RIGHT", "HOME", "CHART_BAR", "SETTINGS", "KARATE",
         ).forEach { icon -> assertTrue(icons.contains("$icon(")) }
-        assertTrue(icons.contains("KARATE_BELT(R.drawable.ic_nav_train_belt)"))
+        assertTrue(icons.contains("KARATE(R.drawable.ic_tabler_karate)"))
+        assertTrue(icons.contains("KARATE_BELT(R.drawable.ic_profile_belt)"))
         assertTrue(appRoot.resolve("THIRD_PARTY_NOTICES.md").readText().contains("Tabler Icons 3.46.0"))
     }
 
@@ -59,13 +61,15 @@ class SettingsScreenArchitectureTest {
     @Test fun selectedNavigationAndSafeAreaStayResponsive() {
         val screen = sources.resolve("SettingsScreenView.kt").readText()
         val navigation = sources.resolve("AppBottomNavigationView.kt").readText()
+        val headers = sources.resolve("PageHeaders.kt").readText()
         assertTrue(screen.contains("selectedDestination = AppDestination.SETTINGS"))
-        assertTrue(screen.contains("WindowInsetsCompat.Type.systemBars()"))
-        assertTrue(screen.contains("WindowInsetsCompat.Type.navigationBars()"))
+        assertFalse(screen.contains("WindowInsetsCompat.Type.systemBars()"))
+        assertTrue(headers.contains("WindowInsetsCompat.Type.statusBars()"))
+        assertTrue(headers.contains("WindowInsetsCompat.Type.navigationBars()"))
         assertTrue(screen.contains("AppBottomNavigationView.BASE_HEIGHT_DP.dp()"))
         assertTrue(navigation.contains("BASE_HEIGHT_DP.dp() + navigationBarBottom"))
-        assertTrue(navigation.contains("VERTICAL_PADDING_DP.dp() + navigationBarBottom"))
+        assertTrue(navigation.contains("BOTTOM_PADDING_DP.dp() + navigationBarBottom"))
         assertFalse(screen.contains("bottomMargin = navigationBars.bottom"))
-        assertTrue(resources.resolve("drawable/ic_nav_train_belt.xml").readText().contains("viewportWidth=\"640\""))
+        assertTrue(resources.resolve("drawable/ic_tabler_karate.xml").readText().contains("viewportWidth=\"24\""))
     }
 }

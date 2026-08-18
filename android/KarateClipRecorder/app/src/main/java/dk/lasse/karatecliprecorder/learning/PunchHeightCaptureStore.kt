@@ -56,12 +56,13 @@ class PunchHeightCaptureStore(
     private val latestPublisher: PunchHeightLatestPublisher = PunchHeightLatestPublisher(),
 ) {
     private val picturesRoot = context.getExternalFilesDir(Environment.DIRECTORY_PICTURES) ?: context.filesDir
-    private val featureRoot = File(picturesRoot, "punch_height_level_1")
+    private var featureRoot = File(picturesRoot, "punch_height_level_1/legacy")
     private var stagingDirectory: File? = null
     private val captures = linkedMapOf<PunchHeightTargetType, PunchHeightSavedCapture>()
 
-    @Synchronized fun beginSession() {
+    @Synchronized fun beginSession(profileId: String = "legacy") {
         cancelSession()
+        featureRoot = File(picturesRoot, "punch_height_level_1/profiles/$profileId")
         check(featureRoot.exists() || featureRoot.mkdirs()) { "Could not create the Punch Heights picture directory." }
         latestPublisher.recover(File(featureRoot, "latest"))
         featureRoot.listFiles()

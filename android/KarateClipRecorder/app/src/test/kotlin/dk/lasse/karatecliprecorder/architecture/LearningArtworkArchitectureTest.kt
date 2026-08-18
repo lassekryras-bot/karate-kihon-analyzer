@@ -43,15 +43,18 @@ class LearningArtworkArchitectureTest {
         assertFalse(model.contains("activity.name"))
     }
 
-    @Test fun continueCardUsesOneStableEnsoAndResponsiveProgressLayout() {
+    @Test fun continueCardUsesTheLearningPathsStableEnsoAndResponsiveProgressLayout() {
         val home = sources.resolve("HomeScreenView.kt").readText()
         val continueCard = home.substringAfter("private fun continueCard").substringBefore("private fun progressCopy")
 
         assertFalse(home.contains("CONTINUE WHERE YOU LEFT OFF"))
         assertTrue(continueCard.contains("Continue learning"))
-        assertTrue(continueCard.contains("EnsoBackgroundView"))
-        assertTrue(continueCard.contains("EnsoThemeTokens.ensoBaseColor"))
-        assertTrue(home.contains("private val continueEnso = EnsoLibrary().createInstance()"))
+        assertTrue(continueCard.contains("continueArtwork(content)"))
+        assertTrue(home.contains("return LearningPathArtworkView(context)"))
+        assertTrue(home.contains("val artwork = content.artwork"))
+        assertTrue(home.contains("val enso = content.ensoVariant"))
+        assertTrue(home.contains("ensoVariant = (target as? RecentLearningTarget.Standard)?.path?.ensoVariant"))
+        assertFalse(home.contains("private val continueEnso = EnsoLibrary().createInstance()"))
         assertFalse(continueCard.contains("EnsoLibrary()"))
         assertTrue(continueCard.contains("0.38f"))
         assertTrue(continueCard.contains("0.62f"))
@@ -78,6 +81,15 @@ class LearningArtworkArchitectureTest {
         assertTrue(gallery.contains("LearningActivityType.PRACTICE"))
         assertTrue(gallery.contains("LearningActivityType.TEST"))
         assertTrue(gallery.contains("EnsoVariant.all"))
+    }
+
+    @Test fun learningPathSequenceAvoidsRedundantNumbersAndCompletedActivitiesRemainReplayable() {
+        val progression = sources.resolve("learningpath/SkillProgressionView.kt").readText()
+
+        assertFalse(progression.contains("step.number.toString()"))
+        assertTrue(progression.contains("step.destination?.takeIf { step.progressState != LearningProgressState.LOCKED }"))
+        assertTrue(progression.contains("setOnClickListener { onStart(destination) }"))
+        assertTrue(progression.contains("step.progressState == LearningProgressState.COMPLETED"))
     }
 
     private fun File.sha256(): String {

@@ -13,20 +13,27 @@ import android.widget.FrameLayout
 import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.ProgressBar
-import android.widget.ScrollView
 import android.widget.TextView
 import androidx.core.content.ContextCompat
-import androidx.core.view.ViewCompat
-import androidx.core.view.WindowInsetsCompat
-import dk.lasse.karatecliprecorder.enso.EnsoBackgroundView
-import dk.lasse.karatecliprecorder.enso.EnsoLibrary
-import dk.lasse.karatecliprecorder.enso.EnsoThemeTokens
+import dk.lasse.karatecliprecorder.enso.EnsoVariant
+import dk.lasse.karatecliprecorder.learningartwork.LearningArtworkForeground
+import dk.lasse.karatecliprecorder.learningartwork.LearningPathArtworkView
+import dk.lasse.karatecliprecorder.learningpath.LearningPath
+import dk.lasse.karatecliprecorder.learningpath.DraftLearningPathDefinition
+import dk.lasse.karatecliprecorder.learningpath.RecentLearningResolver
+import dk.lasse.karatecliprecorder.learningpath.RecentLearningTarget
+import dk.lasse.karatecliprecorder.profile.ProfileAvatarButton
+import dk.lasse.karatecliprecorder.profile.Profile
+import dk.lasse.karatecliprecorder.profile.ProfileRepository
 
 data class ContinueLearningContent(
     val lessonTitle: String,
     val category: String,
     val currentStep: Int,
     val totalSteps: Int,
+    val progressUnit: String,
+    val artwork: LearningArtworkForeground?,
+    val ensoVariant: EnsoVariant?,
 )
 
 /**
@@ -36,19 +43,17 @@ data class ContinueLearningContent(
  */
 class HomeScreenView(
     context: Context,
-    onContinue: () -> Unit,
+    private val profileRepository: ProfileRepository,
+    private val onProfile: () -> Unit,
+    private val learningPaths: List<LearningPath>,
+    private val karateBasics: DraftLearningPathDefinition,
+    private val onContinue: (RecentLearningTarget) -> Unit,
     onLearn: () -> Unit,
     onPractice: () -> Unit,
     onSkillCoach: () -> Unit,
     onTrain: () -> Unit,
     onProgress: () -> Unit,
     onSettings: () -> Unit,
-    continueLearning: ContinueLearningContent = ContinueLearningContent(
-        lessonTitle = "Jōdan Punch",
-        category = "Punching",
-        currentStep = 4,
-        totalSteps = 7,
-    ),
 ) : FrameLayout(context) {
     private val red = ContextCompat.getColor(context, R.color.app_accent)
     private val ink = ContextCompat.getColor(context, R.color.app_text_primary)
@@ -57,18 +62,27 @@ class HomeScreenView(
     private val backgroundColor = ContextCompat.getColor(context, R.color.app_background)
     private val border = ContextCompat.getColor(context, R.color.app_border)
     private val dividerColor = ContextCompat.getColor(context, R.color.app_divider)
-    private val continueEnso = EnsoLibrary().createInstance()
+    private val continueCardHost = FrameLayout(context)
+    private val mainHeader = MainPageHeader(
+        context = context,
+        title = "Karate Kihon Analyzer",
+        subtitle = "Welcome ${profileRepository.activeProfile().name}",
+        trailingSlot = ProfileAvatarButton(context, profileRepository, onProfile),
+    )
+    private val profileListener: (Profile) -> Unit = {
+        mainHeader.setSubtitle("Welcome ${it.name}")
+        renderContinueCard()
+    }
+    private var observingProfile = false
 
     init {
         setBackgroundColor(backgroundColor)
         val content = LinearLayout(context).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(20.dp(), 12.dp(), 20.dp(), 110.dp())
-            addView(header())
-            addView(continueCard(continueLearning, onContinue), LinearLayout.LayoutParams(
+            addView(continueCardHost, LinearLayout.LayoutParams(
                 LayoutParams.MATCH_PARENT,
                 LayoutParams.WRAP_CONTENT,
-            ).apply { topMargin = 12.dp() })
+            ))
             addView(sectionLabel("QUICK ACTIONS"))
             addView(quickActions(onLearn, onPractice, onSkillCoach))
             addView(sectionLabel("TODAY'S FOCUS"))
@@ -78,11 +92,13 @@ class HomeScreenView(
             addView(sectionLabel("LEARNING PROGRESS"))
             addView(progressCard())
         }
-        addView(ScrollView(context).apply {
-            isFillViewport = true
-            clipToPadding = false
-            addView(content)
-        }, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT))
+        addView(StickyHeaderPageLayout(
+            context = context,
+            header = mainHeader,
+            body = content,
+            bottomContentClearanceDp = AppBottomNavigationView.CONTENT_CLEARANCE_DP,
+        ), LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT))
+        renderContinueCard()
         val navigation = AppBottomNavigationView(
             context = context,
             selectedDestination = AppDestination.HOME,
@@ -92,24 +108,43 @@ class HomeScreenView(
             onSettings = onSettings,
         )
         addView(navigation, LayoutParams(LayoutParams.MATCH_PARENT, AppBottomNavigationView.BASE_HEIGHT_DP.dp(), Gravity.BOTTOM))
-        ViewCompat.setOnApplyWindowInsetsListener(this) { _, insets ->
-            val systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
-            val navigationBars = insets.getInsets(WindowInsetsCompat.Type.navigationBars())
-            content.setPadding(20.dp(), systemBars.top + 12.dp(), 20.dp(), navigationBars.bottom + 110.dp())
-            insets
-        }
-        ViewCompat.requestApplyInsets(this)
     }
 
-    private fun header() = LinearLayout(context).apply {
-        gravity = Gravity.CENTER_VERTICAL
-        addView(label("Karate Kihon Analyzer", 25f, Typeface.BOLD), LinearLayout.LayoutParams(0, 70.dp(), 1f).apply {
-            gravity = Gravity.CENTER_VERTICAL
-        })
-        addView(label("●", 23f, Typeface.NORMAL, Gravity.CENTER).apply {
-            contentDescription = "Profile"
-            background = outlinedCircle()
-        }, LinearLayout.LayoutParams(46.dp(), 46.dp()))
+    override fun onAttachedToWindow() {
+        super.onAttachedToWindow()
+        if (!observingProfile) {
+            observingProfile = true
+            profileRepository.addActiveProfileListener(profileListener)
+        }
+    }
+
+    override fun onDetachedFromWindow() {
+        if (observingProfile) profileRepository.removeActiveProfileListener(profileListener)
+        observingProfile = false
+        super.onDetachedFromWindow()
+    }
+
+    private fun renderContinueCard() {
+        val target = RecentLearningResolver.resolve(
+            standardPaths = learningPaths,
+            karateBasics = karateBasics,
+            records = profileRepository.learningProgress(),
+            activeProfileExists = profileRepository.listProfiles().isNotEmpty(),
+        )
+        val content = ContinueLearningContent(
+            lessonTitle = target.activityTitle,
+            category = target.pathTitle,
+            currentStep = target.completedCount,
+            totalSteps = target.totalCount,
+            progressUnit = if (target is RecentLearningTarget.Draft) "activities" else "steps",
+            artwork = (target as? RecentLearningTarget.Standard)?.path?.artwork,
+            ensoVariant = (target as? RecentLearningTarget.Standard)?.path?.ensoVariant,
+        )
+        continueCardHost.removeAllViews()
+        continueCardHost.addView(
+            continueCard(content) { onContinue(target) },
+            FrameLayout.LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT),
+        )
     }
 
     private fun continueCard(content: ContinueLearningContent, onClick: () -> Unit) = card().apply {
@@ -122,13 +157,7 @@ class HomeScreenView(
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
 
-            // The artwork area is explicitly layered so future foreground art remains independent.
-            addView(FrameLayout(context).apply {
-                clipChildren = false
-                addView(EnsoBackgroundView(context).apply {
-                    setArtwork(continueEnso.variant, EnsoThemeTokens.ensoBaseColor)
-                }, FrameLayout.LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT))
-            }, LinearLayout.LayoutParams(0, 164.dp(), 0.38f).apply {
+            addView(continueArtwork(content), LinearLayout.LayoutParams(0, 164.dp(), 0.38f).apply {
                 marginEnd = 10.dp()
             })
 
@@ -164,9 +193,28 @@ class HomeScreenView(
         })
     }
 
+    private fun continueArtwork(content: ContinueLearningContent): View {
+        val artwork = content.artwork
+        val enso = content.ensoVariant
+        if (artwork != null && enso != null) {
+            return LearningPathArtworkView(context).apply { setPathArtwork(artwork, enso) }
+        }
+        return FrameLayout(context).apply {
+            addView(FrameLayout(context).apply {
+                background = GradientDrawable().apply {
+                    setColor(ContextCompat.getColor(context, R.color.progress_pale_fill))
+                    shape = GradientDrawable.OVAL
+                }
+                addView(AppIconView(context, AppIcon.KARATE, sizeDp = 58).apply {
+                    setIconColor(red)
+                }, FrameLayout.LayoutParams(58.dp(), 58.dp(), Gravity.CENTER))
+            }, FrameLayout.LayoutParams(112.dp(), 112.dp(), Gravity.CENTER))
+        }
+    }
+
     private fun progressCopy(content: ContinueLearningContent): SpannableString {
         val current = content.currentStep.coerceAtLeast(0).toString()
-        return SpannableString("$current of ${content.totalSteps.coerceAtLeast(0)} steps").apply {
+        return SpannableString("$current of ${content.totalSteps.coerceAtLeast(0)} ${content.progressUnit}").apply {
             setSpan(ForegroundColorSpan(red), 0, current.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
         }
     }
