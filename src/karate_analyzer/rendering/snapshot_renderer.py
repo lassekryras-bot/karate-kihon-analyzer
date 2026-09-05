@@ -11,6 +11,7 @@ from PIL import Image, ImageDraw, ImageFont
 
 from karate_analyzer.angle_analyzer import Point2D
 from karate_analyzer.frame_extractor import ExtractedFrameMetadata, extract_frame
+from karate_analyzer.frame_geometry import FrameGeometry
 from karate_analyzer.analyzers.jodan_height_analyzer import attach_jodan_height_analysis
 from karate_analyzer.session_analyzer import PunchAnalysis
 
@@ -86,6 +87,7 @@ class StrikeSnapshotRenderInstructions:
     jodan_height_analysis: dict[str, Any] | None = None
     impact_point: dict[str, Any] | None = None
     chin_reference: dict[str, Any] | None = None
+    frame_geometry: FrameGeometry | None = None
 
 
 def render_punch_snapshot(
@@ -143,9 +145,16 @@ def render_strike_snapshot(
     overlay = Image.new("RGBA", image.size, (0, 0, 0, 0))
     draw = ImageDraw.Draw(overlay)
 
-    points = _landmark_points(landmarks, image.size)
-    _draw_chin_reference(draw, instructions.chin_reference, image.size)
-    _draw_jodan_guides(draw, points, instructions, image.size)
+    geometry = instructions.frame_geometry or FrameGeometry.identity(*image.size)
+    if (geometry.saved_size.width, geometry.saved_size.height) != image.size:
+        raise ValueError(
+            "Saved frame dimensions do not match the frame geometry contract"
+        )
+    points = _landmark_points(landmarks, geometry)
+    _draw_body_connections(draw, points)
+    _draw_anatomical_landmarks(draw, points)
+    _draw_chin_reference(draw, instructions.chin_reference, geometry)
+    _draw_jodan_guides(draw, points, instructions, geometry)
     _draw_strike_text_panel(draw, instructions)
 
     return Image.alpha_composite(image, overlay).convert("RGB")
@@ -227,18 +236,17 @@ def _load_background_image(background_image: str | Path | Image.Image) -> Image.
 
 
 def _landmark_points(
-    landmarks: list[dict[str, Any]], image_size: tuple[int, int]
+    landmarks: list[dict[str, Any]], geometry: FrameGeometry
 ) -> dict[int, tuple[int, int]]:
-    width, height = image_size
     points = {}
     for landmark in landmarks:
         index = landmark.get("index")
         if index is None or landmark.get("x") is None or landmark.get("y") is None:
             continue
-        points[int(index)] = (
-            round(float(landmark["x"]) * width),
-            round(float(landmark["y"]) * height),
+        mapped = geometry.normalized_analysis_to_saved_pixels(
+            float(landmark["x"]), float(landmark["y"])
         )
+        points[int(index)] = tuple(map(round, mapped))
     return points
 
 
@@ -257,12 +265,23 @@ def _draw_all_landmarks(
         _draw_point(draw, point, _LANDMARK_COLOR, radius=_LANDMARK_RADIUS)
 
 
+def _draw_anatomical_landmarks(
+    draw: ImageDraw.ImageDraw, points: dict[int, tuple[int, int]]
+) -> None:
+    """Draw only body landmarks defined by the snapshot skeleton contract."""
+
+    body_indices = {index for connection in _BODY_CONNECTIONS for index in connection}
+    _draw_all_landmarks(
+        draw, {index: point for index, point in points.items() if index in body_indices}
+    )
+
+
 def _draw_chin_reference(
     draw: ImageDraw.ImageDraw,
     chin_reference: dict[str, Any] | None,
-    image_size: tuple[int, int],
+    geometry: FrameGeometry,
 ) -> None:
-    chin_point = _normalized_point_to_pixels(chin_reference, image_size)
+    chin_point = _normalized_point_to_pixels(chin_reference, geometry)
     if chin_point is None:
         return
     _draw_point(draw, chin_point, _CHIN_REFERENCE_COLOR, radius=_POINT_RADIUS)
@@ -278,16 +297,16 @@ def _draw_jodan_guides(
     draw: ImageDraw.ImageDraw,
     points: dict[int, tuple[int, int]],
     instructions: StrikeSnapshotRenderInstructions,
-    image_size: tuple[int, int],
+    geometry: FrameGeometry,
 ) -> None:
     analysis = instructions.jodan_height_analysis or {}
     jodan_reference = instructions.jodan_reference
     target_point = analysis.get("target_point") or jodan_reference
-    jodan_point = _normalized_point_to_pixels(target_point, image_size)
+    jodan_point = _normalized_point_to_pixels(target_point, geometry)
     if jodan_point is None:
         return
 
-    width, _height = image_size
+    width = geometry.saved_size.width
     draw.line(
         ((0, jodan_point[1]), (width, jodan_point[1])),
         fill=_JODAN_REFERENCE_LINE_COLOR,
@@ -295,15 +314,13 @@ def _draw_jodan_guides(
     )
 
     actual_start = _normalized_point_to_pixels(
-        analysis.get("actual_line_start"), image_size
+        analysis.get("actual_line_start"), geometry
     )
-    actual_end = _normalized_point_to_pixels(
-        analysis.get("actual_line_end"), image_size
-    )
+    actual_end = _normalized_point_to_pixels(analysis.get("actual_line_end"), geometry)
     ideal_start = _normalized_point_to_pixels(
-        analysis.get("ideal_line_start"), image_size
+        analysis.get("ideal_line_start"), geometry
     )
-    ideal_end = _normalized_point_to_pixels(analysis.get("ideal_line_end"), image_size)
+    ideal_end = _normalized_point_to_pixels(analysis.get("ideal_line_end"), geometry)
 
     if ideal_start is not None and ideal_end is not None:
         _draw_wide_line(draw, ideal_start, ideal_end, fill=_OPTIMAL_PUNCH_LINE_COLOR)
@@ -378,12 +395,14 @@ def _point_on_segment(
 
 
 def _normalized_point_to_pixels(
-    point: dict[str, Any] | None, image_size: tuple[int, int]
+    point: dict[str, Any] | None, geometry: FrameGeometry
 ) -> tuple[int, int] | None:
     if not point or point.get("x") is None or point.get("y") is None:
         return None
-    width, height = image_size
-    return round(float(point["x"]) * width), round(float(point["y"]) * height)
+    mapped = geometry.normalized_analysis_to_saved_pixels(
+        float(point["x"]), float(point["y"])
+    )
+    return tuple(map(round, mapped))
 
 
 def _jodan_height_color(status: str) -> str:
@@ -518,6 +537,9 @@ def _load_strike_landmark_events(analysis_path: str | Path) -> list[dict[str, An
         events = payload
     elif isinstance(payload, dict):
         events = payload.get("punch_event_landmarks", [])
+        geometry = payload.get("frame_geometry")
+        if geometry is not None:
+            events = [{**event, "frame_geometry": geometry} for event in events]
     else:
         events = []
     if not isinstance(events, list):
@@ -541,6 +563,11 @@ def _instructions_from_event(event: dict[str, Any]) -> StrikeSnapshotRenderInstr
         jodan_height_analysis=(event.get("analysis") or {}).get("jodan_height"),
         impact_point=event.get("impact_point"),
         chin_reference=event.get("chin_reference"),
+        frame_geometry=(
+            FrameGeometry.from_dict(event["frame_geometry"])
+            if event.get("frame_geometry") is not None
+            else None
+        ),
     )
 
 
@@ -560,6 +587,7 @@ def _with_timestamp_from_metadata(
         jodan_height_analysis=instructions.jodan_height_analysis,
         impact_point=instructions.impact_point,
         chin_reference=instructions.chin_reference,
+        frame_geometry=instructions.frame_geometry,
     )
 
 

@@ -7,6 +7,7 @@ from pathlib import Path
 from PIL import Image, ImageDraw
 
 from karate_analyzer.frame_extractor import ExtractedFrameMetadata
+from karate_analyzer.frame_geometry import AffineTransform2D, FrameGeometry, FrameSize
 from karate_analyzer.session_analyzer import analyze_session
 from karate_analyzer.rendering.snapshot_renderer import (
     StrikeSnapshotRenderInstructions,
@@ -156,6 +157,28 @@ def test_render_strike_snapshot_accepts_real_extracted_frame() -> None:
     assert image.mode == "RGB"
 
 
+def test_render_strike_snapshot_maps_landmark_through_explicit_frame_geometry() -> None:
+    background = Image.new("RGB", (200, 100), "gray")
+    instructions = replace(
+        _strike_instructions(),
+        jodan_reference={"x": 0.5, "y": 0.5},
+        frame_geometry=FrameGeometry(
+            FrameSize(100, 100),
+            FrameSize(200, 100),
+            AffineTransform2D(a=1, c=50),
+        ),
+    )
+
+    image = render_strike_snapshot(
+        background,
+        [{"index": 12, "x": 0.5, "y": 0.5, "visibility": 1.0}],
+        instructions,
+    )
+
+    # The reference maps to analysis pixel (50, 50), then saved (100, 50).
+    assert image.getpixel((100, 50)) != (128, 128, 128)
+
+
 def test_render_strike_snapshot_succeeds_with_jodan_reference() -> None:
     background = Image.new("RGB", (160, 120), "gray")
 
@@ -197,7 +220,9 @@ def test_render_strike_snapshot_does_not_draw_raw_nose_landmark_when_jodan_exist
     assert image.getpixel((20, 216)) == (128, 128, 128)
 
 
-def test_render_strike_snapshot_does_not_draw_legacy_head_reference_without_jodan() -> None:
+def test_render_strike_snapshot_does_not_draw_legacy_head_reference_without_jodan() -> (
+    None
+):
     background = Image.new("RGB", (200, 240), "gray")
     landmarks = [
         {"index": 0, "x": 0.10, "y": 0.90, "visibility": 0.95},
