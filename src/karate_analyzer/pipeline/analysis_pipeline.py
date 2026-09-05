@@ -66,6 +66,7 @@ def run_analysis_pipeline(
         rendered_paths=rendered_paths,
         output_directory=output_directory,
         expected_punch_count=int(extension_summary.get("expected_punch_count", 10)),
+        frame_geometry=video_payload.get("frame_geometry"),
     )
     summary = _build_summary(
         input_video=input_video,
@@ -102,6 +103,7 @@ def _build_analysis_results(
     rendered_paths: list[Path],
     output_directory: Path,
     expected_punch_count: int,
+    frame_geometry: dict[str, Any] | None,
 ) -> dict[str, Any]:
     snapshots = {
         index: _relative_path(path, output_directory)
@@ -156,6 +158,7 @@ def _build_analysis_results(
         "source_video": str(input_video),
         "expected_punch_count": expected_punch_count,
         "detected_punch_count": len(clean_events),
+        "frame_geometry": frame_geometry,
         "events": clean_events,
     }
 
@@ -200,6 +203,7 @@ def _build_summary(
         "pose_detector_backend": video_payload.get("pose_detector_backend"),
         "hand_detector_backend": video_payload.get("hand_detector_backend"),
         "face_detector_backend": video_payload.get("face_detector_backend"),
+        "frame_geometry": video_payload.get("frame_geometry"),
         "diagnostics": diagnostics,
         "expected_punch_count": extension_summary.get("expected_punch_count", 10),
         "detected_punch_count": analysis_results["detected_punch_count"],

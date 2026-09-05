@@ -146,10 +146,7 @@ def render_strike_snapshot(
     draw = ImageDraw.Draw(overlay)
 
     geometry = instructions.frame_geometry or FrameGeometry.identity(*image.size)
-    if (geometry.saved_size.width, geometry.saved_size.height) != image.size:
-        raise ValueError(
-            "Saved frame dimensions do not match the frame geometry contract"
-        )
+    geometry.validate_saved_size(*image.size)
     points = _landmark_points(landmarks, geometry)
     _draw_body_connections(draw, points)
     _draw_anatomical_landmarks(draw, points)
@@ -211,6 +208,7 @@ def render_strike_snapshots_from_analysis(
             )
         frame_path = frames / f"frame-{render_frame_number:06d}.png"
         metadata = extract_frame(video, render_frame_number, frame_path)
+        _validate_extracted_frame(metadata, render_frame_number, instructions)
         event = attach_jodan_height_analysis(event, image_height=metadata.frame_height)
         instructions = _with_timestamp_from_metadata(
             _instructions_from_event(event), metadata
@@ -534,17 +532,41 @@ def _format_reference_confidence(analysis: dict[str, Any]) -> str:
 def _load_strike_landmark_events(analysis_path: str | Path) -> list[dict[str, Any]]:
     payload = json.loads(Path(analysis_path).read_text(encoding="utf-8"))
     if isinstance(payload, list):
-        events = payload
+        raise ValueError("Analysis file must contain FrameGeometry metadata")
     elif isinstance(payload, dict):
         events = payload.get("punch_event_landmarks", [])
         geometry = payload.get("frame_geometry")
-        if geometry is not None:
-            events = [{**event, "frame_geometry": geometry} for event in events]
+        if not isinstance(geometry, dict):
+            raise ValueError(
+                "Analysis file is missing frame_geometry; rerun MediaPipe analysis "
+                "before rendering snapshots"
+            )
+        events = [{**event, "frame_geometry": geometry} for event in events]
     else:
         events = []
     if not isinstance(events, list):
         raise ValueError("Analysis file must contain a punch_event_landmarks list")
     return events
+
+
+def _validate_extracted_frame(
+    metadata: ExtractedFrameMetadata,
+    requested_frame_number: int,
+    instructions: StrikeSnapshotRenderInstructions,
+) -> None:
+    if (
+        metadata.actual_frame_number is not None
+        and metadata.actual_frame_number != requested_frame_number
+    ):
+        raise ValueError(
+            "Extracted frame does not match the analyzed frame: "
+            f"requested {requested_frame_number}, decoded {metadata.actual_frame_number}"
+        )
+    if instructions.frame_geometry is None:
+        raise ValueError("Production snapshot rendering requires FrameGeometry")
+    instructions.frame_geometry.validate_saved_size(
+        metadata.frame_width, metadata.frame_height
+    )
 
 
 def _instructions_from_event(event: dict[str, Any]) -> StrikeSnapshotRenderInstructions:

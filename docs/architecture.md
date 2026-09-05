@@ -87,8 +87,17 @@ Reports
 - Some events can be assigned to the wrong observed side.
 - Some Jodan results are unknown because `impact_point` is missing at the selected frame.
 - Face/chin reference may be unavailable when face landmarks are not detected.
-- Older artifacts do not contain `FrameGeometry`; renderers support identity
-  fallback for compatibility, but new vision output records the contract.
+- Older artifacts do not contain `FrameGeometry`. The production video-to-
+  snapshot workflow rejects them and asks for MediaPipe analysis to be rerun;
+  only direct renderer calls retain an explicit identity convenience for
+  synthetic images and isolated tests.
+- The analysis and extraction passes currently decode the same numbered source
+  frame separately. Frame number and dimensions are validated and decoder
+  timestamps are retained for comparison, but exact pixel identity is not yet
+  retained or hashed.
+- Existing image-space elbow and per-frame extension fields are detector
+  diagnostics, not yet the v1 Pose-world angle and time-based fist velocity
+  measurements.
 
 See [Reliable Explainable Straight-Punch Analysis v1](reliable-straight-punch-analysis-v1.md)
 for the current milestone boundary and implementation sequence.

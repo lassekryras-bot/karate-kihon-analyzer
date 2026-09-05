@@ -42,7 +42,18 @@ no resize, crop, rotation, mirroring, or letterboxing, so it records an identity
 transform and rejects changing decoded dimensions. Frame timestamps are
 MediaPipe inputs derived from decoder `POS_MSEC`, with frame-number/FPS fallback;
 snapshot selection and extraction are keyed by zero-based frame number. The
-renderer verifies the extracted dimensions against the recorded contract.
+production renderer requires the recorded contract, verifies the extracted
+frame number and dimensions, and rejects singular transforms or a serialized
+inverse that disagrees with the forward transform. Direct low-level renderer
+calls may still opt into an explicit identity geometry for isolated tests and
+synthetic images.
+
+Analysis and snapshot extraction currently use separate OpenCV decoder passes.
+Frame number and dimensions are validated, and decoder timestamps are retained
+for diagnostic comparison, but this does not prove that two decoder passes
+produced byte-identical pixels for every codec. If real-video validation exposes
+seek instability, the smallest next escalation is to retain or hash the exact
+analyzed frame—not to hide offsets in renderer corrections.
 
 Pose world landmarks remain a separate raw stream for future 3D biomechanical
 measurements. They must not enter `FrameGeometry`, be multiplied by image
@@ -92,9 +103,14 @@ dimensions, and unit-test identity, transformed, mirrored and inverse mapping.
 ### Phase B — measurement model
 
 Introduce the typed measurement envelope without changing current coaching
-outputs. Migrate the existing terminal elbow angle, execution time (strike-region
-start to terminal timestamp), and wrist/extension velocity as descriptive
-measurements with units and confidence.
+outputs. The existing `elbow_angle_degrees` is a normalized image-space event
+detector diagnostic, and `extension_velocity` is a per-frame change in normalized
+shoulder-to-wrist distance; neither should be silently relabeled as a Pose-world
+terminal angle or physical fist velocity. Add terminal Pose-world elbow angle,
+execution time (strike-region start to terminal decoder timestamp), and endpoint
+vertical error as new descriptive measurements with explicit units, coordinate
+space, confidence, and provenance. Add velocity only after time sampling and
+smoothing are specified.
 
 ### Phase C — endpoint and trajectory
 
@@ -108,7 +124,9 @@ population thresholds.
 Generate renderer-neutral primitives from the measurements: observed arm
 landmarks, target line/point, endpoint, shoulder-to-wrist line, trajectory,
 elbow-angle arc, deviation marker, and metric labels. The renderer only paints
-these primitives.
+these primitives. A 2D image-space elbow arc may explain landmark placement, but
+must not be presented as the geometric construction for a separately computed
+3D Pose-world angle.
 
 ### Phase E — repetition validation
 

@@ -5,6 +5,7 @@ from pathlib import Path
 
 import pytest
 
+from karate_analyzer.frame_geometry import FrameGeometry
 from karate_analyzer.vision import mediapipe_pose_spike as spike
 
 
@@ -57,13 +58,7 @@ def test_analyze_image_creates_output_directory_and_json(
 
     assert output_directory.is_dir()
     assert payload["pose_detected"] is True
-    assert payload["frame_geometry"] == {
-        "analysis_frame": {"width_px": 1, "height_px": 1},
-        "saved_frame": {"width_px": 1, "height_px": 1},
-        "analysis_to_saved_affine": [1.0, 0.0, 0.0, 0.0, 1.0, 0.0],
-        "operations": [],
-        "contract": "normalized_analysis -> analysis_pixels -> saved_pixels",
-    }
+    assert payload["frame_geometry"] == FrameGeometry.identity(1, 1).to_dict()
     json_payload = json.loads((output_directory / "image_landmarks.json").read_text())
     assert json_payload["poses"][0][0]["visibility"] == 0.9
     assert (output_directory / "image_landmarks.png").exists()
