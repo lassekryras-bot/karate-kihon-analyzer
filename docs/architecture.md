@@ -9,6 +9,7 @@ Vision Provider
   - MediaPipe Pose
   - MediaPipe Hands
   - optional Face Mesh / Face Landmarker
+  - explicit FrameGeometry contract
   ↓
 Raw Landmark Frames
   ↓
@@ -61,6 +62,14 @@ Reports
 - MediaPipe-specific index logic belongs only in vision/reference extraction modules.
 - Technique analyzers must consume domain-level references, not raw MediaPipe indices.
 - Renderers must not calculate technique status. They only visualize precomputed data.
+- MediaPipe image landmarks are the rendering source of truth. Pose world
+  landmarks are reserved for 3D measurement and must never be scaled by image
+  dimensions or drawn without an explicit world-to-image projection.
+- Analysis, saved/source, and preview coordinates are distinct spaces. Crop,
+  resize, rotation, mirroring, and letterboxing must be represented by an
+  explicit transform rather than renderer special cases.
+- Preserve the sequence `measurement -> derived flag -> interpretation ->
+  coaching feedback`; changing a coaching rule must not change the measurement.
 
 ## Current MVP flow
 
@@ -78,4 +87,8 @@ Reports
 - Some events can be assigned to the wrong observed side.
 - Some Jodan results are unknown because `impact_point` is missing at the selected frame.
 - Face/chin reference may be unavailable when face landmarks are not detected.
-- Pixel vs normalized result fields still need cleanup.
+- Older artifacts do not contain `FrameGeometry`; renderers support identity
+  fallback for compatibility, but new vision output records the contract.
+
+See [Reliable Explainable Straight-Punch Analysis v1](reliable-straight-punch-analysis-v1.md)
+for the current milestone boundary and implementation sequence.

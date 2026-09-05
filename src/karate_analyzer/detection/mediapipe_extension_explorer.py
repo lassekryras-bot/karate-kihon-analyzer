@@ -121,6 +121,7 @@ def analyze_extension_json(
         payload.get("frames", []),
         punch_event_payload["punch_event_candidates"],
     )
+    punch_event_landmark_payload["frame_geometry"] = payload.get("frame_geometry")
 
     summary = {
         "frame_count": payload.get("frame_count", len(extension_frames)),
@@ -221,10 +222,7 @@ def _extract_punch_event_landmarks(
         impact_point, impact_point_reason = strike_detector.validated_impact_point(
             frame, wrist
         )
-        if (
-            impact_point is None
-            or impact_point.get("source") == "pose_wrist_fallback"
-        ):
+        if impact_point is None or impact_point.get("source") == "pose_wrist_fallback":
             nearby_impact_point, nearby_reason = (
                 strike_detector.validated_nearby_impact_point(
                     raw_frames, analysis_frame_number, wrist

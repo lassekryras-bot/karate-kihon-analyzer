@@ -57,6 +57,13 @@ def test_analyze_image_creates_output_directory_and_json(
 
     assert output_directory.is_dir()
     assert payload["pose_detected"] is True
+    assert payload["frame_geometry"] == {
+        "analysis_frame": {"width_px": 1, "height_px": 1},
+        "saved_frame": {"width_px": 1, "height_px": 1},
+        "analysis_to_saved_affine": [1.0, 0.0, 0.0, 0.0, 1.0, 0.0],
+        "operations": [],
+        "contract": "normalized_analysis -> analysis_pixels -> saved_pixels",
+    }
     json_payload = json.loads((output_directory / "image_landmarks.json").read_text())
     assert json_payload["poses"][0][0]["visibility"] == 0.9
     assert (output_directory / "image_landmarks.png").exists()
@@ -270,7 +277,9 @@ def test_serialize_task_hands_maps_crop_coordinates_to_full_frame() -> None:
 def test_hand_crop_bounds_center_on_pose_wrists() -> None:
     import types
 
-    pose_landmarks = [types.SimpleNamespace(x=0.0, y=0.0, visibility=0.0) for _ in range(17)]
+    pose_landmarks = [
+        types.SimpleNamespace(x=0.0, y=0.0, visibility=0.0) for _ in range(17)
+    ]
     pose_landmarks[15] = types.SimpleNamespace(x=0.80, y=0.20, visibility=0.9)
     pose_landmarks[16] = types.SimpleNamespace(x=0.20, y=0.40, visibility=0.9)
 
@@ -282,7 +291,9 @@ def test_hand_crop_bounds_center_on_pose_wrists() -> None:
 def test_full_frame_hand_far_from_pose_wrists_is_not_plausible() -> None:
     import types
 
-    pose_landmarks = [types.SimpleNamespace(x=0.0, y=0.0, visibility=0.0) for _ in range(17)]
+    pose_landmarks = [
+        types.SimpleNamespace(x=0.0, y=0.0, visibility=0.0) for _ in range(17)
+    ]
     pose_landmarks[15] = types.SimpleNamespace(x=0.80, y=0.20, visibility=0.9)
     pose_landmarks[16] = types.SimpleNamespace(x=0.35, y=0.35, visibility=0.9)
     foot_false_positive = {
@@ -293,15 +304,18 @@ def test_full_frame_hand_far_from_pose_wrists_is_not_plausible() -> None:
         ]
     }
 
-    assert spike._hands_are_near_pose_wrists(
-        [foot_false_positive], [pose_landmarks]
-    ) is False
+    assert (
+        spike._hands_are_near_pose_wrists([foot_false_positive], [pose_landmarks])
+        is False
+    )
 
 
 def test_full_frame_hand_near_pose_wrist_is_plausible() -> None:
     import types
 
-    pose_landmarks = [types.SimpleNamespace(x=0.0, y=0.0, visibility=0.0) for _ in range(17)]
+    pose_landmarks = [
+        types.SimpleNamespace(x=0.0, y=0.0, visibility=0.0) for _ in range(17)
+    ]
     pose_landmarks[15] = types.SimpleNamespace(x=0.80, y=0.20, visibility=0.9)
     hand = {
         "landmarks": [
