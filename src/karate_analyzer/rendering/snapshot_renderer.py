@@ -88,6 +88,9 @@ class StrikeSnapshotRenderInstructions:
     impact_point: dict[str, Any] | None = None
     chin_reference: dict[str, Any] | None = None
     frame_geometry: FrameGeometry | None = None
+    target_estimate: dict[str, Any] | None = None
+    neutral_reference: dict[str, Any] | None = None
+    current_torso_axis: dict[str, Any] | None = None
 
 
 def render_punch_snapshot(
@@ -152,6 +155,7 @@ def render_strike_snapshot(
     _draw_anatomical_landmarks(draw, points)
     _draw_chin_reference(draw, instructions.chin_reference, geometry)
     _draw_jodan_guides(draw, points, instructions, geometry)
+    _draw_target_diagnostics(draw, instructions, geometry)
     _draw_strike_text_panel(draw, instructions)
 
     return Image.alpha_composite(image, overlay).convert("RGB")
@@ -353,6 +357,74 @@ def _draw_jodan_guides(
     )
 
 
+def _draw_target_diagnostics(draw, instructions, geometry: FrameGeometry) -> None:
+    """Draw optional source-pixel diagnostics through the saved-frame transform."""
+    estimate = instructions.target_estimate or {}
+    centre = _source_payload_to_saved(estimate.get("centre"), geometry)
+    upper = _source_payload_to_saved(estimate.get("upper_boundary"), geometry)
+    lower = _source_payload_to_saved(estimate.get("lower_boundary"), geometry)
+    if upper and lower:
+        # Boundaries are perpendicular to the fixed neutral axis, not image-y.
+        neutral = instructions.neutral_reference or {}
+        axis = neutral.get("vertical_axis") or (0, -1)
+        half_width = max(20.0, float(neutral.get("torso_scale_px", 80)) * 0.6)
+        perpendicular = (-float(axis[1]) * half_width, float(axis[0]) * half_width)
+        boundary_lines = []
+        for boundary in (lower, upper):
+            boundary_lines.append(
+                (
+                    (
+                        round(boundary[0] - perpendicular[0]),
+                        round(boundary[1] - perpendicular[1]),
+                    ),
+                    (
+                        round(boundary[0] + perpendicular[0]),
+                        round(boundary[1] + perpendicular[1]),
+                    ),
+                )
+            )
+        draw.polygon(
+            (
+                boundary_lines[0][0],
+                boundary_lines[0][1],
+                boundary_lines[1][1],
+                boundary_lines[1][0],
+            ),
+            fill=(255, 210, 0, 42),
+        )
+        for line in boundary_lines:
+            draw.line(line, fill=(255, 210, 0, 150), width=2)
+    if centre:
+        _draw_point(draw, centre, _IDEAL_TARGET_POINT_COLOR, radius=_POINT_RADIUS + 2)
+    neutral = instructions.neutral_reference or {}
+    origin = _source_payload_to_saved(neutral.get("origin"), geometry)
+    axis = neutral.get("vertical_axis")
+    if origin and isinstance(axis, (list, tuple)) and len(axis) == 2:
+        endpoint = geometry.analysis_to_saved.apply(
+            float(neutral["origin"]["x"]) + float(axis[0]) * 80,
+            float(neutral["origin"]["y"]) + float(axis[1]) * 80,
+        )
+        draw.line((origin, tuple(map(round, endpoint))), fill="#00E5FF", width=3)
+    current = instructions.current_torso_axis or {}
+    current_start = _source_payload_to_saved(current.get("origin"), geometry)
+    current_end = _source_payload_to_saved(current.get("end"), geometry)
+    if current_start and current_end:
+        draw.line((current_start, current_end), fill="#FF5A1F", width=2)
+
+
+def _source_payload_to_saved(point, geometry: FrameGeometry):
+    if not isinstance(point, dict) or point.get("x") is None or point.get("y") is None:
+        return None
+    if point.get("coordinate_frame", "source_image_pixels") != "source_image_pixels":
+        return None
+    return tuple(
+        map(
+            round,
+            geometry.analysis_to_saved.apply(float(point["x"]), float(point["y"])),
+        )
+    )
+
+
 def _draw_wide_line(
     draw: ImageDraw.ImageDraw,
     start: tuple[int, int],
@@ -488,6 +560,21 @@ def _draw_strike_text_panel(
         lines.append(f"Reference confidence: {_format_reference_confidence(analysis)}")
         if analysis.get("unknown_reason"):
             lines.append(f"Unknown reason: {analysis['unknown_reason']}")
+    target = instructions.target_estimate or {}
+    if target:
+        lines.extend(
+            [
+                f"Target: {target.get('target_id', 'Unknown')}",
+                f"Target source: {target.get('source', 'Unknown')}",
+                f"Target confidence: {target.get('confidence', 'Unknown')}",
+                f"Coordinate frame: {target.get('coordinate_frame', 'Unknown')}",
+            ]
+        )
+        warnings = target.get("quality_warnings") or []
+        if warnings:
+            lines.append(f"Warnings: {', '.join(map(str, warnings))}")
+        if target.get("scoring_withheld_reason"):
+            lines.append(f"Abstention: {target['scoring_withheld_reason']}")
     x, y = _TEXT_ORIGIN
     line_height = _TEXT_LINE_SPACING
     panel_width = max(_text_length(font, line) for line in lines) + 20
@@ -590,6 +677,9 @@ def _instructions_from_event(event: dict[str, Any]) -> StrikeSnapshotRenderInstr
             if event.get("frame_geometry") is not None
             else None
         ),
+        target_estimate=event.get("target_estimate"),
+        neutral_reference=event.get("neutral_reference"),
+        current_torso_axis=event.get("current_torso_axis"),
     )
 
 
@@ -610,6 +700,9 @@ def _with_timestamp_from_metadata(
         impact_point=instructions.impact_point,
         chin_reference=instructions.chin_reference,
         frame_geometry=instructions.frame_geometry,
+        target_estimate=instructions.target_estimate,
+        neutral_reference=instructions.neutral_reference,
+        current_torso_axis=instructions.current_torso_axis,
     )
 
 

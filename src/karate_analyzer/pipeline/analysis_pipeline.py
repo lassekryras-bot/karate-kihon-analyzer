@@ -67,6 +67,7 @@ def run_analysis_pipeline(
         output_directory=output_directory,
         expected_punch_count=int(extension_summary.get("expected_punch_count", 10)),
         frame_geometry=video_payload.get("frame_geometry"),
+        target_height=punch_event_payload.get("target_height"),
     )
     summary = _build_summary(
         input_video=input_video,
@@ -104,6 +105,7 @@ def _build_analysis_results(
     output_directory: Path,
     expected_punch_count: int,
     frame_geometry: dict[str, Any] | None,
+    target_height: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     snapshots = {
         index: _relative_path(path, output_directory)
@@ -151,6 +153,7 @@ def _build_analysis_results(
                 "chin_reference": event.get("chin_reference"),
                 "jodan_reference": event.get("jodan_reference"),
                 "analysis": event.get("analysis", {}),
+                "target_height_diagnostic": event.get("target_height_diagnostic"),
                 "snapshot_path": snapshots.get(position),
             }
         )
@@ -159,6 +162,7 @@ def _build_analysis_results(
         "expected_punch_count": expected_punch_count,
         "detected_punch_count": len(clean_events),
         "frame_geometry": frame_geometry,
+        "target_height": target_height,
         "events": clean_events,
     }
 
