@@ -123,6 +123,7 @@ def test_end_to_end_timeline_reuses_neutral_and_locks_each_repetition():
             "strike_region_start_frame": 6,
             "analysis_frame": {"frame_number": 8, "reason": "theoretical_impact"},
             "analysis_frame_number": 7,
+            "snapshot_frame": {"frame_number": 9, "reason": "visual_quality"},
         },
         {
             "event_index": 2,
@@ -153,6 +154,8 @@ def test_end_to_end_timeline_reuses_neutral_and_locks_each_repetition():
     }
     assert diagnostic["tracked_origin_displacement"]["x"] == pytest.approx(10)
     assert diagnostic["torso_lean_difference_degrees"] > 0
+    assert diagnostic["snapshot_overlay_allowed"] is False
+    assert diagnostic["snapshot_overlay_warning"] == "TARGET_DIAGNOSTIC_FRAME_MISMATCH"
     estimate = events[0]["target_estimate"]
     assert estimate["coaching_allowed"] is False
     assert (
@@ -269,6 +272,25 @@ def test_overlay_is_suppressed_when_snapshot_and_measurement_frames_differ():
     assert instructions.neutral_reference is None
     assert instructions.current_torso_axis is None
     assert instructions.target_overlay_warning == "TARGET_DIAGNOSTIC_FRAME_MISMATCH"
+    assert instructions.jodan_height_analysis == {"status": "good"}
+
+
+def test_overlay_is_suppressed_when_measurement_provenance_is_missing():
+    event = {
+        "event_index": 1,
+        "observed_side": "right",
+        "analysis_frame_number": 8,
+        "snapshot_frame_number": 8,
+        "analysis": {"jodan_height": {"status": "good"}},
+        "target_estimate": {"centre": {"x": 10, "y": 20}},
+        "target_height_diagnostic": {"status": "PROVISIONAL_DIAGNOSTIC_ONLY"},
+    }
+    instructions = _instructions_from_event(event)
+    assert instructions.target_estimate is None
+    assert (
+        instructions.target_overlay_warning
+        == "TARGET_DIAGNOSTIC_FRAME_PROVENANCE_MISSING"
+    )
     assert instructions.jodan_height_analysis == {"status": "good"}
 
 

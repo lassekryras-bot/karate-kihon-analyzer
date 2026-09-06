@@ -242,6 +242,14 @@ def attach_target_height_diagnostics(
             estimate = controller.target_for_origin(origin)
             dx, dy = origin.x - neutral.origin.x, origin.y - neutral.origin.y
             lean = _axis_angle(neutral.vertical_axis, axis)
+            snapshot_frame_number = _canonical_frame_number(event, "snapshot")
+            if snapshot_frame_number is None:
+                snapshot_frame_number = analysis_frame_number
+            overlay_warning = (
+                "TARGET_DIAGNOSTIC_FRAME_MISMATCH"
+                if snapshot_frame_number != analysis_frame_number
+                else None
+            )
             event["target_estimate"] = estimate.to_debug_dict()
             event["neutral_reference"] = neutral_debug
             event["current_torso_axis"] = _axis_debug(
@@ -264,6 +272,8 @@ def attach_target_height_diagnostics(
                     "coordinate_frame": CoordinateFrame.SOURCE_IMAGE_PIXELS.value,
                     "transport_to_snapshot": "none",
                 },
+                "snapshot_overlay_allowed": overlay_warning is None,
+                "snapshot_overlay_warning": overlay_warning,
                 "tracked_origin_displacement": {
                     "x": dx,
                     "y": dy,

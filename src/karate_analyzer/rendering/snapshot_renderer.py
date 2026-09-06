@@ -578,10 +578,12 @@ def _draw_strike_text_panel(
     if target:
         lines.extend(
             [
-                f"Target: {target.get('target_id', 'Unknown')}",
+                "Provisional locked target zone",
+                f"Target ID: {target.get('target_id', 'Unknown')}",
                 f"Target source: {target.get('source', 'Unknown')}",
                 f"Target confidence: {target.get('confidence', 'Unknown')}",
                 f"Coordinate frame: {target.get('coordinate_frame', 'Unknown')}",
+                f"Coaching allowed: {str(bool(target.get('coaching_allowed', False))).lower()}",
             ]
         )
         warnings = target.get("quality_warnings") or []
@@ -686,13 +688,16 @@ def _instructions_from_event(event: dict[str, Any]) -> StrikeSnapshotRenderInstr
     diagnostic = event.get("target_height_diagnostic") or {}
     provenance = diagnostic.get("geometry_provenance") or {}
     registered_frame = provenance.get("measurement_frame_number")
+    diagnostic_warning = diagnostic.get("snapshot_overlay_warning")
     if target_estimate and (
-        registered_frame is None or registered_frame != snapshot_frame_number
+        diagnostic_warning
+        or registered_frame is None
+        or registered_frame != snapshot_frame_number
     ):
         target_estimate = None
         neutral_reference = None
         current_torso_axis = None
-        target_overlay_warning = (
+        target_overlay_warning = diagnostic_warning or (
             "TARGET_DIAGNOSTIC_FRAME_MISMATCH"
             if registered_frame is not None
             else "TARGET_DIAGNOSTIC_FRAME_PROVENANCE_MISSING"

@@ -137,6 +137,10 @@ uses `snapshot_frame`. It draws the provisional locked target zone and torso
 axes only when that frame equals the registered measurement frame. Otherwise it
 suppresses only those diagnostic layers and reports
 `TARGET_DIAGNOSTIC_FRAME_MISMATCH`; existing Jōdan content remains available.
+Missing measurement-frame provenance similarly suppresses those layers with
+`TARGET_DIAGNOSTIC_FRAME_PROVENANCE_MISSING`. The developer panel calls the
+second visualization “Provisional locked target zone” and continues to display
+that coaching is not allowed, distinguishing it from the “Jōdan reference”.
 Legacy events without structured frame objects continue to use their numbered
 analysis frame, and use that same frame as the snapshot fallback.
 
