@@ -5,5 +5,7 @@ __pycache__/
 *.egg-info/
 .idea/
 android/.idea/
+.vs/
+.codex-remote-attachments/
 debug_run_main.py
 temp_*.py

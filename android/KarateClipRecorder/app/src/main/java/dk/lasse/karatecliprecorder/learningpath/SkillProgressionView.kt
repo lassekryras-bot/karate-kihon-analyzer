@@ -16,13 +16,11 @@ import android.widget.ProgressBar
 import android.widget.ScrollView
 import android.widget.TextView
 import androidx.core.content.ContextCompat
-import androidx.core.view.ViewCompat
-import androidx.core.view.WindowInsetsCompat
-import dk.lasse.karatecliprecorder.AppBottomNavigationView
-import dk.lasse.karatecliprecorder.AppDestination
 import dk.lasse.karatecliprecorder.AppIcon
 import dk.lasse.karatecliprecorder.AppIconView
 import dk.lasse.karatecliprecorder.R
+import dk.lasse.karatecliprecorder.StickyHeaderPageLayout
+import dk.lasse.karatecliprecorder.SubPageHeader
 import dk.lasse.karatecliprecorder.learningartwork.LearningPathArtworkView
 
 class SkillProgressionView(
@@ -30,10 +28,6 @@ class SkillProgressionView(
     private val path: LearningPath,
     onBack: () -> Unit,
     onStart: (LearningDestination) -> Unit,
-    onHome: () -> Unit,
-    onTrain: () -> Unit,
-    onProgress: () -> Unit,
-    onSettings: () -> Unit,
 ) : FrameLayout(context) {
     private val red = ContextCompat.getColor(context, R.color.progress_red)
     private val gray = ContextCompat.getColor(context, R.color.progress_gray)
@@ -61,12 +55,10 @@ class SkillProgressionView(
         }
         val content = LinearLayout(context).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(16.dp(), 8.dp(), 16.dp(), 112.dp())
-            addView(topBar(onBack))
             addView(pathHeader(), LinearLayout.LayoutParams(
                 LayoutParams.MATCH_PARENT,
                 LayoutParams.WRAP_CONTENT,
-            ).apply { topMargin = 8.dp() })
+            ))
             addView(label("Your learning path", 21f, Typeface.BOLD).apply {
                 setPadding(2.dp(), 24.dp(), 0, 8.dp())
             })
@@ -77,59 +69,25 @@ class SkillProgressionView(
             ))
         }
 
-        val scroller = ScrollView(context).apply {
-            isFillViewport = true
-            clipToPadding = false
-            addView(content)
-        }
-        addView(scroller, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT))
+        val pageLayout = StickyHeaderPageLayout(
+            context = context,
+            header = SubPageHeader(context, "Skill Progression", onBack = onBack),
+            body = content,
+            horizontalContentPaddingDp = 16,
+            topContentPaddingDp = 8,
+            bottomContentClearanceDp = 28,
+        )
+        val scroller = pageLayout.scroller
+        addView(pageLayout, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT))
         content.addOnLayoutChangeListener { _, _, _, _, _, _, _, _, _ ->
             val remainingViewportHeight = (
-                scroller.height - timeline.top - content.paddingBottom
+                scroller.height - timeline.top - pageLayout.content.paddingBottom
             ).coerceAtLeast(0)
             if (timeline.minimumHeight != remainingViewportHeight) {
                 timeline.minimumHeight = remainingViewportHeight
             }
         }
 
-        val navigation = AppBottomNavigationView(
-            context = context,
-            selectedDestination = AppDestination.TRAIN,
-            onHome = onHome,
-            onTrain = onTrain,
-            onProgress = onProgress,
-            onSettings = onSettings,
-        )
-        addView(navigation, LayoutParams(
-            LayoutParams.MATCH_PARENT,
-            AppBottomNavigationView.BASE_HEIGHT_DP.dp(),
-            Gravity.BOTTOM,
-        ))
-
-        ViewCompat.setOnApplyWindowInsetsListener(this) { _, insets ->
-            val systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
-            val navigationBars = insets.getInsets(WindowInsetsCompat.Type.navigationBars())
-            content.setPadding(16.dp(), systemBars.top + 8.dp(), 16.dp(), navigationBars.bottom + 112.dp())
-            insets
-        }
-        ViewCompat.requestApplyInsets(this)
-    }
-
-    private fun topBar(onBack: () -> Unit) = FrameLayout(context).apply {
-        addView(label("‹", 42f, Typeface.NORMAL, Gravity.CENTER).apply {
-            isClickable = true
-            isFocusable = true
-            contentDescription = "Back to Learn"
-            setOnClickListener { onBack() }
-        }, FrameLayout.LayoutParams(52.dp(), 54.dp(), Gravity.START or Gravity.CENTER_VERTICAL))
-        addView(label("Skill Progression", 21f, Typeface.BOLD, Gravity.CENTER), FrameLayout.LayoutParams(
-            LayoutParams.MATCH_PARENT,
-            54.dp(),
-            Gravity.CENTER,
-        ).apply {
-            marginStart = 54.dp()
-            marginEnd = 54.dp()
-        })
     }
 
     private fun pathHeader() = card(strokeColor = border).apply {
@@ -163,10 +121,6 @@ class SkillProgressionView(
         card(strokeColor = if (step.progressState == LearningProgressState.CURRENT) red else border).apply {
             setCardContentPadding(12.dp(), 12.dp(), 12.dp(), 12.dp())
             gravity = Gravity.CENTER_VERTICAL
-            addView(label(step.number.toString(), 16f, Typeface.BOLD, Gravity.TOP or Gravity.CENTER_HORIZONTAL), LayoutParams(
-                34.dp(),
-                LayoutParams.MATCH_PARENT,
-            ))
             addView(LinearLayout(context).apply {
                 orientation = LinearLayout.VERTICAL
                 addView(label(step.title, 17f, Typeface.BOLD))
@@ -191,6 +145,11 @@ class SkillProgressionView(
             }, LinearLayout.LayoutParams(0, LayoutParams.WRAP_CONTENT, 1f))
             if (step.progressState == LearningProgressState.COMPLETED) {
                 addView(AppIconView(context, AppIcon.CHEVRON_RIGHT).apply { setIconColor(ink) }, LayoutParams(24.dp(), 42.dp()))
+            }
+            step.destination?.takeIf { step.progressState != LearningProgressState.LOCKED }?.let { destination ->
+                isClickable = true
+                isFocusable = true
+                setOnClickListener { onStart(destination) }
             }
         }
 
@@ -272,7 +231,7 @@ internal object ProgressionGapCalculator {
  * Cards own the geometry. This layout measures every card first, derives a clamped gap from the
  * remaining height, then anchors markers and connector segments to the measured card positions.
  */
-private class ProgressionTimelineLayout(
+internal class ProgressionTimelineLayout(
     context: Context,
     private val red: Int,
     private val gray: Int,
@@ -300,7 +259,16 @@ private class ProgressionTimelineLayout(
     }
 
     fun addProgressCard(card: View, type: LearningStepType, state: LearningProgressState) {
-        val marker = ProgressMarkerView(context).apply { setMarker(type, state) }
+        addProgressCard(card, type, state, animateCompletion = false)
+    }
+
+    fun addProgressCard(
+        card: View,
+        type: LearningStepType,
+        state: LearningProgressState,
+        animateCompletion: Boolean,
+    ) {
+        val marker = ProgressMarkerView(context).apply { setMarker(type, state, animateCompletion) }
         entries += Entry(card, marker, type, state)
         addView(marker)
         addView(card)

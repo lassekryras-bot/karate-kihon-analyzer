@@ -7,10 +7,9 @@ import android.view.Gravity
 import android.view.ViewGroup
 import android.widget.FrameLayout
 import android.widget.LinearLayout
-import android.widget.ScrollView
 import android.widget.TextView
-import androidx.core.view.ViewCompat
-import androidx.core.view.WindowInsetsCompat
+import dk.lasse.karatecliprecorder.StickyHeaderPageLayout
+import dk.lasse.karatecliprecorder.SubPageHeader
 import dk.lasse.karatecliprecorder.learningartwork.LearningActivityType
 import dk.lasse.karatecliprecorder.learningartwork.LearningArtworkForeground
 import dk.lasse.karatecliprecorder.learningartwork.LearningPathArtworkView
@@ -27,29 +26,6 @@ class EnsoDebugGalleryView(
         setBackgroundColor(Color.rgb(252, 250, 247))
         val content = LinearLayout(context).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(16.dp(), 12.dp(), 16.dp(), 24.dp())
-            addView(TextView(context).apply {
-                text = "‹ Back"
-                textSize = 17f
-                setTextColor(Color.rgb(190, 0, 12))
-                gravity = Gravity.CENTER_VERTICAL
-                isClickable = true
-                isFocusable = true
-                contentDescription = "Close learning UI gallery"
-                setOnClickListener { onClose() }
-            }, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 48.dp()))
-            addView(TextView(context).apply {
-                text = "Learning UI gallery"
-                textSize = 26f
-                typeface = Typeface.DEFAULT_BOLD
-                setTextColor(Color.rgb(24, 24, 24))
-            })
-            addView(TextView(context).apply {
-                text = "Path identities, all seven marker states, and the 20-variant Ensō library"
-                textSize = 14f
-                setTextColor(Color.rgb(92, 92, 92))
-                setPadding(0, 4.dp(), 0, 8.dp())
-            })
             addView(sectionHeading("PATH ARTWORK"))
             addView(pathArtworkPreview())
             addView(sectionHeading("PROGRESS MARKERS"))
@@ -66,17 +42,19 @@ class EnsoDebugGalleryView(
             })
             EnsoVariant.all.forEach { variant -> addView(comparisonRow(variant)) }
         }
-        addView(ScrollView(context).apply {
-            isFillViewport = true
-            addView(content)
-        }, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT))
-
-        ViewCompat.setOnApplyWindowInsetsListener(this) { _, insets ->
-            val bars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
-            content.setPadding(16.dp(), bars.top + 12.dp(), 16.dp(), bars.bottom + 24.dp())
-            insets
-        }
-        ViewCompat.requestApplyInsets(this)
+        addView(StickyHeaderPageLayout(
+            context = context,
+            header = SubPageHeader(
+                context = context,
+                title = "Learning UI gallery",
+                subtitle = "Path identities, marker states, and the Ensō library",
+                onBack = onClose,
+            ),
+            body = content,
+            horizontalContentPaddingDp = 16,
+            topContentPaddingDp = 12,
+            bottomContentClearanceDp = 24,
+        ), LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT))
     }
 
     private fun sectionHeading(copy: String) = TextView(context).apply {
