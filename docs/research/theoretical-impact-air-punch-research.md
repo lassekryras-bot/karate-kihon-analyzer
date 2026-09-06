@@ -19,12 +19,14 @@ For some punches, peak velocity and theoretical impact may fall in adjacent fram
 ## Definitions
 
 - `theoretical_impact_time`: estimated continuous-time first arrival at the functional endpoint, based on motion geometry; never evidence of physical contact.
-- `impact_frame`: decoded frame nearest `theoretical_impact_time` that meets minimum event confidence.
+- `impact_frame`: decoded frame temporally nearest `theoretical_impact_time`. Landmark quality can lower confidence or make the event unavailable, but must not move this frame later into a clearer terminal pose.
 - `impact_point`: estimated striking location on the fist at theoretical impact. Pose alone supplies wrist landmarks, not a reliable knuckle contact surface; this point may therefore be derived or explicitly marked as approximate.
 - `target_height` or `target_line`: intended vertical level, such as Jodan. A height line alone does not define depth along the punch direction and cannot prove target arrival.
 - `terminal_pose_start`: first frame of a sustained low-motion endpoint interval.
-- `analysis_frame`: best-quality frame in a small neighborhood around impact for static measurements and the annotated snapshot.
-- `physical_contact`: separately observed event requiring a target, force/acceleration signal, audio/visual contact evidence, or another validated contact detector.
+- `measurement_window`: timestamp-bounded samples around the event used for dynamic measurements such as velocity, trajectory, and timing.
+- `analysis_frame`: explicitly selected frame used for measurements that require one decoded image. Its timestamp and offset from theoretical impact must be reported.
+- `snapshot_frame`: frame chosen for the human-readable annotated image. It may equal the analysis frame, but that relationship must be explicit; visual quality must not rewrite the event or analysis timestamps.
+- `physical_contact_status`: tri-state observation (`not_assessed`, `not_detected`, or `detected`) requiring a target, force/acceleration signal, audio/visual contact evidence, or another validated contact detector. `not_assessed` is not evidence that contact did not occur.
 
 ## Evidence and interpretation
 
@@ -67,9 +69,11 @@ The event timestamp should be the earliest credible arrival, not the center or e
 - Short endpoint and hold: choose the start of the endpoint plateau, not its clearest middle or last frame.
 - Noisy or ambiguous terminal motion: combine position, elbow angle, signed velocity, deceleration, trajectory direction, and quality in a confidence score. If ambiguity remains, label impact as low confidence or unavailable instead of silently selecting a late pose.
 
-### 5. Choose the analysis frame separately
+### 5. Choose analysis and snapshot frames separately
 
-Search only a bounded neighborhood around impact, initially ±2-3 frames at 30 fps (about ±67-100 ms), and select the frame with the best landmark quality and least blur while preserving the same movement phase. If no acceptable frame exists in that window, either use the impact frame with a quality warning or report a `terminal_pose_frame` separately. A frame about 0.5 s later must not supply dynamic impact measurements and should not be described as impact.
+Define the neighborhood in time, initially about ±75 ms, and convert it to samples using actual decoder timestamps rather than a fixed frame count. Select an analysis frame only when a measurement genuinely requires one image; preserve its time and offset from impact. Dynamic measurements must use the timestamped measurement window, not a later representative frame.
+
+Choose the annotated snapshot independently within the same bounded movement phase. It may reuse the analysis frame when suitable, but a clearer later image must be labeled `snapshot_frame` or `terminal_pose_frame`, with its offset shown. If no acceptable nearby image exists, use the impact frame with a quality warning or omit the snapshot. A frame about 0.5 s later must not supply dynamic impact measurements and must not be described as impact.
 
 ## Confidence model
 
@@ -81,23 +85,29 @@ Use an event-level score with auditable components rather than a single opaque s
 - target evidence: calibrated plane crossing when available;
 - ambiguity penalty: multiple near-equal terminal candidates, long hold, occlusion, motion blur, or implausible bone-length jumps.
 
-Store both total confidence and component scores. Do not interpret MediaPipe visibility as event confidence.
+Until confidence has been calibrated against labeled video, report an ordinal level such as `high`, `medium`, or `low` together with the component evidence. If a numeric prototype score is retained internally, name it `uncalibrated_confidence_score` and do not present it as a probability. Do not interpret MediaPipe visibility as event confidence.
 
 ## Data model and reporting
 
 Minimum event fields:
 
-- `theoretical_impact_time_ms`, `impact_frame_index`, `impact_estimation_method`, `impact_confidence`;
+- `theoretical_impact_time_ms`, `impact_frame_index`, `impact_estimation_method`, `impact_confidence_level`;
 - `peak_velocity_time_ms`, `peak_velocity_frame_index`;
 - `terminal_pose_start_ms`, `retraction_start_ms`;
+- `measurement_window_start_ms`, `measurement_window_end_ms`;
 - `analysis_time_ms`, `analysis_frame_index`, `analysis_frame_reason`;
 - `analysis_offset_from_impact_ms`, `analysis_phase`;
-- `physical_contact_detected` with detector and confidence, defaulting to false/not assessed;
+- `snapshot_time_ms`, `snapshot_frame_index`, `snapshot_frame_reason`, `snapshot_offset_from_impact_ms`;
+- `physical_contact_status` (`not_assessed`, `not_detected`, or `detected`), plus detector and confidence when assessed;
 - raw/filtered signal version, coordinate space, FPS/timestamp source, and quality flags.
 
 User-facing wording:
 
-“Estimated theoretical impact at 3.267 s (frame 98, confidence 0.82). Measurements use frame 100, 67 ms later, because wrist visibility was higher. No physical contact was assessed.”
+“Estimated theoretical impact at 3.267 s (frame 98, medium confidence). A static measurement uses frame 100, 67 ms later, because wrist visibility was higher. Dynamic measurements use the timestamped event window. Physical contact was not assessed.”
+
+If the display image differs again:
+
+“Annotated snapshot uses frame 99, 33 ms after estimated theoretical impact. It is a visual explanation frame, not a revised impact time.”
 
 For a late held pose:
 
@@ -105,7 +115,7 @@ For a late held pose:
 
 ## Consequences for punches 7 and 10
 
-The roughly half-second gap is too large to treat as a normal nearby quality substitution. Preserve the early candidate as the provisional theoretical-impact event if it satisfies the revised multi-signal criteria. Reclassify the late selected frames as `terminal_pose_frame` or snapshot-only frames. Recompute execution time, velocity, trajectory, and sequencing from the impact event. Static alignment from the late frame may be displayed separately only with its phase and offset made explicit.
+The roughly half-second gap is too large to treat as a normal nearby quality substitution. Preserve the early candidate as the provisional theoretical-impact event if it satisfies the revised multi-signal criteria. Reclassify the late selected frames as `terminal_pose_frame` or snapshot-only frames. Recompute execution time, velocity, trajectory, and sequencing from the event-aligned measurement window. Static alignment from the late frame may be displayed separately only with its phase and offset made explicit.
 
 ## Validation plan
 
@@ -118,7 +128,7 @@ The roughly half-second gap is too large to treat as a normal nearby quality sub
 
 ## Decision
 
-Adopt the conceptual model with one refinement: the canonical object should be `theoretical_impact_event`, containing a continuous timestamp and its nearest `impact_frame`. Keep `impact_frame` in UI and code for convenience. Separate `analysis_frame`, `terminal_pose_frame`, and `physical_contact`. This preserves the karate meaning of impact while preventing the selector from rewriting movement timing for snapshot quality.
+Adopt the conceptual model with one refinement: the canonical object should be `theoretical_impact_event`, containing a continuous timestamp and its temporally nearest `impact_frame`. Keep `impact_frame` in UI and code for convenience. Separate the event, timestamped measurement window, `analysis_frame`, `snapshot_frame`, `terminal_pose_frame`, and `physical_contact_status`. This preserves the karate meaning of impact while preventing measurement or presentation selectors from rewriting movement timing.
 
 ## Limitations
 
@@ -127,7 +137,7 @@ No published consensus definition was found for “impact” in an unopposed air
 ## Sources and claim ledger
 
 1. Liu, Y. et al. (2022). “Biomechanics of the lead straight punch of different level boxers.” Frontiers in Physiology. https://doi.org/10.3389/fphys.2022.1015154 — synchronized target/contact and Vicon definitions; peak versus contact velocity.
-2. Adamec, J. et al. (2020). “Biomechanical assessment of various punching techniques.” International Journal of Environmental Research and Public Health. https://doi.org/10.3390/ijerph17217848 — velocity over the final 10 cm before pad contact.
+2. Adamec, J. et al. (2021; published online 2020). “Biomechanical assessment of various punching techniques.” International Journal of Legal Medicine, 135(3), 853-859. https://doi.org/10.1007/s00414-020-02440-8 — velocity over the final 10 cm before pad contact.
 3. Hofmann, M., Witte, K., & Emmermacher, P. (2008). “Biomechanical analysis of fist punch Gyaku-Zuki in karate.” ISBS Proceedings Archive. https://ojs.ub.uni-konstanz.de/cpa/article/view/1937 — sub-400 ms movement and about 8 m/s fist maxima in three karateka.
 4. Suwarganda, E. K. et al. (2009). “Analysis of performance of the karate punch (Gyaku-Zuki).” ISBS Proceedings Archive. https://ojs.ub.uni-konstanz.de/cpa/article/view/3410 — joint-velocity sequencing and 3D analysis at 150 Hz in elite karate athletes.
 5. Mele, C. et al. (2026). “A longitudinal study on karate parallel punch and front kick biomechanics.” Journal of Martial Arts Research. https://doi.org/10.25847/jomar.2026.63 — air-punch endpoint, expert late peak-velocity timing, and limitations of no-target collection. Small sample; used cautiously.
