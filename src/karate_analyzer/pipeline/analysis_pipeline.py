@@ -241,21 +241,32 @@ def _build_report(summary: dict[str, Any], analysis_results: dict[str, Any]) -> 
         "",
         "## Strike Events",
         "",
-        "| # | Expected side | Observed side | Frame | Time | Jodan height | Snapshot |",
-        "|---|---------------|---------------|-------|------|--------------|----------|",
+        "The candidate peak frame is the detector's region peak. The selected "
+        "analysis frame and time identify the frame used for event measurements "
+        "and snapshot rendering.",
+        "",
+        "| # | Expected side | Observed side | Candidate peak frame | Selected analysis frame | Selected analysis time | Jodan height | Snapshot |",
+        "|---|---------------|---------------|----------------------|-------------------------|------------------------|--------------|----------|",
     ]
     for event in analysis_results["events"]:
         status = (
             event.get("analysis", {}).get("jodan_height", {}).get("status", "unknown")
         )
+        candidate_peak_frame = _format_report_value(event.get("peak_frame_number"))
+        analysis_frame = _format_report_value(event.get("analysis_frame_number"))
         timestamp = event.get("timestamp_seconds")
         time_text = "" if timestamp is None else f"{float(timestamp):.3f}s"
         lines.append(
             f"| {event.get('event_index', '')} | {event.get('expected_side') or ''} | "
-            f"{event.get('observed_side') or ''} | {event.get('peak_frame_number') or ''} | "
-            f"{time_text} | {status} | {event.get('snapshot_path') or ''} |"
+            f"{event.get('observed_side') or ''} | {candidate_peak_frame} | "
+            f"{analysis_frame} | {time_text} | {status} | "
+            f"{event.get('snapshot_path') or ''} |"
         )
     return "\n".join(lines) + "\n"
+
+
+def _format_report_value(value: Any) -> str:
+    return "" if value is None else str(value)
 
 
 def _relative_path(path: Path, base: Path) -> str:

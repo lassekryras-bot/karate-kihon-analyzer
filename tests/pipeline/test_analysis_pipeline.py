@@ -94,6 +94,63 @@ def test_summary_includes_detector_backends_and_face_diagnostics(
     assert "No face landmarks were detected" in (output / "report.md").read_text()
 
 
+def test_report_distinguishes_candidate_peak_from_selected_analysis_frame_and_time(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    video = _write_video(tmp_path / "kihon.mp4")
+    output = tmp_path / "run-001"
+    event = _event(1, "right", "good")
+    event.update(
+        {
+            "peak_frame_number": 103,
+            "analysis_frame_number": 113,
+            "timestamp_seconds": 1.883,
+        }
+    )
+    _install_pipeline_fakes(monkeypatch, events=[event])
+
+    run_analysis_pipeline(input_video=video, output_directory=output)
+
+    report = (output / "report.md").read_text()
+    assert (
+        "The candidate peak frame is the detector's region peak. The selected "
+        "analysis frame and time identify the frame used for event measurements "
+        "and snapshot rendering." in report
+    )
+    assert (
+        "| Candidate peak frame | Selected analysis frame | "
+        "Selected analysis time |" in report
+    )
+    assert (
+        "| 1 | right | right | 103 | 113 | 1.883s | good | "
+        "rendered-strikes/strike-001-right.png |" in report
+    )
+
+
+def test_report_preserves_zero_frame_numbers(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    video = _write_video(tmp_path / "kihon.mp4")
+    output = tmp_path / "run-001"
+    event = _event(1, "right", "good")
+    event.update(
+        {
+            "peak_frame_number": 0,
+            "analysis_frame_number": 0,
+            "timestamp_seconds": 0.0,
+        }
+    )
+    _install_pipeline_fakes(monkeypatch, events=[event])
+
+    run_analysis_pipeline(input_video=video, output_directory=output)
+
+    report = (output / "report.md").read_text()
+    assert (
+        "| 1 | right | right | 0 | 0 | 0.000s | good | "
+        "rendered-strikes/strike-001-right.png |" in report
+    )
+
+
 def test_empty_strike_events_fail_clearly(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
