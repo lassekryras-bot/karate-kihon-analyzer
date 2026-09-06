@@ -237,7 +237,9 @@ def _extract_punch_event_landmarks(
                 frame_geometry.analysis_size.height if frame_geometry else 1
             ),
         )
-        theoretical_event, motion_samples = estimate_theoretical_impact(motion_samples)
+        theoretical_event, motion_samples = estimate_theoretical_impact(
+            motion_samples, candidate_peak_frame_number=peak_frame_number
+        )
         analysis_frame = select_analysis_frame(theoretical_event, motion_samples)
         snapshot_frame = select_snapshot_frame(analysis_frame)
         analysis_frame_number = (
@@ -338,12 +340,17 @@ def _extract_punch_event_landmarks(
                 ),
             },
         }
-        # Do not claim a canonical event when the region cannot support one.
-        # Legacy-only fixtures and compatibility consumers therefore remain honest.
-        if theoretical_event.impact_frame_number is not None:
-            event["theoretical_impact_event"] = theoretical_event.to_dict()
-            event["analysis_frame"] = analysis_frame.to_dict() if analysis_frame else None
-            event["snapshot_frame"] = snapshot_frame.to_dict() if snapshot_frame else None
+        # The canonical estimator outcome is serialized even when unavailable;
+        # the legacy selector is only an explicitly labelled analysis fallback.
+        event["theoretical_impact_event"] = theoretical_event.to_dict()
+        event["analysis_frame"] = analysis_frame.to_dict() if analysis_frame else {
+            "frame_number": analysis_frame_number,
+            "reason": "legacy_analysis_fallback_not_theoretical_impact",
+        }
+        event["snapshot_frame"] = snapshot_frame.to_dict() if snapshot_frame else {
+            "frame_number": analysis_frame_number,
+            "reason": "legacy_snapshot_fallback_not_theoretical_impact",
+        }
         events.append(event)
 
     events = resolve_jodan_references(raw_frames, events)
@@ -706,4 +713,3 @@ def _write_csv(path: Path, frames: list[dict[str, Any]]) -> None:
                     "right_min_visibility": frame["right"]["min_visibility"],
                 }
             )
-

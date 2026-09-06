@@ -361,6 +361,9 @@ def test_punch_event_landmarks_copy_peak_frame_analysis_landmarks() -> None:
             "impact_frame_reason",
             "strike_region_start_frame",
             "strike_region_end_frame",
+            "theoretical_impact_event",
+            "analysis_frame",
+            "snapshot_frame",
         }
     } == {
         "event_index": 1,

@@ -279,6 +279,8 @@ def _build_report(summary: dict[str, Any], analysis_results: dict[str, Any]) -> 
         analysis_text = (f"{analysis.get('frame_number')} ({analysis.get('offset_from_impact_ms', 0):+d}ms)" if analysis else f"{analysis_frame} / {time_text}")
         snapshot_text = (f"{snapshot.get('frame_number')} ({snapshot.get('offset_from_impact_ms', 0):+d}ms)" if snapshot else analysis_text)
         evidence = ", ".join(impact.get("evidence_flags", []))
+        if impact.get("unavailable_reason"):
+            evidence = f"unavailable: {impact['unavailable_reason']}"
         lines.append(
             f"| {event.get('event_index', '')} | {event.get('expected_side') or ''} | "
             f"{event.get('observed_side') or ''} | {candidate_peak_frame} | "
