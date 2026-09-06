@@ -91,6 +91,11 @@ class StrikeSnapshotRenderInstructions:
     impact_point: dict[str, Any] | None = None
     chin_reference: dict[str, Any] | None = None
     frame_geometry: FrameGeometry | None = None
+    target_estimate: dict[str, Any] | None = None
+    neutral_reference: dict[str, Any] | None = None
+    current_torso_axis: dict[str, Any] | None = None
+    target_overlay_warning: str | None = None
+    snapshot_frame_number: int | None = None
 
 
 def render_punch_snapshot(
@@ -155,6 +160,7 @@ def render_strike_snapshot(
     _draw_anatomical_landmarks(draw, points)
     _draw_chin_reference(draw, instructions.chin_reference, geometry)
     _draw_jodan_guides(draw, points, instructions, geometry)
+    _draw_target_diagnostics(draw, instructions, geometry)
     _draw_strike_text_panel(draw, instructions)
 
     return Image.alpha_composite(image, overlay).convert("RGB")
@@ -200,11 +206,13 @@ def render_strike_snapshots_from_analysis(
     rendered_paths = []
     for event in analysis:
         instructions = _instructions_from_event(event)
-        render_frame_number = (
-            (instructions.snapshot_frame or {}).get("frame_number")
-            if instructions.snapshot_frame is not None
-            else instructions.analysis_frame_number
-        )
+        render_frame_number = instructions.snapshot_frame_number
+        if render_frame_number is None:
+            render_frame_number = (
+                instructions.analysis_frame_number
+                if instructions.analysis_frame_number is not None
+                else instructions.peak_frame_number
+            )
         if render_frame_number is None:
             render_frame_number = instructions.peak_frame_number
         if render_frame_number is None:
@@ -358,6 +366,83 @@ def _draw_jodan_guides(
     )
 
 
+def _draw_target_diagnostics(draw, instructions, geometry: FrameGeometry) -> None:
+    """Draw optional source-pixel diagnostics through the saved-frame transform."""
+    estimate = instructions.target_estimate or {}
+    centre = _source_payload_to_saved(estimate.get("centre"), geometry)
+    upper_payload = estimate.get("upper_boundary")
+    lower_payload = estimate.get("lower_boundary")
+    upper = _source_payload_to_saved(upper_payload, geometry)
+    lower = _source_payload_to_saved(lower_payload, geometry)
+    if (
+        upper
+        and lower
+        and isinstance(upper_payload, dict)
+        and isinstance(lower_payload, dict)
+    ):
+        # Boundaries are perpendicular to the fixed neutral axis, not image-y.
+        neutral = instructions.neutral_reference or {}
+        axis = neutral.get("vertical_axis") or (0, -1)
+        half_width = max(20.0, float(neutral.get("torso_scale_px", 80)) * 0.6)
+        perpendicular = (-float(axis[1]) * half_width, float(axis[0]) * half_width)
+        boundary_lines = [
+            _source_boundary_line_to_saved(boundary, perpendicular, geometry)
+            for boundary in (lower_payload, upper_payload)
+        ]
+        draw.polygon(
+            (
+                boundary_lines[0][0],
+                boundary_lines[0][1],
+                boundary_lines[1][1],
+                boundary_lines[1][0],
+            ),
+            fill=(255, 210, 0, 42),
+        )
+        for line in boundary_lines:
+            draw.line(line, fill=(255, 210, 0, 150), width=2)
+    if centre:
+        _draw_point(draw, centre, _IDEAL_TARGET_POINT_COLOR, radius=_POINT_RADIUS + 2)
+    neutral = instructions.neutral_reference or {}
+    origin = _source_payload_to_saved(neutral.get("origin"), geometry)
+    axis = neutral.get("vertical_axis")
+    if origin and isinstance(axis, (list, tuple)) and len(axis) == 2:
+        endpoint = geometry.analysis_to_saved.apply(
+            float(neutral["origin"]["x"]) + float(axis[0]) * 80,
+            float(neutral["origin"]["y"]) + float(axis[1]) * 80,
+        )
+        draw.line((origin, tuple(map(round, endpoint))), fill="#00E5FF", width=3)
+    current = instructions.current_torso_axis or {}
+    current_start = _source_payload_to_saved(current.get("origin"), geometry)
+    current_end = _source_payload_to_saved(current.get("end"), geometry)
+    if current_start and current_end:
+        draw.line((current_start, current_end), fill="#FF5A1F", width=2)
+
+
+def _source_payload_to_saved(point, geometry: FrameGeometry):
+    if not isinstance(point, dict) or point.get("x") is None or point.get("y") is None:
+        return None
+    if point.get("coordinate_frame", "source_image_pixels") != "source_image_pixels":
+        return None
+    return tuple(
+        map(
+            round,
+            geometry.analysis_to_saved.apply(float(point["x"]), float(point["y"])),
+        )
+    )
+
+
+def _source_boundary_line_to_saved(point, perpendicular, geometry: FrameGeometry):
+    """Transform both source-space endpoints so affine scale/rotation is respected."""
+    x, y = float(point["x"]), float(point["y"])
+    dx, dy = perpendicular
+    return tuple(
+        tuple(
+            map(round, geometry.analysis_to_saved.apply(x + sign * dx, y + sign * dy))
+        )
+        for sign in (-1, 1)
+    )
+
+
 def _draw_wide_line(
     draw: ImageDraw.ImageDraw,
     start: tuple[int, int],
@@ -465,6 +550,7 @@ def _draw_strike_text_panel(
         f"Side: {instructions.strike_side.title()}",
         f"Peak Frame: {_format_optional(instructions.peak_frame_number)}",
         f"Analysis Frame: {_format_optional(instructions.analysis_frame_number)}",
+        f"Snapshot Frame: {_format_optional(instructions.snapshot_frame_number)}",
         f"Timestamp: {_format_timestamp(instructions.timestamp_seconds)}",
         f"Confidence: {_format_confidence(instructions.confidence)}",
         "Physical contact: " + str(
@@ -507,6 +593,25 @@ def _draw_strike_text_panel(
         lines.append(f"Reference confidence: {_format_reference_confidence(analysis)}")
         if analysis.get("unknown_reason"):
             lines.append(f"Unknown reason: {analysis['unknown_reason']}")
+    target = instructions.target_estimate or {}
+    if target:
+        lines.extend(
+            [
+                "Provisional locked target zone",
+                f"Target ID: {target.get('target_id', 'Unknown')}",
+                f"Target source: {target.get('source', 'Unknown')}",
+                f"Target confidence: {target.get('confidence', 'Unknown')}",
+                f"Coordinate frame: {target.get('coordinate_frame', 'Unknown')}",
+                f"Coaching allowed: {str(bool(target.get('coaching_allowed', False))).lower()}",
+            ]
+        )
+        warnings = target.get("quality_warnings") or []
+        if warnings:
+            lines.append(f"Warnings: {', '.join(map(str, warnings))}")
+        if target.get("scoring_withheld_reason"):
+            lines.append(f"Abstention: {target['scoring_withheld_reason']}")
+    if instructions.target_overlay_warning:
+        lines.append(f"Target overlay: {instructions.target_overlay_warning}")
     x, y = _TEXT_ORIGIN
     line_height = _TEXT_LINE_SPACING
     panel_width = max(_text_length(font, line) for line in lines) + 20
@@ -595,13 +700,39 @@ def _validate_extracted_frame(
 def _instructions_from_event(event: dict[str, Any]) -> StrikeSnapshotRenderInstructions:
     visibility = event.get("visibility", {}) or {}
     confidence = visibility.get("minimum_required_landmark_visibility")
+    analysis_frame_number = _event_frame_number(event, "analysis")
+    snapshot_frame_number = _event_frame_number(event, "snapshot")
+    if snapshot_frame_number is None:
+        snapshot_frame_number = analysis_frame_number
+    target_estimate = event.get("target_estimate")
+    neutral_reference = event.get("neutral_reference")
+    current_torso_axis = event.get("current_torso_axis")
+    target_overlay_warning = None
+    diagnostic = event.get("target_height_diagnostic") or {}
+    provenance = diagnostic.get("geometry_provenance") or {}
+    registered_frame = provenance.get("measurement_frame_number")
+    diagnostic_warning = diagnostic.get("snapshot_overlay_warning")
+    if target_estimate and (
+        diagnostic_warning
+        or registered_frame is None
+        or registered_frame != snapshot_frame_number
+    ):
+        target_estimate = None
+        neutral_reference = None
+        current_torso_axis = None
+        target_overlay_warning = diagnostic_warning or (
+            "TARGET_DIAGNOSTIC_FRAME_MISMATCH"
+            if registered_frame is not None
+            else "TARGET_DIAGNOSTIC_FRAME_PROVENANCE_MISSING"
+        )
     return StrikeSnapshotRenderInstructions(
         strike_number=int(event.get("event_index", 0)),
         strike_side=str(
             event.get("observed_side") or event.get("expected_side") or "unknown"
         ),
         peak_frame_number=event.get("peak_frame_number"),
-        analysis_frame_number=event.get("analysis_frame_number"),
+        analysis_frame_number=analysis_frame_number,
+        snapshot_frame_number=snapshot_frame_number,
         theoretical_impact_event=event.get("theoretical_impact_event"),
         analysis_frame=event.get("analysis_frame"),
         snapshot_frame=event.get("snapshot_frame"),
@@ -616,6 +747,10 @@ def _instructions_from_event(event: dict[str, Any]) -> StrikeSnapshotRenderInstr
             if event.get("frame_geometry") is not None
             else None
         ),
+        target_estimate=target_estimate,
+        neutral_reference=neutral_reference,
+        current_torso_axis=current_torso_axis,
+        target_overlay_warning=target_overlay_warning,
     )
 
 
@@ -629,6 +764,7 @@ def _with_timestamp_from_metadata(
         strike_side=instructions.strike_side,
         peak_frame_number=instructions.peak_frame_number,
         analysis_frame_number=instructions.analysis_frame_number,
+        snapshot_frame_number=instructions.snapshot_frame_number,
         theoretical_impact_event=instructions.theoretical_impact_event,
         analysis_frame=instructions.analysis_frame,
         snapshot_frame=instructions.snapshot_frame,
@@ -639,7 +775,21 @@ def _with_timestamp_from_metadata(
         impact_point=instructions.impact_point,
         chin_reference=instructions.chin_reference,
         frame_geometry=instructions.frame_geometry,
+        target_estimate=instructions.target_estimate,
+        neutral_reference=instructions.neutral_reference,
+        current_torso_axis=instructions.current_torso_axis,
+        target_overlay_warning=instructions.target_overlay_warning,
     )
+
+
+def _event_frame_number(event: dict[str, Any], role: str) -> int | None:
+    frame = event.get(f"{role}_frame")
+    if isinstance(frame, dict):
+        for key in ("frame_number", "frame_index"):
+            if isinstance(frame.get(key), int):
+                return frame[key]
+    value = event.get(f"{role}_frame_number")
+    return value if isinstance(value, int) else None
 
 
 def _landmarks_from_event(event: dict[str, Any]) -> list[dict[str, Any]]:

@@ -67,6 +67,7 @@ def run_analysis_pipeline(
         output_directory=output_directory,
         expected_punch_count=int(extension_summary.get("expected_punch_count", 10)),
         frame_geometry=video_payload.get("frame_geometry"),
+        target_height_diagnostic=punch_event_payload.get("target_height_diagnostic"),
     )
     summary = _build_summary(
         input_video=input_video,
@@ -104,6 +105,7 @@ def _build_analysis_results(
     output_directory: Path,
     expected_punch_count: int,
     frame_geometry: dict[str, Any] | None,
+    target_height_diagnostic: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     snapshots = {
         index: _relative_path(path, output_directory)
@@ -118,10 +120,15 @@ def _build_analysis_results(
                 "observed_side": event.get("observed_side"),
                 "matches_expected_side": event.get("matches_expected_side"),
                 "peak_frame_number": event.get("peak_frame_number"),
-                "analysis_frame_number": event.get("analysis_frame_number"),
                 "theoretical_impact_event": event.get("theoretical_impact_event"),
+                "impact_frame_number": event.get("impact_frame_number"),
                 "analysis_frame": event.get("analysis_frame"),
+                "analysis_frame_number": event.get("analysis_frame_number"),
                 "snapshot_frame": event.get("snapshot_frame"),
+                "snapshot_frame_number": event.get("snapshot_frame_number"),
+                "frame_provenance": event.get("frame_provenance"),
+                "event_provenance": event.get("event_provenance"),
+                "physical_contact_status": event.get("physical_contact_status"),
                 "elbow_angle_degrees": event.get("elbow_angle_degrees"),
                 "angle_delta_degrees": event.get("angle_delta_degrees"),
                 "max_elbow_angle_degrees_in_region": event.get(
@@ -154,6 +161,7 @@ def _build_analysis_results(
                 "chin_reference": event.get("chin_reference"),
                 "jodan_reference": event.get("jodan_reference"),
                 "analysis": event.get("analysis", {}),
+                "target_height_diagnostic": event.get("target_height_diagnostic"),
                 "snapshot_path": snapshots.get(position),
             }
         )
@@ -162,6 +170,7 @@ def _build_analysis_results(
         "expected_punch_count": expected_punch_count,
         "detected_punch_count": len(clean_events),
         "frame_geometry": frame_geometry,
+        "target_height_diagnostic": target_height_diagnostic,
         "events": clean_events,
     }
 

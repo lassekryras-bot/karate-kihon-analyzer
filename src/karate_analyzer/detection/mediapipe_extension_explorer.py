@@ -29,6 +29,7 @@ from karate_analyzer.references.jodan_reference import (
     calculate_jodan_reference,
     resolve_jodan_references,
 )
+from karate_analyzer.target_height_pipeline import attach_target_height_diagnostics
 
 NOSE = 0
 MOUTH_LEFT = 9
@@ -131,6 +132,13 @@ def analyze_extension_json(
     )
     punch_event_landmark_payload["frame_geometry"] = payload.get("frame_geometry")
     punch_event_landmark_payload["source"] = payload.get("source")
+    punch_event_landmark_payload["target_height_diagnostic"] = (
+        attach_target_height_diagnostics(
+            payload.get("frames", []),
+            punch_event_landmark_payload["punch_event_landmarks"],
+            payload.get("frame_geometry"),
+        )
+    )
 
     summary = {
         "frame_count": payload.get("frame_count", len(extension_frames)),
@@ -698,3 +706,4 @@ def _write_csv(path: Path, frames: list[dict[str, Any]]) -> None:
                     "right_min_visibility": frame["right"]["min_visibility"],
                 }
             )
+

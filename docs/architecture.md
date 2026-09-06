@@ -1,5 +1,8 @@
 # Architecture
 
+The target-height coordinate, provenance, neutral-reference, and repetition-lock
+contract is documented in [target-height-foundation.md](target-height-foundation.md).
+
 Karate Kihon Analyzer is organized as a layered MVP pipeline. Each layer should expose domain-oriented data to the next layer instead of leaking lower-level implementation details upward.
 
 ```text
