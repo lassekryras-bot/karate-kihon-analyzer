@@ -7,7 +7,10 @@ import pytest
 from typer.testing import CliRunner
 
 from karate_analyzer.frame_geometry import FrameGeometry
-from karate_analyzer.pipeline.analysis_pipeline import run_analysis_pipeline
+from karate_analyzer.pipeline.analysis_pipeline import (
+    _build_analysis_results,
+    run_analysis_pipeline,
+)
 from karate_analyzer.main import app
 
 
@@ -71,6 +74,44 @@ def test_snapshot_paths_are_added_to_analysis_results(
         "rendered-strikes/strike-001-right.png",
         "rendered-strikes/strike-002-left.png",
     ]
+
+
+def test_combined_frame_provenance_and_target_diagnostics_survive_serialization(
+    tmp_path: Path,
+) -> None:
+    event = _event(1, "right", "good")
+    event.update(
+        {
+            "theoretical_impact_event": {"time_seconds": 1.0},
+            "impact_frame_number": 29,
+            "analysis_frame": {"frame_number": 30},
+            "analysis_frame_number": 30,
+            "snapshot_frame": {"frame_number": 31},
+            "snapshot_frame_number": 31,
+            "frame_provenance": {"analysis_offset_frames": 1},
+            "event_provenance": {"method": "theoretical_impact"},
+            "physical_contact_status": "not_assessed",
+            "target_height_diagnostic": {"status": "ABSTAINED"},
+        }
+    )
+    result = _build_analysis_results(
+        input_video=tmp_path / "video.mp4",
+        events=[event],
+        rendered_paths=[tmp_path / "strike.png"],
+        output_directory=tmp_path,
+        expected_punch_count=1,
+        frame_geometry=FrameGeometry.identity(160, 120).to_dict(),
+        target_height_diagnostic={"status": "READY"},
+    )
+    serialized = result["events"][0]
+    assert serialized["theoretical_impact_event"] == {"time_seconds": 1.0}
+    assert serialized["analysis_frame"] == {"frame_number": 30}
+    assert serialized["snapshot_frame"] == {"frame_number": 31}
+    assert serialized["physical_contact_status"] == "not_assessed"
+    assert serialized["analysis"]["jodan_height"]["status"] == "good"
+    assert serialized["target_height_diagnostic"] == {"status": "ABSTAINED"}
+    assert result["target_height_diagnostic"] == {"status": "READY"}
+    assert "target_height" not in result
 
 
 def test_summary_includes_detector_backends_and_face_diagnostics(

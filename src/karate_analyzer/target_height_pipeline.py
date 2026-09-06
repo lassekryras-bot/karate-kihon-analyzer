@@ -226,8 +226,9 @@ def attach_target_height_diagnostics(
             controller.start_collecting()
             controller.accept_neutral(neutral, ProvisionalJodanEstimator())
             controller.lock_for_repetition()  # each event/repetition gets a distinct lock
+            analysis_frame_number = _canonical_frame_number(event, "analysis")
             current = _observation(
-                by_number.get(event.get("analysis_frame_number"), {}),
+                by_number.get(analysis_frame_number, {}),
                 geometry,
                 config,
             )[0]
@@ -256,7 +257,13 @@ def attach_target_height_diagnostics(
                 "setup_window_id": window.window_id,
                 "repetition_lock_id": f"target-lock-{event.get('event_index')}",
                 "repetition_start_frame": event.get("strike_region_start_frame"),
-                "analysis_frame_number": event.get("analysis_frame_number"),
+                "analysis_frame_number": analysis_frame_number,
+                "geometry_provenance": {
+                    "measurement_frame_number": analysis_frame_number,
+                    "measurement_frame_role": "analysis_frame",
+                    "coordinate_frame": CoordinateFrame.SOURCE_IMAGE_PIXELS.value,
+                    "transport_to_snapshot": "none",
+                },
                 "tracked_origin_displacement": {
                     "x": dx,
                     "y": dy,
@@ -276,6 +283,18 @@ def attach_target_height_diagnostics(
     except (KeyError, TypeError, ValueError) as exc:
         reason = str(exc) or "TARGET_HEIGHT_INTEGRATION_FAILED"
         return _abstain_events(events, reason, None)
+
+
+def _canonical_frame_number(event: dict[str, Any], role: str) -> int | None:
+    """Read PR #83 frame objects while retaining legacy numbered events."""
+
+    frame = event.get(f"{role}_frame")
+    if isinstance(frame, dict):
+        for key in ("frame_number", "frame_index"):
+            if isinstance(frame.get(key), int):
+                return frame[key]
+    numbered = event.get(f"{role}_frame_number")
+    return numbered if isinstance(numbered, int) else None
 
 
 def _observation(frame, geometry, config):

@@ -127,6 +127,19 @@ the diagnostic object. Keeping the `diagnostic` suffix at both session and event
 scope prevents consumers from mistaking this output for a second production
 height score.
 
+## Analysis/snapshot frame registration
+
+The theoretical-impact contract owns the canonical `analysis_frame`; target
+diagnostics consume it and never run a competing frame selector. Diagnostic
+geometry records its measurement-frame number, source coordinate frame, and
+that no snapshot transport was performed. The snapshot renderer independently
+uses `snapshot_frame`. It draws the provisional locked target zone and torso
+axes only when that frame equals the registered measurement frame. Otherwise it
+suppresses only those diagnostic layers and reports
+`TARGET_DIAGNOSTIC_FRAME_MISMATCH`; existing Jōdan content remains available.
+Legacy events without structured frame objects continue to use their numbered
+analysis frame, and use that same frame as the snapshot fallback.
+
 ## Estimator extension points and assumptions
 
 `TargetEstimator` has dedicated Jōdan, Chūdan, and Gedan strategy extension

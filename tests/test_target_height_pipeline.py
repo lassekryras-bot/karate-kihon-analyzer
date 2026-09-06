@@ -12,6 +12,7 @@ from karate_analyzer.frame_geometry import (
 )
 from karate_analyzer.rendering.snapshot_renderer import (
     StrikeSnapshotRenderInstructions,
+    _instructions_from_event,
     render_strike_snapshot,
 )
 from karate_analyzer.target_height_pipeline import (
@@ -117,7 +118,12 @@ def test_end_to_end_timeline_reuses_neutral_and_locks_each_repetition():
         frame(i, hip_x=0.55, shoulder_y=0.20) for i in range(5, 15)
     ]
     events = [
-        {"event_index": 1, "strike_region_start_frame": 6, "analysis_frame_number": 8},
+        {
+            "event_index": 1,
+            "strike_region_start_frame": 6,
+            "analysis_frame": {"frame_number": 8, "reason": "theoretical_impact"},
+            "analysis_frame_number": 7,
+        },
         {
             "event_index": 2,
             "strike_region_start_frame": 10,
@@ -139,6 +145,12 @@ def test_end_to_end_timeline_reuses_neutral_and_locks_each_repetition():
     )
     diagnostic = events[0]["target_height_diagnostic"]
     assert diagnostic["analysis_frame_number"] == 8
+    assert diagnostic["geometry_provenance"] == {
+        "measurement_frame_number": 8,
+        "measurement_frame_role": "analysis_frame",
+        "coordinate_frame": "source_image_pixels",
+        "transport_to_snapshot": "none",
+    }
     assert diagnostic["tracked_origin_displacement"]["x"] == pytest.approx(10)
     assert diagnostic["torso_lean_difference_degrees"] > 0
     estimate = events[0]["target_estimate"]
@@ -235,3 +247,50 @@ def test_debug_band_endpoints_respect_non_uniform_display_scaling():
     # Source x=20 endpoint maps to x=40. Adding a source-space vector after
     # display conversion would incorrectly begin the line at x=70.
     assert image.getpixel((40, 70)) != (255, 255, 255)
+
+
+def test_overlay_is_suppressed_when_snapshot_and_measurement_frames_differ():
+    event = {
+        "event_index": 1,
+        "observed_side": "right",
+        "analysis_frame": {"frame_number": 8},
+        "snapshot_frame": {"frame_number": 9},
+        "analysis": {"jodan_height": {"status": "good"}},
+        "target_estimate": {"centre": {"x": 10, "y": 20}},
+        "neutral_reference": {"origin": {"x": 10, "y": 30}},
+        "current_torso_axis": {"origin": {"x": 10, "y": 30}},
+        "target_height_diagnostic": {
+            "geometry_provenance": {"measurement_frame_number": 8}
+        },
+    }
+    instructions = _instructions_from_event(event)
+    assert instructions.snapshot_frame_number == 9
+    assert instructions.target_estimate is None
+    assert instructions.neutral_reference is None
+    assert instructions.current_torso_axis is None
+    assert instructions.target_overlay_warning == "TARGET_DIAGNOSTIC_FRAME_MISMATCH"
+    assert instructions.jodan_height_analysis == {"status": "good"}
+
+
+def test_overlay_is_retained_when_snapshot_and_measurement_frames_match():
+    event = {
+        "event_index": 1,
+        "observed_side": "right",
+        "analysis_frame_number": 8,
+        "snapshot_frame_number": 8,
+        "target_estimate": {"centre": {"x": 10, "y": 20}},
+        "target_height_diagnostic": {
+            "geometry_provenance": {"measurement_frame_number": 8}
+        },
+    }
+    instructions = _instructions_from_event(event)
+    assert instructions.target_estimate == event["target_estimate"]
+    assert instructions.target_overlay_warning is None
+
+
+def test_legacy_event_uses_analysis_frame_as_snapshot_fallback():
+    instructions = _instructions_from_event(
+        {"event_index": 1, "observed_side": "right", "analysis_frame_number": 8}
+    )
+    assert instructions.analysis_frame_number == 8
+    assert instructions.snapshot_frame_number == 8

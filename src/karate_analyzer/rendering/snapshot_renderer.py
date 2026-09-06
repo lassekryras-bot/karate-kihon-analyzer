@@ -91,6 +91,8 @@ class StrikeSnapshotRenderInstructions:
     target_estimate: dict[str, Any] | None = None
     neutral_reference: dict[str, Any] | None = None
     current_torso_axis: dict[str, Any] | None = None
+    target_overlay_warning: str | None = None
+    snapshot_frame_number: int | None = None
 
 
 def render_punch_snapshot(
@@ -201,11 +203,13 @@ def render_strike_snapshots_from_analysis(
     rendered_paths = []
     for event in analysis:
         instructions = _instructions_from_event(event)
-        render_frame_number = (
-            instructions.analysis_frame_number
-            if instructions.analysis_frame_number is not None
-            else instructions.peak_frame_number
-        )
+        render_frame_number = instructions.snapshot_frame_number
+        if render_frame_number is None:
+            render_frame_number = (
+                instructions.analysis_frame_number
+                if instructions.analysis_frame_number is not None
+                else instructions.peak_frame_number
+            )
         if render_frame_number is None:
             raise ValueError(
                 f"Strike {instructions.strike_number} is missing analysis_frame_number and peak_frame_number"
@@ -541,6 +545,7 @@ def _draw_strike_text_panel(
         f"Side: {instructions.strike_side.title()}",
         f"Peak Frame: {_format_optional(instructions.peak_frame_number)}",
         f"Analysis Frame: {_format_optional(instructions.analysis_frame_number)}",
+        f"Snapshot Frame: {_format_optional(instructions.snapshot_frame_number)}",
         f"Timestamp: {_format_timestamp(instructions.timestamp_seconds)}",
         f"Confidence: {_format_confidence(instructions.confidence)}",
     ]
@@ -584,6 +589,8 @@ def _draw_strike_text_panel(
             lines.append(f"Warnings: {', '.join(map(str, warnings))}")
         if target.get("scoring_withheld_reason"):
             lines.append(f"Abstention: {target['scoring_withheld_reason']}")
+    if instructions.target_overlay_warning:
+        lines.append(f"Target overlay: {instructions.target_overlay_warning}")
     x, y = _TEXT_ORIGIN
     line_height = _TEXT_LINE_SPACING
     panel_width = max(_text_length(font, line) for line in lines) + 20
@@ -668,13 +675,36 @@ def _validate_extracted_frame(
 def _instructions_from_event(event: dict[str, Any]) -> StrikeSnapshotRenderInstructions:
     visibility = event.get("visibility", {}) or {}
     confidence = visibility.get("minimum_required_landmark_visibility")
+    analysis_frame_number = _event_frame_number(event, "analysis")
+    snapshot_frame_number = _event_frame_number(event, "snapshot")
+    if snapshot_frame_number is None:
+        snapshot_frame_number = analysis_frame_number
+    target_estimate = event.get("target_estimate")
+    neutral_reference = event.get("neutral_reference")
+    current_torso_axis = event.get("current_torso_axis")
+    target_overlay_warning = None
+    diagnostic = event.get("target_height_diagnostic") or {}
+    provenance = diagnostic.get("geometry_provenance") or {}
+    registered_frame = provenance.get("measurement_frame_number")
+    if target_estimate and (
+        registered_frame is None or registered_frame != snapshot_frame_number
+    ):
+        target_estimate = None
+        neutral_reference = None
+        current_torso_axis = None
+        target_overlay_warning = (
+            "TARGET_DIAGNOSTIC_FRAME_MISMATCH"
+            if registered_frame is not None
+            else "TARGET_DIAGNOSTIC_FRAME_PROVENANCE_MISSING"
+        )
     return StrikeSnapshotRenderInstructions(
         strike_number=int(event.get("event_index", 0)),
         strike_side=str(
             event.get("observed_side") or event.get("expected_side") or "unknown"
         ),
         peak_frame_number=event.get("peak_frame_number"),
-        analysis_frame_number=event.get("analysis_frame_number"),
+        analysis_frame_number=analysis_frame_number,
+        snapshot_frame_number=snapshot_frame_number,
         timestamp_seconds=event.get("timestamp_seconds"),
         confidence=None if confidence is None else float(confidence),
         jodan_reference=event.get("jodan_reference"),
@@ -686,9 +716,10 @@ def _instructions_from_event(event: dict[str, Any]) -> StrikeSnapshotRenderInstr
             if event.get("frame_geometry") is not None
             else None
         ),
-        target_estimate=event.get("target_estimate"),
-        neutral_reference=event.get("neutral_reference"),
-        current_torso_axis=event.get("current_torso_axis"),
+        target_estimate=target_estimate,
+        neutral_reference=neutral_reference,
+        current_torso_axis=current_torso_axis,
+        target_overlay_warning=target_overlay_warning,
     )
 
 
@@ -702,6 +733,7 @@ def _with_timestamp_from_metadata(
         strike_side=instructions.strike_side,
         peak_frame_number=instructions.peak_frame_number,
         analysis_frame_number=instructions.analysis_frame_number,
+        snapshot_frame_number=instructions.snapshot_frame_number,
         timestamp_seconds=metadata.timestamp_seconds,
         confidence=instructions.confidence,
         jodan_reference=instructions.jodan_reference,
@@ -712,7 +744,18 @@ def _with_timestamp_from_metadata(
         target_estimate=instructions.target_estimate,
         neutral_reference=instructions.neutral_reference,
         current_torso_axis=instructions.current_torso_axis,
+        target_overlay_warning=instructions.target_overlay_warning,
     )
+
+
+def _event_frame_number(event: dict[str, Any], role: str) -> int | None:
+    frame = event.get(f"{role}_frame")
+    if isinstance(frame, dict):
+        for key in ("frame_number", "frame_index"):
+            if isinstance(frame.get(key), int):
+                return frame[key]
+    value = event.get(f"{role}_frame_number")
+    return value if isinstance(value, int) else None
 
 
 def _landmarks_from_event(event: dict[str, Any]) -> list[dict[str, Any]]:
