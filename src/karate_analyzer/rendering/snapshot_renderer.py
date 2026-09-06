@@ -81,6 +81,9 @@ class StrikeSnapshotRenderInstructions:
     strike_side: str
     peak_frame_number: int | None = None
     analysis_frame_number: int | None = None
+    theoretical_impact_event: dict[str, Any] | None = None
+    analysis_frame: dict[str, Any] | None = None
+    snapshot_frame: dict[str, Any] | None = None
     timestamp_seconds: float | None = None
     confidence: float | None = None
     jodan_reference: dict[str, Any] | None = None
@@ -198,10 +201,12 @@ def render_strike_snapshots_from_analysis(
     for event in analysis:
         instructions = _instructions_from_event(event)
         render_frame_number = (
-            instructions.analysis_frame_number
-            if instructions.analysis_frame_number is not None
-            else instructions.peak_frame_number
+            (instructions.snapshot_frame or {}).get("frame_number")
+            if instructions.snapshot_frame is not None
+            else instructions.analysis_frame_number
         )
+        if render_frame_number is None:
+            render_frame_number = instructions.peak_frame_number
         if render_frame_number is None:
             raise ValueError(
                 f"Strike {instructions.strike_number} is missing analysis_frame_number and peak_frame_number"
@@ -462,7 +467,21 @@ def _draw_strike_text_panel(
         f"Analysis Frame: {_format_optional(instructions.analysis_frame_number)}",
         f"Timestamp: {_format_timestamp(instructions.timestamp_seconds)}",
         f"Confidence: {_format_confidence(instructions.confidence)}",
+        "Physical contact: " + str(
+            (instructions.theoretical_impact_event or {}).get(
+                "physical_contact_status", "not_assessed"
+            )
+        ).replace("_", " "),
     ]
+    event = instructions.theoretical_impact_event or {}
+    if event:
+        lines[3:3] = [
+            f"Theoretical Impact: {_format_optional(event.get('impact_frame_number'))}",
+            f"Impact Time: {_format_ms(event.get('theoretical_impact_time_ms'))}",
+            f"Event Confidence: {event.get('confidence_level', 'unknown')}",
+        ]
+    if instructions.snapshot_frame:
+        lines.insert(6, f"Snapshot Frame: {_format_optional(instructions.snapshot_frame.get('frame_number'))} ({instructions.snapshot_frame.get('offset_from_impact_ms', 0):+d}ms)")
     analysis = instructions.jodan_height_analysis or {}
     if (
         instructions.jodan_reference is not None
@@ -515,6 +534,10 @@ def _format_optional(value: int | None) -> str:
 
 def _format_timestamp(value: float | None) -> str:
     return "Unknown" if value is None else f"{value:.3f}s"
+
+
+def _format_ms(value: int | None) -> str:
+    return "Unknown" if value is None else f"{value / 1000:.3f}s"
 
 
 def _format_confidence(value: float | None) -> str:
@@ -579,6 +602,9 @@ def _instructions_from_event(event: dict[str, Any]) -> StrikeSnapshotRenderInstr
         ),
         peak_frame_number=event.get("peak_frame_number"),
         analysis_frame_number=event.get("analysis_frame_number"),
+        theoretical_impact_event=event.get("theoretical_impact_event"),
+        analysis_frame=event.get("analysis_frame"),
+        snapshot_frame=event.get("snapshot_frame"),
         timestamp_seconds=event.get("timestamp_seconds"),
         confidence=None if confidence is None else float(confidence),
         jodan_reference=event.get("jodan_reference"),
@@ -603,6 +629,9 @@ def _with_timestamp_from_metadata(
         strike_side=instructions.strike_side,
         peak_frame_number=instructions.peak_frame_number,
         analysis_frame_number=instructions.analysis_frame_number,
+        theoretical_impact_event=instructions.theoretical_impact_event,
+        analysis_frame=instructions.analysis_frame,
+        snapshot_frame=instructions.snapshot_frame,
         timestamp_seconds=metadata.timestamp_seconds,
         confidence=instructions.confidence,
         jodan_reference=instructions.jodan_reference,

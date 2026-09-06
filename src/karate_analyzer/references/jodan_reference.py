@@ -177,6 +177,7 @@ def _nearest_temporal_chin(
     offset = int(analysis) - int(source_number)
     reference = {
         "source": "nearest_temporal_chin",
+        "transport_method": "locked_camera_plane_no_motion_v1",
         "x": float(source_chin["x"]),
         "y": float(source_chin["y"]),
         "visibility": float(source_chin.get("visibility", 1.0)),
@@ -224,6 +225,7 @@ def _same_frame_payload(
 ) -> dict[str, Any]:
     return {
         "source": "same_frame_chin",
+        "transport_method": "same_frame_identity",
         "x": float(chin["x"]),
         "y": float(chin["y"]),
         "visibility": float(chin.get("visibility", 1.0)),
@@ -323,6 +325,7 @@ def _project_reference(
     )
     return {
         "source": source,
+        "transport_method": "head_cluster_vertical_translation_v1",
         "x": float(source_reference["x"]),
         "y": float(source_reference["y"]) + motion["dy"],
         "visibility": min(
