@@ -200,3 +200,38 @@ def test_debug_overlay_maps_source_target_through_display_mirroring():
     )
     assert image.getpixel((450, 250)) != (255, 255, 255)
     assert image.getpixel((50, 250)) == (255, 255, 255)
+
+
+def test_debug_band_endpoints_respect_non_uniform_display_scaling():
+    geometry = FrameGeometry(
+        FrameSize(100, 100),
+        FrameSize(200, 100),
+        AffineTransform2D(a=2, e=1),
+        ("scale x by two",),
+    )
+    source_point = {
+        "x": 50,
+        "y": 80,
+        "coordinate_frame": "source_image_pixels",
+    }
+    instructions = StrikeSnapshotRenderInstructions(
+        1,
+        "right",
+        target_estimate={
+            "centre": source_point,
+            "lower_boundary": {**source_point, "y": 70},
+            "upper_boundary": {**source_point, "y": 90},
+        },
+        neutral_reference={
+            "origin": source_point,
+            "vertical_axis": [0, -1],
+            "torso_scale_px": 50,
+        },
+        frame_geometry=geometry,
+    )
+    image = render_strike_snapshot(
+        Image.new("RGB", (200, 100), "white"), [], instructions
+    )
+    # Source x=20 endpoint maps to x=40. Adding a source-space vector after
+    # display conversion would incorrectly begin the line at x=70.
+    assert image.getpixel((40, 70)) != (255, 255, 255)

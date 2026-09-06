@@ -12,6 +12,7 @@ from karate_analyzer.targets import (
     LockedTargetController,
     NeutralFrameObservation,
     ProvisionalJodanEstimator,
+    TARGET_DEFINITIONS,
     TargetId,
     build_neutral_reference,
 )
@@ -184,6 +185,7 @@ def attach_target_height_diagnostics(
 ) -> dict[str, Any]:
     """Attach isolated provisional target geometry without changing strike results."""
 
+    config = config or SetupWindowConfig()
     try:
         if not isinstance(geometry_payload, dict):
             raise ValueError("MISSING_FRAME_GEOMETRY")
@@ -203,10 +205,8 @@ def attach_target_height_diagnostics(
         neutral = build_neutral_reference(
             observations,
             geometry.analysis_size,
-            minimum_frames=(config or SetupWindowConfig()).minimum_consecutive_frames,
-            minimum_visibility=(
-                config or SetupWindowConfig()
-            ).minimum_landmark_visibility,
+            minimum_frames=config.minimum_consecutive_frames,
+            minimum_visibility=config.minimum_landmark_visibility,
         )
         neutral = replace(
             neutral,
@@ -229,7 +229,7 @@ def attach_target_height_diagnostics(
             current = _observation(
                 by_number.get(event.get("analysis_frame_number"), {}),
                 geometry,
-                config or SetupWindowConfig(),
+                config,
             )[0]
             if current is None:
                 abstention = _abstention("UNRELIABLE_TRACKED_ORIGIN", window)
@@ -249,7 +249,9 @@ def attach_target_height_diagnostics(
             event["target_height_diagnostic"] = {
                 **estimate.to_debug_dict(),
                 "status": "PROVISIONAL_DIAGNOSTIC_ONLY",
-                "definition_version": "1",
+                "definition_version": TARGET_DEFINITIONS[
+                    TargetId.JODAN_CHIN
+                ].definition_version,
                 "neutral_reference_id": neutral.reference_id,
                 "setup_window_id": window.window_id,
                 "repetition_lock_id": f"target-lock-{event.get('event_index')}",

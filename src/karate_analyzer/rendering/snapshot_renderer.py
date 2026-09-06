@@ -361,28 +361,25 @@ def _draw_target_diagnostics(draw, instructions, geometry: FrameGeometry) -> Non
     """Draw optional source-pixel diagnostics through the saved-frame transform."""
     estimate = instructions.target_estimate or {}
     centre = _source_payload_to_saved(estimate.get("centre"), geometry)
-    upper = _source_payload_to_saved(estimate.get("upper_boundary"), geometry)
-    lower = _source_payload_to_saved(estimate.get("lower_boundary"), geometry)
-    if upper and lower:
+    upper_payload = estimate.get("upper_boundary")
+    lower_payload = estimate.get("lower_boundary")
+    upper = _source_payload_to_saved(upper_payload, geometry)
+    lower = _source_payload_to_saved(lower_payload, geometry)
+    if (
+        upper
+        and lower
+        and isinstance(upper_payload, dict)
+        and isinstance(lower_payload, dict)
+    ):
         # Boundaries are perpendicular to the fixed neutral axis, not image-y.
         neutral = instructions.neutral_reference or {}
         axis = neutral.get("vertical_axis") or (0, -1)
         half_width = max(20.0, float(neutral.get("torso_scale_px", 80)) * 0.6)
         perpendicular = (-float(axis[1]) * half_width, float(axis[0]) * half_width)
-        boundary_lines = []
-        for boundary in (lower, upper):
-            boundary_lines.append(
-                (
-                    (
-                        round(boundary[0] - perpendicular[0]),
-                        round(boundary[1] - perpendicular[1]),
-                    ),
-                    (
-                        round(boundary[0] + perpendicular[0]),
-                        round(boundary[1] + perpendicular[1]),
-                    ),
-                )
-            )
+        boundary_lines = [
+            _source_boundary_line_to_saved(boundary, perpendicular, geometry)
+            for boundary in (lower_payload, upper_payload)
+        ]
         draw.polygon(
             (
                 boundary_lines[0][0],
@@ -422,6 +419,18 @@ def _source_payload_to_saved(point, geometry: FrameGeometry):
             round,
             geometry.analysis_to_saved.apply(float(point["x"]), float(point["y"])),
         )
+    )
+
+
+def _source_boundary_line_to_saved(point, perpendicular, geometry: FrameGeometry):
+    """Transform both source-space endpoints so affine scale/rotation is respected."""
+    x, y = float(point["x"]), float(point["y"])
+    dx, dy = perpendicular
+    return tuple(
+        tuple(
+            map(round, geometry.analysis_to_saved.apply(x + sign * dx, y + sign * dy))
+        )
+        for sign in (-1, 1)
     )
 
 

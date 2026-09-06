@@ -124,10 +124,12 @@ def analyze_extension_json(
     )
     punch_event_landmark_payload["frame_geometry"] = payload.get("frame_geometry")
     punch_event_landmark_payload["source"] = payload.get("source")
-    punch_event_landmark_payload["target_height"] = attach_target_height_diagnostics(
-        payload.get("frames", []),
-        punch_event_landmark_payload["punch_event_landmarks"],
-        payload.get("frame_geometry"),
+    punch_event_landmark_payload["target_height_diagnostic"] = (
+        attach_target_height_diagnostics(
+            payload.get("frames", []),
+            punch_event_landmark_payload["punch_event_landmarks"],
+            payload.get("frame_geometry"),
+        )
     )
 
     summary = {

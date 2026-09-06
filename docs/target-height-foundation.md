@@ -116,6 +116,17 @@ events. Generic estimates are clearly marked `PROVISIONAL_DIAGNOSTIC_ONLY`,
 carry `GENERIC_PROVISIONAL_ESTIMATE`, and cannot authorize coaching or emit a
 too-high/too-low/correct verdict.
 
+### Naming boundary with the legacy Jōdan path
+
+The existing `analysis.jodan_height` object is the legacy, user-visible
+reference/angle classifier. The new session and event
+`target_height_diagnostic` objects are provisional target-lifecycle diagnostics;
+they neither replace nor alias that classifier. `target_estimate`,
+`neutral_reference`, and `current_torso_axis` are renderer inputs derived from
+the diagnostic object. Keeping the `diagnostic` suffix at both session and event
+scope prevents consumers from mistaking this output for a second production
+height score.
+
 ## Estimator extension points and assumptions
 
 `TargetEstimator` has dedicated Jōdan, Chūdan, and Gedan strategy extension
