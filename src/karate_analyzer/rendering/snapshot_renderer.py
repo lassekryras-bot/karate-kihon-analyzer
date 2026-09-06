@@ -561,10 +561,13 @@ def _draw_strike_text_panel(
     ]
     event = instructions.theoretical_impact_event or {}
     if event:
+        confirmation = event.get("terminal_confirmation") or {}
         lines[3:3] = [
             f"Theoretical Impact: {_format_optional(event.get('impact_frame_number'))}",
             f"Impact Time: {_format_ms(event.get('theoretical_impact_time_ms'))}",
             f"Event Confidence: {event.get('confidence_level', 'unknown')}",
+            "Terminal Confirmation: "
+            + str(confirmation.get("status", "not_assessed")).replace("_", " "),
         ]
     if instructions.snapshot_frame:
         lines.insert(6, f"Snapshot Frame: {_format_optional(instructions.snapshot_frame.get('frame_number'))} ({instructions.snapshot_frame.get('offset_from_impact_ms', 0):+d}ms)")

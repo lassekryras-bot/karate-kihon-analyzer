@@ -267,5 +267,69 @@ def explore_extension(
         typer.echo(f"- {filename}")
 
 
+@app.command("plot-motion-diagnostics")
+def plot_motion_diagnostics_command(
+    landmarks: Annotated[
+        Path,
+        typer.Option("--landmarks", help="Path to video_landmarks.json."),
+    ] = Path("output/video_landmarks.json"),
+    events: Annotated[
+        Path,
+        typer.Option("--events", help="Path to punch_event_landmarks.json."),
+    ] = Path("output/punch_event_landmarks.json"),
+    output: Annotated[
+        Path,
+        typer.Option(
+            "--output",
+            "-o",
+            help="Output PNG basename; -left and -right are appended.",
+        ),
+    ] = Path("output/motion-diagnostics.png"),
+    data_output: Annotated[
+        Path | None,
+        typer.Option(
+            "--data-output",
+            help="Optional JSON path for the exact plotted metric values.",
+        ),
+    ] = None,
+    smoothing_window: Annotated[
+        int,
+        typer.Option(
+            "--smoothing-window",
+            help="Positive odd median-smoothing window for wrist derivatives.",
+        ),
+    ] = 3,
+    min_visibility: Annotated[
+        float,
+        typer.Option(
+            "--min-visibility", help="Minimum Pose landmark visibility."
+        ),
+    ] = 0.5,
+) -> None:
+    """Plot full-video arm motion signals and selected event frames."""
+    from karate_analyzer.diagnostics.motion_plots import (
+        render_motion_diagnostic_plots,
+    )
+
+    try:
+        rendered = render_motion_diagnostic_plots(
+            video_landmarks_path=landmarks,
+            events_path=events,
+            output_path=output,
+            min_visibility=min_visibility,
+            smoothing_window=smoothing_window,
+            data_output_path=data_output,
+        )
+    except (FileNotFoundError, ValueError, RuntimeError) as exc:
+        typer.echo(f"Motion diagnostic plotting failed: {exc}", err=True)
+        raise typer.Exit(code=1) from exc
+
+    typer.echo("Wrote motion diagnostic plots:")
+    for side, path in rendered.items():
+        typer.echo(f"- {side}: {path}")
+    if data_output is not None:
+        typer.echo(f"Wrote plotted metric data: {data_output}")
+
+
 if __name__ == "__main__":
     app()

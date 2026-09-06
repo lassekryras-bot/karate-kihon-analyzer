@@ -217,6 +217,19 @@ def _extract_punch_event_landmarks(
     """
 
     frames_by_number = {frame.get("frame_number"): frame for frame in raw_frames}
+    analysis_width = frame_geometry.analysis_size.width if frame_geometry else 1
+    analysis_height = frame_geometry.analysis_size.height if frame_geometry else 1
+    # Use one locked video-level scale for every repetition.  The estimator
+    # still limits phase selection to its candidate-anchored time window.
+    motion_samples_by_side = {
+        side: build_motion_samples(
+            raw_frames,
+            side,
+            analysis_width=analysis_width,
+            analysis_height=analysis_height,
+        )
+        for side in ("left", "right")
+    }
     events = []
     for candidate in punch_event_candidates:
         observed_side = candidate.get("observed_side") or candidate["expected_side"]
@@ -225,18 +238,7 @@ def _extract_punch_event_landmarks(
         impact_selection = strike_detector.select_impact_frame(
             raw_frames, candidate, observed_side
         )
-        motion_samples = build_motion_samples(
-            raw_frames,
-            observed_side,
-            start_frame=candidate.get("start_frame"),
-            end_frame=candidate.get("end_frame"),
-            analysis_width=(
-                frame_geometry.analysis_size.width if frame_geometry else 1
-            ),
-            analysis_height=(
-                frame_geometry.analysis_size.height if frame_geometry else 1
-            ),
-        )
+        motion_samples = motion_samples_by_side[observed_side]
         theoretical_event, motion_samples = estimate_theoretical_impact(
             motion_samples, candidate_peak_frame_number=peak_frame_number
         )

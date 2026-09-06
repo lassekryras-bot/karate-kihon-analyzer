@@ -155,8 +155,9 @@ score.
 Straight air-punch event selection uses `analysis_pixel_shoulder_wrist_reach_v2`.
 Normalized image landmarks are first converted with the recorded analysis-frame
 width and height. Shoulder-to-wrist Euclidean reach is then divided by one
-locked, robust median shoulder width for the event. If no shoulder-width sample
-exists, the event reach range is an explicit fallback. The divisor is never
+locked, robust median shoulder width for the video so every repetition uses the
+same scale. If no shoulder-width sample exists, the video reach range is an
+explicit fallback. The divisor is never
 changed frame by frame. Consequently, the timestamp derivative is signed
 outward velocity: positive means increasing reach and negative means retraction,
 independent of raw image left/right or mirroring.
@@ -166,14 +167,30 @@ window starts 200 ms before that anchor and ends 100 ms after it. Within this
 window it orders outward onset, peak positive velocity, braking, first terminal
 arrival, optional hold, and confirmed retraction. The earliest sample after peak
 velocity can qualify only when reach, shoulder-to-wrist extension ratio, and 2D
-elbow angle are close to their own repetition maxima. These relative tolerances
+elbow angle are close to their own repetition maxima. Reach is compared directly
+with a fraction of maximum reach rather than with the range inside the search
+window; this prevents slow terminal drift from moving arrival toward the end of
+a hold. These relative tolerances
 are event-selection parameters, not karate correctness thresholds. A sampled
 positive-to-negative reversal selects maximum reach around the sign change;
 confirmed negative velocity makes later samples ineligible. Acceleration is not
 used as a primary selector.
 
+After the wrist signal proposes the earliest arrival, a separate
+`camera_plane_terminal_confirmation_v1` result checks signed punching-elbow
+displacement, elbow forward velocity, and opposite-elbow-to-punching-wrist
+separation. Its 75 ms look-ahead confirms the already selected time; it does not
+shift impact to a later confirmation frame or to an absolute maximum in a hold.
+Two agreeing terminal-position signals plus preceding forward elbow motion can
+retain high confidence. Partial or missing secondary evidence lowers confidence
+without discarding a valid wrist event. Only combined evidence that both the
+elbow and cross-body separation are below their repetition-relative terminal
+regions and already retracting can reject the proposed event. Cross-body
+evidence is therefore optional for drills without visible or required hikite.
+
 The serialized event records the candidate, phase times, measurement window,
-signal version, scale strategy, evidence, quality, confidence, and an explicit
+signal version, scale strategy, evidence, secondary confirmation measurements,
+quality, confidence, and an explicit
 unavailable reason. Candidate, theoretical impact, bounded analysis-quality
 fallback, and snapshot frames remain separate. Physical contact remains
 `not_assessed`. Limitations include monocular foreshortening, timestamp and pose
