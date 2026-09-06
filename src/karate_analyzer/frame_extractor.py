@@ -78,7 +78,9 @@ def extract_frame(
         height, width = frame.shape[:2]
         fps = _positive_float_or_none(capture.get(cv2.CAP_PROP_FPS))
         actual_frame_number = _actual_frame_number(capture, cv2)
-        timestamp_seconds = frame_number / fps if fps else None
+        timestamp_seconds = _decoded_timestamp_seconds(
+            capture, cv2, frame_number=frame_number, fps=fps
+        )
 
         return ExtractedFrameMetadata(
             video_path=video,
@@ -118,3 +120,16 @@ def _actual_frame_number(capture, cv2) -> int | None:
     if position_after_read <= 0:
         return None
     return position_after_read - 1
+
+
+def _decoded_timestamp_seconds(
+    capture, cv2, *, frame_number: int, fps: float | None
+) -> float | None:
+    """Prefer the decoder timestamp and retain FPS as a documented fallback."""
+
+    timestamp_property = getattr(cv2, "CAP_PROP_POS_MSEC", None)
+    if timestamp_property is not None:
+        timestamp_ms = float(capture.get(timestamp_property))
+        if timestamp_ms > 0:
+            return timestamp_ms / 1000
+    return frame_number / fps if fps else None

@@ -25,13 +25,22 @@ class _FakeCapture:
     CAP_PROP_FRAME_COUNT = 7
     CAP_PROP_POS_FRAMES = 1
     CAP_PROP_FPS = 5
+    CAP_PROP_POS_MSEC = 0
 
-    def __init__(self, path: str, *, opened: bool = True, frame_count: int = 3) -> None:
+    def __init__(
+        self,
+        path: str,
+        *,
+        opened: bool = True,
+        frame_count: int = 3,
+        timestamp_ms: float = 0.0,
+    ) -> None:
         self.path = path
         self.opened = opened
         self.frame_count = frame_count
         self.position = 0
         self.released = False
+        self.timestamp_ms = timestamp_ms
 
     def isOpened(self) -> bool:
         return self.opened
@@ -43,6 +52,8 @@ class _FakeCapture:
             return float(self.position)
         if prop == self.CAP_PROP_FPS:
             return 10.0
+        if prop == self.CAP_PROP_POS_MSEC:
+            return self.timestamp_ms
         return 0.0
 
     def set(self, prop: int, value: int) -> bool:
@@ -59,12 +70,20 @@ class _FakeCapture:
         self.released = True
 
 
-def _install_fake_cv2(monkeypatch: pytest.MonkeyPatch, *, frame_count: int = 3) -> None:
+def _install_fake_cv2(
+    monkeypatch: pytest.MonkeyPatch,
+    *,
+    frame_count: int = 3,
+    timestamp_ms: float = 0.0,
+) -> None:
     fake_cv2 = SimpleNamespace(
         CAP_PROP_FRAME_COUNT=_FakeCapture.CAP_PROP_FRAME_COUNT,
         CAP_PROP_POS_FRAMES=_FakeCapture.CAP_PROP_POS_FRAMES,
         CAP_PROP_FPS=_FakeCapture.CAP_PROP_FPS,
-        VideoCapture=lambda path: _FakeCapture(path, frame_count=frame_count),
+        CAP_PROP_POS_MSEC=_FakeCapture.CAP_PROP_POS_MSEC,
+        VideoCapture=lambda path: _FakeCapture(
+            path, frame_count=frame_count, timestamp_ms=timestamp_ms
+        ),
         imwrite=lambda path, frame: Path(path).write_bytes(b"\x89PNG\r\n\x1a\nfake") > 0,
     )
     monkeypatch.setitem(sys.modules, "cv2", fake_cv2)
@@ -123,6 +142,18 @@ def test_metadata_is_returned(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -
         fps=10.0,
         timestamp_seconds=0.2,
     )
+
+
+def test_decoder_timestamp_is_preferred_over_frame_rate_estimate(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _install_fake_cv2(monkeypatch, timestamp_ms=275.0)
+    video_path = tmp_path / "tiny.mp4"
+    _write_placeholder_video(video_path)
+
+    metadata = extract_frame(video_path, 2, tmp_path / "frame.png")
+
+    assert metadata.timestamp_seconds == pytest.approx(0.275)
 
 
 def test_frame_number_beyond_video_length_is_rejected(

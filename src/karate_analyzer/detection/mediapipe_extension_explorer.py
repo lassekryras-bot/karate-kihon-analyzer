@@ -122,6 +122,7 @@ def analyze_extension_json(
         punch_event_payload["punch_event_candidates"],
     )
     punch_event_landmark_payload["frame_geometry"] = payload.get("frame_geometry")
+    punch_event_landmark_payload["source"] = payload.get("source")
 
     summary = {
         "frame_count": payload.get("frame_count", len(extension_frames)),

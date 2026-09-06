@@ -7,6 +7,7 @@ from pathlib import Path
 
 import pytest
 
+from karate_analyzer.frame_geometry import FrameGeometry
 from karate_analyzer.detection.mediapipe_extension_explorer import (
     LEFT_ELBOW,
     LEFT_SHOULDER,
@@ -70,6 +71,12 @@ def test_analyze_extension_json_writes_outputs_and_calculates_values(
     assert peak_left["arm_chain_length"] == pytest.approx(1.0)
     assert peak_left["extension_ratio"] == pytest.approx(1.0)
     assert peak_left["min_visibility"] == pytest.approx(0.9)
+
+    event_payload = json.loads(
+        (output_directory / "punch_event_landmarks.json").read_text()
+    )
+    assert event_payload["source"] == "test-video.mp4"
+    assert event_payload["frame_geometry"] == FrameGeometry.identity(640, 480).to_dict()
 
     with (output_directory / "extension_by_frame.csv").open(
         encoding="utf-8"
@@ -456,6 +463,8 @@ def test_punch_event_landmarks_add_jodan_reference_and_fall_back_to_mouth_midpoi
 
 def _video_payload(_peak_visibility: float) -> dict[str, object]:
     return {
+        "source": "test-video.mp4",
+        "frame_geometry": FrameGeometry.identity(640, 480).to_dict(),
         "frame_count": 3,
         "detected_frame_count": 3,
         "frames": [

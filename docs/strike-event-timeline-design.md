@@ -207,6 +207,7 @@ The Strike Event Timeline architecture should follow these principles:
 - Allow dynamic analysis as the project matures
 - Keep source data and derived measurements distinguishable
 - Treat uncertainty and confidence as first-class analysis context
+- Name coordinate spaces and units for every spatial or temporal measurement
 
 These principles keep the core model reusable as the project grows from punch detection into broader martial arts movement analysis.
 
@@ -225,7 +226,17 @@ Motion Analysis should measure movement characteristics that are not inherently 
 - Stability
 - Smoothness
 
-These measurements should describe how the body or limb moved.
+These measurements should describe how the body or limb moved. Store them before
+any task-specific flag or coaching label, following:
+
+```text
+measurement -> derived flag -> interpretation -> coaching feedback
+```
+
+For straight-punch v1, preserve the event window and decoder timestamps needed
+for execution time, endpoint samples, and velocity. Repetition aggregates should
+prefer within-session dispersion and personal baselines over population
+thresholds.
 
 ### Karate Analysis
 

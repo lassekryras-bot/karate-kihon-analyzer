@@ -6,6 +6,7 @@ from pathlib import Path
 import pytest
 from typer.testing import CliRunner
 
+from karate_analyzer.frame_geometry import FrameGeometry
 from karate_analyzer.pipeline.analysis_pipeline import run_analysis_pipeline
 from karate_analyzer.main import app
 
@@ -47,6 +48,9 @@ def test_summary_counts_jodan_statuses(
         "too_high": 1,
         "unknown": 1,
     }
+    geometry = FrameGeometry.identity(160, 120).to_dict()
+    assert result["analysis_results"]["frame_geometry"] == geometry
+    assert result["summary"]["frame_geometry"] == geometry
 
 
 def test_snapshot_paths_are_added_to_analysis_results(
@@ -160,6 +164,7 @@ def _install_pipeline_fakes(
             "pose_detector_backend": "tasks_pose_landmarker",
             "hand_detector_backend": "tasks_hand_landmarker",
             "face_detector_backend": "tasks_face_landmarker",
+            "frame_geometry": FrameGeometry.identity(160, 120).to_dict(),
             "frames": [],
         }
         (output_directory / "video_landmarks.json").write_text(json.dumps(payload))
@@ -177,7 +182,12 @@ def _install_pipeline_fakes(
         ]:
             (output_directory / filename).write_text("{}")
         (output_directory / "punch_event_landmarks.json").write_text(
-            json.dumps({"punch_event_landmarks": events})
+            json.dumps(
+                {
+                    "frame_geometry": FrameGeometry.identity(160, 120).to_dict(),
+                    "punch_event_landmarks": events,
+                }
+            )
         )
         return {"expected_punch_count": 10, "punch_event_candidate_count": len(events)}
 
