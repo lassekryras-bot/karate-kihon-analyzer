@@ -149,3 +149,33 @@ This milestone excludes calibrated 3D projection, hand-to-Pose world
 registration, detailed wrist alignment, hyperextension diagnosis, kinetic
 weight distribution, full segment sequencing, kicks and an overall karate
 score.
+
+## Theoretical-impact phase signal v2
+
+Straight air-punch event selection uses `analysis_pixel_shoulder_wrist_reach_v2`.
+Normalized image landmarks are first converted with the recorded analysis-frame
+width and height. Shoulder-to-wrist Euclidean reach is then divided by one
+locked, robust median shoulder width for the event. If no shoulder-width sample
+exists, the event reach range is an explicit fallback. The divisor is never
+changed frame by frame. Consequently, the timestamp derivative is signed
+outward velocity: positive means increasing reach and negative means retraction,
+independent of raw image left/right or mirroring.
+
+The detector uses the candidate peak only as a temporal anchor. Its configurable
+window starts 200 ms before that anchor and ends 100 ms after it. Within this
+window it orders outward onset, peak positive velocity, braking, first terminal
+arrival, optional hold, and confirmed retraction. The earliest sample after peak
+velocity can qualify only when reach, shoulder-to-wrist extension ratio, and 2D
+elbow angle are close to their own repetition maxima. These relative tolerances
+are event-selection parameters, not karate correctness thresholds. A sampled
+positive-to-negative reversal selects maximum reach around the sign change;
+confirmed negative velocity makes later samples ineligible. Acceleration is not
+used as a primary selector.
+
+The serialized event records the candidate, phase times, measurement window,
+signal version, scale strategy, evidence, quality, confidence, and an explicit
+unavailable reason. Candidate, theoretical impact, bounded analysis-quality
+fallback, and snapshot frames remain separate. Physical contact remains
+`not_assessed`. Limitations include monocular foreshortening, timestamp and pose
+jitter, missing landmarks, and the need to validate relative tolerances on
+held-out real recordings.

@@ -192,7 +192,7 @@ def analyze_strike_event_jodan_height(
         image_height=image_height,
     )
     payload = result.to_dict()
-    if event.get("theoretical_impact_event") is not None:
+    if (event.get("theoretical_impact_event") or {}).get("impact_frame_number") is not None:
         payload.update(
             measurement_frame_number=_analysis_frame_number(event),
             endpoint_source_frame_number=_frame_number(event.get("impact_point")),
@@ -227,7 +227,7 @@ def _event_geometry_provenance_error(event: dict[str, Any]) -> str | None:
     A target may originate in a locked reference frame, but it must explicitly
     be transported into the selected analysis frame before comparison.
     """
-    if event.get("theoretical_impact_event") is None:
+    if (event.get("theoretical_impact_event") or {}).get("impact_frame_number") is None:
         return None
     analysis_frame = _analysis_frame_number(event)
     if analysis_frame is None:
