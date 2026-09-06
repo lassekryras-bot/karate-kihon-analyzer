@@ -2,8 +2,8 @@ import pytest
 
 from karate_analyzer.strike_detection.theoretical_impact import (
     ConfidenceLevel, EventPhase, PhysicalContactStatus, PunchMotionSample,
-    SelectedEventFrame, TheoreticalImpactConfig, TheoreticalImpactEvent,
-    build_motion_samples, estimate_theoretical_impact, select_analysis_frame,
+    SelectedEventFrame, TerminalConfirmationStatus, TheoreticalImpactConfig, TheoreticalImpactEvent,
+    build_motion_samples, enrich_motion_samples, estimate_theoretical_impact, select_analysis_frame,
     select_snapshot_frame,
 )
 
@@ -23,6 +23,20 @@ def estimate(values, candidate, **kwargs):
     return estimate_theoretical_impact(samples(values, **kwargs), CFG, candidate_peak_frame_number=candidate)
 
 
+def secondary_samples(reach, elbow, opposition):
+    base = samples(reach)
+    return [
+        PunchMotionSample(
+            **{
+                **sample.__dict__,
+                "signed_elbow_displacement": elbow[index],
+                "cross_body_opposition_distance": opposition[index],
+            }
+        )
+        for index, sample in enumerate(base)
+    ]
+
+
 def test_clean_outward_acceleration_selects_first_terminal_arrival():
     event, enriched = estimate([0, .2, .6, 1, 1, 1], 3)
     assert event.impact_frame_number == 3
@@ -34,6 +48,66 @@ def test_first_arrival_is_invariant_to_terminal_hold_length():
     short, _ = estimate([0, .4, .8, 1, 1, 1], 3)
     long, _ = estimate([0, .4, .8, 1, 1, 1] + [1] * 10, 3)
     assert short.impact_frame_number == long.impact_frame_number == 3
+
+
+def test_slow_terminal_drift_does_not_move_arrival_to_hold_end():
+    event, _ = estimate([.80, .90, 1.00, 1.00, 1.01, 1.02, 1.03], 3)
+
+    assert event.impact_frame_number == 2
+
+
+def test_secondary_confirmation_looks_ahead_without_moving_wrist_arrival():
+    data = secondary_samples(
+        [0, .4, .8, 1, 1, 1],
+        [-1, -.5, .5, .8, 1, 1],
+        [1, 1.5, 2.5, 3, 4, 4],
+    )
+
+    event, _ = estimate_theoretical_impact(
+        data, CFG, candidate_peak_frame_number=3
+    )
+
+    assert event.impact_frame_number == 3
+    assert event.confidence_level is ConfidenceLevel.HIGH
+    assert event.terminal_confirmation is not None
+    assert event.terminal_confirmation.status is TerminalConfirmationStatus.CONFIRMED
+    assert event.terminal_confirmation.elbow_terminal_arrival_offset_ms == 50
+    assert event.terminal_confirmation.cross_body_terminal_arrival_offset_ms == 50
+
+
+def test_missing_opposite_elbow_lowers_confidence_but_keeps_wrist_impact():
+    data = secondary_samples(
+        [0, .4, .8, 1, 1, 1],
+        [-1, -.5, .5, .8, 1, 1],
+        [None] * 6,
+    )
+
+    event, _ = estimate_theoretical_impact(
+        data, CFG, candidate_peak_frame_number=3
+    )
+
+    assert event.impact_frame_number == 3
+    assert event.confidence_level is ConfidenceLevel.MEDIUM
+    assert event.terminal_confirmation is not None
+    assert event.terminal_confirmation.status is TerminalConfirmationStatus.PARTIAL
+    assert "cross_body_confirmation_unavailable" in event.terminal_confirmation.quality_flags
+
+
+def test_combined_secondary_retraction_contradiction_rejects_wrist_candidate():
+    data = secondary_samples(
+        [0, .2, .6, .8, 1, 1],
+        [-1, 1, .8, .4, .1, 0],
+        [1, 4, 3, 2, 1, .5],
+    )
+
+    event, _ = estimate_theoretical_impact(
+        data, CFG, candidate_peak_frame_number=4
+    )
+
+    assert event.impact_frame_number is None
+    assert event.unavailable_reason == "secondary_motion_contradicts_terminal_arrival"
+    assert event.terminal_confirmation is not None
+    assert event.terminal_confirmation.status is TerminalConfirmationStatus.CONTRADICTED
 
 
 def test_immediate_reversal_selects_maximum_reach_not_negative_frame():
@@ -65,6 +139,42 @@ def test_mirrored_geometry_has_identical_outward_velocity_meaning():
     _,mirrored=estimate_theoretical_impact(mirrored,CFG,candidate_peak_frame_number=2)
     assert [s.normalized_progress_per_second for s in left] == pytest.approx([s.normalized_progress_per_second for s in mirrored])
     assert left[2].normalized_progress_per_second > 0 and left[4].normalized_progress_per_second < 0
+
+
+def test_mirrored_geometry_preserves_secondary_signal_meaning():
+    source = []
+    for frame_number, wrist_x in enumerate((.55, .70, .85, .85, .65)):
+        source.append({"frame_number": frame_number, "timestamp_ms": frame_number * 50, "poses": [[
+            {"index":11,"x":.45,"y":.35,"visibility":.9},
+            {"index":12,"x":.55,"y":.35,"visibility":.9},
+            {"index":13,"x":(.45+wrist_x)/2,"y":.35,"visibility":.9},
+            {"index":14,"x":.35,"y":.50,"visibility":.9},
+            {"index":15,"x":wrist_x,"y":.35,"visibility":.9},
+            {"index":23,"x":.45,"y":.75,"visibility":.9},
+            {"index":24,"x":.55,"y":.75,"visibility":.9},
+        ]]})
+    mirrored = []
+    for frame in source:
+        mirrored.append({**frame, "poses": [[
+            {**landmark, "x": 1-float(landmark["x"])}
+            for landmark in frame["poses"][0]
+        ]]})
+
+    original_samples = enrich_motion_samples(
+        build_motion_samples(source, "left", analysis_width=1000, analysis_height=500),
+        smoothing_window_samples=1,
+    )
+    mirrored_samples = enrich_motion_samples(
+        build_motion_samples(mirrored, "left", analysis_width=1000, analysis_height=500),
+        smoothing_window_samples=1,
+    )
+
+    assert [s.signed_elbow_displacement for s in mirrored_samples] == pytest.approx(
+        [s.signed_elbow_displacement for s in original_samples]
+    )
+    assert [s.cross_body_opposition_distance for s in mirrored_samples] == pytest.approx(
+        [s.cross_body_opposition_distance for s in original_samples]
+    )
 
 
 def test_noisy_near_zero_hold_keeps_first_arrival():
@@ -118,6 +228,20 @@ def test_unavailable_round_trip_serializes_reason_window_and_provenance():
     assert TheoreticalImpactEvent.from_dict(payload) == event
 
 
+def test_confirmed_event_round_trip_serializes_terminal_confirmation():
+    data = secondary_samples(
+        [0, .4, .8, 1, 1, 1],
+        [-1, -.5, .5, .8, 1, 1],
+        [1, 1.5, 2.5, 3, 4, 4],
+    )
+    event, _ = estimate_theoretical_impact(data, CFG, candidate_peak_frame_number=3)
+
+    payload = event.to_dict()
+
+    assert payload["terminal_confirmation"]["status"] == "confirmed"
+    assert TheoreticalImpactEvent.from_dict(payload) == event
+
+
 def test_contract_validation_and_coordinate_aspect_ratio():
     with pytest.raises(ValueError,match="timestamps must be strictly increasing"):
         estimate_theoretical_impact(samples([0,1,1,1],times=[0,50,50,100]),CFG,candidate_peak_frame_number=1)
@@ -130,6 +254,17 @@ def test_contract_validation_and_coordinate_aspect_ratio():
     assert wide.elbow_angle_degrees_2d == pytest.approx(121.28,abs=.01)
     with pytest.raises(ValueError,match="analysis dimensions"):
         build_motion_samples([],"left",analysis_width=0)
+
+
+def test_full_video_motion_samples_record_video_level_scale_provenance():
+    frame={"frame_number":0,"timestamp_ms":0,"poses":[[
+        {"index":11,"x":0,"y":0,"visibility":.9},{"index":13,"x":.5,"y":0,"visibility":.9},
+        {"index":15,"x":1,"y":0,"visibility":.9},{"index":12,"x":.2,"y":0,"visibility":.9}]]}
+
+    [sample] = build_motion_samples([frame], "left", analysis_width=100)
+
+    assert sample.scale_strategy == "robust_video_median_shoulder_width"
+    assert sample.normalization_scale_analysis_pixels == pytest.approx(20)
 
 
 def test_selected_frame_contract_round_trip():
