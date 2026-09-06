@@ -38,6 +38,10 @@ class JodanHeightAnalysisResult:
     reference_source: str | None = None
     reference_confidence: str | None = None
     unknown_reason: str | None = None
+    measurement_frame_number: int | None = None
+    endpoint_source_frame_number: int | None = None
+    target_source_frame_number: int | None = None
+    target_transport_method: str | None = None
 
     def to_dict(self) -> dict[str, Any]:
         """Return a JSON-serializable representation."""
@@ -52,6 +56,10 @@ class JodanHeightAnalysisResult:
             "reference_source",
             "reference_confidence",
             "unknown_reason",
+            "measurement_frame_number",
+            "endpoint_source_frame_number",
+            "target_source_frame_number",
+            "target_transport_method",
         )
         for field in optional_geometry_fields:
             if payload.get(field) is None:
@@ -162,12 +170,82 @@ def analyze_strike_event_jodan_height(
 ) -> dict[str, Any]:
     """Return a Jodan height analysis dictionary for one strike event."""
 
-    return analyze_jodan_height(
+    provenance_error = _event_geometry_provenance_error(event)
+    if provenance_error is not None:
+        return JodanHeightAnalysisResult(
+            status="unknown",
+            impact_point=_point_payload(event.get("impact_point")),
+            target_point=_point_payload(event.get("jodan_reference")),
+            tolerance_px=None,
+            vertical_offset_px=None,
+            message=_MESSAGES["unknown"],
+            unknown_reason=provenance_error,
+            measurement_frame_number=_analysis_frame_number(event),
+            endpoint_source_frame_number=_frame_number(event.get("impact_point")),
+            target_source_frame_number=_source_frame_number(event.get("jodan_reference")),
+            target_transport_method=_reference_text(event.get("jodan_reference"), "transport_method"),
+        ).to_dict()
+    result = analyze_jodan_height(
         impact_point=event.get("impact_point"),
         shoulder_point=event.get("shoulder"),
         jodan_reference=event.get("jodan_reference"),
         image_height=image_height,
-    ).to_dict()
+    )
+    payload = result.to_dict()
+    if event.get("theoretical_impact_event") is not None:
+        payload.update(
+            measurement_frame_number=_analysis_frame_number(event),
+            endpoint_source_frame_number=_frame_number(event.get("impact_point")),
+            target_source_frame_number=_source_frame_number(event.get("jodan_reference")),
+            target_transport_method=_reference_text(event.get("jodan_reference"), "transport_method"),
+        )
+    return payload
+
+
+def _analysis_frame_number(event: dict[str, Any]) -> int | None:
+    selected = event.get("analysis_frame") or {}
+    value = selected.get("frame_number", event.get("analysis_frame_number"))
+    return None if value is None else int(value)
+
+
+def _frame_number(point: Any) -> int | None:
+    if not isinstance(point, dict):
+        return None
+    value = point.get("analysis_frame_number", point.get("source_frame_number"))
+    return None if value is None else int(value)
+
+
+def _source_frame_number(point: Any) -> int | None:
+    if not isinstance(point, dict) or point.get("source_frame_number") is None:
+        return None
+    return int(point["source_frame_number"])
+
+
+def _event_geometry_provenance_error(event: dict[str, Any]) -> str | None:
+    """Reject canonical measurements whose geometry is not co-registered.
+
+    A target may originate in a locked reference frame, but it must explicitly
+    be transported into the selected analysis frame before comparison.
+    """
+    if event.get("theoretical_impact_event") is None:
+        return None
+    analysis_frame = _analysis_frame_number(event)
+    if analysis_frame is None:
+        return "Canonical event is missing analysis-frame provenance."
+    for name in ("shoulder", "elbow", "wrist", "impact_point"):
+        point = event.get(name)
+        if point is not None and _frame_number(point) != analysis_frame:
+            return f"{name} does not originate from analysis frame {analysis_frame}."
+    reference = event.get("jodan_reference")
+    if reference is not None and reference.get("analysis_frame_number") != analysis_frame:
+        return f"Jodan reference is not registered to analysis frame {analysis_frame}."
+    if (
+        reference is not None
+        and reference.get("source_frame_number") != analysis_frame
+        and not reference.get("transport_method")
+    ):
+        return "Jodan reference changed frames without an explicit transport method."
+    return None
 
 
 def attach_jodan_height_analysis(
