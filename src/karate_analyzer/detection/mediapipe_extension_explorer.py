@@ -15,6 +15,12 @@ from typing import Any
 
 from karate_analyzer.references.chin_reference import calculate_chin_reference
 from karate_analyzer.strike_detection import StrikeDetectorEngine
+from karate_analyzer.strike_detection.theoretical_impact import (
+    build_motion_samples,
+    estimate_theoretical_impact,
+    select_analysis_frame,
+    select_snapshot_frame,
+)
 from karate_analyzer.analyzers.jodan_height_analyzer import (
     analyze_strike_event_jodan_height,
 )
@@ -206,7 +212,20 @@ def _extract_punch_event_landmarks(
         impact_selection = strike_detector.select_impact_frame(
             raw_frames, candidate, observed_side
         )
-        analysis_frame_number = impact_selection["analysis_frame_number"]
+        motion_samples = build_motion_samples(
+            raw_frames,
+            observed_side,
+            start_frame=candidate.get("start_frame"),
+            end_frame=candidate.get("end_frame"),
+        )
+        theoretical_event, motion_samples = estimate_theoretical_impact(motion_samples)
+        analysis_frame = select_analysis_frame(theoretical_event, motion_samples)
+        snapshot_frame = select_snapshot_frame(analysis_frame)
+        analysis_frame_number = (
+            analysis_frame.frame_number
+            if analysis_frame is not None
+            else impact_selection["analysis_frame_number"]
+        )
         frame = frames_by_number.get(analysis_frame_number, {})
         pose_landmarks = {
             landmark.get("index"): landmark for landmark in _first_pose(frame)
@@ -215,6 +234,10 @@ def _extract_punch_event_landmarks(
         shoulder = _landmark_payload(pose_landmarks.get(shoulder_index))
         elbow = _landmark_payload(pose_landmarks.get(elbow_index))
         wrist = _landmark_payload(pose_landmarks.get(wrist_index))
+        if theoretical_event.impact_frame_number is not None:
+            shoulder = _with_analysis_frame_provenance(shoulder, analysis_frame_number)
+            elbow = _with_analysis_frame_provenance(elbow, analysis_frame_number)
+            wrist = _with_analysis_frame_provenance(wrist, analysis_frame_number)
         head_reference = _head_reference_candidate(pose_landmarks)
         chin_reference = calculate_chin_reference(_first_face(frame))
         jodan_reference = calculate_jodan_reference(
@@ -223,15 +246,13 @@ def _extract_punch_event_landmarks(
         impact_point, impact_point_reason = strike_detector.validated_impact_point(
             frame, wrist
         )
-        if impact_point is None or impact_point.get("source") == "pose_wrist_fallback":
-            nearby_impact_point, nearby_reason = (
-                strike_detector.validated_nearby_impact_point(
-                    raw_frames, analysis_frame_number, wrist
-                )
-            )
-            if nearby_impact_point is not None:
-                impact_point = nearby_impact_point
-                impact_point_reason = nearby_reason
+        if impact_point is not None and theoretical_event.impact_frame_number is not None:
+            impact_point = {
+                **impact_point,
+                "source_frame_number": analysis_frame_number,
+                "endpoint_role": "analysis_frame_endpoint",
+                "coordinate_space": "normalized_analysis_image",
+            }
         impact_reason = impact_selection["impact_frame_reason"]
         if impact_point_reason is not None:
             impact_reason = f"{impact_reason}; {impact_point_reason}"
@@ -298,6 +319,12 @@ def _extract_punch_event_landmarks(
                 ),
             },
         }
+        # Do not claim a canonical event when the region cannot support one.
+        # Legacy-only fixtures and compatibility consumers therefore remain honest.
+        if theoretical_event.impact_frame_number is not None:
+            event["theoretical_impact_event"] = theoretical_event.to_dict()
+            event["analysis_frame"] = analysis_frame.to_dict() if analysis_frame else None
+            event["snapshot_frame"] = snapshot_frame.to_dict() if snapshot_frame else None
         events.append(event)
 
     events = resolve_jodan_references(raw_frames, events)
@@ -453,6 +480,19 @@ def _landmark_payload(landmark: dict[str, Any] | None) -> dict[str, float] | Non
 
 def _visibility(landmark: dict[str, float] | None) -> float | None:
     return None if landmark is None else landmark["visibility"]
+
+
+def _with_analysis_frame_provenance(
+    point: dict[str, Any] | None, frame_number: int | None
+) -> dict[str, Any] | None:
+    if point is None:
+        return None
+    return {
+        **point,
+        "source_frame_number": frame_number,
+        "analysis_frame_number": frame_number,
+        "coordinate_space": "normalized_analysis_image",
+    }
 
 
 def _distance_2d(

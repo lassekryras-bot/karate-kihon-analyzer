@@ -119,6 +119,9 @@ def _build_analysis_results(
                 "matches_expected_side": event.get("matches_expected_side"),
                 "peak_frame_number": event.get("peak_frame_number"),
                 "analysis_frame_number": event.get("analysis_frame_number"),
+                "theoretical_impact_event": event.get("theoretical_impact_event"),
+                "analysis_frame": event.get("analysis_frame"),
+                "snapshot_frame": event.get("snapshot_frame"),
                 "elbow_angle_degrees": event.get("elbow_angle_degrees"),
                 "angle_delta_degrees": event.get("angle_delta_degrees"),
                 "max_elbow_angle_degrees_in_region": event.get(
@@ -241,12 +244,15 @@ def _build_report(summary: dict[str, Any], analysis_results: dict[str, Any]) -> 
         "",
         "## Strike Events",
         "",
+        "The candidate peak is a detector clue, not impact. The theoretical-impact "
+        "event is the first credible functional endpoint. Analysis and snapshot "
+        "frames retain independent provenance. Physical contact is not assessed.",
         "The candidate peak frame is the detector's region peak. The selected "
         "analysis frame and time identify the frame used for event measurements "
         "and snapshot rendering.",
         "",
-        "| # | Expected side | Observed side | Candidate peak frame | Selected analysis frame | Selected analysis time | Jodan height | Snapshot |",
-        "|---|---------------|---------------|----------------------|-------------------------|------------------------|--------------|----------|",
+        "| # | Expected side | Observed side | Candidate peak | Theoretical impact | Analysis frame (offset) | Snapshot frame (offset) | Confidence / evidence | Physical contact | Jodan height | Snapshot |",
+        "|---|---|---|---|---|---|---|---|---|---|---|",
     ]
     for event in analysis_results["events"]:
         status = (
@@ -256,10 +262,37 @@ def _build_report(summary: dict[str, Any], analysis_results: dict[str, Any]) -> 
         analysis_frame = _format_report_value(event.get("analysis_frame_number"))
         timestamp = event.get("timestamp_seconds")
         time_text = "" if timestamp is None else f"{float(timestamp):.3f}s"
+        impact = event.get("theoretical_impact_event") or {}
+        analysis = event.get("analysis_frame") or {}
+        snapshot = event.get("snapshot_frame") or {}
+        impact_ms = impact.get("theoretical_impact_time_ms")
+        impact_text = "" if impact_ms is None else f"{impact.get('impact_frame_number')} / {impact_ms / 1000:.3f}s"
+        analysis_text = (f"{analysis.get('frame_number')} ({analysis.get('offset_from_impact_ms', 0):+d}ms)" if analysis else f"{analysis_frame} / {time_text}")
+        snapshot_text = (f"{snapshot.get('frame_number')} ({snapshot.get('offset_from_impact_ms', 0):+d}ms)" if snapshot else analysis_text)
+        evidence = ", ".join(impact.get("evidence_flags", []))
         lines.append(
             f"| {event.get('event_index', '')} | {event.get('expected_side') or ''} | "
             f"{event.get('observed_side') or ''} | {candidate_peak_frame} | "
-            f"{analysis_frame} | {time_text} | {status} | "
+            f"{impact_text} | {analysis_text} | {snapshot_text} | "
+            f"{impact.get('confidence_level', '')} {evidence} | "
+            f"{str(impact.get('physical_contact_status', 'not_assessed')).replace('_', ' ')} | {status} | "
+            f"{event.get('snapshot_path') or ''} |"
+        )
+    lines.extend([
+        "",
+        "### Compatibility view",
+        "",
+        "| # | Expected side | Observed side | Candidate peak frame | Selected analysis frame | Selected analysis time | Jodan height | Snapshot |",
+        "|---|---------------|---------------|----------------------|-------------------------|------------------------|--------------|----------|",
+    ])
+    for event in analysis_results["events"]:
+        status = event.get("analysis", {}).get("jodan_height", {}).get("status", "unknown")
+        timestamp = event.get("timestamp_seconds")
+        time_text = "" if timestamp is None else f"{float(timestamp):.3f}s"
+        lines.append(
+            f"| {event.get('event_index', '')} | {event.get('expected_side') or ''} | "
+            f"{event.get('observed_side') or ''} | {_format_report_value(event.get('peak_frame_number'))} | "
+            f"{_format_report_value(event.get('analysis_frame_number'))} | {time_text} | {status} | "
             f"{event.get('snapshot_path') or ''} |"
         )
     return "\n".join(lines) + "\n"
