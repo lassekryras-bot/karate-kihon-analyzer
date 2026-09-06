@@ -254,7 +254,15 @@ def select_snapshot_frame(analysis_frame: SelectedEventFrame | None) -> Selected
 
 
 def build_motion_samples(raw_frames: Iterable[dict[str, Any]], side: str, *, start_frame: int | None = None, end_frame: int | None = None, analysis_width: int = 1, analysis_height: int = 1) -> list[PunchMotionSample]:
-    """Build shoulder-relative, torso-normalized camera-plane progress."""
+    """Build shoulder-relative, torso-normalized analysis-pixel progress.
+
+    ``analysis_width`` and ``analysis_height`` must be the dimensions from the
+    recording's :class:`FrameGeometry`.  The unit defaults retain compatibility
+    for isolated normalized-coordinate fixtures; production orchestration
+    always supplies the recorded dimensions.
+    """
+    if analysis_width <= 0 or analysis_height <= 0:
+        raise ValueError("analysis dimensions must be positive")
     indices = (11, 13, 15, 12) if side == "left" else (12, 14, 16, 11) if side == "right" else None
     if indices is None:
         raise ValueError("side must be 'left' or 'right'")

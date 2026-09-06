@@ -7,6 +7,7 @@ from karate_analyzer.strike_detection.theoretical_impact import (
     SelectedEventFrame,
     TheoreticalImpactConfig,
     TheoreticalImpactEvent,
+    build_motion_samples,
     estimate_theoretical_impact,
     select_analysis_frame,
     select_snapshot_frame,
@@ -80,3 +81,29 @@ def test_contracts_round_trip_and_reject_invalid_ordering():
     assert SelectedEventFrame.from_dict(frame.to_dict()) == frame
     with pytest.raises(ValueError, match="out of order"):
         TheoreticalImpactEvent(100, 2, "decoded_sample_arrival_v1", ConfidenceLevel.LOW, (), None, None, None, None, 200, 100)
+
+
+def test_motion_geometry_uses_analysis_pixel_aspect_ratio():
+    frame = {
+        "frame_number": 0,
+        "timestamp_ms": 0,
+        "poses": [[
+            {"index": 11, "x": 0.0, "y": 0.0, "visibility": 0.9},
+            {"index": 13, "x": 0.5, "y": 0.5, "visibility": 0.9},
+            {"index": 15, "x": 1.0, "y": 0.0, "visibility": 0.9},
+            {"index": 12, "x": 0.2, "y": 0.0, "visibility": 0.9},
+        ]],
+    }
+
+    [square] = build_motion_samples([frame], "left")
+    [widescreen] = build_motion_samples(
+        [frame], "left", analysis_width=1600, analysis_height=900
+    )
+
+    assert square.elbow_angle_degrees_2d == pytest.approx(90.0)
+    assert widescreen.elbow_angle_degrees_2d == pytest.approx(121.28, abs=0.01)
+
+
+def test_motion_geometry_rejects_invalid_analysis_dimensions():
+    with pytest.raises(ValueError, match="analysis dimensions must be positive"):
+        build_motion_samples([], "left", analysis_width=0, analysis_height=1080)

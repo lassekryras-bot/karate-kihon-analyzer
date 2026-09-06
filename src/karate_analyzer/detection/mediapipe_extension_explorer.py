@@ -13,6 +13,7 @@ import math
 from pathlib import Path
 from typing import Any
 
+from karate_analyzer.frame_geometry import FrameGeometry
 from karate_analyzer.references.chin_reference import calculate_chin_reference
 from karate_analyzer.strike_detection import StrikeDetectorEngine
 from karate_analyzer.strike_detection.theoretical_impact import (
@@ -126,6 +127,7 @@ def analyze_extension_json(
     punch_event_landmark_payload = _extract_punch_event_landmarks(
         payload.get("frames", []),
         punch_event_payload["punch_event_candidates"],
+        frame_geometry=FrameGeometry.from_dict(payload["frame_geometry"]),
     )
     punch_event_landmark_payload["frame_geometry"] = payload.get("frame_geometry")
     punch_event_landmark_payload["source"] = payload.get("source")
@@ -194,7 +196,10 @@ def _extract_punch_event_candidates(
 
 
 def _extract_punch_event_landmarks(
-    raw_frames: list[dict[str, Any]], punch_event_candidates: list[dict[str, Any]]
+    raw_frames: list[dict[str, Any]],
+    punch_event_candidates: list[dict[str, Any]],
+    *,
+    frame_geometry: FrameGeometry | None = None,
 ) -> dict[str, Any]:
     """Copy peak-frame landmarks needed for later Jodan punch analysis.
 
@@ -217,6 +222,12 @@ def _extract_punch_event_landmarks(
             observed_side,
             start_frame=candidate.get("start_frame"),
             end_frame=candidate.get("end_frame"),
+            analysis_width=(
+                frame_geometry.analysis_size.width if frame_geometry else 1
+            ),
+            analysis_height=(
+                frame_geometry.analysis_size.height if frame_geometry else 1
+            ),
         )
         theoretical_event, motion_samples = estimate_theoretical_impact(motion_samples)
         analysis_frame = select_analysis_frame(theoretical_event, motion_samples)
