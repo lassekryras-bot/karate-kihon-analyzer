@@ -31,6 +31,7 @@ def build_punch_path_presentation_bundle(
     video_landmarks: dict[str, Any],
     *,
     event_index: int | None = None,
+    upper_arm_length_m: float | None = None,
 ) -> dict[str, Any]:
     """Build a deterministic, renderer-neutral bundle for one or all events."""
 
@@ -76,6 +77,10 @@ def build_punch_path_presentation_bundle(
             presentation, motion, video_landmarks.get("frame_geometry"))
         presentations.append(presentation)
         presentations.append(build_maximum_deviation_presentation(presentation))
+        from .wrist_speed import build_wrist_speed_presentation
+        presentations.append(build_wrist_speed_presentation(
+            presentation, motion, video_landmarks.get("frame_geometry"),
+            upper_arm_length_m=upper_arm_length_m))
     return {
         "schema_version": 2,
         "contract": "karate_measurement_presentation_v2",

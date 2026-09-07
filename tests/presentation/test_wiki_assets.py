@@ -22,7 +22,7 @@ def test_default_wiki_punch_is_right_hand_five_and_catalogue_resolves():
     assert motion['event']['side'] == 'right'
     assert motion['event']['event_index'] == 5
     assert presentation['availability']['status'] == 'available'
-    assert len(catalogue['measurements']) == 1
+    assert len(catalogue['measurements']) == 2
     assert presentation['maximum_marker'] is not None
     assert presentation['coordinate_reference'] == 'fixed_analysis_camera'
     for entry in catalogue['measurements']:

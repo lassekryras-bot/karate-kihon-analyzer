@@ -241,3 +241,19 @@ this workspace, although the source and installed assets are updated.
   more weight.”
 
 Use the [starter prompt](prompts/new-measurement-wiki-entry.md) for the next task.
+
+## Maximum markers and speed page
+
+Reveal a maximum marker in the body animation when the selected frame reaches
+its timestamp. Keep it on the completed trail afterwards; hide it again when
+scrubbing earlier or restarting. Do not place a future marker in empty space
+before the wrist gets there. The graph can retain its maximum marker throughout,
+and Show maximum selects the corresponding moment directly.
+
+The native renderer also supports the camera-relative wrist-speed page. It uses
+the same recorded motion, a nonnegative speed graph, maximum speed and no path
+reference line. Speed units come from its exported scale: upper-arm lengths/s
+or m/s. Keep scale/setup instructions out of user-facing copy. Explain smoothing
+briefly behind How is this calculated?, including that the animation is unchanged
+and a short peak may be softened or shifted. Detailed method and scale selection
+belong in the presentation contract.

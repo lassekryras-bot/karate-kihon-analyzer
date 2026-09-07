@@ -95,3 +95,9 @@ validation, publication status, and at most three next tasks.
   out of the user-facing measurement page. Do not add calibration work here.
 - Follow the guide's short copy and update old shoulder-relative explanations
   in the app and technical documentation to match the implemented reference.
+
+For animated maxima, reveal the body marker only when playback reaches its
+sample; retain it afterwards and hide it when scrubbing earlier. Preserve the
+full-graph maximum marker and direct Show maximum navigation. Wrist speed is
+now another installed page sharing the motion, with a nonnegative speed curve,
+maximum speed, and a short smoothing explanation behind the method link.

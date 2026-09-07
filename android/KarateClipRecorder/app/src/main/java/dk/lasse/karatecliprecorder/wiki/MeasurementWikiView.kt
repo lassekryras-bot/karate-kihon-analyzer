@@ -75,7 +75,8 @@ class MeasurementWikiView(context: Context, private val onClose: () -> Unit) : L
         card.addView(label(definition.getString("description")))
         try {
             require(definition.getString("renderer_id") == "pose_with_path_graph") { "Renderer not installed" }
-            require(definition.getString("measurement_id") == "punch_path_typical_deviation_rms") {
+            val speed = definition.getString("measurement_id") == "camera_relative_wrist_speed"
+            require(speed || definition.getString("measurement_id") == "punch_path_typical_deviation_rms") {
                 "Measurement not supported by this renderer"
             }
             val example = definition.optJSONObject("wiki_example") ?: catalogue.getJSONObject("default_example")
@@ -90,21 +91,22 @@ class MeasurementWikiView(context: Context, private val onClose: () -> Unit) : L
             }
             require(matches.size == 1) { "Matching example missing" }
             val presentation = matches.single()
-            require(presentation.getJSONObject("scale").getString("output_unit") == "shoulder_width" &&
-                presentation.getJSONObject("graph").getString("output_unit") == "shoulder_width") {
-                "This renderer does not yet support this distance unit"
-            }
             val motion = bundle.getJSONObject("motions").getJSONObject(presentation.getString("motion_id"))
             require(presentation.getJSONObject("availability").getString("status") == "available") {
                 presentation.getJSONObject("availability").optString("reason", "Measurement unavailable")
             }
+            val scaleUnit = presentation.getJSONObject("scale").getString("output_unit")
+            val graphUnit = presentation.getJSONObject("graph").getString("output_unit")
+            require(if (speed) (scaleUnit == "upper_arm_length" && graphUnit == "upper_arm_lengths_per_second") ||
+                (scaleUnit == "meter" && graphUnit == "meters_per_second")
+                else scaleUnit == "shoulder_width" && graphUnit == "shoulder_width") { "Unsupported unit" }
             require(presentation.getString("coordinate_reference") == "fixed_analysis_camera" &&
                 presentation.getJSONObject("overlays").getString("coordinate_space") == "fixed_analysis_camera_output_units") {
                 "Fixed-camera path required; update this example"
             }
             val summary = presentation.getJSONObject("summary")
-            val rms = summary.getDouble("typical_deviation_rms_output_units")
-            val maximum = summary.getDouble("maximum_deviation_output_units")
+            val rms = if (speed) 0.0 else summary.getDouble("typical_deviation_rms_output_units")
+            val maximum = summary.getDouble(if (speed) "maximum_speed_output_units" else "maximum_deviation_output_units")
             require(rms.isFinite() && maximum.isFinite() && rms >= 0 && maximum >= rms) {
                 "Measurement values unavailable"
             }
@@ -144,11 +146,11 @@ class MeasurementWikiView(context: Context, private val onClose: () -> Unit) : L
                 play.text = if (drawing.playing) "Pause" else "Play at half speed"
             }
             card.addView(slider); card.addView(play); card.addView(time)
-            val unit = presentation.getJSONObject("scale").getString("output_unit").replace('_', ' ')
-            card.addView(label("Typical deviation (RMS): %.3f %s".format(rms, unit)))
-            card.addView(label("Maximum deviation: %.3f %s".format(maximum, unit)))
+            val unit = if (speed) (if (graphUnit == "meters_per_second") "m/s" else "upper-arm lengths/s") else "shoulder widths"
+            if (!speed) card.addView(label("Typical deviation (RMS): %.3f %s".format(rms, unit)))
+            card.addView(label((if (speed) "Maximum speed: %.2f %s" else "Maximum deviation: %.3f %s").format(maximum, unit)))
             card.addView(Button(context).apply {
-                text = "Show maximum"
+                text = if (speed) "Show maximum speed" else "Show maximum"
                 setOnClickListener { drawing.seekTimestamp(marker.getDouble("timestamp_ms")) }
             })
             drawing.seek(0.0)
@@ -170,6 +172,9 @@ class MeasurementWikiView(context: Context, private val onClose: () -> Unit) : L
 
 /** Shared timestamp cursor drives both upper-body pose and the measurement graph. */
 internal class PunchGraphView(context: Context, bundle: JSONObject, presentation: JSONObject, motion: JSONObject, private val graphOnly: Boolean = false) : View(context) {
+    private val speed = presentation.getString("measurement_id") == "camera_relative_wrist_speed"
+    private val valueKey = if (speed) "speed_output_units" else "signed_deviation_output_units"
+    private val graphLabel = if (speed) (if (presentation.getJSONObject("graph").getString("output_unit") == "meters_per_second") "Speed · m/s" else "Speed · upper-arm lengths/s") else "Signed deviation · shoulder widths"
     private val frames = motion.getJSONArray("frames").objects()
     private val samples = presentation.getJSONObject("graph").getJSONArray("samples").objects()
     private val trajectory = presentation.getJSONObject("overlays").getJSONArray("trajectory_samples").objects()
@@ -203,7 +208,7 @@ internal class PunchGraphView(context: Context, bundle: JSONObject, presentation
             update(); if (playing) postDelayed(this, 16)
         }
     }
-    init { contentDescription = "Upper-body punch animation and signed wrist deviation graph"; isFocusable = true }
+    init { contentDescription = if (speed) "Punch animation and wrist speed graph" else "Punch animation and wrist deviation graph"; isFocusable = true }
     fun play() { if (timestamp >= last) timestamp = first; playing = true; clock = SystemClock.uptimeMillis(); removeCallbacks(tick); post(tick) }
     fun pause() { playing = false; removeCallbacks(tick); update() }
     fun seek(progress: Double) { pause(); timestamp = first + progress.coerceIn(0.0, 1.0) * (last - first); update() }
@@ -263,9 +268,11 @@ internal class PunchGraphView(context: Context, bundle: JSONObject, presentation
         val head = xy(pose.getJSONObject("head_center"))
         paint.style = Paint.Style.STROKE; paint.color = ink
         canvas.drawCircle(head.x,head.y,(pose.getDouble("head_radius") * iw * zoom).toFloat(),paint)
-        paint.pathEffect = DashPathEffect(floatArrayOf(10f,8f),0f)
-        line(cameraPoint(trajectory.first()),cameraPoint(trajectory.last()),ink,1.5f)
-        paint.pathEffect = null
+        if (!speed) {
+            paint.pathEffect = DashPathEffect(floatArrayOf(10f,8f),0f)
+            line(cameraPoint(trajectory.first()),cameraPoint(trajectory.last()),ink,1.5f)
+            paint.pathEffect = null
+        }
         trajectory.filter { it.getDouble("timestamp_ms") <= timestamp }.zipWithNext().forEach { (a,b) -> line(cameraPoint(a),cameraPoint(b),red,2f) }
         val current = xy(pose.getJSONObject(wrist)); paint.style = Paint.Style.FILL; paint.color = red
         canvas.drawCircle(current.x,current.y,5 * resources.displayMetrics.density,paint)
@@ -274,31 +281,33 @@ internal class PunchGraphView(context: Context, bundle: JSONObject, presentation
             paint.strokeWidth = 2 * resources.displayMetrics.density
             canvas.drawCircle(point.x, point.y, 9 * resources.displayMetrics.density, paint)
         }
-        maximumMarker.let { marker ->
-            val peak = cameraPoint(marker)
-            val projected = cameraPoint(JSONObject().put("camera_wrist", marker.getJSONArray("camera_reference_point")))
-            line(peak, projected, ink, 2f)
+        if (selected().getDouble("timestamp_ms") >= maximumMarker.getDouble("timestamp_ms")) {
+            val peak = cameraPoint(maximumMarker)
+            if (!speed) {
+                val projected = cameraPoint(JSONObject().put("camera_wrist", maximumMarker.getJSONArray("camera_reference_point")))
+                line(peak, projected, ink, 2f)
+            }
             ring(peak)
         }
-        val left = width * .12f; val right = width * .94f; val zero = height * .81f; val amplitude = height * .09f
-        val maxValue = samples.maxOf { abs(it.getDouble("signed_deviation_output_units")) }.coerceAtLeast(.001)
+        val left = width * .12f; val right = width * .94f; val zero = height * (if (speed) .90f else .81f); val amplitude = height * (if (speed) .18f else .09f)
+        val maxValue = samples.maxOf { abs(it.getDouble(valueKey)) }.coerceAtLeast(.001)
         fun gx(t: Double) = (left + (t-first)/(last-first)*(right-left)).toFloat()
         fun gy(v: Double) = (zero-v/maxValue*amplitude).toFloat()
         line(PointF(left,zero),PointF(right,zero),ink,1f)
-        samples.zipWithNext().forEach { (a,b) -> line(PointF(gx(a.getDouble("timestamp_ms")),gy(a.getDouble("signed_deviation_output_units"))),PointF(gx(b.getDouble("timestamp_ms")),gy(b.getDouble("signed_deviation_output_units"))),red,1.5f) }
-        line(PointF(gx(timestamp),zero-amplitude),PointF(gx(timestamp),zero+amplitude),ink,1f)
+        samples.zipWithNext().forEach { (a,b) -> line(PointF(gx(a.getDouble("timestamp_ms")),gy(a.getDouble(valueKey))),PointF(gx(b.getDouble("timestamp_ms")),gy(b.getDouble(valueKey))),red,1.5f) }
+        line(PointF(gx(timestamp),zero-amplitude),PointF(gx(timestamp),if (speed) zero else zero+amplitude),ink,1f)
         val sample = samples.minBy { abs(it.getDouble("timestamp_ms")-timestamp) }
         paint.style = Paint.Style.FILL; paint.color = red
-        canvas.drawCircle(gx(sample.getDouble("timestamp_ms")),gy(sample.getDouble("signed_deviation_output_units")),5f,paint)
+        canvas.drawCircle(gx(sample.getDouble("timestamp_ms")),gy(sample.getDouble(valueKey)),5f,paint)
         maximumMarker.let { marker ->
-            ring(PointF(gx(marker.getDouble("timestamp_ms")), gy(marker.getDouble("signed_deviation_output_units"))))
+            ring(PointF(gx(marker.getDouble("timestamp_ms")), gy(marker.getDouble(valueKey))))
         }
         paint.style = Paint.Style.FILL
         paint.color = ink; paint.textSize = 12 * resources.displayMetrics.scaledDensity
         canvas.drawText("0",0f,zero,paint)
         canvas.drawText("+%.2f".format(maxValue),0f,zero-amplitude,paint)
-        canvas.drawText("−%.2f".format(maxValue),0f,zero+amplitude,paint)
-        canvas.drawText("Signed deviation · shoulder widths",left,height*.68f,paint)
+        if (!speed) canvas.drawText("−%.2f".format(maxValue),0f,zero+amplitude,paint)
+        canvas.drawText(graphLabel,left,height*.68f,paint)
         canvas.drawText("%.3f s".format(first/1000),left,height*.98f,paint)
         canvas.drawText("%.3f s".format(last/1000),right-55*resources.displayMetrics.density,height*.98f,paint)
     }

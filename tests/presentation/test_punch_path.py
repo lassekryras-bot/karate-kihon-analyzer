@@ -187,7 +187,7 @@ def test_wiki_override_changes_whole_example_but_never_exercise():
 
 def test_export_adds_distinct_maximum_presentation_sharing_motion():
     bundle = build_punch_path_presentation_bundle(_companion(), _landmarks())
-    rms, maximum = bundle["presentations"]
+    rms, maximum, speed = bundle["presentations"]
     assert maximum["measurement_id"] == "punch_path_maximum_deviation"
     assert maximum["availability"]["status"] == "available"
     assert maximum["maximum_marker"]["frame_number"] == 1

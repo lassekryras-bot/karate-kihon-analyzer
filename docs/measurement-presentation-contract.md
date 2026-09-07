@@ -210,3 +210,29 @@ camera source method in provenance. These IDs do not create two wiki pages.
 Scale provenance and units remain unchanged by the reference migration. Existing
 shoulder-width values cannot be relabelled as centimetres. Calibration changes
 are outside this slice; user-facing copy does not repeat setup explanations.
+
+## Camera-relative wrist speed
+
+`wrist_speed:event:N` has measurement ID `camera_relative_wrist_speed`, method
+`fixed_camera_local_linear_wrist_speed_v1`, and the same `motion_id` and observed
+sample window as the wrist-path page. Graph samples use `speed_output_units`;
+summary uses `maximum_speed_output_units`. `maximum_marker` carries the same
+speed, frame/time and fixed-camera wrist point. It has no perpendicular projection.
+
+`presentation.wrist_speed.build_wrist_speed_presentation` computes local least
+squares slopes of recorded x/y against actual seconds within ±50 ms, then their
+Euclidean magnitude. At least three samples per window are required; no synthetic
+positions or times are added at boundaries. There is no pose smoothing. Peaks
+can be attenuated or shifted by this window. Exact maximum ties choose earliest
+time then lowest frame. Units are `upper_arm_lengths_per_second`, or
+`meters_per_second` if a positive finite measured `upper_arm_length_m` is passed
+to the Python bundle exporter. No CLI or calibration UI is added here.
+
+Speed scale records one median upper-arm pixel length from the initial 100 ms,
+minimum three finite nonzero observations with shoulder/elbow visibility ≥0.5.
+Camera-near side comes from the shared motion's depth-based arm layering, not a
+hardcoded right-side assumption. Side, reference frames, pixel length, optional
+measured length and local-slope method are exported. The installed example uses
+the preview's reference strategy; it is not represented as validated calibration.
+Display camera coordinates scale with the chosen unit so wrist overlays remain
+identical in pixels when switching units. The original shared motion is unchanged.

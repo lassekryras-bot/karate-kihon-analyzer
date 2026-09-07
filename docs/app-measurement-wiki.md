@@ -63,3 +63,28 @@ large fonts, light/dark themes, TalkBack and unavailable states on Android.
 Wiki-specific activity restoration, localization and exercise-result entry into
 this native renderer remain future work. Local source changes are not a deployed
 app update.
+
+## Wrist speed
+
+A second catalogue page, **Wrist speed**, selects `wrist_speed:event:5` and reuses
+exactly the same motion as the path page. It shows the camera-relative wrist
+trail and a nonnegative speed graph, maximum speed and Show maximum speed.
+No dashed path reference or perpendicular distance connector appears on this page.
+
+For both pages, the animation's maximum marker appears only when the selected
+frame reaches the maximum timestamp, stays on the completed trail, and disappears
+when scrubbing back before that moment. The graph retains its maximum marker as
+a navigation/reference point throughout.
+
+Speed is estimated by fitting x and y against timestamps within ±50 ms of each
+sample, then taking the velocity magnitude. At least three samples are required;
+the start/end use available frames. The pose and drawn wrist trail are unchanged.
+The calculation page briefly explains smoothing and its effect on short peaks.
+
+The packaged speed example uses one median camera-near upper-arm image length
+from the initial 100 ms, with selected side/frames recorded in provenance. This
+is the approved preview's reference strategy, not a completed calibration flow.
+It produces **11.974932 upper-arm lengths/s**, frame **237**, **3.950 seconds**.
+The Python export API optionally accepts `upper_arm_length_m` to provide m/s;
+no measurement has been supplied for the installed example, and there is no new
+calibration UI or CLI option in this change. Scale and sample failures are explicit.

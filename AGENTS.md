@@ -35,3 +35,7 @@ the current baseline and distinguishes planned capabilities from implemented one
 - Track agreed behavior separately from shipped behavior. The grouped RMS/maximum
   page and fixed-camera calculation are now implemented in local source. Native
   compilation and device checks remain blocked/unverified; do not claim deployment.
+- In the body animation, reveal a maximum marker only when the wrist reaches
+  that sample. Keep it afterwards; hide it on earlier scrubbing/restart. The
+  graph may show its maximum throughout. Explain speed smoothing briefly in
+  the calculation page, never by altering the displayed motion.
