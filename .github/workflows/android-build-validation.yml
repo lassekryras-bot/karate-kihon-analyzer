@@ -50,3 +50,12 @@ jobs:
             android/KarateClipRecorder/**/build/reports/**
             android/KarateClipRecorder/**/build/test-results/**
           if-no-files-found: ignore
+
+      - name: Upload debug APK
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: karate-clip-recorder-debug-apk
+          path: android/KarateClipRecorder/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+          retention-days: 7
