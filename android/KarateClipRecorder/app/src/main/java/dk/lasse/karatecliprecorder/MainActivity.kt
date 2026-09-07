@@ -38,11 +38,18 @@ import dk.lasse.karatecliprecorder.enso.EnsoLibrary
 import dk.lasse.karatecliprecorder.learningartwork.LearningActivityEntryView
 import dk.lasse.karatecliprecorder.learningartwork.LearningActivityType
 import dk.lasse.karatecliprecorder.learningpath.LearnScreenView
+import dk.lasse.karatecliprecorder.learningpath.DraftActivityType
+import dk.lasse.karatecliprecorder.learningpath.DraftLearningPathCatalog
+import dk.lasse.karatecliprecorder.learningpath.KarateBasicsPathView
 import dk.lasse.karatecliprecorder.learningpath.LearningDestination
 import dk.lasse.karatecliprecorder.learningpath.LearningPath
 import dk.lasse.karatecliprecorder.learningpath.LearningPathCatalog
 import dk.lasse.karatecliprecorder.learningpath.LearningPathId
 import dk.lasse.karatecliprecorder.learningpath.SkillProgressionView
+import dk.lasse.karatecliprecorder.learningpath.ResolvedDraftActivity
+import dk.lasse.karatecliprecorder.learningpath.RecentLearningTarget
+import dk.lasse.karatecliprecorder.learningactivity.DraftPlaceholderActivityView
+import dk.lasse.karatecliprecorder.learningactivity.JapaneseCountingPracticeView
 import dk.lasse.karatecliprecorder.orders.SoundFileTrainingOrderPlayer
 import dk.lasse.karatecliprecorder.orders.TrainingOrder
 import dk.lasse.karatecliprecorder.orders.TrainingOrderMapper
@@ -95,6 +102,16 @@ import dk.lasse.karatecliprecorder.mediapipeposeadapter.LivePoseLandmarkerRunner
 import dk.lasse.karatecliprecorder.mediapipeposeadapter.LivePoseLandmarkerOutput
 import dk.lasse.karatecliprecorder.mediapipeposeadapter.PoseFramePermit
 import dk.lasse.karatecliprecorder.mediapipeposeadapter.PoseRecognizerLifecycleState
+import dk.lasse.karatecliprecorder.profile.ManageProfilesView
+import dk.lasse.karatecliprecorder.profile.Calibration
+import dk.lasse.karatecliprecorder.profile.LearningStatus
+import dk.lasse.karatecliprecorder.profile.Profile
+import dk.lasse.karatecliprecorder.profile.ProfileEditorView
+import dk.lasse.karatecliprecorder.profile.ProfileRepository
+import dk.lasse.karatecliprecorder.profile.ProfileScreenView
+import dk.lasse.karatecliprecorder.profile.ProgressScreenView
+import dk.lasse.karatecliprecorder.profile.TrainingMode
+import dk.lasse.karatecliprecorder.profile.TrainingSession
 import dk.lasse.karateanalyzer.core.PunchHeightAnalyzer
 import dk.lasse.karateanalyzer.core.PunchHeightTargetType
 import java.util.concurrent.ExecutorService
@@ -108,8 +125,17 @@ class MainActivity : AppCompatActivity() {
     private var measurementWiki: dk.lasse.karatecliprecorder.wiki.MeasurementWikiView? = null
     private lateinit var learnScreen: LearnScreenView
     private lateinit var settingsScreen: SettingsScreenView
+    private lateinit var progressScreen: ProgressScreenView
+    private lateinit var profileRepository: ProfileRepository
+    private var secondaryScreen: View? = null
+    private var secondaryBackAction: (() -> Unit)? = null
+    private var profileReturnDestination = AppDestination.HOME
     private var skillProgressionScreen: SkillProgressionView? = null
+    private var japaneseCountingPracticeScreen: JapaneseCountingPracticeView? = null
     private val learningPaths by lazy(LearningPathCatalog::create)
+    private val karateBasicsPath by lazy { DraftLearningPathCatalog.karateBasics(this) }
+    private var karateBasicsScrollY = 0
+    private var pendingKarateBasicsCompletionAnimationId: String? = null
     private lateinit var appPreferences: AppPreferences
     private var ensoDebugGallery: View? = null
     private var cameraStartupRequested = false
@@ -214,6 +240,7 @@ class MainActivity : AppCompatActivity() {
     private var pendingJapaneseCountRecognitionRestart: Runnable? = null
     private var japaneseCountCommittedTranscript = ""
     private var japaneseCountMode: LearningActivityType? = null
+    private var lastPlayedJapaneseCountItemIndex: Int? = null
     private var pendingJapaneseCountMicrophonePermission = false
     private var japaneseCountTrainingSession = CountTrainingSession()
     private var recognizerState: RecognizerLifecycleState = RecognizerLifecycleState.INACTIVE
@@ -262,6 +289,7 @@ class MainActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         appPreferences = AppPreferences(this)
+        profileRepository = ProfileRepository(this, appPreferences)
         AppCompatDelegate.setDefaultNightMode(appPreferences.theme.nightMode)
         super.onCreate(savedInstanceState)
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
@@ -272,32 +300,42 @@ class MainActivity : AppCompatActivity() {
         buildUi()
         homeScreen = HomeScreenView(
             context = this,
-            onContinue = { showSkillProgression(requireLearningPath(LearningPathId.JODAN_PUNCH)) },
+            profileRepository = profileRepository,
+            onProfile = ::showProfileUi,
+            learningPaths = learningPaths,
+            karateBasics = karateBasicsPath,
+            onContinue = ::continueLearning,
             onLearn = ::showLearnUi,
             onPractice = ::openTrainingHub,
             onSkillCoach = ::openTrainingHub,
             onTrain = ::showLearnUi,
-            onProgress = { showHomeDestinationPlaceholder("Progress") },
+            onProgress = ::showProgressUi,
             onSettings = ::showSettingsUi,
         )
         learnScreen = LearnScreenView(
             context = this,
+            profileRepository = profileRepository,
+            onProfile = ::showProfileUi,
             paths = learningPaths,
+            karateBasics = karateBasicsPath,
             onWiki = ::showMeasurementWiki,
             onPathSelected = ::showSkillProgression,
+            onKarateBasicsSelected = ::showKarateBasicsPath,
             onHome = ::showHomeUi,
-            onProgress = { showHomeDestinationPlaceholder("Progress") },
+            onProgress = ::showProgressUi,
             onSettings = ::showSettingsUi,
         ).apply {
             visibility = View.GONE
         }
         settingsScreen = SettingsScreenView(
             context = this,
+            profileRepository = profileRepository,
+            onProfile = ::showProfileUi,
             preferences = appPreferences,
             hasCameraPermission = ::hasCameraPermission,
             onHome = ::showHomeUi,
             onTrain = ::showLearnUi,
-            onProgress = { showHomeDestinationPlaceholder("Progress") },
+            onProgress = ::showProgressUi,
             onCameraSetup = ::openCameraSetupFromSettings,
             onCameraPermissionRequest = {
                 settingsCameraPermissionLauncher.launch(Manifest.permission.CAMERA)
@@ -314,11 +352,22 @@ class MainActivity : AppCompatActivity() {
         ).apply {
             visibility = View.GONE
         }
+        progressScreen = ProgressScreenView(
+            context = this,
+            repository = profileRepository,
+            onProfile = ::showProfileUi,
+            onHome = ::showHomeUi,
+            onTrain = ::showLearnUi,
+            onSettings = ::showSettingsUi,
+        ).apply {
+            visibility = View.GONE
+        }
         appRoot = FrameLayout(this).apply {
             addView(trainingRoot)
             addView(homeScreen)
             addView(learnScreen)
             addView(settingsScreen)
+            addView(progressScreen)
         }
         setContentView(appRoot)
         trainingOrderPlayer = SoundFileTrainingOrderPlayer(this)
@@ -326,7 +375,11 @@ class MainActivity : AppCompatActivity() {
         japaneseCountLiveRecognizer = JapaneseCountLiveRecognizer(this)
         onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
             override fun handleOnBackPressed() {
-                if (measurementWiki != null) {
+                if (secondaryScreen != null) {
+                    secondaryBackAction?.invoke()
+                } else if (japaneseCountingPracticeScreen?.visibility == View.VISIBLE) {
+                    exitJapaneseCountingPractice()
+                } else if (measurementWiki != null) {
                     measurementWiki?.back()
                 } else if (skillProgressionScreen?.visibility == View.VISIBLE) {
                     showLearnUi()
@@ -342,6 +395,8 @@ class MainActivity : AppCompatActivity() {
         })
         if (savedInstanceState?.getString(STATE_APP_DESTINATION) == AppDestination.SETTINGS.name) {
             showSettingsUi()
+        } else if (savedInstanceState?.getString(STATE_APP_DESTINATION) == AppDestination.PROGRESS.name) {
+            showProgressUi()
         } else if (savedInstanceState?.getString(STATE_APP_DESTINATION) == AppDestination.TRAIN.name) {
             showLearnUi()
         }
@@ -360,19 +415,23 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun showHomeUi() {
+        closeSecondaryScreen()
         currentAppDestination = AppDestination.HOME
         trainingRoot.visibility = View.GONE
         learnScreen.visibility = View.GONE
         skillProgressionScreen?.visibility = View.GONE
         settingsScreen.visibility = View.GONE
+        progressScreen.visibility = View.GONE
         homeScreen.visibility = View.VISIBLE
     }
 
     private fun showLearnUi() {
+        closeSecondaryScreen()
         currentAppDestination = AppDestination.TRAIN
         trainingRoot.visibility = View.GONE
         homeScreen.visibility = View.GONE
         settingsScreen.visibility = View.GONE
+        progressScreen.visibility = View.GONE
         skillProgressionScreen?.visibility = View.GONE
         learnScreen.visibility = View.VISIBLE
     }
@@ -382,6 +441,7 @@ class MainActivity : AppCompatActivity() {
         trainingRoot.visibility = View.GONE
         homeScreen.visibility = View.GONE
         settingsScreen.visibility = View.GONE
+        progressScreen.visibility = View.GONE
         learnScreen.visibility = View.GONE
         skillProgressionScreen?.let(appRoot::removeView)
         skillProgressionScreen = SkillProgressionView(
@@ -389,10 +449,6 @@ class MainActivity : AppCompatActivity() {
             path = path,
             onBack = ::showLearnUi,
             onStart = ::openLearningActivity,
-            onHome = ::showHomeUi,
-            onTrain = ::showLearnUi,
-            onProgress = { showHomeDestinationPlaceholder("Progress") },
-            onSettings = ::showSettingsUi,
         ).also { progression ->
             appRoot.addView(
                 progression,
@@ -404,17 +460,158 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    private fun continueLearning(target: RecentLearningTarget) {
+        when (target) {
+            is RecentLearningTarget.Standard -> showSkillProgression(target.path)
+            is RecentLearningTarget.Draft -> showKarateBasicsPath()
+        }
+    }
+
+    private fun showKarateBasicsPath() {
+        currentAppDestination = AppDestination.TRAIN
+        val completionAnimationActivityId = pendingKarateBasicsCompletionAnimationId
+        pendingKarateBasicsCompletionAnimationId = null
+        showSecondary(
+            KarateBasicsPathView(
+                context = this,
+                repository = profileRepository,
+                path = karateBasicsPath,
+                initialScrollY = karateBasicsScrollY,
+                completionAnimationActivityId = completionAnimationActivityId,
+                onScrollPositionChanged = { karateBasicsScrollY = it },
+                onBack = ::showLearnUi,
+                onActivitySelected = ::openKarateBasicsActivity,
+            ),
+            ::showLearnUi,
+        )
+    }
+
+    private fun openKarateBasicsActivity(activity: ResolvedDraftActivity) {
+        when (activity.definition.type) {
+            DraftActivityType.CONDITIONAL_PROFILE -> openKarateBasicsProfile()
+            DraftActivityType.PLACEHOLDER -> showSecondary(
+                DraftPlaceholderActivityView(
+                    context = this,
+                    repository = profileRepository,
+                    path = karateBasicsPath,
+                    activity = activity,
+                    onReturnToPath = ::showKarateBasicsPath,
+                    onCompletedAndReturn = {
+                        pendingKarateBasicsCompletionAnimationId = activity.definition.id
+                        showKarateBasicsPath()
+                    },
+                ),
+                ::showKarateBasicsPath,
+            )
+        }
+    }
+
+    private fun openKarateBasicsProfile() {
+        val activeProfile = profileRepository.listProfiles().firstOrNull()?.let { profileRepository.activeProfile() }
+        showSecondary(
+            ProfileEditorView(
+                context = this,
+                repository = profileRepository,
+                editing = activeProfile,
+                onBack = ::showKarateBasicsPath,
+                onSaved = { showKarateBasicsPath() },
+                onDeleted = { showKarateBasicsPath() },
+            ),
+            ::showKarateBasicsPath,
+        )
+    }
+
     private fun requireLearningPath(id: LearningPathId): LearningPath =
         learningPaths.first { it.id == id }
 
     private fun showSettingsUi() {
+        closeSecondaryScreen()
         currentAppDestination = AppDestination.SETTINGS
         trainingRoot.visibility = View.GONE
         learnScreen.visibility = View.GONE
         skillProgressionScreen?.visibility = View.GONE
         homeScreen.visibility = View.GONE
+        progressScreen.visibility = View.GONE
         settingsScreen.refresh()
         settingsScreen.visibility = View.VISIBLE
+    }
+
+    private fun showProgressUi() {
+        closeSecondaryScreen()
+        currentAppDestination = AppDestination.PROGRESS
+        trainingRoot.visibility = View.GONE
+        homeScreen.visibility = View.GONE
+        learnScreen.visibility = View.GONE
+        skillProgressionScreen?.visibility = View.GONE
+        settingsScreen.visibility = View.GONE
+        progressScreen.refresh()
+        progressScreen.visibility = View.VISIBLE
+    }
+
+    private fun showProfileUi() {
+        if (secondaryScreen == null) profileReturnDestination = currentAppDestination
+        val returnFromProfile = {
+            closeSecondaryScreen()
+            showProfileReturnDestination()
+        }
+        showSecondary(ProfileScreenView(
+            context = this,
+            repository = profileRepository,
+            onBack = returnFromProfile,
+            onAddProfile = { showProfileEditor(null) },
+            onEditProfile = ::showProfileEditor,
+            onManageProfiles = ::showManageProfiles,
+            onUnavailable = ::showHomeDestinationPlaceholder,
+        ), returnFromProfile)
+    }
+
+    private fun showProfileEditor(profile: Profile?) {
+        showSecondary(ProfileEditorView(
+            context = this,
+            repository = profileRepository,
+            editing = profile,
+            onBack = ::showProfileUi,
+            onSaved = { showProfileUi() },
+            onDeleted = { showProfileUi() },
+        ), ::showProfileUi)
+    }
+
+    private fun showManageProfiles() {
+        showSecondary(ManageProfilesView(
+            context = this,
+            repository = profileRepository,
+            onBack = ::showProfileUi,
+            onAdd = { showProfileEditor(null) },
+            onEdit = ::showProfileEditor,
+        ), ::showProfileUi)
+    }
+
+    private fun showSecondary(view: View, onBack: () -> Unit) {
+        closeSecondaryScreen()
+        trainingRoot.visibility = View.GONE
+        homeScreen.visibility = View.GONE
+        learnScreen.visibility = View.GONE
+        skillProgressionScreen?.visibility = View.GONE
+        settingsScreen.visibility = View.GONE
+        progressScreen.visibility = View.GONE
+        secondaryScreen = view
+        secondaryBackAction = onBack
+        appRoot.addView(view, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
+    }
+
+    private fun closeSecondaryScreen() {
+        secondaryScreen?.let(appRoot::removeView)
+        secondaryScreen = null
+        secondaryBackAction = null
+    }
+
+    private fun showProfileReturnDestination() {
+        when (profileReturnDestination) {
+            AppDestination.HOME -> showHomeUi()
+            AppDestination.TRAIN -> showLearnUi()
+            AppDestination.PROGRESS -> showProgressUi()
+            AppDestination.SETTINGS -> showSettingsUi()
+        }
     }
 
     private fun openEnsoDebugGallery() {
@@ -450,12 +647,16 @@ class MainActivity : AppCompatActivity() {
 
     private fun openLearningActivity(destination: LearningDestination) {
         when (destination) {
-            LearningDestination.JODAN_SESSION -> openTrainingHub()
+            LearningDestination.JODAN_SESSION -> {
+                profileRepository.touchActiveLearningActivity(LearningPathId.JODAN_PUNCH.name, "step-4")
+                openTrainingHub()
+            }
             LearningDestination.JAPANESE_COUNTING_PRACTICE -> {
-                showTrainingUi()
-                startJapaneseCountingPractice()
+                profileRepository.touchActiveLearningActivity(LearningPathId.JAPANESE_COUNTING.name, "step-1")
+                openJapaneseCountingPractice()
             }
             LearningDestination.JAPANESE_COUNTING_TEST -> {
+                profileRepository.touchActiveLearningActivity(LearningPathId.JAPANESE_COUNTING.name, "step-2")
                 showTrainingUi()
                 startJapaneseCountingTest()
             }
@@ -468,6 +669,7 @@ class MainActivity : AppCompatActivity() {
         learnScreen.visibility = View.GONE
         skillProgressionScreen?.visibility = View.GONE
         settingsScreen.visibility = View.GONE
+        progressScreen.visibility = View.GONE
         trainingRoot.visibility = View.VISIBLE
     }
 
@@ -512,6 +714,7 @@ class MainActivity : AppCompatActivity() {
                 punchHeightStorageExecutor.execute {
                     val result = TrainingHistoryStore(this).clear()
                     runOnMainThread {
+                        if (result.succeeded) profileRepository.clearAllTrainingSessions()
                         val message = when {
                             !result.succeeded -> "Some training history could not be removed."
                             result.removedDirectoryCount == 0 -> "There was no saved training history to clear."
@@ -745,7 +948,7 @@ class MainActivity : AppCompatActivity() {
             title = "Japanese Counting",
             activityType = LearningActivityType.PRACTICE,
             ensoVariant = learningArtworkBag.next(),
-            onClick = ::startJapaneseCountingPractice,
+            onClick = ::openJapaneseCountingPractice,
         )
         countJapaneseTestEntry = LearningActivityEntryView(
             context = this,
@@ -1172,11 +1375,17 @@ class MainActivity : AppCompatActivity() {
             return
         }
         punchHeightStorageExecutor.execute {
-            runCatching { cameraSetupCaptureStore.save(bitmap, view, captureFrame) }
+            val captureProfileId = profileRepository.activeProfile().id
+            runCatching { cameraSetupCaptureStore.save(bitmap, view, captureFrame, captureProfileId) }
                 .onSuccess { capture ->
                     runOnMainThread {
                         if (!cameraSetupActive) return@runOnMainThread
                         completedCameraSetupCapture = capture
+                        profileRepository.saveCalibration(Calibration(
+                            profileId = profileRepository.activeProfile().id,
+                            calibrationType = "camera_setup_${view.name.lowercase()}",
+                            payload = capture.metadataFile.absolutePath,
+                        ))
                         cameraSetupCapturedImage.setImageBitmap(BitmapFactory.decodeFile(capture.imageFile.absolutePath))
                         metadataPathText.text = "Camera setup: ${capture.imageFile.absolutePath}"
                         updateCameraSetupState(cameraSetupCoordinator.captureSaved())
@@ -1238,7 +1447,7 @@ class MainActivity : AppCompatActivity() {
         completedPunchHeightSession = null
         clearPunchHeightReview()
         try {
-            punchHeightCaptureStore.beginSession()
+            punchHeightCaptureStore.beginSession(profileRepository.activeProfile().id)
         } catch (error: Exception) {
             Toast.makeText(this, error.message ?: "Could not start Punch Heights.", Toast.LENGTH_LONG).show()
             return
@@ -1318,6 +1527,13 @@ class MainActivity : AppCompatActivity() {
                     runOnMainThread {
                         if (!punchHeightActive) return@runOnMainThread
                         completedPunchHeightSession = session
+                        profileRepository.saveTrainingSession(TrainingSession(
+                            profileId = profileRepository.activeProfile().id,
+                            mode = TrainingMode.SKILL_COACH,
+                            skillOrActivityId = "punch_height_level_1",
+                            completedAt = System.currentTimeMillis(),
+                            resultPayload = session.metadataFile.absolutePath,
+                        ))
                         val state = punchHeightCoordinator.markReviewReady()
                         updatePunchHeightState(state)
                         showPunchHeightReview(session)
@@ -1458,12 +1674,61 @@ class MainActivity : AppCompatActivity() {
         updateControlVisibility()
     }
 
-    private fun startJapaneseCountingPractice() {
+    private fun openJapaneseCountingPractice() {
+        stopJapaneseCountSession()
+        currentAppDestination = AppDestination.TRAIN
+        trainingRoot.visibility = View.GONE
+        homeScreen.visibility = View.GONE
+        learnScreen.visibility = View.GONE
+        settingsScreen.visibility = View.GONE
+        progressScreen.visibility = View.GONE
+        skillProgressionScreen?.visibility = View.GONE
+        dismissJapaneseCountingPracticeScreen()
+        japaneseCountingPracticeScreen = JapaneseCountingPracticeView(
+            context = this,
+            onExit = ::exitJapaneseCountingPractice,
+            onStartPractice = ::beginJapaneseCountingPractice,
+            onPrevious = { navigateJapaneseCountLevel1 { japaneseCountLevel1Controller.back() } },
+            onNext = { navigateJapaneseCountLevel1 { japaneseCountLevel1Controller.next() } },
+            onReplay = ::playJapaneseCountLevel1Item,
+            onPracticeAgain = ::beginJapaneseCountingPractice,
+            onContinueToTest = ::continueFromJapaneseCountingPracticeToTest,
+        ).also { activityView ->
+            appRoot.addView(
+                activityView,
+                FrameLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                ),
+            )
+        }
+    }
+
+    private fun beginJapaneseCountingPractice() {
         stopJapaneseCountSession()
         metadataPathText.text = "Metadata: not saved"
         japaneseCountMode = LearningActivityType.PRACTICE
         japaneseCountActive = true
+        lastPlayedJapaneseCountItemIndex = null
         japaneseCountLevel1Controller.start()
+    }
+
+    private fun exitJapaneseCountingPractice() {
+        stopJapaneseCountSession()
+        dismissJapaneseCountingPracticeScreen()
+        showSkillProgression(requireLearningPath(LearningPathId.JAPANESE_COUNTING))
+    }
+
+    private fun continueFromJapaneseCountingPracticeToTest() {
+        stopJapaneseCountSession()
+        dismissJapaneseCountingPracticeScreen()
+        showTrainingUi()
+        startJapaneseCountingTest()
+    }
+
+    private fun dismissJapaneseCountingPracticeScreen() {
+        japaneseCountingPracticeScreen?.let(appRoot::removeView)
+        japaneseCountingPracticeScreen = null
     }
 
     private fun startJapaneseCountingTest() {
@@ -1489,6 +1754,7 @@ class MainActivity : AppCompatActivity() {
         }
         japaneseCountMode = null
         japaneseCountActive = false
+        lastPlayedJapaneseCountItemIndex = null
         japaneseCountCommittedTranscript = ""
         japaneseCountTrainingSession = CountTrainingSession()
         if (::japaneseCountLevel1Controller.isInitialized) {
@@ -1811,6 +2077,13 @@ class MainActivity : AppCompatActivity() {
         if (japaneseCountMode != LearningActivityType.TEST) return
         if (session.phase != CountTrainingPhase.LISTENING) cancelJapaneseCountRecognitionRestart()
         japaneseCountTrainingSession = session
+        if (session.phase == CountTrainingPhase.RESULT && session.successful) {
+            profileRepository.saveActiveLearningProgress(
+                LearningPathId.JAPANESE_COUNTING.name,
+                "step-2",
+                LearningStatus.COMPLETED,
+            )
+        }
         if ((applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE) != 0) {
             Log.d(JAPANESE_COUNT_LOG_TAG, session.toString())
         }
@@ -2044,6 +2317,7 @@ class MainActivity : AppCompatActivity() {
             return
         }
         japaneseCountActive = true
+        japaneseCountingPracticeScreen?.renderLevel1State(state)
         val item = state.item
         if (item != null) {
             statusText.text = "Japanese Counting — Practice"
@@ -2056,9 +2330,13 @@ class MainActivity : AppCompatActivity() {
             japaneseCountBackButton.isEnabled = state.itemIndex > 0
             japaneseCountReplayButton.isEnabled = true
             japaneseCountNextButton.text = if (state.itemIndex == JapaneseCountLesson.items.lastIndex) "Finish" else "Next"
-            playJapaneseCountPrompt(item)
+            if (lastPlayedJapaneseCountItemIndex != state.itemIndex) {
+                lastPlayedJapaneseCountItemIndex = state.itemIndex
+                playJapaneseCountPrompt(item)
+            }
         } else {
             trainingOrderPlayer?.stop()
+            lastPlayedJapaneseCountItemIndex = null
             statusText.text = if (state.isComplete) "Japanese Counting practice complete" else "Status: idle"
             currentCountText.text = "Count: none"
             currentStrikeText.text = "Strike: none"
@@ -2066,6 +2344,13 @@ class MainActivity : AppCompatActivity() {
             japaneseCountText.text = if (state.isComplete) "Practice complete" else ""
             japaneseCountFeedbackText.text = if (state.isComplete) "You practiced all ten numbers." else ""
             japaneseCountNextButton.text = "Next"
+            if (state.isComplete) {
+                profileRepository.saveActiveLearningProgress(
+                    LearningPathId.JAPANESE_COUNTING.name,
+                    "step-1",
+                    LearningStatus.COMPLETED,
+                )
+            }
         }
         updateMainMenuAvailability()
         updateJapaneseCountDebugText()
@@ -2117,6 +2402,13 @@ class MainActivity : AppCompatActivity() {
             findYourWeaponProgressRingView.setProgress(0f, accepted = false)
             findYourWeaponMessageText.text = ""
             findYourWeaponCoachTextGate.reset()
+            if (state.isComplete) {
+                profileRepository.saveActiveLearningProgress(
+                    LearningPathId.JODAN_PUNCH.name,
+                    "find_your_weapon",
+                    LearningStatus.COMPLETED,
+                )
+            }
         }
         updateMainMenuAvailability()
         updateControlVisibility()
@@ -2437,6 +2729,18 @@ class MainActivity : AppCompatActivity() {
         playTrainingOrder(TrainingOrderMapper.fromSessionResult(result))
         if (result.completed) {
             currentCountText.text = "Count: Session complete"
+            profileRepository.saveTrainingSession(TrainingSession(
+                profileId = profileRepository.activeProfile().id,
+                mode = TrainingMode.PRACTICE,
+                skillOrActivityId = "guided_jodan_session",
+                completedAt = System.currentTimeMillis(),
+                resultPayload = result.metadataPath,
+            ))
+            profileRepository.saveActiveLearningProgress(
+                LearningPathId.JODAN_PUNCH.name,
+                "step-4",
+                LearningStatus.COMPLETED,
+            )
         }
     }
 

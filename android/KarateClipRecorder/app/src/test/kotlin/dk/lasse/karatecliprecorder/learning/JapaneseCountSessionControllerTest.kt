@@ -17,6 +17,10 @@ class JapaneseCountSessionControllerTest {
             listOf("ichi", "ni", "san", "shi", "go", "roku", "shichi", "hachi", "kyu", "ju"),
             JapaneseCountLesson.items.map { it.standardJapanese },
         )
+        assertEquals(
+            listOf("一", "二", "三", "四", "五", "六", "七", "八", "九", "十"),
+            JapaneseCountLesson.items.map { it.displayKanji },
+        )
         assertEquals(TrainingOrder.COUNT_1, JapaneseCountLesson.items.first().order)
         assertEquals("order_kyu", JapaneseCountLesson.items[8].order.soundResourceName)
         assertEquals(TrainingOrder.COUNT_10, JapaneseCountLesson.items.last().order)

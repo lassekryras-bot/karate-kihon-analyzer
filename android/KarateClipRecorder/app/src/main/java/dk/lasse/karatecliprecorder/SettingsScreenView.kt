@@ -1,22 +1,22 @@
 package dk.lasse.karatecliprecorder
 
 import android.content.Context
-import android.graphics.Typeface
 import android.view.Gravity
 import android.view.View
 import android.widget.FrameLayout
 import android.widget.LinearLayout
-import android.widget.ScrollView
 import android.widget.TextView
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.widget.SwitchCompat
 import androidx.core.content.ContextCompat
-import androidx.core.view.ViewCompat
-import androidx.core.view.WindowInsetsCompat
+import dk.lasse.karatecliprecorder.profile.ProfileAvatarButton
+import dk.lasse.karatecliprecorder.profile.ProfileRepository
 
 /** Passive, vertically scrolling Settings destination. Camera work starts only via callbacks. */
 class SettingsScreenView(
     context: Context,
+    private val profileRepository: ProfileRepository,
+    private val onProfile: () -> Unit,
     private val preferences: AppPreferences,
     private val hasCameraPermission: () -> Boolean,
     private val onHome: () -> Unit,
@@ -41,14 +41,18 @@ class SettingsScreenView(
     private lateinit var countdownValue: TextView
     private lateinit var practiceDurationValue: TextView
     private lateinit var themeValue: TextView
+    private val mainHeader = MainPageHeader(
+        context = context,
+        title = "Settings",
+        subtitle = "Control how the app works.",
+        trailingSlot = ProfileAvatarButton(context, profileRepository, onProfile),
+    )
 
     init {
         setBackgroundColor(ContextCompat.getColor(context, R.color.app_background))
 
         val content = LinearLayout(context).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(20.dp(), 16.dp(), 20.dp(), 110.dp())
-            addView(header())
             addView(cameraAndAnalysisSection())
             addView(soundAndVoiceSection())
             addView(trainingPreferencesSection())
@@ -57,11 +61,13 @@ class SettingsScreenView(
             addView(developerSection())
             addView(aboutSection())
         }
-        addView(ScrollView(context).apply {
-            isFillViewport = true
-            clipToPadding = false
-            addView(content, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT))
-        }, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT))
+        addView(StickyHeaderPageLayout(
+            context = context,
+            header = mainHeader,
+            body = content,
+            topContentPaddingDp = 16,
+            bottomContentClearanceDp = AppBottomNavigationView.CONTENT_CLEARANCE_DP,
+        ), LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT))
 
         val navigation = AppBottomNavigationView(
             context = context,
@@ -73,13 +79,6 @@ class SettingsScreenView(
         )
         addView(navigation, LayoutParams(LayoutParams.MATCH_PARENT, AppBottomNavigationView.BASE_HEIGHT_DP.dp(), Gravity.BOTTOM))
 
-        ViewCompat.setOnApplyWindowInsetsListener(this) { _, insets ->
-            val systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
-            val navigationBars = insets.getInsets(WindowInsetsCompat.Type.navigationBars())
-            content.setPadding(20.dp(), systemBars.top + 16.dp(), 20.dp(), navigationBars.bottom + 110.dp())
-            insets
-        }
-        ViewCompat.requestApplyInsets(this)
         refresh()
     }
 
@@ -110,25 +109,6 @@ class SettingsScreenView(
             )
             cameraPermissionRow.setAction(onCameraPermissionRequest, "Not allowed. Tap to allow")
         }
-    }
-
-    private fun header() = LinearLayout(context).apply {
-        orientation = LinearLayout.VERTICAL
-        addView(TextView(context).apply {
-            text = "Settings"
-            textSize = 29f
-            typeface = Typeface.create("sans-serif", Typeface.BOLD)
-            setTextColor(ContextCompat.getColor(context, R.color.app_text_primary))
-            ViewCompat.setAccessibilityHeading(this, true)
-        })
-        addView(TextView(context).apply {
-            text = "Control how the app works."
-            textSize = 15f
-            setTextColor(ContextCompat.getColor(context, R.color.app_text_secondary))
-        }, LinearLayout.LayoutParams(LayoutParams.WRAP_CONTENT, LayoutParams.WRAP_CONTENT).apply {
-            topMargin = 4.dp()
-            bottomMargin = 2.dp()
-        })
     }
 
     private fun cameraAndAnalysisSection() = SettingsSectionView(context, "CAMERA & ANALYSIS").apply {

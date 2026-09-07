@@ -1,0 +1,64 @@
+{
+  "id": "karate-basics",
+  "title": "Karate Basics",
+  "status": "draft",
+  "purpose": "Learn how to train with the app and prepare for the first 10-punch hands-free session.",
+  "sections": [
+    {
+      "id": "getting-started",
+      "title": "Getting Started",
+      "activities": [
+        { "id": "create-profile", "title": "Create Your Profile", "type": "conditional", "completeWhen": "activeProfileExists", "prerequisites": [] },
+        { "id": "how-activities-work", "title": "How Activities Work", "type": "placeholder", "prerequisites": ["create-profile"] }
+      ]
+    },
+    {
+      "id": "voice-interaction",
+      "title": "Karate Terminology & Voice Interaction",
+      "activities": [
+        { "id": "osu-meaning-use", "title": "Osu — Meaning & Use", "type": "placeholder", "prerequisites": ["how-activities-work"] },
+        { "id": "ready-osu", "title": "Ready? — Osu", "type": "placeholder", "prerequisites": ["osu-meaning-use"] }
+      ]
+    },
+    {
+      "id": "counting",
+      "title": "Japanese Counting",
+      "activities": [
+        { "id": "count-1-5", "title": "Count 1–5", "type": "placeholder", "prerequisites": ["how-activities-work"] },
+        { "id": "count-6-10", "title": "Count 6–10", "type": "placeholder", "prerequisites": ["count-1-5"] },
+        { "id": "follow-count-1-10", "title": "Follow the Count 1–10", "type": "placeholder", "prerequisites": ["count-6-10"] }
+      ]
+    },
+    {
+      "id": "training-setup",
+      "title": "Training Setup",
+      "activities": [
+        { "id": "find-space", "title": "Find Your Space", "type": "placeholder", "prerequisites": ["how-activities-work"] },
+        { "id": "background-lighting", "title": "Background & Lighting", "type": "placeholder", "prerequisites": ["find-space"] },
+        { "id": "position-phone", "title": "Position Your Phone", "type": "placeholder", "prerequisites": ["background-lighting"] },
+        { "id": "understand-camera", "title": "Understand the Camera", "type": "placeholder", "prerequisites": ["position-phone"] },
+        { "id": "camera-check", "title": "Camera Check", "type": "placeholder", "prerequisites": ["understand-camera"] }
+      ]
+    },
+    {
+      "id": "first-technique",
+      "title": "Your First Technique",
+      "activities": [
+        { "id": "find-your-weapon", "title": "Find Your Weapon", "type": "placeholder", "prerequisites": ["how-activities-work"] },
+        { "id": "straight-punch", "title": "The Straight Punch", "type": "placeholder", "prerequisites": ["find-your-weapon"] },
+        { "id": "find-target", "title": "Find Your Target", "type": "placeholder", "prerequisites": ["straight-punch"] },
+        { "id": "one-straight-punch", "title": "One Straight Punch", "type": "placeholder", "prerequisites": ["find-target"] }
+      ]
+    },
+    {
+      "id": "put-it-together",
+      "title": "Put It Together",
+      "activities": [
+        { "id": "punch-on-count", "title": "Punch on Count", "type": "placeholder", "prerequisites": ["follow-count-1-10", "one-straight-punch"] },
+        { "id": "short-set", "title": "Short Set", "type": "placeholder", "prerequisites": ["punch-on-count"] },
+        { "id": "hands-free-session", "title": "Hands-Free Session", "type": "placeholder", "prerequisites": ["ready-osu", "camera-check", "short-set"] },
+        { "id": "karate-basics-challenge", "title": "Karate Basics Challenge", "type": "placeholder", "prerequisites": ["hands-free-session"] }
+      ]
+    }
+  ]
+}

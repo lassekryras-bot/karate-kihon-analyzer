@@ -3,7 +3,6 @@ package dk.lasse.karatecliprecorder.enso
 import android.content.Context
 import android.content.res.Resources
 import android.graphics.Canvas
-import android.graphics.Color
 import android.graphics.Paint
 import android.graphics.Path
 import android.util.AttributeSet
@@ -94,7 +93,8 @@ class EnsoBackgroundView @JvmOverloads constructor(
         canvas.translate(left, top)
         canvas.scale(scale, scale)
         currentArtwork.layers.forEach { layer ->
-            paint.color = layer.tone?.let(palette::colorForTone) ?: Color.WHITE
+            val tone = layer.tone ?: return@forEach
+            paint.color = palette.colorForTone(tone)
             canvas.drawPath(layer.path, paint)
         }
         canvas.restore()
@@ -205,7 +205,7 @@ private object EnsoSvgParser {
 
     private fun XmlPullParser.tone(): Int? {
         val fill = requireNotNull(attribute("fill")) { "Enso drawable is missing a fill." }.uppercase()
-        if (fill == "#FFFFFF") return null
+        if (fill == "#FFFFFF" || fill == "NONE") return null
         return requireNotNull(toneByFill[fill]) { "Unknown Enso tone fill: $fill" }
     }
 

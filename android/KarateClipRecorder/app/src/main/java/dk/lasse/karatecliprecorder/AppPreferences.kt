@@ -59,6 +59,15 @@ class AppPreferences(context: Context) {
         get() = preferences.getBoolean(KEY_DEVELOPER_MODE, false)
         set(value) = preferences.edit().putBoolean(KEY_DEVELOPER_MODE, value).apply()
 
+    /** Identity only; trainee-owned values live in the structured profile database. */
+    var activeProfileId: String?
+        get() = preferences.getString(KEY_ACTIVE_PROFILE_ID, null)
+        set(value) {
+            val editor = preferences.edit()
+            if (value == null) editor.remove(KEY_ACTIVE_PROFILE_ID) else editor.putString(KEY_ACTIVE_PROFILE_ID, value)
+            editor.apply()
+        }
+
     companion object {
         val COUNTDOWN_OPTIONS_SECONDS = listOf(0, 3, 5, 10)
         val PRACTICE_DURATION_OPTIONS_MINUTES = listOf(5, 10, 15, 20, 30)
@@ -72,5 +81,6 @@ class AppPreferences(context: Context) {
         private const val KEY_PRACTICE_DURATION_MINUTES = "default_practice_duration_minutes"
         private const val KEY_THEME = "theme"
         private const val KEY_DEVELOPER_MODE = "developer_mode"
+        private const val KEY_ACTIVE_PROFILE_ID = "active_profile_id"
     }
 }

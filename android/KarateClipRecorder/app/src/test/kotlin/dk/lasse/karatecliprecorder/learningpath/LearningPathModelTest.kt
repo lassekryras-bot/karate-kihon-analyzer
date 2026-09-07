@@ -62,7 +62,7 @@ class LearningPathModelTest {
 
         assertEquals(ProgressMarkerAsset.COMPLETED, completed.baseAsset)
         assertEquals(ProgressMarkerTint.RED, completed.baseTint)
-        assertEquals(ProgressMarkerTint.RED, completed.centerFillTint)
+        assertNull(completed.centerFillTint)
         assertEquals(ProgressMarkerAsset.CURRENT, current.baseAsset)
         assertEquals(ProgressMarkerTint.RED, current.baseTint)
         assertEquals(ProgressMarkerTint.RED, current.centerFillTint)

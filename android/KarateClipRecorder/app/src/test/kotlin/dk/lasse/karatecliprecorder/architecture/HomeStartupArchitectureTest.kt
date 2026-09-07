@@ -31,7 +31,7 @@ class HomeStartupArchitectureTest {
         }
         listOf(
             "R.drawable.ic_nav_home",
-            "R.drawable.ic_nav_train_belt",
+            "R.drawable.ic_tabler_karate",
             "R.drawable.ic_nav_progress",
             "R.drawable.ic_nav_settings",
         ).forEach { drawable -> assertTrue(navigationSources.contains(drawable)) }
@@ -43,7 +43,7 @@ class HomeStartupArchitectureTest {
         val resources = appRoot.resolve("app/src/main/res")
         listOf(
             "drawable/ic_nav_home.xml",
-            "drawable/ic_nav_train_belt.xml",
+            "drawable/ic_tabler_karate.xml",
             "drawable/ic_nav_progress.xml",
             "drawable/ic_nav_settings.xml",
             "color/nav_icon_tint.xml",
@@ -78,9 +78,11 @@ class HomeStartupArchitectureTest {
         assertTrue(contentTint.contains("@color/app_accent"))
         assertTrue(resources.resolve("values/colors.xml").readText().contains("#BE000C"))
 
-        val belt = resources.resolve("drawable/ic_nav_train_belt.xml").readText()
-        assertTrue(belt.contains("android:viewportWidth=\"640\""))
-        assertTrue(belt.contains("android:translateY=\"42\""))
+        val karate = resources.resolve("drawable/ic_tabler_karate.xml").readText()
+        assertTrue(karate.contains("android:viewportWidth=\"24\""))
+        assertTrue(karate.contains("android:pathData=\"M3 9l4.5 1l3 2.5\""))
+        assertTrue(karate.contains("android:strokeWidth=\"2\""))
+        assertFalse(resources.resolve("drawable/ic_nav_train_belt.xml").exists())
     }
 
     @Test fun passiveNavigationDestinationsAvoidTrainingStartup() {
@@ -88,7 +90,9 @@ class HomeStartupArchitectureTest {
         val homeConstruction = activity.substringAfter("homeScreen = HomeScreenView").substringBefore("setContentView")
         val placeholder = activity.substringAfter("private fun showHomeDestinationPlaceholder").substringBefore("private fun openTrainingHub")
 
-        assertTrue(homeConstruction.contains("onProgress = { showHomeDestinationPlaceholder"))
+        assertFalse(homeConstruction.contains("onProgress = { showHomeDestinationPlaceholder"))
+        assertTrue(homeConstruction.windowed("onProgress = ::showProgressUi".length)
+            .count { it == "onProgress = ::showProgressUi" } >= 3)
         assertTrue(homeConstruction.contains("onSettings = ::showSettingsUi"))
         assertFalse(placeholder.contains("showTrainingUi"))
         assertFalse(placeholder.contains("requestCameraPermissionIfNeeded"))
@@ -104,16 +108,18 @@ class HomeStartupArchitectureTest {
         val settings = appSources.resolve("SettingsScreenView.kt").readText()
         val learn = appSources.resolve("learningpath/LearnScreenView.kt").readText()
         val progression = appSources.resolve("learningpath/SkillProgressionView.kt").readText()
+        val progress = appSources.resolve("profile/ProgressScreenView.kt").readText()
         val navigation = appSources.resolve("AppBottomNavigationView.kt").readText()
 
         assertTrue(navigation.contains("WindowInsetsCompat.Type.navigationBars()"))
         assertTrue(navigation.contains("BASE_HEIGHT_DP.dp() + navigationBarBottom"))
-        assertTrue(navigation.contains("VERTICAL_PADDING_DP.dp() + navigationBarBottom"))
+        assertTrue(navigation.contains("BOTTOM_PADDING_DP.dp() + navigationBarBottom"))
         assertTrue(navigation.contains("ViewCompat.requestApplyInsets(this)"))
-        listOf(home, settings, learn, progression).forEach { screen ->
+        listOf(home, settings, learn, progress).forEach { screen ->
             assertTrue(screen.contains("AppBottomNavigationView.BASE_HEIGHT_DP.dp()"))
             assertFalse(screen.contains("bottomMargin = navigationBars.bottom"))
         }
+        assertFalse(progression.contains("AppBottomNavigationView"))
 
         val lightColors = appRoot.resolve("app/src/main/res/values/colors.xml").readText()
         val darkColors = appRoot.resolve("app/src/main/res/values-night/colors.xml").readText()
@@ -125,6 +131,63 @@ class HomeStartupArchitectureTest {
         assertTrue(darkStyle.contains("<item name=\"android:windowLightNavigationBar\">false</item>"))
         assertTrue(lightStyle.contains("<item name=\"android:enforceNavigationBarContrast\">false</item>"))
         assertTrue(darkStyle.contains("<item name=\"android:enforceNavigationBarContrast\">false</item>"))
+    }
+
+    @Test fun sharedStickyHeadersOwnSystemBarInsetsAndScrolling() {
+        val headerSource = appSources.resolve("PageHeaders.kt").readText()
+        val mainScreens = listOf(
+            "HomeScreenView.kt",
+            "SettingsScreenView.kt",
+            "learningpath/LearnScreenView.kt",
+            "profile/ProgressScreenView.kt",
+        )
+        val subScreens = listOf(
+            "learningpath/SkillProgressionView.kt",
+            "learningactivity/ActivityShellView.kt",
+            "profile/ProfileScreenView.kt",
+            "profile/ProfileEditorView.kt",
+            "profile/ManageProfilesView.kt",
+            "enso/EnsoDebugGalleryView.kt",
+        )
+
+        assertTrue(headerSource.contains("class MainPageHeader"))
+        assertTrue(headerSource.contains("class SubPageHeader"))
+        assertTrue(headerSource.contains("class StickyHeaderPageLayout"))
+        assertTrue(headerSource.contains("WindowInsetsCompat.Type.statusBars()"))
+        assertTrue(headerSource.contains("WindowInsetsCompat.Type.displayCutout()"))
+        assertTrue(headerSource.indexOf("addView(header") < headerSource.indexOf("addView(scroller"))
+        assertTrue(headerSource.contains("trailingSlot: View? = null"))
+        assertTrue(headerSource.contains("SURFACE_COLOR_RES = R.color.app_card_surface"))
+        assertTrue(headerSource.contains("ELEVATION_DP = 4"))
+
+        mainScreens.forEach { relativePath ->
+            val source = appSources.resolve(relativePath).readText()
+            assertTrue(source.contains("MainPageHeader"), relativePath)
+            assertTrue(source.contains("StickyHeaderPageLayout"), relativePath)
+            assertFalse(source.contains("WindowInsetsCompat.Type.systemBars()"), relativePath)
+        }
+        subScreens.forEach { relativePath ->
+            val source = appSources.resolve(relativePath).readText()
+            assertTrue(source.contains("SubPageHeader"), relativePath)
+            assertTrue(source.contains("StickyHeaderPageLayout"), relativePath)
+            assertFalse(source.contains("WindowInsetsCompat.Type.systemBars()"), relativePath)
+        }
+    }
+
+    @Test fun homeGreetingAndBottomChromeStayCompactAndAccessible() {
+        val home = appSources.resolve("HomeScreenView.kt").readText()
+        val navigation = appSources.resolve("AppBottomNavigationView.kt").readText()
+
+        assertTrue(home.contains("title = \"Karate Kihon Analyzer\""))
+        assertTrue(home.contains("subtitle = \"Welcome \${profileRepository.activeProfile().name}\""))
+        assertTrue(home.contains("mainHeader.setSubtitle(\"Welcome \${it.name}\")"))
+        assertTrue(navigation.contains("BASE_HEIGHT_DP = 68"))
+        assertTrue(navigation.contains("BOTTOM_PADDING_DP = 0"))
+        assertTrue(navigation.contains("minimumWidth = 48.dp()"))
+        assertTrue(navigation.contains("minimumHeight = 48.dp()"))
+        assertTrue(navigation.contains("AppChromeStyle.ELEVATION_DP"))
+        assertTrue(navigation.contains("AppChromeStyle.SURFACE_COLOR_RES"))
+        assertTrue(navigation.contains("AppIcon.KARATE"))
     }
 
     @Test fun cameraStartupRequiresExplicitTrainingNavigation() {

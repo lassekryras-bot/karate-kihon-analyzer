@@ -33,7 +33,7 @@ class EnsoAssetArchitectureTest {
     }
 
     @Test fun runtimeSvgsKeepTheCanonicalGeometryAndToneVocabulary() {
-        val allowedFills = CANONICAL_GRAYS.map { gray -> "#%02X%02X%02X".format(gray, gray, gray) }.toSet() + "#FFFFFF"
+        val allowedFills = CANONICAL_GRAYS.map { gray -> "#%02X%02X%02X".format(gray, gray, gray) }.toSet()
         val allFills = mutableSetOf<String>()
         val hashes = mutableSetOf<String>()
 
@@ -47,7 +47,9 @@ class EnsoAssetArchitectureTest {
             assertTrue(source.contains("viewBox=\"0 0 1024 1024\""), svg.name)
             assertTrue(fills.isNotEmpty(), svg.name)
             assertTrue(fills.all(allowedFills::contains), svg.name)
-            assertTrue("#FFFFFF" in fills, svg.name)
+            assertFalse(source.contains("#FFFFFF", ignoreCase = true), svg.name)
+            assertTrue(source.contains("fill=\"none\""), svg.name)
+            assertFalse(FULL_CANVAS_WHITE_RECT_PATTERN.containsMatchIn(source), svg.name)
             assertEquals(drawableCount, filledDrawableCount, svg.name)
             assertFalse(UNSUPPORTED_PATTERN.containsMatchIn(source), svg.name)
             allFills += fills
@@ -68,6 +70,9 @@ class EnsoAssetArchitectureTest {
         assertTrue(source.contains("fun setArtwork("))
         assertTrue(source.contains("DEFAULT_ARTWORK_SCALE = 0.90f"))
         assertTrue(source.contains("PathParser.createPathFromPathData"))
+        assertTrue(source.contains("val tone = layer.tone ?: return@forEach"))
+        assertFalse(source.contains("?: Color.WHITE"))
+        assertTrue(source.contains("fill == \"#FFFFFF\" || fill == \"NONE\""))
     }
 
     private fun File.sha256(): String {
@@ -88,6 +93,10 @@ class EnsoAssetArchitectureTest {
         private val FILL_PATTERN = Regex("fill=[\\\"'](#[0-9A-Fa-f]{6})")
         private val DRAWABLE_PATTERN = Regex("<(?:path|rect)\\b")
         private val FILLED_DRAWABLE_PATTERN = Regex("<(?:path|rect)\\b[^>]*\\bfill=")
+        private val FULL_CANVAS_WHITE_RECT_PATTERN = Regex(
+            "<rect\\b(?=[^>]*\\bwidth=[\\\"']1024[\\\"'])(?=[^>]*\\bheight=[\\\"']1024[\\\"'])[^>]*\\bfill=[\\\"']#FFFFFF[\\\"']",
+            RegexOption.IGNORE_CASE,
+        )
         private val UNSUPPORTED_PATTERN = Regex(
             "<(?:circle|ellipse|line|polyline|polygon|image|use|text)\\b|\\b(?:transform|opacity|style)=",
         )
