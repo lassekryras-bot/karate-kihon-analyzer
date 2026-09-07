@@ -79,14 +79,15 @@ increases down, and smaller z is nearer the camera.
 
 ## Spatial graph convention
 
-The stored diagnostic signed distance follows the analysis coordinate
-calculation. The presentation adapter converts only its display sign so that:
+The current adapter recomputes camera-relative distances from recorded poses
+and chooses the display sign so that:
 
 - a wrist visually above the straight reference line plots above graph zero;
 - a wrist visually below the reference line plots below graph zero; and
 - RMS and absolute deviations remain numerically unchanged.
 
-This is a presentation transform, not a change to the straightness algorithm.
+The display sign does not change RMS or maximum magnitudes. The fixed-camera
+reference migration itself does change these values; see the method below.
 
 ## Two linked pages
 
@@ -150,8 +151,9 @@ localized visual/method content keys and an optional `wiki_example`:
 The wiki enumerates registered measurement entries, rather than maintaining a
 second list of pages. A measurement-specific example overrides the default wiki
 example. It can be a purpose-recorded demonstration. The complete example bundle
-is packaged with the app and explicitly presented as an example. No personal
-validation video or exported personal pose data is committed as a wiki asset.
+is packaged with the app and explicitly presented as an example. Personal validation video is never bundled. A user-approved pose-only excerpt
+may be packaged as a clearly labelled example; the initial wiki uses right-hand
+punch 5 with explicit user authorization.
 
 `presentation.catalogue.resolve_measurement_presentation` is a reference resolver
 for this policy. In wiki context it selects the override or default asset and
@@ -164,3 +166,47 @@ the method page preserves the selected source and timestamp.
 This commit supplies the data boundary and reference selection policy. The native
 Android renderer, build-time catalogue generation and localized wiki screens are
 application integration work, not implemented by the Python exporter.
+
+## Fixed-camera wrist path and grouped summaries
+
+The wrist-path method is now `fixed_camera_start_to_impact_wrist_path_v1` with
+`coordinate_reference: fixed_analysis_camera`. This supersedes the earlier
+shoulder-relative presentation, while retaining v2 motion/presentation structure
+and stable selection IDs. Consumers must check the reference and method, not
+only the container version; the native renderer rejects the old reference.
+
+The adapter preserves diagnostic sample identities and their observed window,
+then measures raw wrist positions from shared semantic pose frames. Normalized
+positions are converted with actual image width/height before division by the
+fixed output scale. Shoulder movement is not subtracted. No extra smoothing,
+interpolation, time weighting or detector changes are introduced.
+
+RMS is sqrt(mean(d²)); maximum is max(abs(d)), where d is perpendicular distance
+from each sampled wrist to the infinite line through observed start and impact.
+Graph sign is positive visually above the line; for a vertical reference the
+chosen algebraic sign remains deterministic but above/below is geometrically
+ambiguous. Path efficiency is also recomputed from the same camera path.
+
+Overlay `coordinate_space` is `fixed_analysis_camera_output_units`.
+`trajectory_samples[].camera_wrist` and `reference_line.start/end` hold positions
+in those output units. `maximum_marker` carries frame, timestamp, graph sign,
+absolute magnitude, `camera_wrist` and `camera_reference_point` (the perpendicular
+projection). All use one fixed camera origin. Display transforms must not depend
+on the selected frame; overlays cannot follow the current shoulder.
+
+Largest absolute magnitude wins; exact ties choose earliest timestamp then
+lowest frame. `maximum_selection` versions that policy. Invalid image geometry,
+scale, sample/pose correspondence, non-finite points, non-increasing times or
+coincident endpoints produce an unavailable presentation. Partial/unavailable
+source quality is preserved; missing values are never replaced with zero.
+
+`punch_path:event:N` retains measurement ID `punch_path_typical_deviation_rms`
+and includes both summary fields plus maximum marker. The native wrist-path page
+shows them together through this one selection. The exporter retains
+`punch_path_maximum:event:N` / `punch_path_maximum_deviation` for separate metric
+resolution, using method `maximum_absolute_wrist_deviation_v1` and the fixed
+camera source method in provenance. These IDs do not create two wiki pages.
+
+Scale provenance and units remain unchanged by the reference migration. Existing
+shoulder-width values cannot be relabelled as centimetres. Calibration changes
+are outside this slice; user-facing copy does not repeat setup explanations.

@@ -7,6 +7,7 @@ interaction, localization, spoken copy, and coaching presentation.
 from __future__ import annotations
 
 import math
+from copy import deepcopy
 from statistics import median
 from typing import Any
 
@@ -71,7 +72,10 @@ def build_punch_path_presentation_bundle(
             "trajectory_samples": (view.get("trajectory_straightness") or {}).get("samples", [])}
         presentation["graph"]["interaction"] = "scrub_by_timestamp_ms"
         motions[motion_id] = motion
+        presentation = build_fixed_camera_path_presentation(
+            presentation, motion, video_landmarks.get("frame_geometry"))
         presentations.append(presentation)
+        presentations.append(build_maximum_deviation_presentation(presentation))
     return {
         "schema_version": 2,
         "contract": "karate_measurement_presentation_v2",
@@ -82,6 +86,145 @@ def build_punch_path_presentation_bundle(
         "motions": motions,
         "presentations": presentations,
     }
+
+
+def build_fixed_camera_path_presentation(
+    source: dict[str, Any], motion: dict[str, Any], geometry: dict[str, Any] | None,
+) -> dict[str, Any]:
+    """Measure recorded wrist positions using the existing observed path window.
+
+    Shoulder-relative diagnostics select the window only. Their distances must
+    never be reused as fixed-camera measurements. Shared poses remain unchanged.
+    """
+    result = deepcopy(source)
+    result["measurement_method_id"] = "fixed_camera_start_to_impact_wrist_path_v1"
+    result["coordinate_reference"] = "fixed_analysis_camera"
+    result["provenance"].update(
+        coordinate_space="fixed_analysis_camera_output_units",
+        window_source="motion_diagnostic_observed_path_samples",
+        measurement_source="shared_motion_recorded_wrist_positions",
+    )
+    result["summary"] = {key: None for key in (
+        "typical_deviation_rms_output_units", "maximum_deviation_output_units", "path_efficiency_ratio")}
+    result["maximum_marker"] = None
+    source_samples = source["graph"]["samples"]
+    result["graph"]["samples"] = []
+    result["overlays"] = {
+        "coordinate_space": "fixed_analysis_camera_output_units",
+        "reference_line": {"start": None, "end": None},
+        "wrist_role": source["overlays"]["wrist_role"],
+        "layer": "foreground", "trajectory_samples": [],
+    }
+    if result["availability"]["status"] != "available":
+        return result
+    try:
+        width = geometry["analysis_frame"]["width_px"]
+        height = geometry["analysis_frame"]["height_px"]
+        scale = result["scale"]["analysis_pixels_per_output_unit"]
+        if not all(math.isfinite(v) and v > 0 for v in (width, height, scale)):
+            raise ValueError("invalid_camera_geometry_or_scale")
+        if len(source_samples) < 2:
+            raise ValueError("insufficient_camera_path_samples")
+        frames = {(f["frame_number"], f["timestamp_ms"]): f for f in motion["frames"]}
+        samples = []
+        for sample in source_samples:
+            identity = {k: sample[k] for k in ("frame_number", "timestamp_ms", "normalized_time_progress")}
+            frame = frames[(sample["frame_number"], sample["timestamp_ms"])]
+            wrist = frame["pose"][result["overlays"]["wrist_role"]]
+            point = [wrist["x"] * width / scale, wrist["y"] * height / scale]
+            if not all(math.isfinite(v) for v in point):
+                raise ValueError("invalid_camera_wrist_position")
+            samples.append({**identity, "camera_wrist": point})
+        if any(b["timestamp_ms"] <= a["timestamp_ms"] for a, b in zip(samples, samples[1:])):
+            raise ValueError("camera_path_timestamps_not_increasing")
+        start, end = samples[0]["camera_wrist"], samples[-1]["camera_wrist"]
+        dx, dy = end[0] - start[0], end[1] - start[1]
+        distance = math.hypot(dx, dy)
+        if distance <= 1e-9:
+            raise ValueError("camera_path_endpoints_coincident")
+        sign = -1 if dx >= 0 else 1
+        graph = []
+        for sample in samples:
+            x, y = sample["camera_wrist"]
+            graph.append({**{k: v for k, v in sample.items() if k != "camera_wrist"},
+                          "signed_deviation_output_units": sign * (dx * (y - start[1]) - dy * (x - start[0])) / distance})
+        values = [s["signed_deviation_output_units"] for s in graph]
+        travelled = sum(math.dist(a["camera_wrist"], b["camera_wrist"]) for a, b in zip(samples, samples[1:]))
+        result["summary"].update(
+            typical_deviation_rms_output_units=math.sqrt(sum(v * v for v in values) / len(values)),
+            maximum_deviation_output_units=max(map(abs, values)),
+            path_efficiency_ratio=distance / travelled,
+        )
+        result["graph"]["samples"] = graph
+        result["overlays"].update(reference_line={"start": start, "end": end}, trajectory_samples=samples)
+        maximum = build_maximum_deviation_presentation(result)
+        result["availability"] = maximum["availability"]
+        result["maximum_marker"] = maximum["maximum_marker"]
+        result["maximum_selection"] = maximum["maximum_selection"]
+    except (KeyError, TypeError, ValueError, IndexError) as error:
+        result["availability"].update(status="unavailable", reason=str(error))
+    return result
+
+
+def build_maximum_deviation_presentation(source: dict[str, Any]) -> dict[str, Any]:
+    """Reuse measured path data; export the maximum's evidence for both views.
+
+    Exact magnitude ties use earliest timestamp, then lowest frame number.
+    No smoothing, interpolation, or alternate measurement window is introduced.
+    """
+    result = deepcopy(source)
+    result["presentation_id"] = source["presentation_id"].replace("punch_path:", "punch_path_maximum:", 1)
+    result["measurement_id"] = "punch_path_maximum_deviation"
+    result["measurement_method_id"] = "maximum_absolute_wrist_deviation_v1"
+    result["linked_content"] = {
+        "visual_page_key": "punch_path_maximum_deviation.visual",
+        "method_page_key": "punch_path_maximum_deviation.method",
+    }
+    result["maximum_marker"] = None
+    result["provenance"]["source_path_method_id"] = source["measurement_method_id"]
+    result["maximum_selection"] = "absolute_magnitude_then_earliest_timestamp_then_lowest_frame_v1"
+    if result["availability"]["status"] != "available":
+        return result
+    try:
+        samples = result["graph"]["samples"]
+        trajectory = result["overlays"]["trajectory_samples"]
+        value = result["summary"]["maximum_deviation_output_units"]
+        if not samples or not math.isfinite(value) or value < 0:
+            raise ValueError("maximum_samples_or_summary_invalid")
+        if any(not math.isfinite(s["signed_deviation_output_units"]) for s in samples):
+            raise ValueError("maximum_samples_or_summary_invalid")
+        selected = min(samples, key=lambda s: (
+            -abs(s["signed_deviation_output_units"]), s["timestamp_ms"], s["frame_number"]))
+        if not math.isclose(value, abs(selected["signed_deviation_output_units"]), rel_tol=1e-9, abs_tol=1e-12):
+            raise ValueError("maximum_summary_sample_mismatch")
+        matches = [row for row in trajectory if
+                   (row["timestamp_ms"], row["frame_number"]) ==
+                   (selected["timestamp_ms"], selected["frame_number"])]
+        if len(matches) != 1:
+            raise ValueError("maximum_trajectory_sample_missing_or_ambiguous")
+        if result.get("coordinate_reference") != "fixed_analysis_camera":
+            raise ValueError("fixed_camera_reference_required")
+        start, end = [trajectory[i]["camera_wrist"] for i in (0, -1)]
+        point = matches[0]["camera_wrist"]
+        if not all(math.isfinite(v) for p in (start, end, point) for v in p):
+            raise ValueError("maximum_geometry_invalid")
+        dx, dy = end[0] - start[0], end[1] - start[1]
+        denominator = dx * dx + dy * dy
+        if denominator <= 1e-18:
+            raise ValueError("maximum_reference_line_degenerate")
+        fraction = ((point[0] - start[0]) * dx + (point[1] - start[1]) * dy) / denominator
+        projected = [start[0] + fraction * dx, start[1] + fraction * dy]
+        if not math.isclose(math.dist(point, projected), value, rel_tol=1e-9, abs_tol=1e-12):
+            raise ValueError("maximum_geometry_summary_mismatch")
+        result["maximum_marker"] = {
+            **selected,
+            "absolute_deviation_output_units": value,
+            "camera_wrist": point,
+            "camera_reference_point": projected,
+        }
+    except (KeyError, TypeError, ValueError, IndexError) as error:
+        result["availability"].update(status="unavailable", reason=str(error))
+    return result
 
 
 def _build_event_presentation(
