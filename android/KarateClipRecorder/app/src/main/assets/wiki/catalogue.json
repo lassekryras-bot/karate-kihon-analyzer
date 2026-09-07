@@ -26,6 +26,19 @@
         "asset": "wiki/examples/basic-right-punch.json",
         "presentation_id": "wrist_speed:event:5"
       }
+    },
+    {
+      "measurement_id": "hikite_finish",
+      "renderer_id": "hikite_pose_graph",
+      "title": "Hikite",
+      "description": "See how your arm pulls back and where it finishes.",
+      "figure_text": "Position lines appear at the finish.",
+      "graph_text": "See how your elbow speed changes during the punch.",
+      "method_text": "Wrist-to-shoulder-line distance is the shortest distance to the line through both shoulders. The torso line joins the middle of your shoulders and hips. At the finish, we compare your forearm direction and wrist position with that torso line.\n\nElbow speed comes from how far your elbow moves over time. We use nearby frames, about 0.05 seconds before and after each moment, to reduce tracking wobbles. This smooths the speed curve without changing the movement shown. Brief peaks may look lower or wider. Maximum speed is the highest point on the curve.",
+      "wiki_example": {
+        "asset": "wiki/examples/hikite-punch-six.json",
+        "presentation_id": "hikite:event:6"
+      }
     }
   ]
 }

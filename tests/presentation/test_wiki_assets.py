@@ -22,7 +22,7 @@ def test_default_wiki_punch_is_right_hand_five_and_catalogue_resolves():
     assert motion['event']['side'] == 'right'
     assert motion['event']['event_index'] == 5
     assert presentation['availability']['status'] == 'available'
-    assert len(catalogue['measurements']) == 2
+    assert len(catalogue['measurements']) == 3
     assert presentation['maximum_marker'] is not None
     assert presentation['coordinate_reference'] == 'fixed_analysis_camera'
     for entry in catalogue['measurements']:
@@ -31,7 +31,7 @@ def test_default_wiki_punch_is_right_hand_five_and_catalogue_resolves():
         matches = [p for p in selected['presentations'] if p['presentation_id'] == selection['presentation_id'] and p['measurement_id'] == entry['measurement_id']]
         assert len(matches) == 1
         assert matches[0]['motion_id'] in selected['motions']
-        assert entry['renderer_id'] in {'pose_with_path_graph'}
+        assert entry['renderer_id'] in {'pose_with_path_graph', 'hikite_pose_graph'}
 
 
 def test_pose_trajectory_graph_use_same_reference_and_timestamps():

@@ -21,6 +21,7 @@ class MeasurementWikiView(context: Context, private val onClose: () -> Unit) : L
     private val content = LinearLayout(context).apply { orientation = VERTICAL }
     private var visual: LinearLayout? = null
     private var player: PunchGraphView? = null
+    private var hikitePlayer: HikiteWikiView? = null
     private var page = "index"
     private val ink = ContextCompat.getColor(context, R.color.app_text_primary)
     private val paper = ContextCompat.getColor(context, R.color.home_card_surface)
@@ -50,7 +51,7 @@ class MeasurementWikiView(context: Context, private val onClose: () -> Unit) : L
         if (heading) { typeface = Typeface.DEFAULT_BOLD; ViewCompat.setAccessibilityHeading(this, true) }
     }
     private fun index() {
-        player?.pause(); player = null; visual = null; page = "index"; content.removeAllViews()
+        player?.pause(); hikitePlayer?.pause(); hikitePlayer = null; player = null; visual = null; page = "index"; content.removeAllViews()
         content.addView(label("Measurement wiki", true))
         content.addView(label("Explore what each measurement means, using an example punch."))
         val entries = catalogue.getJSONArray("measurements")
@@ -74,6 +75,17 @@ class MeasurementWikiView(context: Context, private val onClose: () -> Unit) : L
         card.addView(label(definition.getString("title"), true))
         card.addView(label(definition.getString("description")))
         try {
+            if (definition.getString("renderer_id") == "hikite_pose_graph") {
+                require(definition.getString("measurement_id") == "hikite_finish")
+                val example = definition.getJSONObject("wiki_example")
+                require(example.getString("presentation_id") == "hikite:event:6")
+                val asset = example.getString("asset")
+                require(asset.startsWith("wiki/examples/") && !asset.contains(".."))
+                val bundle = JSONObject(context.assets.open(asset).bufferedReader().use { it.readText() })
+                val drawing = HikiteWikiView(context, bundle)
+                hikitePlayer = drawing
+                card.addView(drawing)
+            } else {
             require(definition.getString("renderer_id") == "pose_with_path_graph") { "Renderer not installed" }
             val speed = definition.getString("measurement_id") == "camera_relative_wrist_speed"
             require(speed || definition.getString("measurement_id") == "punch_path_typical_deviation_rms") {
@@ -154,13 +166,14 @@ class MeasurementWikiView(context: Context, private val onClose: () -> Unit) : L
                 setOnClickListener { drawing.seekTimestamp(marker.getDouble("timestamp_ms")) }
             })
             drawing.seek(0.0)
+            }
         } catch (error: Exception) {
             card.addView(label("Example unavailable: ${error.message ?: "Could not load this measurement"}"))
         }
         card.addView(Button(context).apply {
             text = "How is this calculated?"
             setOnClickListener {
-                player?.pause(); page = "method"; content.removeAllViews()
+                player?.pause(); hikitePlayer?.pause(); page = "method"; content.removeAllViews()
                 content.addView(label("How it is calculated", true))
                 content.addView(label(definition.getString("method_text")))
                 content.addView(Button(context).apply { text = "Back to animation"; setOnClickListener { back() } })

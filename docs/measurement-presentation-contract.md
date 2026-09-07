@@ -236,3 +236,23 @@ measured length and local-slope method are exported. The installed example uses
 the preview's reference strategy; it is not represented as validated calibration.
 Display camera coordinates scale with the chosen unit so wrist overlays remain
 identical in pixels when switching units. The original shared motion is unchanged.
+
+## Frozen hikite example extension
+
+The dedicated `hikite_pose_graph` renderer uses a pose-only approved punch-six
+fixture, not a new production analyzer export. Its v2 presentation is
+`hikite:event:6` / `hikite_finish`, referencing `motions["punch:6"].samples`.
+These renderer-specific samples carry `f` (original frame), `t` (absolute ms),
+`p` (semantic camera positions in upper-arm units), `radius`, elbow `point`,
+`speed`, shoulder/hip midpoints, perpendicular `foot` and `shoulder_foot`,
+`behind`, `shoulder_distance`, and `forearm_angle` in degrees. x points right,
+y down. Positive behind is opposite camera-right for this particular recording.
+This extension is not accepted by the existing wrist-path renderer.
+
+Method provenance preserves source window 248–295, fixed right upper-arm median
+from frames 248–254, and ±50 ms local linear elbow speed. Display starts at 271;
+trimming does not recompute scale or speed. `maximum_marker.camera_elbow` contains the peak elbow location; the renderer
+uses the matching pose elbow. The frozen fixture contains
+no video, face landmarks or measured metric arm length. Hand/wrist bend remains
+explicitly unavailable. A general analyzer export and exercise integration are
+future work; do not apply these example-specific side/window choices globally.
