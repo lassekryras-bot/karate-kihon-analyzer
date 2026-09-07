@@ -1,0 +1,18 @@
+{
+  "version": 1,
+  "default_example": {
+    "asset": "wiki/examples/basic-right-punch.json",
+    "presentation_id": "punch_path:event:5"
+  },
+  "measurements": [
+    {
+      "measurement_id": "punch_path_typical_deviation_rms",
+      "renderer_id": "pose_with_path_graph",
+      "title": "Wrist path deviation",
+      "description": "How far does your hand wander from a straight path during the punch?",
+      "figure_text": "The red trail follows your wrist. The dashed line shows a straight path from start to finish. The circle marks the largest deviation.",
+      "graph_text": "See how the distance changes during your punch. Drag along the graph or tap Show maximum.",
+      "method_text": "We draw a straight line from your wrist’s starting position to its finishing position. Maximum deviation is the greatest distance from that line.\n\nTypical deviation (RMS) summarizes the distances across the punch, giving larger deviations more weight.\n\nA smaller number means a straighter path in this camera view. It does not, on its own, mean a better punch."
+    }
+  ]
+}

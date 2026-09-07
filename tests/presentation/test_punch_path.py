@@ -87,6 +87,7 @@ def _companion() -> dict:
             "timestamp_ms": frame * 100,
             "normalized_time_progress": frame / 2,
             "signed_line_deviation_shoulder_widths": deviation,
+            "shoulder_relative_wrist": [float(frame), deviation],
         }
         for frame, deviation in ((0, 0.0), (1, -0.1), (2, 0.0))
     ]
@@ -150,7 +151,7 @@ def _landmarks() -> dict:
                 ],
             }
         )
-    return {"frame_geometry": {"example": True}, "frames": frames}
+    return {"frame_geometry": {"analysis_frame": {"width_px": 40, "height_px": 20}}, "frames": frames}
 
 
 def test_shared_motion_survives_unavailable_trajectory():
@@ -182,3 +183,69 @@ def test_wiki_override_changes_whole_example_but_never_exercise():
     definition['wiki_example']['bundle_id'] = 'missing'
     with pytest.raises(ValueError):
         resolve_measurement_presentation(definition, context='wiki', **args)
+
+
+def test_export_adds_distinct_maximum_presentation_sharing_motion():
+    bundle = build_punch_path_presentation_bundle(_companion(), _landmarks())
+    rms, maximum = bundle["presentations"]
+    assert maximum["measurement_id"] == "punch_path_maximum_deviation"
+    assert maximum["availability"]["status"] == "available"
+    assert maximum["maximum_marker"]["frame_number"] == 1
+    assert maximum["motion_id"] == rms["motion_id"]
+    assert len(bundle["motions"]) == 1
+
+
+def test_fixed_camera_values_ignore_shoulder_motion_and_old_diagnostic_values():
+    from copy import deepcopy
+    original = _landmarks()
+    shifted = deepcopy(original)
+    for i, frame in enumerate(shifted['frames']):
+        shoulder = next(p for p in frame['poses'][0] if p['index'] == 12)
+        shoulder['x'] += i * .15
+    companion = _companion()
+    baseline = build_punch_path_presentation_bundle(companion, original)['presentations'][0]
+    companion['event_views'][0]['trajectory_straightness']['rms_deviation_shoulder_widths'] = 999
+    companion['event_views'][0]['trajectory_straightness']['maximum_absolute_deviation_shoulder_widths'] = 999
+    changed = build_punch_path_presentation_bundle(companion, shifted)['presentations'][0]
+    assert changed['summary'] == baseline['summary']
+    assert changed['overlays'] == baseline['overlays']
+    assert changed['graph'] == baseline['graph']
+    assert changed['maximum_marker'] == baseline['maximum_marker']
+
+
+def test_body_translation_contributes_to_fixed_camera_path():
+    landmarks = _landmarks()
+    # Move the entire middle pose upwards; wrist-to-shoulder distance is unchanged.
+    for point in landmarks['frames'][1]['poses'][0]:
+        point['y'] -= .1
+    presentation = build_punch_path_presentation_bundle(_companion(), landmarks)['presentations'][0]
+    assert presentation['summary']['maximum_deviation_output_units'] == pytest.approx(.2)
+    assert presentation['summary']['typical_deviation_rms_output_units'] == pytest.approx(.2 / 3**.5)
+
+
+@pytest.mark.parametrize('failure', ['geometry', 'scale', 'nan', 'coincident', 'missing_pose', 'timestamp'])
+def test_fixed_camera_invalid_source_never_reuses_shoulder_values(failure):
+    landmarks, companion = _landmarks(), _companion()
+    if failure == 'geometry': landmarks['frame_geometry'] = None
+    if failure == 'scale': companion['length_scale']['analysis_pixels_per_output_unit'] = 0
+    if failure == 'nan':
+        next(p for p in landmarks['frames'][1]['poses'][0] if p['index'] == 16)['x'] = float('nan')
+    if failure == 'coincident':
+        wrist = next(p for p in landmarks['frames'][-1]['poses'][0] if p['index'] == 16)
+        wrist.update(x=.55, y=.48)
+    if failure == 'missing_pose': landmarks['frames'][1]['poses'] = []
+    if failure == 'timestamp': companion['event_views'][0]['trajectory_straightness']['samples'][1]['timestamp_ms'] = 0
+    presentation = build_punch_path_presentation_bundle(companion, landmarks)['presentations'][0]
+    assert presentation['availability']['status'] != 'available'
+    assert presentation['maximum_marker'] is None
+    assert all(v is None for v in presentation['summary'].values())
+
+
+def test_mirrored_camera_preserves_magnitudes_and_above_graph_sign():
+    landmarks = _landmarks()
+    for frame in landmarks['frames']:
+        for point in frame['poses'][0]:
+            point['x'] = 1 - point['x']
+    presentation = build_punch_path_presentation_bundle(_companion(), landmarks)['presentations'][0]
+    assert presentation['graph']['samples'][1]['signed_deviation_output_units'] == pytest.approx(.1)
+    assert presentation['summary']['maximum_deviation_output_units'] == pytest.approx(.1)

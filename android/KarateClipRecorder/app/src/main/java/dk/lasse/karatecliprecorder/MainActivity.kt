@@ -105,6 +105,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var appRoot: FrameLayout
     private lateinit var trainingRoot: View
     private lateinit var homeScreen: HomeScreenView
+    private var measurementWiki: dk.lasse.karatecliprecorder.wiki.MeasurementWikiView? = null
     private lateinit var learnScreen: LearnScreenView
     private lateinit var settingsScreen: SettingsScreenView
     private var skillProgressionScreen: SkillProgressionView? = null
@@ -282,6 +283,7 @@ class MainActivity : AppCompatActivity() {
         learnScreen = LearnScreenView(
             context = this,
             paths = learningPaths,
+            onWiki = ::showMeasurementWiki,
             onPathSelected = ::showSkillProgression,
             onHome = ::showHomeUi,
             onProgress = { showHomeDestinationPlaceholder("Progress") },
@@ -324,7 +326,9 @@ class MainActivity : AppCompatActivity() {
         japaneseCountLiveRecognizer = JapaneseCountLiveRecognizer(this)
         onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
             override fun handleOnBackPressed() {
-                if (skillProgressionScreen?.visibility == View.VISIBLE) {
+                if (measurementWiki != null) {
+                    measurementWiki?.back()
+                } else if (skillProgressionScreen?.visibility == View.VISIBLE) {
                     showLearnUi()
                 } else if (currentAppDestination == AppDestination.SETTINGS) {
                     showHomeUi()
@@ -341,6 +345,14 @@ class MainActivity : AppCompatActivity() {
         } else if (savedInstanceState?.getString(STATE_APP_DESTINATION) == AppDestination.TRAIN.name) {
             showLearnUi()
         }
+    }
+
+    private fun showMeasurementWiki() {
+        if (measurementWiki != null) return
+        measurementWiki = dk.lasse.karatecliprecorder.wiki.MeasurementWikiView(this) {
+            measurementWiki?.let(appRoot::removeView)
+            measurementWiki = null
+        }.also { appRoot.addView(it, FrameLayout.LayoutParams(-1, -1)) }
     }
 
     private fun showHomeDestinationPlaceholder(destination: String) {
