@@ -1,5 +1,9 @@
 # Full-video motion diagnostic plots
 
+App-facing interactive explanations use the separate, renderer-neutral
+[measurement presentation contract](measurement-presentation-contract.md).
+The Matplotlib plots in this document remain developer diagnostics.
+
 The motion plot helper visualizes frame-selection evidence across the complete
 video. It is a developer validation surface, not a coaching report.
 
@@ -24,6 +28,85 @@ arm:
 7. Signed punching-elbow displacement from the body centerline.
 8. Signed forward velocity of the punching elbow.
 9. Cross-body opposition distance from the opposite elbow to the punching wrist.
+
+It also writes one compact event plot per detected punch, named like
+`motion-diagnostics-event-02-right.png`. These figures use timestamp-based,
+shared x-limits and three coordinated panels:
+
+1. production shoulder-to-wrist reach and signed outward wrist velocity;
+2. signed punching-elbow displacement and elbow forward velocity;
+3. cross-body opposition distance and its signed opening/closing velocity.
+
+Two additional experimental panels describe wrist-path straightness without
+classifying technique:
+
+4. signed perpendicular wrist deviation from a straight start-to-impact line;
+5. signed movement-direction error at 50, 100, and 200 ms look-back intervals.
+
+The path uses punching-shoulder-relative analysis-image coordinates divided by
+the same fixed whole-video shoulder-width scale. Its start is the latest
+repetition-relative minimum-reach plateau before outward onset when that plateau
+is observable. If wrist visibility is lost in chamber, the path begins at the
+first reliable wrist sample after the last occlusion and records
+`first_visible_wrist_after_occlusion`; it never draws a trajectory across the
+unobserved gap. This may leave only a short visible path and too few samples for
+the longer direction intervals, which remains explicit in the JSON.
+
+The companion data records the reference line, start frame/time/reason, each
+signed deviation and direction error, actual timestamp interval used, direct and
+travelled distance, path-efficiency ratio, maximum and RMS deviation, deviation
+sign changes, and per-interval valid counts and error summaries. These are
+camera-plane diagnostic measurements for later repetition aggregation, not
+single-punch coaching flags.
+
+For every event the helper also writes a compact `-biomechanics.png` figure. Its
+first panel places the observed wrist and elbow journeys in punching-shoulder-
+relative coordinates and shows the direct wrist reference line. Its second panel
+compares wrist-path deviation with mirror-invariant elbow displacement from the
+changing shoulder-to-wrist line over normalized start-to-impact time. Missing
+elbow samples remain gaps rather than interpolated biomechanics.
+
+## Replaceable diagnostic length scale
+
+All current distances use one `diagnostic_length_scale_v1` record whose output
+unit is the fixed median observed shoulder width. The record explicitly says
+that this is not a physical measurement and exposes the analysis-pixels-per-unit
+value and strategy in companion JSON. This is the replacement boundary for a
+future user calibration based on a known anatomical length.
+
+A manually measured forearm length could later help establish centimetre output,
+but only when paired with a video-specific pixel observation of the same segment
+and safeguards for foreshortening, camera distance, and view angle. A centimetre
+value entered during onboarding cannot by itself convert arbitrary later pixels
+to centimetres. The current plots therefore retain shoulder-width units until a
+validated physical calibration contract exists.
+
+Each event view also logs neutral punch and hikite measurements. Punch values
+include peak outward wrist velocity and its frame/time, outward-onset-to-impact
+duration, peak-velocity-to-impact duration, velocity at impact, terminal reach,
+and terminal extension ratio. Hikite is sampled from the opposite arm at the
+punch's theoretical-impact frame and records signed elbow displacement,
+elbow velocity and angle, forearm-to-torso angle and deviation from 90 degrees,
+wrist-to-shoulder and wrist-to-hip distances, wrist distance from the torso axis,
+and projected position along that axis.
+
+Hikite availability is `available` only when its core elbow displacement,
+forearm angle, and wrist-to-hip distance are all present. A subset is `partial`;
+no usable values is `unavailable`. `elbow_is_behind_centerline` is a descriptive
+sign check, not a quality judgment. No universal pass/fail thresholds are
+attached to these measurements.
+
+The event view shades the braking phase and bounded terminal-confirmation
+window. Vertical markers retain candidate peak, peak positive wrist velocity,
+braking onset, theoretical impact, elbow arrival, cross-body arrival, retraction
+onset, selected analysis frame, and a distinct snapshot frame. Labels include
+both timestamp and frame number. Coincident markers remain separate records in
+the companion JSON even when their vertical lines overlap visually.
+
+Unavailable events still receive an event view. The title states the unavailable
+reason, and no theoretical-impact marker is invented. Confirmation is reported
+as `confirmed`, `partial`, `contradicted`, or `not_assessed`, together with the
+supporting and available signal counts.
 
 ## Shoulder-width reference
 
@@ -106,6 +189,31 @@ Markers keep event concepts separate:
 - orange triangle: detector candidate peak;
 - green circle: theoretical-impact estimate;
 - purple X: selected analysis frame.
+
+The machine-readable companion JSON retains the complete full-video series and
+adds `event_views`. Each event view records its clipped plotted window, ordered
+marker roles with frame numbers and timestamps, phase/confirmation intervals,
+confirmation status and counts, unavailable reason, signal versions, coordinate
+space, derivative convention, and the fixed-scale provenance. Plotting remains
+an optional diagnostic dependency: production detection imports no Matplotlib,
+and companion data is written before Matplotlib is loaded.
+
+## Detector concern exposed by event-level validation
+
+A fresh run of the ten-punch validation clip exposed a boundary-condition concern
+for the first detected event. Its measurement window begins with the punching arm
+already near terminal extension. Small wrist-reach fluctuations inside that hold
+were sufficient to produce a positive local velocity peak, while elbow and
+cross-body geometry were already terminal; the current estimator therefore
+reported a confirmed theoretical impact even though the full outward approach
+was not observed in the event window.
+
+This is an estimator concern, not a reason to alter or cosmetically reinterpret
+the plot. The diagnostic output retains the estimator result and makes the
+missing approach visually inspectable. A separate detector change should require
+evidence that outward onset represents a material approach from a non-terminal
+state, while preserving valid events whose candidate window starts late. No such
+production change is included with the event-view work.
 
 These camera-plane signals do not measure metres, force, physical contact, or
 clinical joint motion. Acceleration is especially sensitive to landmark noise;
