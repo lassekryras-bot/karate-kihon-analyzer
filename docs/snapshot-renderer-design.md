@@ -50,6 +50,7 @@ The Snapshot Renderer is responsible for:
 - Drawing landmarks
 - Drawing reference lines
 - Drawing actual punch lines
+- Mapping explicit image-space points through `FrameGeometry`
 - Displaying text
 - Producing PNG images
 - Future rendering targets (SVG, Canvas, PDF, etc.)
@@ -62,6 +63,7 @@ The Snapshot Renderer is not responsible for:
 - Classification
 - MediaPipe
 - Video processing
+- Projecting Pose world points into the image
 
 ---
 
@@ -71,7 +73,15 @@ The renderer should receive a fully analyzed `PunchAnalysis` object.
 
 The renderer should not require additional calculations.
 
-Everything needed to render the snapshot should already exist inside the analysis result.
+Everything needed to render the snapshot should already exist inside the
+analysis result, including the coordinate-space provenance and transform to the
+saved frame. Applying that supplied transform is presentation geometry, not a
+biomechanical calculation.
+
+Observed anatomical landmarks must originate from MediaPipe image landmarks.
+Calculated Pose-world points have no drawable pixel location until an explicit
+world-to-camera-to-image projection exists. Production rendering validates that
+the decoded saved frame matches the recorded frame number and dimensions.
 
 ---
 
@@ -81,7 +91,8 @@ The MVP renderer will generate a PNG image.
 
 The image will use a simple synthetic canvas.
 
-No real camera frame is required for the first implementation.
+The original synthetic canvas remains supported. The real-video strike path now
+renders onto an extracted source frame using the serialized `FrameGeometry`.
 
 ---
 
@@ -168,6 +179,12 @@ The renderer should always:
 - Never depend on MediaPipe
 - Never depend on OpenCV
 - Be deterministic
+- Consume explicit saved-frame rendering coordinates or a declared transform
+
+The next renderer boundary should accept renderer-neutral primitives such as
+points, lines, polylines, arcs, and labels. Every primitive must correspond to a
+defined measurement or reference; the renderer should not infer coaching
+meaning from landmark geometry.
 
 ---
 

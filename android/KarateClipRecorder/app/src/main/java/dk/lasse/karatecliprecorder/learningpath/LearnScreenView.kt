@@ -38,6 +38,7 @@ class LearnScreenView(
     onHome: () -> Unit,
     onProgress: () -> Unit,
     onSettings: () -> Unit,
+    private val onWiki: () -> Unit,
 ) : FrameLayout(context) {
     private val red = ContextCompat.getColor(context, R.color.app_accent)
     private val ink = ContextCompat.getColor(context, R.color.app_text_primary)
@@ -99,6 +100,10 @@ class LearnScreenView(
 
     private fun renderContent() {
         content.removeAllViews()
+        content.addView(
+            actionLabel("Measurement wiki  ›", onWiki),
+            LayoutParams(LayoutParams.MATCH_PARENT, 52.dp()).apply { bottomMargin = 16.dp() },
+        )
         val scopedPaths = profileScopedPaths()
         val currentPath = scopedPaths.first { it.id == LearningPathId.JODAN_PUNCH }
         content.addView(continueCard(currentPath) { onPathSelected(currentPath) })

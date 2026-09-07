@@ -122,6 +122,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var appRoot: FrameLayout
     private lateinit var trainingRoot: View
     private lateinit var homeScreen: HomeScreenView
+    private var measurementWiki: dk.lasse.karatecliprecorder.wiki.MeasurementWikiView? = null
     private lateinit var learnScreen: LearnScreenView
     private lateinit var settingsScreen: SettingsScreenView
     private lateinit var progressScreen: ProgressScreenView
@@ -317,6 +318,7 @@ class MainActivity : AppCompatActivity() {
             onProfile = ::showProfileUi,
             paths = learningPaths,
             karateBasics = karateBasicsPath,
+            onWiki = ::showMeasurementWiki,
             onPathSelected = ::showSkillProgression,
             onKarateBasicsSelected = ::showKarateBasicsPath,
             onHome = ::showHomeUi,
@@ -377,6 +379,8 @@ class MainActivity : AppCompatActivity() {
                     secondaryBackAction?.invoke()
                 } else if (japaneseCountingPracticeScreen?.visibility == View.VISIBLE) {
                     exitJapaneseCountingPractice()
+                } else if (measurementWiki != null) {
+                    measurementWiki?.back()
                 } else if (skillProgressionScreen?.visibility == View.VISIBLE) {
                     showLearnUi()
                 } else if (currentAppDestination == AppDestination.SETTINGS) {
@@ -396,6 +400,14 @@ class MainActivity : AppCompatActivity() {
         } else if (savedInstanceState?.getString(STATE_APP_DESTINATION) == AppDestination.TRAIN.name) {
             showLearnUi()
         }
+    }
+
+    private fun showMeasurementWiki() {
+        if (measurementWiki != null) return
+        measurementWiki = dk.lasse.karatecliprecorder.wiki.MeasurementWikiView(this) {
+            measurementWiki?.let(appRoot::removeView)
+            measurementWiki = null
+        }.also { appRoot.addView(it, FrameLayout.LayoutParams(-1, -1)) }
     }
 
     private fun showHomeDestinationPlaceholder(destination: String) {

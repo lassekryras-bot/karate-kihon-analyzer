@@ -172,3 +172,68 @@ def test_small_signed_angle_is_good_with_current_threshold() -> None:
 
     assert result.signed_angle_degrees == pytest.approx(0.9, abs=0.1)
     assert result.status == "good"
+
+
+def _canonical_event(*, endpoint_frame=10, target_analysis_frame=10):
+    return {
+        "theoretical_impact_event": {"impact_frame_number": 9},
+        "analysis_frame_number": 10,
+        "analysis_frame": {"frame_number": 10},
+        "shoulder": {**_point(0.2, 0.7), "source_frame_number": 10},
+        "elbow": {**_point(0.5, 0.5), "source_frame_number": 10},
+        "wrist": {**_point(0.8, 0.4), "source_frame_number": 10},
+        "impact_point": {
+            **_point(0.8, 0.4),
+            "source_frame_number": endpoint_frame,
+        },
+        "jodan_reference": {
+            **_point(0.4, 0.4),
+            "source": "locked_neutral_reference",
+            "source_frame_number": 2,
+            "analysis_frame_number": target_analysis_frame,
+            "transport_method": "locked_camera_plane_no_motion_v1",
+            "confidence": "medium",
+        },
+    }
+
+
+def test_canonical_height_geometry_records_common_measurement_frame_and_locked_source():
+    result = analyze_strike_event_jodan_height(_canonical_event())
+
+    assert result["status"] == "good"
+    assert result["measurement_frame_number"] == 10
+    assert result["endpoint_source_frame_number"] == 10
+    assert result["target_source_frame_number"] == 2
+    assert result["target_transport_method"] == "locked_camera_plane_no_motion_v1"
+
+
+@pytest.mark.parametrize(
+    ("endpoint_frame", "target_frame", "reason"),
+    [
+        (9, 10, "impact_point does not originate from analysis frame 10"),
+        (10, 9, "Jodan reference is not registered to analysis frame 10"),
+    ],
+)
+def test_canonical_height_rejects_cross_frame_geometry(
+    endpoint_frame, target_frame, reason
+):
+    result = analyze_strike_event_jodan_height(
+        _canonical_event(
+            endpoint_frame=endpoint_frame, target_analysis_frame=target_frame
+        )
+    )
+
+    assert result["status"] == "unknown"
+    assert result["unknown_reason"] == reason + "."
+
+
+def test_locked_target_cannot_change_frames_without_transport_provenance():
+    event = _canonical_event()
+    del event["jodan_reference"]["transport_method"]
+
+    result = analyze_strike_event_jodan_height(event)
+
+    assert result["status"] == "unknown"
+    assert result["unknown_reason"] == (
+        "Jodan reference changed frames without an explicit transport method."
+    )

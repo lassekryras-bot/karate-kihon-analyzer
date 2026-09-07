@@ -66,6 +66,8 @@ def run_analysis_pipeline(
         rendered_paths=rendered_paths,
         output_directory=output_directory,
         expected_punch_count=int(extension_summary.get("expected_punch_count", 10)),
+        frame_geometry=video_payload.get("frame_geometry"),
+        target_height_diagnostic=punch_event_payload.get("target_height_diagnostic"),
     )
     summary = _build_summary(
         input_video=input_video,
@@ -102,6 +104,8 @@ def _build_analysis_results(
     rendered_paths: list[Path],
     output_directory: Path,
     expected_punch_count: int,
+    frame_geometry: dict[str, Any] | None,
+    target_height_diagnostic: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     snapshots = {
         index: _relative_path(path, output_directory)
@@ -116,7 +120,15 @@ def _build_analysis_results(
                 "observed_side": event.get("observed_side"),
                 "matches_expected_side": event.get("matches_expected_side"),
                 "peak_frame_number": event.get("peak_frame_number"),
+                "theoretical_impact_event": event.get("theoretical_impact_event"),
+                "impact_frame_number": event.get("impact_frame_number"),
+                "analysis_frame": event.get("analysis_frame"),
                 "analysis_frame_number": event.get("analysis_frame_number"),
+                "snapshot_frame": event.get("snapshot_frame"),
+                "snapshot_frame_number": event.get("snapshot_frame_number"),
+                "frame_provenance": event.get("frame_provenance"),
+                "event_provenance": event.get("event_provenance"),
+                "physical_contact_status": event.get("physical_contact_status"),
                 "elbow_angle_degrees": event.get("elbow_angle_degrees"),
                 "angle_delta_degrees": event.get("angle_delta_degrees"),
                 "max_elbow_angle_degrees_in_region": event.get(
@@ -149,6 +161,7 @@ def _build_analysis_results(
                 "chin_reference": event.get("chin_reference"),
                 "jodan_reference": event.get("jodan_reference"),
                 "analysis": event.get("analysis", {}),
+                "target_height_diagnostic": event.get("target_height_diagnostic"),
                 "snapshot_path": snapshots.get(position),
             }
         )
@@ -156,6 +169,8 @@ def _build_analysis_results(
         "source_video": str(input_video),
         "expected_punch_count": expected_punch_count,
         "detected_punch_count": len(clean_events),
+        "frame_geometry": frame_geometry,
+        "target_height_diagnostic": target_height_diagnostic,
         "events": clean_events,
     }
 
@@ -200,6 +215,7 @@ def _build_summary(
         "pose_detector_backend": video_payload.get("pose_detector_backend"),
         "hand_detector_backend": video_payload.get("hand_detector_backend"),
         "face_detector_backend": video_payload.get("face_detector_backend"),
+        "frame_geometry": video_payload.get("frame_geometry"),
         "diagnostics": diagnostics,
         "expected_punch_count": extension_summary.get("expected_punch_count", 10),
         "detected_punch_count": analysis_results["detected_punch_count"],
@@ -237,21 +253,68 @@ def _build_report(summary: dict[str, Any], analysis_results: dict[str, Any]) -> 
         "",
         "## Strike Events",
         "",
-        "| # | Expected side | Observed side | Frame | Time | Jodan height | Snapshot |",
-        "|---|---------------|---------------|-------|------|--------------|----------|",
+        "The candidate peak is a detector clue, not impact. The theoretical-impact "
+        "event is the first credible functional endpoint. Analysis and snapshot "
+        "frames retain independent provenance. Physical contact is not assessed.",
+        "The candidate peak frame is the detector's region peak. The selected "
+        "analysis frame and time identify the frame used for event measurements "
+        "and snapshot rendering.",
+        "",
+        "| # | Expected side | Observed side | Candidate peak | Theoretical impact | Analysis frame (offset) | Snapshot frame (offset) | Confidence / evidence | Terminal confirmation | Physical contact | Jodan height | Snapshot |",
+        "|---|---|---|---|---|---|---|---|---|---|---|---|",
     ]
     for event in analysis_results["events"]:
         status = (
             event.get("analysis", {}).get("jodan_height", {}).get("status", "unknown")
         )
+        candidate_peak_frame = _format_report_value(event.get("peak_frame_number"))
+        analysis_frame = _format_report_value(event.get("analysis_frame_number"))
+        timestamp = event.get("timestamp_seconds")
+        time_text = "" if timestamp is None else f"{float(timestamp):.3f}s"
+        impact = event.get("theoretical_impact_event") or {}
+        analysis = event.get("analysis_frame") or {}
+        snapshot = event.get("snapshot_frame") or {}
+        confirmation = impact.get("terminal_confirmation") or {}
+        impact_ms = impact.get("theoretical_impact_time_ms")
+        impact_text = "" if impact_ms is None else f"{impact.get('impact_frame_number')} / {impact_ms / 1000:.3f}s"
+        analysis_text = (f"{analysis.get('frame_number')} ({analysis.get('offset_from_impact_ms', 0):+d}ms)" if analysis else f"{analysis_frame} / {time_text}")
+        snapshot_text = (f"{snapshot.get('frame_number')} ({snapshot.get('offset_from_impact_ms', 0):+d}ms)" if snapshot else analysis_text)
+        evidence = ", ".join(impact.get("evidence_flags", []))
+        if impact.get("unavailable_reason"):
+            evidence = f"unavailable: {impact['unavailable_reason']}"
+        lines.append(
+            f"| {event.get('event_index', '')} | {event.get('expected_side') or ''} | "
+            f"{event.get('observed_side') or ''} | {candidate_peak_frame} | "
+            f"{impact_text} | {analysis_text} | {snapshot_text} | "
+            f"{impact.get('confidence_level', '')} {evidence} | "
+            f"{confirmation.get('status', 'not assessed')} "
+            f"({confirmation.get('supporting_signal_count', 0)}/"
+            f"{confirmation.get('available_signal_count', 0)}) | "
+            f"{str(impact.get('physical_contact_status', 'not_assessed')).replace('_', ' ')} | {status} | "
+            f"{event.get('snapshot_path') or ''} |"
+        )
+    lines.extend([
+        "",
+        "### Compatibility view",
+        "",
+        "| # | Expected side | Observed side | Candidate peak frame | Selected analysis frame | Selected analysis time | Jodan height | Snapshot |",
+        "|---|---------------|---------------|----------------------|-------------------------|------------------------|--------------|----------|",
+    ])
+    for event in analysis_results["events"]:
+        status = event.get("analysis", {}).get("jodan_height", {}).get("status", "unknown")
         timestamp = event.get("timestamp_seconds")
         time_text = "" if timestamp is None else f"{float(timestamp):.3f}s"
         lines.append(
             f"| {event.get('event_index', '')} | {event.get('expected_side') or ''} | "
-            f"{event.get('observed_side') or ''} | {event.get('peak_frame_number') or ''} | "
-            f"{time_text} | {status} | {event.get('snapshot_path') or ''} |"
+            f"{event.get('observed_side') or ''} | {_format_report_value(event.get('peak_frame_number'))} | "
+            f"{_format_report_value(event.get('analysis_frame_number'))} | {time_text} | {status} | "
+            f"{event.get('snapshot_path') or ''} |"
         )
     return "\n".join(lines) + "\n"
+
+
+def _format_report_value(value: Any) -> str:
+    return "" if value is None else str(value)
 
 
 def _relative_path(path: Path, base: Path) -> str:

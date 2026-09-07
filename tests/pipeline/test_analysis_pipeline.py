@@ -6,7 +6,11 @@ from pathlib import Path
 import pytest
 from typer.testing import CliRunner
 
-from karate_analyzer.pipeline.analysis_pipeline import run_analysis_pipeline
+from karate_analyzer.frame_geometry import FrameGeometry
+from karate_analyzer.pipeline.analysis_pipeline import (
+    _build_analysis_results,
+    run_analysis_pipeline,
+)
 from karate_analyzer.main import app
 
 
@@ -47,6 +51,9 @@ def test_summary_counts_jodan_statuses(
         "too_high": 1,
         "unknown": 1,
     }
+    geometry = FrameGeometry.identity(160, 120).to_dict()
+    assert result["analysis_results"]["frame_geometry"] == geometry
+    assert result["summary"]["frame_geometry"] == geometry
 
 
 def test_snapshot_paths_are_added_to_analysis_results(
@@ -69,6 +76,44 @@ def test_snapshot_paths_are_added_to_analysis_results(
     ]
 
 
+def test_combined_frame_provenance_and_target_diagnostics_survive_serialization(
+    tmp_path: Path,
+) -> None:
+    event = _event(1, "right", "good")
+    event.update(
+        {
+            "theoretical_impact_event": {"time_seconds": 1.0},
+            "impact_frame_number": 29,
+            "analysis_frame": {"frame_number": 30},
+            "analysis_frame_number": 30,
+            "snapshot_frame": {"frame_number": 31},
+            "snapshot_frame_number": 31,
+            "frame_provenance": {"analysis_offset_frames": 1},
+            "event_provenance": {"method": "theoretical_impact"},
+            "physical_contact_status": "not_assessed",
+            "target_height_diagnostic": {"status": "ABSTAINED"},
+        }
+    )
+    result = _build_analysis_results(
+        input_video=tmp_path / "video.mp4",
+        events=[event],
+        rendered_paths=[tmp_path / "strike.png"],
+        output_directory=tmp_path,
+        expected_punch_count=1,
+        frame_geometry=FrameGeometry.identity(160, 120).to_dict(),
+        target_height_diagnostic={"status": "READY"},
+    )
+    serialized = result["events"][0]
+    assert serialized["theoretical_impact_event"] == {"time_seconds": 1.0}
+    assert serialized["analysis_frame"] == {"frame_number": 30}
+    assert serialized["snapshot_frame"] == {"frame_number": 31}
+    assert serialized["physical_contact_status"] == "not_assessed"
+    assert serialized["analysis"]["jodan_height"]["status"] == "good"
+    assert serialized["target_height_diagnostic"] == {"status": "ABSTAINED"}
+    assert result["target_height_diagnostic"] == {"status": "READY"}
+    assert "target_height" not in result
+
+
 def test_summary_includes_detector_backends_and_face_diagnostics(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -88,6 +133,63 @@ def test_summary_includes_detector_backends_and_face_diagnostics(
         "MEDIAPIPE_FACE_MODEL_PATH."
     ]
     assert "No face landmarks were detected" in (output / "report.md").read_text()
+
+
+def test_report_distinguishes_candidate_peak_from_selected_analysis_frame_and_time(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    video = _write_video(tmp_path / "kihon.mp4")
+    output = tmp_path / "run-001"
+    event = _event(1, "right", "good")
+    event.update(
+        {
+            "peak_frame_number": 103,
+            "analysis_frame_number": 113,
+            "timestamp_seconds": 1.883,
+        }
+    )
+    _install_pipeline_fakes(monkeypatch, events=[event])
+
+    run_analysis_pipeline(input_video=video, output_directory=output)
+
+    report = (output / "report.md").read_text()
+    assert (
+        "The candidate peak frame is the detector's region peak. The selected "
+        "analysis frame and time identify the frame used for event measurements "
+        "and snapshot rendering." in report
+    )
+    assert (
+        "| Candidate peak frame | Selected analysis frame | "
+        "Selected analysis time |" in report
+    )
+    assert (
+        "| 1 | right | right | 103 | 113 | 1.883s | good | "
+        "rendered-strikes/strike-001-right.png |" in report
+    )
+
+
+def test_report_preserves_zero_frame_numbers(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    video = _write_video(tmp_path / "kihon.mp4")
+    output = tmp_path / "run-001"
+    event = _event(1, "right", "good")
+    event.update(
+        {
+            "peak_frame_number": 0,
+            "analysis_frame_number": 0,
+            "timestamp_seconds": 0.0,
+        }
+    )
+    _install_pipeline_fakes(monkeypatch, events=[event])
+
+    run_analysis_pipeline(input_video=video, output_directory=output)
+
+    report = (output / "report.md").read_text()
+    assert (
+        "| 1 | right | right | 0 | 0 | 0.000s | good | "
+        "rendered-strikes/strike-001-right.png |" in report
+    )
 
 
 def test_empty_strike_events_fail_clearly(
@@ -160,6 +262,7 @@ def _install_pipeline_fakes(
             "pose_detector_backend": "tasks_pose_landmarker",
             "hand_detector_backend": "tasks_hand_landmarker",
             "face_detector_backend": "tasks_face_landmarker",
+            "frame_geometry": FrameGeometry.identity(160, 120).to_dict(),
             "frames": [],
         }
         (output_directory / "video_landmarks.json").write_text(json.dumps(payload))
@@ -177,7 +280,12 @@ def _install_pipeline_fakes(
         ]:
             (output_directory / filename).write_text("{}")
         (output_directory / "punch_event_landmarks.json").write_text(
-            json.dumps({"punch_event_landmarks": events})
+            json.dumps(
+                {
+                    "frame_geometry": FrameGeometry.identity(160, 120).to_dict(),
+                    "punch_event_landmarks": events,
+                }
+            )
         )
         return {"expected_punch_count": 10, "punch_event_candidate_count": len(events)}
 

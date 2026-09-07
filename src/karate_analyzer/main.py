@@ -1,6 +1,7 @@
 """Command-line interface for the karate kihon analyzer."""
 
 from dataclasses import asdict
+import json
 from pathlib import Path
 from typing import Annotated
 
@@ -265,6 +266,131 @@ def explore_extension(
     typer.echo("Wrote:")
     for filename in summary["output_files"]:
         typer.echo(f"- {filename}")
+
+
+@app.command("plot-motion-diagnostics")
+def plot_motion_diagnostics_command(
+    landmarks: Annotated[
+        Path,
+        typer.Option("--landmarks", help="Path to video_landmarks.json."),
+    ] = Path("output/video_landmarks.json"),
+    events: Annotated[
+        Path,
+        typer.Option("--events", help="Path to punch_event_landmarks.json."),
+    ] = Path("output/punch_event_landmarks.json"),
+    output: Annotated[
+        Path,
+        typer.Option(
+            "--output",
+            "-o",
+            help="Output PNG basename; -left and -right are appended.",
+        ),
+    ] = Path("output/motion-diagnostics.png"),
+    data_output: Annotated[
+        Path | None,
+        typer.Option(
+            "--data-output",
+            help="Optional JSON path for the exact plotted metric values.",
+        ),
+    ] = None,
+    smoothing_window: Annotated[
+        int,
+        typer.Option(
+            "--smoothing-window",
+            help="Positive odd median-smoothing window for wrist derivatives.",
+        ),
+    ] = 3,
+    min_visibility: Annotated[
+        float,
+        typer.Option(
+            "--min-visibility", help="Minimum Pose landmark visibility."
+        ),
+    ] = 0.5,
+) -> None:
+    """Plot full-video arm signals and compact event-verification views."""
+    from karate_analyzer.diagnostics.motion_plots import (
+        render_motion_diagnostic_plots,
+    )
+
+    try:
+        rendered = render_motion_diagnostic_plots(
+            video_landmarks_path=landmarks,
+            events_path=events,
+            output_path=output,
+            min_visibility=min_visibility,
+            smoothing_window=smoothing_window,
+            data_output_path=data_output,
+        )
+    except (FileNotFoundError, ValueError, RuntimeError) as exc:
+        typer.echo(f"Motion diagnostic plotting failed: {exc}", err=True)
+        raise typer.Exit(code=1) from exc
+
+    typer.echo("Wrote motion diagnostic plots:")
+    for side, path in rendered.items():
+        typer.echo(f"- {side}: {path}")
+    if data_output is not None:
+        typer.echo(f"Wrote plotted metric data: {data_output}")
+
+
+@app.command("export-measurement-presentations")
+def export_measurement_presentations_command(
+    landmarks: Annotated[
+        Path,
+        typer.Option("--landmarks", help="Path to video_landmarks.json."),
+    ] = Path("output/video_landmarks.json"),
+    events: Annotated[
+        Path,
+        typer.Option("--events", help="Path to punch_event_landmarks.json."),
+    ] = Path("output/punch_event_landmarks.json"),
+    output: Annotated[
+        Path,
+        typer.Option(
+            "--output",
+            "-o",
+            help="App-facing measurement presentation JSON path.",
+        ),
+    ] = Path("output/measurement-presentations.json"),
+    event_index: Annotated[
+        int | None,
+        typer.Option("--event-index", help="Optional single punch event index."),
+    ] = None,
+    smoothing_window: Annotated[
+        int,
+        typer.Option("--smoothing-window", help="Positive odd smoothing window."),
+    ] = 3,
+    min_visibility: Annotated[
+        float,
+        typer.Option("--min-visibility", help="Minimum Pose landmark visibility."),
+    ] = 0.5,
+) -> None:
+    """Export renderer-neutral punch measurement presentation data."""
+
+    from karate_analyzer.diagnostics.motion_plots import (
+        build_motion_diagnostic_companion,
+    )
+    from karate_analyzer.presentation import build_punch_path_presentation_bundle
+
+    try:
+        landmark_payload = json.loads(landmarks.read_text(encoding="utf-8"))
+        event_payload = json.loads(events.read_text(encoding="utf-8"))
+        diagnostic = build_motion_diagnostic_companion(
+            landmark_payload,
+            event_payload,
+            min_visibility=min_visibility,
+            smoothing_window=smoothing_window,
+        )
+        bundle = build_punch_path_presentation_bundle(
+            diagnostic,
+            landmark_payload,
+            event_index=event_index,
+        )
+    except (FileNotFoundError, json.JSONDecodeError, ValueError) as exc:
+        typer.echo(f"Measurement presentation export failed: {exc}", err=True)
+        raise typer.Exit(code=1) from exc
+
+    output.parent.mkdir(parents=True, exist_ok=True)
+    output.write_text(json.dumps(bundle, indent=2) + "\n", encoding="utf-8")
+    typer.echo(f"Wrote measurement presentation data: {output}")
 
 
 if __name__ == "__main__":

@@ -23,6 +23,13 @@ The current MVP can:
 
 This is still experimental. The output is useful for development, inspection, and local coaching-debug workflows, but it should not be treated as a final scoring product.
 
+## Measurement wiki development
+
+For consistent new app measurement pages, use the
+[authoring guide](docs/measurement-wiki-authoring-guide.md) and the
+[starter prompt](docs/prompts/new-measurement-wiki-entry.md).
+See [current wiki implementation](docs/app-measurement-wiki.md) for supported behavior.
+
 ## How to run it
 
 From the project root on Windows PowerShell:

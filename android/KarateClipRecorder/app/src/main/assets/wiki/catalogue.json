@@ -1,0 +1,44 @@
+{
+  "version": 1,
+  "default_example": {
+    "asset": "wiki/examples/basic-right-punch.json",
+    "presentation_id": "punch_path:event:5"
+  },
+  "measurements": [
+    {
+      "measurement_id": "punch_path_typical_deviation_rms",
+      "renderer_id": "pose_with_path_graph",
+      "title": "Wrist path deviation",
+      "description": "How far does your hand wander from a straight path during the punch?",
+      "figure_text": "The red trail follows your wrist. The dashed line shows a straight path from start to finish. The circle appears when your wrist reaches its largest deviation.",
+      "graph_text": "See how the distance changes during your punch. Drag along the graph or tap Show maximum.",
+      "method_text": "We draw a straight line from your wrist’s starting position to its finishing position. Maximum deviation is the greatest distance from that line.\n\nTypical deviation (RMS) summarizes the distances across the punch, giving larger deviations more weight.\n\nA smaller number means a straighter path in this camera view. It does not, on its own, mean a better punch."
+    },
+    {
+      "measurement_id": "camera_relative_wrist_speed",
+      "renderer_id": "pose_with_path_graph",
+      "title": "Wrist speed",
+      "description": "How fast does your hand move during the punch?",
+      "figure_text": "The red trail follows your wrist. The circle appears when your wrist reaches its fastest point.",
+      "graph_text": "See how your speed changes during the punch. Drag along the graph or tap Show maximum speed.",
+      "method_text": "We calculate speed from how far your wrist moves and how long it takes.\n\nTo keep small tracking wobbles from making the graph jumpy, we look at several nearby frames together. In this example, that covers about 0.05 seconds before and after each moment. Near the start and finish, we use the available frames.\n\nThis smooths the speed curve. It does not change the movement shown in the animation. A very brief burst of speed may look slightly lower or wider, and its highest point may shift a little.\n\nMaximum speed is the highest point on the curve.",
+      "wiki_example": {
+        "asset": "wiki/examples/basic-right-punch.json",
+        "presentation_id": "wrist_speed:event:5"
+      }
+    },
+    {
+      "measurement_id": "hikite_finish",
+      "renderer_id": "hikite_pose_graph",
+      "title": "Hikite",
+      "description": "See how your arm pulls back and where it finishes.",
+      "figure_text": "Position lines appear at the finish.",
+      "graph_text": "See how your elbow speed changes during the punch.",
+      "method_text": "Wrist-to-shoulder-line distance is the shortest distance to the line through both shoulders. The torso line joins the middle of your shoulders and hips. At the finish, we compare your forearm direction and wrist position with that torso line.\n\nElbow speed comes from how far your elbow moves over time. We use nearby frames, about 0.05 seconds before and after each moment, to reduce tracking wobbles. This smooths the speed curve without changing the movement shown. Brief peaks may look lower or wider. Maximum speed is the highest point on the curve.",
+      "wiki_example": {
+        "asset": "wiki/examples/hikite-punch-six.json",
+        "presentation_id": "hikite:event:6"
+      }
+    }
+  ]
+}

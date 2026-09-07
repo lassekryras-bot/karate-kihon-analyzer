@@ -5,8 +5,10 @@ import json
 from pathlib import Path
 
 from PIL import Image, ImageDraw
+import pytest
 
 from karate_analyzer.frame_extractor import ExtractedFrameMetadata
+from karate_analyzer.frame_geometry import AffineTransform2D, FrameGeometry, FrameSize
 from karate_analyzer.session_analyzer import analyze_session
 from karate_analyzer.rendering.snapshot_renderer import (
     StrikeSnapshotRenderInstructions,
@@ -110,6 +112,7 @@ def _jodan_geometry(status="too_low", angle=-20.0):
 
 def _analysis_payload():
     return {
+        "frame_geometry": FrameGeometry.identity(160, 120).to_dict(),
         "punch_event_landmarks": [
             {
                 "event_index": 6,
@@ -156,6 +159,29 @@ def test_render_strike_snapshot_accepts_real_extracted_frame() -> None:
     assert image.mode == "RGB"
 
 
+def test_render_strike_snapshot_maps_landmark_through_explicit_frame_geometry() -> None:
+    background = Image.new("RGB", (200, 100), "gray")
+    instructions = replace(
+        _strike_instructions(),
+        jodan_reference={"x": 0.5, "y": 0.5},
+        frame_geometry=FrameGeometry(
+            FrameSize(100, 100),
+            FrameSize(200, 100),
+            AffineTransform2D(a=1, c=50),
+            operations=("translate analysis into saved frame",),
+        ),
+    )
+
+    image = render_strike_snapshot(
+        background,
+        [{"index": 12, "x": 0.5, "y": 0.5, "visibility": 1.0}],
+        instructions,
+    )
+
+    # The reference maps to analysis pixel (50, 50), then saved (100, 50).
+    assert image.getpixel((100, 50)) != (128, 128, 128)
+
+
 def test_render_strike_snapshot_succeeds_with_jodan_reference() -> None:
     background = Image.new("RGB", (160, 120), "gray")
 
@@ -197,7 +223,9 @@ def test_render_strike_snapshot_does_not_draw_raw_nose_landmark_when_jodan_exist
     assert image.getpixel((20, 216)) == (128, 128, 128)
 
 
-def test_render_strike_snapshot_does_not_draw_legacy_head_reference_without_jodan() -> None:
+def test_render_strike_snapshot_does_not_draw_legacy_head_reference_without_jodan() -> (
+    None
+):
     background = Image.new("RGB", (200, 240), "gray")
     landmarks = [
         {"index": 0, "x": 0.10, "y": 0.90, "visibility": 0.95},
@@ -294,6 +322,55 @@ def test_render_strike_snapshots_from_analysis_extracts_renders_and_names_files(
     assert (output_dir / "strike-006-right.png").exists()
     assert (output_dir / "extracted-frames" / "frame-000190.png").exists()
     assert not (output_dir / "extracted-frames" / "frame-000185.png").exists()
+
+
+def test_render_workflow_rejects_analysis_without_frame_geometry(tmp_path: Path) -> None:
+    video_path = tmp_path / "video.mp4"
+    analysis_path = tmp_path / "punch_event_landmarks.json"
+    video_path.write_bytes(b"fake video")
+    payload = _analysis_payload()
+    payload.pop("frame_geometry")
+    analysis_path.write_text(json.dumps(payload), encoding="utf-8")
+
+    with pytest.raises(ValueError, match="missing frame_geometry"):
+        render_strike_snapshots_from_analysis(
+            video_path=video_path,
+            analysis_path=analysis_path,
+            output_directory=tmp_path / "rendered",
+        )
+
+
+def test_render_workflow_rejects_wrong_decoded_frame(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    video_path = tmp_path / "video.mp4"
+    analysis_path = tmp_path / "punch_event_landmarks.json"
+    video_path.write_bytes(b"fake video")
+    analysis_path.write_text(json.dumps(_analysis_payload()), encoding="utf-8")
+
+    def fake_extract_frame(video, frame_number, output_path):
+        Image.new("RGB", (160, 120), "gray").save(output_path)
+        return ExtractedFrameMetadata(
+            video_path=Path(video),
+            requested_frame_number=frame_number,
+            actual_frame_number=frame_number + 1,
+            output_path=Path(output_path),
+            frame_width=160,
+            frame_height=120,
+            fps=30.0,
+            timestamp_seconds=frame_number / 30.0,
+        )
+
+    monkeypatch.setattr(
+        "karate_analyzer.rendering.snapshot_renderer.extract_frame", fake_extract_frame
+    )
+
+    with pytest.raises(ValueError, match="requested 190, decoded 191"):
+        render_strike_snapshots_from_analysis(
+            video_path=video_path,
+            analysis_path=analysis_path,
+            output_directory=tmp_path / "rendered",
+        )
 
 
 def test_render_strike_snapshot_draws_punch_line_to_impact_point_not_wrist() -> None:

@@ -1,5 +1,11 @@
 # Architecture
 
+The target-height coordinate, provenance, neutral-reference, and repetition-lock
+contract is documented in [target-height-foundation.md](target-height-foundation.md).
+The analyzer-to-app boundary for interactive measurement explanations is
+documented in
+[measurement-presentation-contract.md](measurement-presentation-contract.md).
+
 Karate Kihon Analyzer is organized as a layered MVP pipeline. Each layer should expose domain-oriented data to the next layer instead of leaking lower-level implementation details upward.
 
 ```text
@@ -9,6 +15,7 @@ Vision Provider
   - MediaPipe Pose
   - MediaPipe Hands
   - optional Face Mesh / Face Landmarker
+  - explicit FrameGeometry contract
   ↓
 Raw Landmark Frames
   ↓
@@ -36,6 +43,11 @@ Technique Analyzers
   - future straight punch path analyzer
   - future hikite / opposite arm analyzer
   ↓
+Measurement Presentation Contract
+  - semantic upper-body animation frames
+  - synchronized graph samples
+  - measurement, quality, scale, and provenance
+  ↓
 Rendering
   - debug snapshots
   - coaching snapshots later
@@ -61,6 +73,16 @@ Reports
 - MediaPipe-specific index logic belongs only in vision/reference extraction modules.
 - Technique analyzers must consume domain-level references, not raw MediaPipe indices.
 - Renderers must not calculate technique status. They only visualize precomputed data.
+- Applications render and localize measurement presentation contracts; the
+  analyzer does not emit app-specific UI or coaching copy.
+- MediaPipe image landmarks are the rendering source of truth. Pose world
+  landmarks are reserved for 3D measurement and must never be scaled by image
+  dimensions or drawn without an explicit world-to-image projection.
+- Analysis, saved/source, and preview coordinates are distinct spaces. Crop,
+  resize, rotation, mirroring, and letterboxing must be represented by an
+  explicit transform rather than renderer special cases.
+- Preserve the sequence `measurement -> derived flag -> interpretation ->
+  coaching feedback`; changing a coaching rule must not change the measurement.
 
 ## Current MVP flow
 
@@ -78,4 +100,17 @@ Reports
 - Some events can be assigned to the wrong observed side.
 - Some Jodan results are unknown because `impact_point` is missing at the selected frame.
 - Face/chin reference may be unavailable when face landmarks are not detected.
-- Pixel vs normalized result fields still need cleanup.
+- Older artifacts do not contain `FrameGeometry`. The production video-to-
+  snapshot workflow rejects them and asks for MediaPipe analysis to be rerun;
+  only direct renderer calls retain an explicit identity convenience for
+  synthetic images and isolated tests.
+- The analysis and extraction passes currently decode the same numbered source
+  frame separately. Frame number and dimensions are validated and decoder
+  timestamps are retained for comparison, but exact pixel identity is not yet
+  retained or hashed.
+- Existing image-space elbow and per-frame extension fields are detector
+  diagnostics, not yet the v1 Pose-world angle and time-based fist velocity
+  measurements.
+
+See [Reliable Explainable Straight-Punch Analysis v1](reliable-straight-punch-analysis-v1.md)
+for the current milestone boundary and implementation sequence.

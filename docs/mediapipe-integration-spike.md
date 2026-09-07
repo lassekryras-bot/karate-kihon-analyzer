@@ -221,7 +221,17 @@ x increases right
 positive y appears upward
 ```
 
-The adapter should convert MediaPipe image coordinates into the internal coordinate system before passing points to existing analysis modules.
+The raw normalized MediaPipe image coordinates must be preserved as named
+`normalized analysis points`. They are the source of truth for observed-overlay
+rendering and map through the serialized `FrameGeometry` contract:
+
+```text
+normalized analysis point -> analysis pixel point -> saved-frame pixel point
+```
+
+An adapter may additionally convert a copy into the legacy synthetic logical
+coordinate system before passing it to an analysis module that explicitly
+requires that system.
 
 Recommended normalized conversion:
 
@@ -232,7 +242,11 @@ internal_y = -normalized_mediapipe_y
 
 Equivalent conversions are acceptable if they preserve the invariant that the analysis engine receives right-increasing, upward-positive logical coordinates.
 
-The analysis engine should not need to know about MediaPipe's image-coordinate `y`-down behavior.
+The coordinate space must be visible in the type or field name; a generic point
+must not ambiguously alternate between image `y`-down and logical `y`-up.
+MediaPipe Pose world landmarks are a separate 3D stream. They must not be
+multiplied by image dimensions or used for drawing without a calibrated
+world-to-image projection.
 
 ## First Spike Output
 
@@ -292,7 +306,10 @@ MediaPipe Pose
 → snapshot renderer
 ```
 
-A later renderer enhancement may draw on top of a real video frame, but the renderer should still not run MediaPipe, calculate angles, select impact frames, or perform karate scoring.
+The current strike renderer draws observed image landmarks on an extracted real
+video frame. It consumes `FrameGeometry` and presentation data, but still does
+not run MediaPipe, calculate biomechanical angles, select impact frames, or
+perform karate scoring.
 
 ## Success Criteria
 
@@ -314,6 +331,8 @@ The spike should explicitly track these risks:
 - Wrists may be occluded during hikite or crossing motion.
 - Camera angle and distance may strongly affect landmark stability.
 - Image-coordinate `y` axis differs from the current synthetic coordinate system.
+- A second decoder seek to the same frame number may not be pixel-identical for
+  every codec; validate frame number, size, timestamp, and high-motion overlays.
 
 ## Recommended Development Order After This Spec
 

@@ -13,6 +13,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Iterable
 
+from karate_analyzer.frame_geometry import FrameGeometry
+
 IMAGE_EXTENSIONS = (".jpg", ".jpeg", ".png", ".bmp", ".webp")
 VIDEO_EXTENSIONS = (".mp4", ".mov", ".avi", ".mkv", ".webm")
 DEFAULT_IMAGE_INPUT = Path("input/images")
@@ -103,6 +105,11 @@ def analyze_image(image_path: Path, output_directory: Path) -> dict[str, Any]:
         "pose_detector_backend": _runner_backend(runner, "pose"),
         "hand_detector_backend": _runner_backend(runner, "hand"),
         "face_detector_backend": _runner_backend(runner, "face"),
+        # The exact decoded image is analyzed and saved; no crop, resize,
+        # rotation, mirroring, or letterboxing occurs in this Python path.
+        "frame_geometry": FrameGeometry.identity(
+            *_image_dimensions(image_bgr)
+        ).to_dict(),
     }
     _write_json(output_directory / "image_landmarks.json", payload)
 
@@ -131,6 +138,7 @@ def analyze_video(video_path: Path, output_directory: Path) -> dict[str, Any]:
     first_debug: Any | None = None
     last_debug: Any | None = None
     frame_number = 0
+    frame_geometry: dict[str, Any] | None = None
 
     try:
         with _create_pose_runner(running_mode="VIDEO") as runner:
@@ -139,6 +147,15 @@ def analyze_video(video_path: Path, output_directory: Path) -> dict[str, Any]:
                 if not ok:
                     break
                 timestamp_ms = _frame_timestamp_ms(capture, frame_number)
+                current_geometry = FrameGeometry.identity(
+                    frame_bgr.shape[1], frame_bgr.shape[0]
+                ).to_dict()
+                if frame_geometry is None:
+                    frame_geometry = current_geometry
+                elif frame_geometry != current_geometry:
+                    raise MediaPipeSpikeError(
+                        "Decoded video frame dimensions changed during analysis"
+                    )
                 detection = runner.detect_video(frame_bgr, timestamp_ms)
                 frame_payload = {
                     "frame_number": frame_number,
@@ -180,6 +197,7 @@ def analyze_video(video_path: Path, output_directory: Path) -> dict[str, Any]:
             1 for frame in frames if frame["face_detected"]
         ),
         "frames": frames,
+        "frame_geometry": frame_geometry,
         "pose_detector_backend": _runner_backend(runner, "pose"),
         "hand_detector_backend": _runner_backend(runner, "hand"),
         "face_detector_backend": _runner_backend(runner, "face"),
@@ -226,6 +244,14 @@ def run_default_workflow(
 
 def _runner_backend(runner: Any, detector: str) -> str:
     return str(getattr(runner, f"{detector}_detector_backend", "unknown"))
+
+
+def _image_dimensions(image: Any) -> tuple[int, int]:
+    """Return width/height for an OpenCV image (and lightweight test doubles)."""
+
+    if hasattr(image, "shape"):
+        return int(image.shape[1]), int(image.shape[0])
+    return len(image[0]), len(image)
 
 
 def _ensure_output_directory(output_directory: Path) -> Path:
@@ -401,9 +427,7 @@ def _serialize_task_hands(
     hands = []
     for index, hand_landmarks in enumerate(hand_groups):
         hand: dict[str, Any] = {
-            "landmarks": _serialize_landmark_group(
-                hand_landmarks, coordinate_transform
-            )
+            "landmarks": _serialize_landmark_group(hand_landmarks, coordinate_transform)
         }
         if index < len(handedness_groups) and handedness_groups[index]:
             category = handedness_groups[index][0]
@@ -504,7 +528,9 @@ def _hand_crop_bounds(
     return bounds
 
 
-def _hands_are_near_pose_wrists(hands: list[dict[str, Any]], pose_landmarks: Any) -> bool:
+def _hands_are_near_pose_wrists(
+    hands: list[dict[str, Any]], pose_landmarks: Any
+) -> bool:
     wrist_points = _pose_wrist_points(pose_landmarks)
     if not wrist_points:
         return True
@@ -535,7 +561,9 @@ def _pose_wrist_points(pose_landmark_groups: Any) -> list[dict[str, float]]:
 
 
 def _hand_anchor_points(hand: dict[str, Any]) -> list[dict[str, float]]:
-    landmarks = {landmark.get("index"): landmark for landmark in hand.get("landmarks", [])}
+    landmarks = {
+        landmark.get("index"): landmark for landmark in hand.get("landmarks", [])
+    }
     anchors = []
     for index in (0, 5, 9):
         landmark = landmarks.get(index)
@@ -632,7 +660,9 @@ class _TasksPoseRunner:
         self.face_detector_backend = (
             "tasks_face_landmarker"
             if self._face_landmarker is not None
-            else "solutions_face_mesh" if self._face_mesh is not None else "none"
+            else "solutions_face_mesh"
+            if self._face_mesh is not None
+            else "none"
         )
 
     def __enter__(self) -> "_TasksPoseRunner":
@@ -763,9 +793,7 @@ class _TasksPoseRunner:
             return []
         height, width = rgb.shape[:2]
         for size_ratio in HAND_CROP_IMAGE_RATIOS:
-            for bounds in _hand_crop_bounds(
-                pose_landmarks, width, height, size_ratio
-            ):
+            for bounds in _hand_crop_bounds(pose_landmarks, width, height, size_ratio):
                 x_min, y_min, x_max, y_max = bounds
                 crop = rgb[y_min:y_max, x_min:x_max].copy()
                 transform = _CoordinateTransform(
