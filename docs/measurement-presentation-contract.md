@@ -119,3 +119,48 @@ For a controlled side-view punching activity, the intended future flow is:
 The user-visible centimetre value is an estimate. The normalized source value,
 pixel observation, anatomical length, calibration frames, side, and strategy
 must remain available for auditing and future recalculation.
+
+## Version 2: shared motion and wiki example selection
+
+Version 2 replaces the initial, unpublished version 1 structure. The exporter now
+emits `karate_measurement_presentation_v2`. Consumers must check that version.
+
+`motions` is a map keyed by punch ID. Each entry owns semantic pose frames for
+its full event window, event identity, frame-role markers, intervals, and body
+layering. Measurements reference it with `motion_id`. Reference lines and wrist
+trajectories belong to presentation `overlays`; graphs and summaries remain
+measurement-specific. Multiple measurements can reference the same motion.
+Playback and graph scrubbing synchronize by absolute `timestamp_ms`; graph-local
+normalized progress must not be used as progress through the full motion window.
+
+An app measurement catalogue entry provides `measurement_id`, renderer ID,
+localized visual/method content keys and an optional `wiki_example`:
+
+```json
+{
+  "measurement_id": "punch_path_typical_deviation_rms",
+  "renderer_id": "pose_with_path_graph",
+  "wiki_example": {
+    "bundle_id": "demonstration-curved-punch",
+    "presentation_id": "punch_path:event:5"
+  }
+}
+```
+
+The wiki enumerates registered measurement entries, rather than maintaining a
+second list of pages. A measurement-specific example overrides the default wiki
+example. It can be a purpose-recorded demonstration. The complete example bundle
+is packaged with the app and explicitly presented as an example. No personal
+validation video or exported personal pose data is committed as a wiki asset.
+
+`presentation.catalogue.resolve_measurement_presentation` is a reference resolver
+for this policy. In wiki context it selects the override or default asset and
+resolves both measurement and referenced motion. In exercise context it always
+uses the selected current result, ignoring wiki overrides. Missing assets,
+unsupported contract versions, measurement mismatches and broken motion references
+raise errors; the app should surface an unavailable explanation. Returning from
+the method page preserves the selected source and timestamp.
+
+This commit supplies the data boundary and reference selection policy. The native
+Android renderer, build-time catalogue generation and localized wiki screens are
+application integration work, not implemented by the Python exporter.

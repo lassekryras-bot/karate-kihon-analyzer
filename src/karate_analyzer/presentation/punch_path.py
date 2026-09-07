@@ -42,17 +42,45 @@ def build_punch_path_presentation_bundle(
         int(frame["frame_number"]): frame
         for frame in video_landmarks.get("frames", [])
     }
+    presentations = []
+    motions = {}
+    for view in views:
+        presentation = _build_event_presentation(view, diagnostic_companion, landmark_frames)
+        motion = presentation.pop("animation")
+        reference_line = motion.pop("reference_line")
+        motion_id = f"punch:{view['event_index']}"
+        motion["event"] = presentation.pop("event")
+        motion["markers"] = view.get("markers", [])
+        motion["intervals"] = view.get("intervals", [])
+        # The shared player includes the full event window, even when the wrist
+        # trajectory is only a terminal fragment or is unavailable.
+        rows = view.get("frames") or motion["frames"]
+        motion["frames"] = [
+            {"frame_number": int(row["frame_number"]),
+             "timestamp_ms": int(row["timestamp_ms"]) if "timestamp_ms" in row
+                 else round(row["timestamp_seconds"] * 1000),
+             "pose": _semantic_upper_body_pose(_first_pose(
+                 landmark_frames.get(int(row["frame_number"]), {})))}
+            for row in rows
+        ]
+        motion["arm_layer_order"] = _arm_layer_order(motion["frames"])
+        presentation["motion_id"] = motion_id
+        presentation["overlays"] = {"reference_line": reference_line,
+            "wrist_role": motion["event"]["punching_wrist_role"],
+            "layer": "foreground",
+            "trajectory_samples": (view.get("trajectory_straightness") or {}).get("samples", [])}
+        presentation["graph"]["interaction"] = "scrub_by_timestamp_ms"
+        motions[motion_id] = motion
+        presentations.append(presentation)
     return {
-        "schema_version": 1,
-        "contract": "karate_measurement_presentation_v1",
+        "schema_version": 2,
+        "contract": "karate_measurement_presentation_v2",
         "content_key": "punch_path_straightness",
         "frame_geometry": video_landmarks.get("frame_geometry"),
         "rendering_responsibility": "application",
         "localization_responsibility": "application",
-        "presentations": [
-            _build_event_presentation(view, diagnostic_companion, landmark_frames)
-            for view in views
-        ],
+        "motions": motions,
+        "presentations": presentations,
     }
 
 

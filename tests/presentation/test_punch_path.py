@@ -13,17 +13,17 @@ def test_bundle_exposes_semantic_pose_and_spatially_aligned_graph() -> None:
     )
 
     presentation = bundle["presentations"][0]
-    assert bundle["contract"] == "karate_measurement_presentation_v1"
-    assert presentation["event"] == {
+    assert bundle["contract"] == "karate_measurement_presentation_v2"
+    assert bundle["motions"][presentation["motion_id"]]["event"] == {
         "event_index": 5,
         "side": "right",
         "punching_wrist_role": "right_wrist",
     }
-    pose = presentation["animation"]["frames"][0]["pose"]
+    pose = bundle["motions"][presentation["motion_id"]]["frames"][0]["pose"]
     assert "right_wrist" in pose
     assert "head_center" in pose
     assert "nose" not in pose
-    assert presentation["animation"]["arm_layer_order"] == [
+    assert bundle["motions"][presentation["motion_id"]]["arm_layer_order"] == [
         "left_arm",
         "torso",
         "right_arm",
@@ -58,17 +58,16 @@ def test_unavailable_event_remains_explicitly_unavailable() -> None:
         }
     )
 
-    presentation = build_punch_path_presentation_bundle(
-        companion, _landmarks()
-    )["presentations"][0]
+    bundle = build_punch_path_presentation_bundle(companion, _landmarks())
+    presentation = bundle["presentations"][0]
 
     assert presentation["availability"] == {
         "status": "unavailable",
         "reason": "outward_approach_not_observed",
         "valid_path_sample_count": 3,
     }
-    assert presentation["animation"]["frames"] == []
-    assert presentation["animation"]["reference_line"] == {
+    assert bundle["motions"][presentation["motion_id"]]["frames"] == []
+    assert presentation["overlays"]["reference_line"] == {
         "start": None,
         "end": None,
     }
@@ -152,3 +151,34 @@ def _landmarks() -> dict:
             }
         )
     return {"frame_geometry": {"example": True}, "frames": frames}
+
+
+def test_shared_motion_survives_unavailable_trajectory():
+    companion = _companion()
+    view = companion['event_views'][0]
+    view['frames'] = [{'frame_number': i, 'timestamp_seconds': i / 10} for i in range(3)]
+    view['trajectory_straightness'].update(status='unavailable', samples=[])
+    bundle = build_punch_path_presentation_bundle(companion, _landmarks())
+    assert len(bundle['motions']['punch:5']['frames']) == 3
+    assert 'animation' not in bundle['presentations'][0]
+    assert bundle['presentations'][0]['graph']['samples'] == []
+
+
+def test_wiki_override_changes_whole_example_but_never_exercise():
+    from copy import deepcopy
+    from karate_analyzer.presentation.catalogue import resolve_measurement_presentation
+    current = build_punch_path_presentation_bundle(_companion(), _landmarks())
+    example = deepcopy(current)
+    example['motions']['punch:5']['frames'][0]['timestamp_ms'] = 999
+    definition = {'measurement_id': 'punch_path_typical_deviation_rms',
+                  'wiki_example': {'bundle_id': 'acted-curve',
+                                   'presentation_id': 'punch_path:event:5'}}
+    args = dict(current_bundle=current, current_presentation_id='punch_path:event:5',
+                packaged_bundles={'acted-curve': example})
+    wiki = resolve_measurement_presentation(definition, context='wiki', **args)
+    exercise = resolve_measurement_presentation(definition, context='exercise', **args)
+    assert wiki['motion']['frames'][0]['timestamp_ms'] == 999
+    assert exercise['motion']['frames'][0]['timestamp_ms'] == 0
+    definition['wiki_example']['bundle_id'] = 'missing'
+    with pytest.raises(ValueError):
+        resolve_measurement_presentation(definition, context='wiki', **args)
