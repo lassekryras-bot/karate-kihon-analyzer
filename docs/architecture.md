@@ -2,6 +2,9 @@
 
 The target-height coordinate, provenance, neutral-reference, and repetition-lock
 contract is documented in [target-height-foundation.md](target-height-foundation.md).
+The analyzer-to-app boundary for interactive measurement explanations is
+documented in
+[measurement-presentation-contract.md](measurement-presentation-contract.md).
 
 Karate Kihon Analyzer is organized as a layered MVP pipeline. Each layer should expose domain-oriented data to the next layer instead of leaking lower-level implementation details upward.
 
@@ -40,6 +43,11 @@ Technique Analyzers
   - future straight punch path analyzer
   - future hikite / opposite arm analyzer
   ↓
+Measurement Presentation Contract
+  - semantic upper-body animation frames
+  - synchronized graph samples
+  - measurement, quality, scale, and provenance
+  ↓
 Rendering
   - debug snapshots
   - coaching snapshots later
@@ -65,6 +73,8 @@ Reports
 - MediaPipe-specific index logic belongs only in vision/reference extraction modules.
 - Technique analyzers must consume domain-level references, not raw MediaPipe indices.
 - Renderers must not calculate technique status. They only visualize precomputed data.
+- Applications render and localize measurement presentation contracts; the
+  analyzer does not emit app-specific UI or coaching copy.
 - MediaPipe image landmarks are the rendering source of truth. Pose world
   landmarks are reserved for 3D measurement and must never be scaled by image
   dimensions or drawn without an explicit world-to-image projection.
