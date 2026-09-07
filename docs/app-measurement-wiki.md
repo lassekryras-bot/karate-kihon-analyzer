@@ -88,3 +88,20 @@ It produces **11.974932 upper-arm lengths/s**, frame **237**, **3.950 seconds**.
 The Python export API optionally accepts `upper_arm_length_m` to provide m/s;
 no measurement has been supplied for the installed example, and there is no new
 calibration UI or CLI option in this change. Scale and sample failures are explicit.
+
+## Hikite phone preview
+
+Train → Measurement wiki → Hikite now loads the approved pose-only punch 6
+(right hikite arm nearest the camera) with a dedicated native Canvas renderer.
+Playback and the graph show frames 271–295, trimming only idle presentation time.
+The original speed window and fixed scale remain unchanged. The peak remains
+14.716118 upper-arm lengths/s at frame 289. Both arms are neutral, with no elbow
+trail or elbow-angle overlay. The elbow maximum ring appears only at its sample.
+Shoulder-line distance, forearm-to-torso angle at the wrist, and wrist-to-torso
+position are selectable; their lines appear only at the finish. Initial view is
+the finish; Play restarts at the shortened beginning. The calculation page
+preserves selection and pauses playback.
+
+Wrist bend is explicitly unavailable. The separate hand-tracking experiment is
+included for investigation; it has not produced inference results on this clip.
+Phone rendering, large text, TalkBack and Android build still require verification.

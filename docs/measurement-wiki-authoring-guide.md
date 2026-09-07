@@ -257,3 +257,10 @@ or m/s. Keep scale/setup instructions out of user-facing copy. Explain smoothing
 briefly behind How is this calculated?, including that the animation is unchanged
 and a short peak may be softened or shifted. Detailed method and scale selection
 belong in the presentation contract.
+
+For hikite, omit the elbow trail and draw both arms neutrally. Show selected
+position lines only at the finish; draw the forearm/torso angle at the wrist.
+When there is no historical trail, show the body maximum ring only at the peak
+sample so it does not hang in empty space. Trim unnecessary idle lead-in from
+playback and graph together, retaining a brief view before movement. A display
+trim must preserve computed measurements and their original sampling provenance.
