@@ -6,7 +6,12 @@ import org.json.JSONObject
 
 const val KARATE_BASICS_PATH_ID = "karate-basics"
 
-enum class DraftActivityType { CONDITIONAL_PROFILE, PLACEHOLDER }
+enum class DraftActivityType {
+    CONDITIONAL_PROFILE,
+    JAPANESE_COUNTING_PRACTICE,
+    JAPANESE_COUNTING_TEST,
+    PLACEHOLDER,
+}
 
 data class DraftActivityDefinition(
     val id: String,
@@ -72,6 +77,8 @@ object DraftLearningPathCatalog {
                                 title = activityJson.getString("title"),
                                 type = when (activityJson.getString("type")) {
                                     "conditional" -> DraftActivityType.CONDITIONAL_PROFILE
+                                    "japanese-counting-practice" -> DraftActivityType.JAPANESE_COUNTING_PRACTICE
+                                    "japanese-counting-test" -> DraftActivityType.JAPANESE_COUNTING_TEST
                                     else -> DraftActivityType.PLACEHOLDER
                                 },
                                 prerequisites = buildList {

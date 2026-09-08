@@ -50,6 +50,7 @@ import dk.lasse.karatecliprecorder.learningpath.ResolvedDraftActivity
 import dk.lasse.karatecliprecorder.learningpath.RecentLearningTarget
 import dk.lasse.karatecliprecorder.learningactivity.DraftPlaceholderActivityView
 import dk.lasse.karatecliprecorder.learningactivity.JapaneseCountingPracticeView
+import dk.lasse.karatecliprecorder.learningactivity.JapaneseCountingTestView
 import dk.lasse.karatecliprecorder.orders.SoundFileTrainingOrderPlayer
 import dk.lasse.karatecliprecorder.orders.TrainingOrder
 import dk.lasse.karatecliprecorder.orders.TrainingOrderMapper
@@ -132,6 +133,8 @@ class MainActivity : AppCompatActivity() {
     private var profileReturnDestination = AppDestination.HOME
     private var skillProgressionScreen: SkillProgressionView? = null
     private var japaneseCountingPracticeScreen: JapaneseCountingPracticeView? = null
+    private var japaneseCountingTestScreen: JapaneseCountingTestView? = null
+    private var japaneseCountingKarateBasicsFlow = false
     private val learningPaths by lazy(LearningPathCatalog::create)
     private val karateBasicsPath by lazy { DraftLearningPathCatalog.karateBasics(this) }
     private var karateBasicsScrollY = 0
@@ -489,6 +492,14 @@ class MainActivity : AppCompatActivity() {
     private fun openKarateBasicsActivity(activity: ResolvedDraftActivity) {
         when (activity.definition.type) {
             DraftActivityType.CONDITIONAL_PROFILE -> openKarateBasicsProfile()
+            DraftActivityType.JAPANESE_COUNTING_PRACTICE -> {
+                japaneseCountingKarateBasicsFlow = true
+                openJapaneseCountingPractice(karateBasicsPathPosition(activity.definition.id))
+            }
+            DraftActivityType.JAPANESE_COUNTING_TEST -> {
+                japaneseCountingKarateBasicsFlow = true
+                openJapaneseCountingTest(karateBasicsPathPosition(activity.definition.id))
+            }
             DraftActivityType.PLACEHOLDER -> showSecondary(
                 DraftPlaceholderActivityView(
                     context = this,
@@ -504,6 +515,11 @@ class MainActivity : AppCompatActivity() {
                 ::showKarateBasicsPath,
             )
         }
+    }
+
+    private fun karateBasicsPathPosition(activityId: String): String {
+        val position = karateBasicsPath.activities.indexOfFirst { it.id == activityId } + 1
+        return "$position / ${karateBasicsPath.activities.size}"
     }
 
     private fun openKarateBasicsProfile() {
@@ -652,13 +668,14 @@ class MainActivity : AppCompatActivity() {
                 openTrainingHub()
             }
             LearningDestination.JAPANESE_COUNTING_PRACTICE -> {
+                japaneseCountingKarateBasicsFlow = false
                 profileRepository.touchActiveLearningActivity(LearningPathId.JAPANESE_COUNTING.name, "step-1")
                 openJapaneseCountingPractice()
             }
             LearningDestination.JAPANESE_COUNTING_TEST -> {
+                japaneseCountingKarateBasicsFlow = false
                 profileRepository.touchActiveLearningActivity(LearningPathId.JAPANESE_COUNTING.name, "step-2")
-                showTrainingUi()
-                startJapaneseCountingTest()
+                openJapaneseCountingTest()
             }
         }
     }
@@ -1674,34 +1691,21 @@ class MainActivity : AppCompatActivity() {
         updateControlVisibility()
     }
 
-    private fun openJapaneseCountingPractice() {
+    private fun openJapaneseCountingPractice(pathPosition: String = "1 / 2") {
         stopJapaneseCountSession()
         currentAppDestination = AppDestination.TRAIN
-        trainingRoot.visibility = View.GONE
-        homeScreen.visibility = View.GONE
-        learnScreen.visibility = View.GONE
-        settingsScreen.visibility = View.GONE
-        progressScreen.visibility = View.GONE
-        skillProgressionScreen?.visibility = View.GONE
         dismissJapaneseCountingPracticeScreen()
         japaneseCountingPracticeScreen = JapaneseCountingPracticeView(
             context = this,
             onExit = ::exitJapaneseCountingPractice,
+            pathPosition = pathPosition,
             onStartPractice = ::beginJapaneseCountingPractice,
             onPrevious = { navigateJapaneseCountLevel1 { japaneseCountLevel1Controller.back() } },
             onNext = { navigateJapaneseCountLevel1 { japaneseCountLevel1Controller.next() } },
             onReplay = ::playJapaneseCountLevel1Item,
             onPracticeAgain = ::beginJapaneseCountingPractice,
             onContinueToTest = ::continueFromJapaneseCountingPracticeToTest,
-        ).also { activityView ->
-            appRoot.addView(
-                activityView,
-                FrameLayout.LayoutParams(
-                    ViewGroup.LayoutParams.MATCH_PARENT,
-                    ViewGroup.LayoutParams.MATCH_PARENT,
-                ),
-            )
-        }
+        ).also { activityView -> showSecondary(activityView, ::exitJapaneseCountingPractice) }
     }
 
     private fun beginJapaneseCountingPractice() {
@@ -1716,19 +1720,72 @@ class MainActivity : AppCompatActivity() {
     private fun exitJapaneseCountingPractice() {
         stopJapaneseCountSession()
         dismissJapaneseCountingPracticeScreen()
-        showSkillProgression(requireLearningPath(LearningPathId.JAPANESE_COUNTING))
+        if (japaneseCountingKarateBasicsFlow) {
+            japaneseCountingKarateBasicsFlow = false
+            showKarateBasicsPath()
+        } else {
+            showSkillProgression(requireLearningPath(LearningPathId.JAPANESE_COUNTING))
+        }
     }
 
     private fun continueFromJapaneseCountingPracticeToTest() {
         stopJapaneseCountSession()
         dismissJapaneseCountingPracticeScreen()
-        showTrainingUi()
-        startJapaneseCountingTest()
+        openJapaneseCountingTest(
+            if (japaneseCountingKarateBasicsFlow) karateBasicsPathPosition("test-count-1-10") else "2 / 2",
+        )
     }
 
     private fun dismissJapaneseCountingPracticeScreen() {
-        japaneseCountingPracticeScreen?.let(appRoot::removeView)
+        japaneseCountingPracticeScreen?.let { screen ->
+            if (secondaryScreen === screen) closeSecondaryScreen() else appRoot.removeView(screen)
+        }
         japaneseCountingPracticeScreen = null
+    }
+
+    private fun openJapaneseCountingTest(pathPosition: String = "2 / 2") {
+        stopJapaneseCountSession()
+        currentAppDestination = AppDestination.TRAIN
+        dismissJapaneseCountingTestScreen()
+        japaneseCountingTestScreen = JapaneseCountingTestView(
+            context = this,
+            onExit = ::exitJapaneseCountingTest,
+            pathPosition = pathPosition,
+            onPlayExample = ::playJapaneseCountFullExample,
+            onStartListening = ::requestJapaneseCountLiveRecognition,
+            onStopListening = ::finishJapaneseCountLiveRecognition,
+            onTryAgain = ::requestJapaneseCountLiveRecognition,
+            onFinish = ::finishJapaneseCountingTest,
+        ).also { activityView -> showSecondary(activityView, ::exitJapaneseCountingTest) }
+        startJapaneseCountingTest()
+    }
+
+    private fun exitJapaneseCountingTest() {
+        stopJapaneseCountSession()
+        dismissJapaneseCountingTestScreen()
+        returnFromJapaneseCountingTest()
+    }
+
+    private fun finishJapaneseCountingTest() {
+        stopJapaneseCountSession()
+        dismissJapaneseCountingTestScreen()
+        returnFromJapaneseCountingTest()
+    }
+
+    private fun returnFromJapaneseCountingTest() {
+        if (japaneseCountingKarateBasicsFlow) {
+            japaneseCountingKarateBasicsFlow = false
+            showKarateBasicsPath()
+        } else {
+            showSkillProgression(requireLearningPath(LearningPathId.JAPANESE_COUNTING))
+        }
+    }
+
+    private fun dismissJapaneseCountingTestScreen() {
+        japaneseCountingTestScreen?.let { screen ->
+            if (secondaryScreen === screen) closeSecondaryScreen() else appRoot.removeView(screen)
+        }
+        japaneseCountingTestScreen = null
     }
 
     private fun startJapaneseCountingTest() {
@@ -2078,11 +2135,20 @@ class MainActivity : AppCompatActivity() {
         if (session.phase != CountTrainingPhase.LISTENING) cancelJapaneseCountRecognitionRestart()
         japaneseCountTrainingSession = session
         if (session.phase == CountTrainingPhase.RESULT && session.successful) {
-            profileRepository.saveActiveLearningProgress(
-                LearningPathId.JAPANESE_COUNTING.name,
-                "step-2",
-                LearningStatus.COMPLETED,
-            )
+            if (japaneseCountingKarateBasicsFlow) {
+                profileRepository.saveActiveLearningProgress(
+                    karateBasicsPath.id,
+                    "test-count-1-10",
+                    LearningStatus.COMPLETED,
+                )
+                pendingKarateBasicsCompletionAnimationId = "test-count-1-10"
+            } else {
+                profileRepository.saveActiveLearningProgress(
+                    LearningPathId.JAPANESE_COUNTING.name,
+                    "step-2",
+                    LearningStatus.COMPLETED,
+                )
+            }
         }
         if ((applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE) != 0) {
             Log.d(JAPANESE_COUNT_LOG_TAG, session.toString())
@@ -2129,6 +2195,7 @@ class MainActivity : AppCompatActivity() {
                 )
             }
         }.joinToString("\n")
+        japaneseCountingTestScreen?.render(session)
         updateJapaneseCountDebugText()
         updateControlVisibility()
     }
@@ -2345,11 +2412,20 @@ class MainActivity : AppCompatActivity() {
             japaneseCountFeedbackText.text = if (state.isComplete) "You practiced all ten numbers." else ""
             japaneseCountNextButton.text = "Next"
             if (state.isComplete) {
-                profileRepository.saveActiveLearningProgress(
-                    LearningPathId.JAPANESE_COUNTING.name,
-                    "step-1",
-                    LearningStatus.COMPLETED,
-                )
+                if (japaneseCountingKarateBasicsFlow) {
+                    profileRepository.saveActiveLearningProgress(
+                        karateBasicsPath.id,
+                        "practice-count-1-10",
+                        LearningStatus.COMPLETED,
+                    )
+                    pendingKarateBasicsCompletionAnimationId = "practice-count-1-10"
+                } else {
+                    profileRepository.saveActiveLearningProgress(
+                        LearningPathId.JAPANESE_COUNTING.name,
+                        "step-1",
+                        LearningStatus.COMPLETED,
+                    )
+                }
             }
         }
         updateMainMenuAvailability()
