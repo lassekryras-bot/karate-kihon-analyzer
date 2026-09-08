@@ -24,6 +24,7 @@ import dk.lasse.karatecliprecorder.learning.JapaneseCountLevel1State
 class JapaneseCountingPracticeView(
     context: Context,
     onExit: () -> Unit,
+    private val pathPosition: String = "1 / 2",
     private val onStartPractice: () -> Unit,
     private val onPrevious: () -> Unit,
     private val onNext: () -> Unit,
@@ -45,7 +46,7 @@ class JapaneseCountingPracticeView(
 
     init {
         addView(shell, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT))
-        shell.setHeader("Japanese Counting", presentation.pathPosition)
+        shell.setHeader("Japanese Counting", pathPosition)
         shell.setContext("LEARN", "JAPANESE")
         render(presentation)
     }
@@ -58,7 +59,7 @@ class JapaneseCountingPracticeView(
 
     private fun render(next: JapaneseCountingPracticePresentation) {
         presentation = next
-        shell.setHeader("Japanese Counting", next.pathPosition)
+        shell.setHeader("Japanese Counting", pathPosition)
         when (next.shellState) {
             ActivityShellState.READY -> renderReadyState()
             ActivityShellState.ACTIVE -> renderActiveState(requireNotNull(next.item), requireNotNull(next.itemIndex))
