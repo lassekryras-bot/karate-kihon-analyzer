@@ -12,6 +12,37 @@ A reusable task prompt is in `docs/prompts/new-measurement-wiki-entry.md`.
 Keep the guide aligned when implementation changes these conventions. It records
 the current baseline and distinguishes planned capabilities from implemented ones.
 
+## Learning activity authoring
+
+For work on learning activities, `ActivityShellView`, learning-path activity
+routes, or activity progress, read these before editing:
+
+1. `docs/activity-shell-authoring-guide.md` — learning objectives, activity
+   selection, page patterns, wording, accessibility, and authoring workflow.
+2. `docs/activity-shell-contract.md` — normative shell/runner ownership,
+   lifecycle, navigation, progress, permission, recovery, and cleanup rules.
+3. `docs/app-activity-shell.md` — current Android implementation, concrete
+   activities, placeholder behavior, integration points, and known limits.
+
+Use `docs/prompts/new-learning-activity.md` to start a net-new activity. Begin
+with the Karate Basics template, state the learning objective and evidence, and
+record every intentional deviation from the default lifecycle. Prefer deviations
+inside the activity presentation model or runner. Do not add Japanese counting,
+voice, camera, MediaPipe, analysis, or technique-specific behavior to the shared
+shell.
+
+The repository-owned Codex skill is
+`.codex/skills/karate-activity-authoring/SKILL.md`. Use it when an installed
+Codex environment supports skills; the documents above remain authoritative.
+
+Keep passive and Ready pages hardware-off. Microphone, camera, recording,
+recognition, and analysis may start only after an explicit learner action. Keep
+pathway position, activity progress, completion, assessment result, mastery,
+voice verification, and device verification distinct. Error is a recoverable
+branch, not a mandatory learning stage. Update `docs/app-activity-shell.md` when
+implemented behavior changes, and add transition, navigation, lifecycle,
+permission, accessibility, and architecture-boundary tests as applicable.
+
 ## Wiki authoring decisions
 
 - Write for a person training, not a technical reviewer. Keep animation and graph

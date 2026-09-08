@@ -1,0 +1,4 @@
+interface:
+  display_name: "Karate Activity Author"
+  short_description: "Design consistent karate learning activities"
+  default_prompt: "Use $karate-activity-authoring to design and implement a Karate Basics learning activity."
