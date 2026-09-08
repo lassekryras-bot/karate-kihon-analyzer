@@ -44,6 +44,40 @@ class JapaneseCountingActivityShellArchitectureTest {
         assertTrue(activity.contains("showSkillProgression(requireLearningPath(LearningPathId.JAPANESE_COUNTING))"))
     }
 
+    @Test fun microphoneTestUsesItsOwnActivityShellInsteadOfTheCameraTrainingSurface() {
+        val activity = sources.resolve("MainActivity.kt").readText()
+        val testView = sources.resolve("learningactivity/JapaneseCountingTestView.kt").readText()
+        val route = activity.substringAfter("private fun openLearningActivity").substringBefore("private fun showTrainingUi")
+        val openTest = activity.substringAfter("private fun openJapaneseCountingTest").substringBefore("private fun exitJapaneseCountingTest")
+
+        assertTrue(route.contains("JAPANESE_COUNTING_TEST ->"))
+        assertTrue(route.contains("openJapaneseCountingTest()"))
+        assertFalse(route.substringAfter("JAPANESE_COUNTING_TEST").contains("showTrainingUi"))
+        assertTrue(openTest.contains("JapaneseCountingTestView"))
+        assertTrue(testView.contains("ActivityShellView"))
+        assertTrue(testView.contains("Camera not used"))
+        assertTrue(testView.contains("Start test"))
+        assertTrue(testView.contains("Stop listening"))
+        assertFalse(testView.contains("PreviewView"))
+        assertFalse(testView.contains("CAMERA"))
+    }
+
+    @Test fun karateBasicsReplacesThreeCountingPlaceholdersWithPracticeAndTestRoutes() {
+        val activity = sources.resolve("MainActivity.kt").readText()
+        val models = sources.resolve("learningpath/DraftLearningPathModels.kt").readText()
+        val config = root.resolve("app/src/main/res/raw/karate_basics_path.json").readText()
+
+        assertTrue(models.contains("JAPANESE_COUNTING_PRACTICE"))
+        assertTrue(models.contains("JAPANESE_COUNTING_TEST"))
+        assertTrue(activity.contains("DraftActivityType.JAPANESE_COUNTING_PRACTICE"))
+        assertTrue(activity.contains("DraftActivityType.JAPANESE_COUNTING_TEST"))
+        assertTrue(config.contains("practice-count-1-10"))
+        assertTrue(config.contains("test-count-1-10"))
+        assertFalse(config.contains("count-1-5"))
+        assertFalse(config.contains("count-6-10"))
+        assertFalse(config.contains("follow-count-1-10"))
+    }
+
     @Test fun completionCharacterKeepsSeparateSvgLayersAndFiveToneBelt() {
         val raw = root.resolve("app/src/main/res/raw")
         val character = sources.resolve("learningactivity/KarateCharacterView.kt").readText()
