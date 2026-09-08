@@ -9,6 +9,7 @@ data class JapaneseCountingPracticePresentation(
     val itemIndex: Int? = null,
     val item: JapaneseCountLessonItem? = null,
 ) {
+    /** Default position for the standalone counting path; the host may supply another path position. */
     val pathPosition: String = "1 / 2"
     val previousEnabled: Boolean = shellState == ActivityShellState.ACTIVE && (itemIndex ?: 0) > 0
     val nextLabel: String = if (itemIndex == JapaneseCountLesson.items.lastIndex) "Finish  →" else "Next  →"
