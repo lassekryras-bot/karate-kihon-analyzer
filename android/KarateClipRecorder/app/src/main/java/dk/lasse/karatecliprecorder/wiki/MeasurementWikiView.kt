@@ -130,41 +130,31 @@ class MeasurementWikiView(context: Context, private val onClose: () -> Unit) : L
             card.addView(label(bundle.getJSONObject("example").getString("label")))
             val drawing = PunchGraphView(context, bundle, presentation, motion)
             player = drawing
-            card.addView(drawing, LayoutParams(-1, 290.dp()))
-            card.addView(label(definition.getString("figure_text")))
             val graph = PunchGraphView(context, bundle, presentation, motion, graphOnly = true)
             graph.onScrub = { drawing.seek(it) }
+            val samples = presentation.getJSONObject("graph").getJSONArray("samples")
+            val firstTimestamp = samples.getJSONObject(0).getDouble("timestamp_ms")
+            val lastTimestamp = samples.getJSONObject(samples.length() - 1).getDouble("timestamp_ms")
+            val maximumProgress = (marker.getDouble("timestamp_ms") - firstTimestamp) / (lastTimestamp - firstTimestamp)
+            val controls = WikiMotionControls(
+                context,
+                listOf(WikiJumpPoint(if (speed) "Maximum speed" else "Maximum deviation", maximumProgress)),
+            )
+            controls.onSeek = { drawing.seek(it) }
+            controls.onPlayToggle = { if (drawing.playing) drawing.pause() else drawing.play() }
+            controls.onSpeedChange = { drawing.setPlaybackRate(it) }
+            drawing.onPosition = { progress, _, _ ->
+                graph.seek(progress)
+                controls.update(progress, drawing.playing)
+            }
+            card.addView(drawing, LayoutParams(-1, 290.dp()))
+            card.addView(controls)
+            card.addView(label(definition.getString("figure_text")))
             card.addView(graph, LayoutParams(-1, 170.dp()))
             card.addView(label(definition.getString("graph_text")))
-            val time = label("")
-            val slider = SeekBar(context).apply {
-                max = 1000; contentDescription = "Punch position"
-                setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
-                    override fun onProgressChanged(bar: SeekBar?, progress: Int, fromUser: Boolean) {
-                        if (fromUser) drawing.seek(progress / 1000.0)
-                    }
-                    override fun onStartTrackingTouch(bar: SeekBar?) { drawing.pause() }
-                    override fun onStopTrackingTouch(bar: SeekBar?) {}
-                })
-            }
-            val play = Button(context).apply {
-                text = "Play at half speed"
-                setOnClickListener { if (drawing.playing) drawing.pause() else drawing.play() }
-            }
-            drawing.onPosition = { progress, frame, timestamp ->
-                graph.seek(progress)
-                slider.progress = (progress * 1000).roundToInt()
-                time.text = "Frame $frame · %.3f seconds".format(timestamp / 1000.0)
-                play.text = if (drawing.playing) "Pause" else "Play at half speed"
-            }
-            card.addView(slider); card.addView(play); card.addView(time)
             val unit = if (speed) (if (graphUnit == "meters_per_second") "m/s" else "upper-arm lengths/s") else "shoulder widths"
             if (!speed) card.addView(label("Typical deviation (RMS): %.3f %s".format(rms, unit)))
             card.addView(label((if (speed) "Maximum speed: %.2f %s" else "Maximum deviation: %.3f %s").format(maximum, unit)))
-            card.addView(Button(context).apply {
-                text = if (speed) "Show maximum speed" else "Show maximum"
-                setOnClickListener { drawing.seekTimestamp(marker.getDouble("timestamp_ms")) }
-            })
             drawing.seek(0.0)
             }
         } catch (error: Exception) {
@@ -209,6 +199,7 @@ internal class PunchGraphView(context: Context, bundle: JSONObject, presentation
     private val paper = ContextCompat.getColor(context, R.color.home_card_surface)
     private val layers = motion.getJSONArray("arm_layer_order")
     private var clock = 0L
+    private var playbackRate = .5
     var playing = false; private set
     var onScrub: ((Double) -> Unit)? = null
     var onPosition: ((Double, Int, Double) -> Unit)? = null
@@ -216,7 +207,7 @@ internal class PunchGraphView(context: Context, bundle: JSONObject, presentation
         override fun run() {
             if (!playing) return
             val now = SystemClock.uptimeMillis()
-            timestamp = min(last, timestamp + (now - clock) * 0.5); clock = now
+            timestamp = min(last, timestamp + (now - clock) * playbackRate); clock = now
             if (timestamp >= last) playing = false
             update(); if (playing) postDelayed(this, 16)
         }
@@ -224,6 +215,10 @@ internal class PunchGraphView(context: Context, bundle: JSONObject, presentation
     init { contentDescription = if (speed) "Punch animation and wrist speed graph" else "Punch animation and wrist deviation graph"; isFocusable = true }
     fun play() { if (timestamp >= last) timestamp = first; playing = true; clock = SystemClock.uptimeMillis(); removeCallbacks(tick); post(tick) }
     fun pause() { playing = false; removeCallbacks(tick); update() }
+    fun setPlaybackRate(rate: Double) {
+        playbackRate = rate.coerceIn(.1, 1.0)
+        if (playing) clock = SystemClock.uptimeMillis()
+    }
     fun seek(progress: Double) { pause(); timestamp = first + progress.coerceIn(0.0, 1.0) * (last - first); update() }
     fun seekTimestamp(value: Double) { seek(if (last > first) (value - first) / (last - first) else 0.0) }
     private fun selected() = frames.minBy { abs(it.getDouble("timestamp_ms") - timestamp) }

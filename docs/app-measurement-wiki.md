@@ -105,3 +105,18 @@ preserves selection and pauses playback.
 Wrist bend is explicitly unavailable. The separate hand-tracking experiment is
 included for investigation; it has not produced inference results on this clip.
 Phone rendering, large text, TalkBack and Android build still require verification.
+
+## Shared animation controls
+
+All installed wiki animations now use one native player control. The progress
+bar sits directly below the figure. A centred icon changes between play, pause
+and replay; Jump to on the left always includes Start and Finish and adds the
+page's maximum highlight; the selector on the right offers ×1, ×0.75, ×0.50,
+×0.25 and ×0.10. The old separate maximum and playback buttons are removed.
+
+Hikite shows live frame values in a quiet three-column list below the controls:
+measurement, value and unit. Its geometry rows select the corresponding
+finish-only overlay. Elbow speed updates in the same list, and wrist bend remains
+explicitly Not measured. The head circle uses one median size for the replay and
+is horizontally placed on the current shoulder-to-hip centre line instead of
+following the nose-biased pose point.

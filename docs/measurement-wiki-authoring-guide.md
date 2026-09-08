@@ -264,3 +264,22 @@ When there is no historical trail, show the body maximum ring only at the peak
 sample so it does not hang in empty space. Trim unnecessary idle lead-in from
 playback and graph together, retaining a brief view before movement. A display
 trim must preserve computed measurements and their original sampling provenance.
+
+## Shared animation player
+
+Present every wiki animation as a familiar compact media player. Put a scrubber
+directly below the figure. Under it, keep play, pause or replay centered, place a
+single Jump to selector on the left, and a speed selector on the right. Standard
+speed choices are ×1, ×0.75, ×0.50, ×0.25 and ×0.10. Start and Finish are always
+available jump points; add only measurement-specific highlights such as Maximum
+speed or Maximum deviation. Do not add separate buttons for those same frames.
+
+For measurements that change with the selected frame but do not need another
+graph, use the shared table-like metric list below the player. Give each row a
+short measurement name, live value and separate unit. A selectable geometry row
+may choose its figure overlay without becoming a large button above the figure.
+Unavailable measurements remain explicit in the same list.
+
+Use one stable head size throughout a pose-only replay. When the source head
+point is effectively nose-biased, place the simple head circle on the current
+torso centre line while retaining its recorded vertical level.
