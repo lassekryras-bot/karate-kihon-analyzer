@@ -36,12 +36,12 @@ class AppBottomNavigationView(
             HORIZONTAL_PADDING_DP.dp(),
             BOTTOM_PADDING_DP.dp(),
         )
-        setBackgroundColor(ContextCompat.getColor(context, AppChromeStyle.SURFACE_COLOR_RES))
+        background = AppChromeStyle.background(context, Gravity.TOP)
 
         listOf(
             navigationItem("Home", AppIcon.HOME, selectedDestination == AppDestination.HOME, onHome),
             navigationItem("Train", AppIcon.KARATE, selectedDestination == AppDestination.TRAIN, onTrain),
-            navigationItem("Progress", AppIcon.CHART_BAR, selectedDestination == AppDestination.PROGRESS, onProgress),
+            navigationItem("Performance", AppIcon.CHART_BAR, selectedDestination == AppDestination.PROGRESS, onProgress),
             navigationItem("Settings", AppIcon.SETTINGS, selectedDestination == AppDestination.SETTINGS, onSettings),
         ).forEach { item ->
             addView(item, LayoutParams(0, LayoutParams.MATCH_PARENT, 1f))

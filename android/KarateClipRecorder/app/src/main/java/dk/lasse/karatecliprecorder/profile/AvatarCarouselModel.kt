@@ -1,6 +1,12 @@
 package dk.lasse.karatecliprecorder.profile
 
 object AvatarCarouselModel {
+    fun settledDelta(offset: Float, step: Float): Int = when {
+        step <= 0f -> 0
+        offset <= -step * 0.3f -> 1
+        offset >= step * 0.3f -> -1
+        else -> 0
+    }
     const val VISIBLE_COUNT = 5
 
     fun visibleBaseIds(selectedIndex: Int, baseIds: List<String> = Profile.AVATAR_BASE_IDS): List<String> {

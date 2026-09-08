@@ -26,8 +26,8 @@ class ProgressScreenView(
     private val content = LinearLayout(context).apply { orientation = LinearLayout.VERTICAL }
     private val mainHeader = MainPageHeader(
         context = context,
-        title = "Progress",
-        subtitle = "${repository.activeProfile().name}'s learning and training activity",
+        title = "Performance",
+        subtitle = "Track your technique over time",
         trailingSlot = ProfileAvatarButton(context, repository, onProfile),
     )
     private val listener: (Profile) -> Unit = { renderHeaderAndSummary(onProfile) }
@@ -39,6 +39,7 @@ class ProgressScreenView(
             context = context,
             header = mainHeader,
             body = content,
+            topContentPaddingDp = 16,
             bottomContentClearanceDp = AppBottomNavigationView.CONTENT_CLEARANCE_DP,
         ), LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT))
         addView(AppBottomNavigationView(context, AppDestination.PROGRESS, onHome, onTrain, {}, onSettings),
@@ -61,21 +62,23 @@ class ProgressScreenView(
 
     private fun renderHeaderAndSummary(onProfile: () -> Unit) {
         content.removeAllViews()
-        val profile = repository.activeProfile()
-        mainHeader.setSubtitle("${profile.name}'s learning and training activity")
-        val progress = repository.learningProgress(profile.id)
-        val sessions = repository.trainingSessions(profile.id)
-        content.addView(SettingsSectionView(context, "OVERVIEW").apply {
-            addRow(SettingsRowView(context, AppIcon.CHART_BAR, "Learning activities", "Profile-specific completion state").apply {
-                setStatus("${progress.count { it.status == LearningStatus.COMPLETED }} completed", ContextCompat.getColor(context, R.color.app_text_secondary))
+        mainHeader.setSubtitle("Track your technique over time")
+        content.addView(SettingsSectionView(context, "ACTIVITIES", first = true).apply {
+            addRow(SettingsRowView(context, AppIcon.KARATE, "Punching", "Measurement trends for your punches").apply {
+                configureAsNavigation(onClick = { showEmptyPerformance("Punching") })
             })
-            addRow(SettingsRowView(context, AppIcon.KARATE, "Training sessions", "Saved practice and coaching sessions").apply {
-                setStatus(sessions.size.toString(), ContextCompat.getColor(context, R.color.app_text_secondary))
-            })
-            addRow(SettingsRowView(context, AppIcon.CAMERA, "Calibration", "Body and camera calibration records").apply {
-                setStatus(if (repository.calibrations(profile.id).isEmpty()) "Not calibrated" else "Ready", ContextCompat.getColor(context, R.color.app_text_secondary))
+            addRow(SettingsRowView(context, AppIcon.KARATE, "Kicking", "Measurement trends for your kicks").apply {
+                configureAsNavigation(onClick = { showEmptyPerformance("Kicking") })
             })
         })
+    }
+
+    private fun showEmptyPerformance(activity: String) {
+        android.app.AlertDialog.Builder(context)
+            .setTitle(activity)
+            .setMessage("Performance trends are coming soon. Your technique measurements will appear here over time.")
+            .setPositiveButton("Done", null)
+            .show()
     }
 
     private fun Int.dp() = context.dp(this)

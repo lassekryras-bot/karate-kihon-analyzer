@@ -36,6 +36,7 @@ class LearnScreenView(
     private val onPathSelected: (LearningPath) -> Unit,
     private val onKarateBasicsSelected: () -> Unit,
     onHome: () -> Unit,
+    onTrain: () -> Unit,
     onProgress: () -> Unit,
     onSettings: () -> Unit,
     private val onWiki: () -> Unit,
@@ -49,7 +50,7 @@ class LearnScreenView(
     private val content = LinearLayout(context).apply { orientation = LinearLayout.VERTICAL }
     private val mainHeader = MainPageHeader(
         context = context,
-        title = "Train",
+        title = "Learn",
         subtitle = "Build your skills step by step.",
         trailingSlot = ProfileAvatarButton(context, profileRepository, onProfile),
     )
@@ -72,7 +73,7 @@ class LearnScreenView(
             context = context,
             selectedDestination = AppDestination.TRAIN,
             onHome = onHome,
-            onTrain = {},
+            onTrain = onTrain,
             onProgress = onProgress,
             onSettings = onSettings,
         )
@@ -105,8 +106,6 @@ class LearnScreenView(
             LayoutParams(LayoutParams.MATCH_PARENT, 52.dp()).apply { bottomMargin = 16.dp() },
         )
         val scopedPaths = profileScopedPaths()
-        val currentPath = scopedPaths.first { it.id == LearningPathId.JODAN_PUNCH }
-        content.addView(continueCard(currentPath) { onPathSelected(currentPath) })
         content.addView(sectionTitle("Foundations"))
         content.addView(draftPathCard())
         scopedPaths.groupBy(LearningPath::category).forEach { (category, categoryPaths) ->

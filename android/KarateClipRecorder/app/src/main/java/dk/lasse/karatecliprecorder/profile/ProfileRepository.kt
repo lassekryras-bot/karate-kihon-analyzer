@@ -76,6 +76,12 @@ class ProfileRepository(
 
     fun learningProgress(profileId: String = activeProfile().id) = database.learningProgress(profileId)
 
+    fun resetLearningProgress(profileId: String) {
+        requireNotNull(database.profile(profileId)) { "Profile does not exist" }
+        database.resetLearningProgress(profileId)
+        if (profileId == activeProfile().id) notifyActiveChanged()
+    }
+
     fun saveLearningProgress(progress: LearningProgress) {
         database.upsertLearningProgress(progress)
         if (progress.profileId == activeProfile().id) notifyActiveChanged()
@@ -111,8 +117,9 @@ class ProfileRepository(
         if (session.profileId == activeProfile().id) notifyActiveChanged()
     }
 
-    fun clearAllTrainingSessions() {
-        database.clearTrainingSessions()
+    fun clearTrainingSessions(profileId: String) {
+        require(listProfiles().any { it.id == profileId })
+        database.clearTrainingSessions(profileId)
         notifyActiveChanged()
     }
 

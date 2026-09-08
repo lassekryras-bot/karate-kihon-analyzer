@@ -34,41 +34,6 @@ internal class GradientPreviewView(
     }
 }
 
-/** Keeps child taps intact while intercepting deliberate horizontal carousel swipes. */
-internal class AvatarCarouselLayout(
-    context: Context,
-    private val onMove: (Int) -> Unit,
-) : LinearLayout(context) {
-    private val touchSlop = ViewConfiguration.get(context).scaledTouchSlop
-    private var downX = 0f
-    private var downY = 0f
-
-    override fun onInterceptTouchEvent(event: MotionEvent): Boolean {
-        when (event.actionMasked) {
-            MotionEvent.ACTION_DOWN -> {
-                downX = event.x
-                downY = event.y
-            }
-            MotionEvent.ACTION_MOVE -> {
-                val dx = event.x - downX
-                val dy = event.y - downY
-                if (kotlin.math.abs(dx) > touchSlop && kotlin.math.abs(dx) > kotlin.math.abs(dy)) return true
-            }
-        }
-        return false
-    }
-
-    override fun onTouchEvent(event: MotionEvent): Boolean {
-        if (event.actionMasked == MotionEvent.ACTION_UP) {
-            val dx = event.x - downX
-            if (kotlin.math.abs(dx) > touchSlop) onMove(if (dx < 0) 1 else -1) else performClick()
-        }
-        return true
-    }
-
-    override fun performClick(): Boolean = super.performClick()
-}
-
 internal fun Context.skinGradientView() = GradientPreviewView(this, intArrayOf(
     AvatarPalette.skin(0f), AvatarPalette.skin(0.25f), AvatarPalette.skin(0.5f),
     AvatarPalette.skin(0.75f), AvatarPalette.skin(1f),

@@ -47,6 +47,92 @@ class ProfileRepositoryTest {
         assertEquals(listOf(profile), repository!!.listProfiles())
     }
 
+    @Test fun resetLearningOnlyRemovesTheSelectedProfilesProgressAndPersists() {
+        repository = ProfileRepository(context, AppPreferences(context))
+        val repo = repository!!
+        val active = repo.activeProfile()
+        val other = repo.createProfile(testProfile("Other"))
+        listOf(active, other).forEach { profile ->
+            repo.saveLearningProgress(LearningProgress(profile.id, "basics", "one", LearningStatus.COMPLETED))
+            repo.saveLearningProgress(LearningProgress(profile.id, "basics", "two", LearningStatus.IN_PROGRESS))
+        }
+        repo.saveTrainingSession(TrainingSession(profileId = other.id, mode = TrainingMode.LEARN, skillOrActivityId = "one"))
+        repo.saveCalibration(Calibration(profileId = other.id, calibrationType = "camera", payload = "{}"))
+        repo.resetLearningProgress(other.id)
+        repo.close()
+        repository = ProfileRepository(context, AppPreferences(context))
+        assertTrue(repository!!.learningProgress(other.id).isEmpty())
+        assertEquals(2, repository!!.learningProgress(active.id).size)
+        assertEquals(1, repository!!.trainingSessions(other.id).size)
+        assertEquals(1, repository!!.calibrations(other.id).size)
+        assertEquals(active.id, repository!!.activeProfile().id)
+        assertEquals(other, repository!!.listProfiles().first { it.id == other.id })
+    }
+
+    @Test fun clearTrainingHistoryIsIsolatedAndPersists() {
+        repository = ProfileRepository(context, AppPreferences(context))
+        val repo = repository!!
+        val active = repo.activeProfile()
+        val other = repo.createProfile(testProfile("Other"))
+        listOf(active, other).forEach { profile ->
+            repo.saveTrainingSession(TrainingSession(profileId = profile.id, mode = TrainingMode.LEARN, skillOrActivityId = "one"))
+            repo.saveLearningProgress(LearningProgress(profile.id, "basics", "one", LearningStatus.COMPLETED))
+            repo.saveCalibration(Calibration(profileId = profile.id, calibrationType = "camera", payload = "{}"))
+        }
+        val pictures = context.getExternalFilesDir(android.os.Environment.DIRECTORY_PICTURES)!!
+        val owned = java.io.File(pictures, "punch_height_level_1/profiles/${other.id}/capture.jpg")
+        val untouched = java.io.File(pictures, "punch_height_level_1/profiles/${active.id}/capture.jpg")
+        val legacy = java.io.File(pictures, "punch_height_level_1/legacy.jpg")
+        val calibration = java.io.File(pictures, "camera_setup/profiles/${other.id}/capture.jpg")
+        listOf(owned, untouched, legacy, calibration).forEach { it.parentFile!!.mkdirs(); it.writeText("fixture") }
+        val store = dk.lasse.karatecliprecorder.TrainingHistoryStore(context)
+        kotlin.test.assertFailsWith<IllegalArgumentException> { store.clear("../camera_setup") }
+        assertTrue(store.clear(other.id).succeeded)
+        assertTrue(!owned.exists())
+        listOf(untouched, legacy, calibration).forEach { assertTrue(it.exists()) }
+        repo.clearTrainingSessions(other.id)
+        repo.close()
+        repository = ProfileRepository(context, AppPreferences(context))
+        assertTrue(repository!!.trainingSessions(other.id).isEmpty())
+        assertEquals(1, repository!!.trainingSessions(active.id).size)
+        assertEquals(1, repository!!.learningProgress(other.id).size)
+        assertEquals(1, repository!!.calibrations(other.id).size)
+        assertEquals(active.id, repository!!.activeProfile().id)
+    }
+
+    @Test fun bodyMeasurementsPersistAndCanBeCleared() {
+        repository = ProfileRepository(context, AppPreferences(context))
+        val profile = repository!!.activeProfile()
+        repository!!.updateProfile(profile.copy(heightCm = 180f, forearmLengthCm = 27.5f, lowerLegLengthCm = 43f))
+        repository!!.close()
+        repository = ProfileRepository(context, AppPreferences(context))
+        val saved = repository!!.activeProfile()
+        assertEquals(180f, saved.heightCm)
+        assertEquals(27.5f, saved.forearmLengthCm)
+        assertEquals(43f, saved.lowerLegLengthCm)
+        repository!!.updateProfile(saved.copy(heightCm = null, forearmLengthCm = null, lowerLegLengthCm = null))
+        assertEquals(null, repository!!.activeProfile().forearmLengthCm)
+        assertEquals(null, repository!!.activeProfile().lowerLegLengthCm)
+    }
+
+    @Test fun versionOneDatabaseAddsOptionalMeasurementsWithoutLosingProfiles() {
+        val db = context.openOrCreateDatabase("trainee_profiles.db", Context.MODE_PRIVATE, null)
+        db.execSQL("""CREATE TABLE profiles (id TEXT PRIMARY KEY, name TEXT, gender TEXT,
+            age_group TEXT, avatar_base_id TEXT, skin_tone_position REAL, hair_color_position REAL,
+            belt_rank TEXT, height_cm REAL, dominant_side TEXT, experience_level TEXT,
+            created_at INTEGER, updated_at INTEGER)""")
+        db.execSQL("""INSERT INTO profiles VALUES ('kept', 'Existing', 'MALE', 'ADULT',
+            'avatar_01', 0.5, 0.5, 'WHITE', 175, NULL, NULL, 1, 1)""")
+        db.version = 1
+        db.close()
+        repository = ProfileRepository(context, AppPreferences(context))
+        val saved = repository!!.activeProfile()
+        assertEquals("kept", saved.id)
+        assertEquals(175f, saved.heightCm)
+        assertEquals(null, saved.forearmLengthCm)
+        assertEquals(null, saved.lowerLegLengthCm)
+    }
+
     @Test
     fun creationAndActiveSelectionPersistAcrossRepositoryRecreation() {
         val preferences = AppPreferences(context)

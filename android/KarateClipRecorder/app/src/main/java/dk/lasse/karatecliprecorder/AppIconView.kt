@@ -26,6 +26,8 @@ enum class AppIcon(@DrawableRes val drawableRes: Int) {
     CODE(R.drawable.ic_tabler_code),
     BUG(R.drawable.ic_tabler_bug),
     INFO_CIRCLE(R.drawable.ic_tabler_info_circle),
+    USER(R.drawable.ic_profile_user),
+    RULER(R.drawable.ic_profile_ruler),
     HELP_CIRCLE(R.drawable.ic_tabler_help_circle),
     SHIELD(R.drawable.ic_tabler_shield),
     CHEVRON_RIGHT(R.drawable.ic_tabler_chevron_right),

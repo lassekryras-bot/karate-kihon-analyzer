@@ -23,13 +23,12 @@ class ProfileScreenView(
     private val onAddProfile: () -> Unit,
     private val onEditProfile: (Profile) -> Unit,
     private val onManageProfiles: () -> Unit,
-    private val onUnavailable: (String) -> Unit,
+    private val onBodyMeasurements: () -> Unit,
 ) : FrameLayout(context) {
     private val content = LinearLayout(context).apply { orientation = LinearLayout.VERTICAL }
     private val subHeader = SubPageHeader(
         context = context,
         title = "Profile",
-        subtitle = "Manage the active trainee and profile details.",
         onBack = onBack,
     )
     private val listener: (Profile) -> Unit = { render() }
@@ -65,7 +64,7 @@ class ProfileScreenView(
         content.addView(profileSwitcher(active))
         content.addView(informationSection(active))
         content.addView(SettingsSectionView(context, "PROFILE MANAGEMENT").apply {
-            addRow(SettingsRowView(context, AppIcon.SETTINGS, "Manage profiles", "Add, edit, or remove profiles").apply {
+            addRow(SettingsRowView(context, AppIcon.SETTINGS, "Manage profiles", "Manage profiles and training data").apply {
                 configureAsNavigation(onClick = onManageProfiles)
             })
         })
@@ -75,8 +74,7 @@ class ProfileScreenView(
         gravity = Gravity.CENTER_VERTICAL
         setPadding(16.dp(), 14.dp(), 16.dp(), 14.dp())
         background = cardBackground()
-        elevation = 2.dp().toFloat()
-        addView(AvatarView(context).apply { setProfile(profile) }, LinearLayout.LayoutParams(128.dp(), 148.dp()).apply {
+        addView(AvatarView(context).apply { setProfile(profile) }, LinearLayout.LayoutParams(96.dp(), 112.dp()).apply {
             marginEnd = 16.dp()
         })
         addView(LinearLayout(context).apply {
@@ -143,21 +141,18 @@ class ProfileScreenView(
     }
 
     private fun informationSection(profile: Profile) = SettingsSectionView(context, "YOUR INFORMATION").apply {
-        addRow(SettingsRowView(context, AppIcon.INFO_CIRCLE, "Personal", "Name, age group, character/avatar").apply {
+        addRow(SettingsRowView(context, AppIcon.USER, "Edit profile", "Personal details, character and belt").apply {
             configureAsNavigation(onClick = { onEditProfile(profile) })
         })
-        addRow(SettingsRowView(context, AppIcon.KARATE_BELT, "Karate", "Belt rank, experience level, dominant side").apply {
-            configureAsNavigation(onClick = { onEditProfile(profile) })
+        val measurementCount = listOf(profile.heightCm, profile.forearmLengthCm, profile.lowerLegLengthCm).count { it != null }
+        val measurementStatus = if (measurementCount == 3) "✓ 3/3" else "$measurementCount/3"
+        addRow(SettingsRowView(context, AppIcon.RULER, "Body measurements", "Height, forearm and lower leg").apply {
+            configureAsNavigation(value = measurementStatus, onClick = onBodyMeasurements)?.apply {
+                setTextColor(ContextCompat.getColor(context, if (measurementCount == 3) R.color.app_success else R.color.app_accent))
+                contentDescription = "$measurementCount of 3 measurements added"
+            }
         })
-        val calibrationStatus = if (repository.calibrations(profile.id).isEmpty()) "Not calibrated" else "Ready"
-        addRow(SettingsRowView(context, AppIcon.CAMERA, "Body & calibration", "Height and calibration status").apply {
-            configureAsNavigation(value = calibrationStatus, onClick = { onUnavailable("Body & calibration") })
-        })
-        val progress = repository.learningProgress(profile.id)
-        val trainingSummary = if (progress.isEmpty()) "No activity yet" else "${progress.count { it.status == LearningStatus.COMPLETED }} completed"
-        addRow(SettingsRowView(context, AppIcon.CHART_BAR, "Training", "Current focus and profile-specific progress").apply {
-            configureAsNavigation(value = trainingSummary, onClick = { onUnavailable("Training profile details") })
-        })
+
     }
 
     private fun cardBackground() = GradientDrawable().apply {

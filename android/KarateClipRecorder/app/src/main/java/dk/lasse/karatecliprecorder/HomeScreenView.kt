@@ -58,10 +58,9 @@ class HomeScreenView(
     private val red = ContextCompat.getColor(context, R.color.app_accent)
     private val ink = ContextCompat.getColor(context, R.color.app_text_primary)
     private val muted = ContextCompat.getColor(context, R.color.app_text_secondary)
-    private val paper = ContextCompat.getColor(context, R.color.home_card_surface)
+    private val paper = ContextCompat.getColor(context, R.color.app_card_surface)
     private val backgroundColor = ContextCompat.getColor(context, R.color.app_background)
     private val border = ContextCompat.getColor(context, R.color.app_border)
-    private val dividerColor = ContextCompat.getColor(context, R.color.app_divider)
     private val continueCardHost = FrameLayout(context)
     private val mainHeader = MainPageHeader(
         context = context,
@@ -79,23 +78,19 @@ class HomeScreenView(
         setBackgroundColor(backgroundColor)
         val content = LinearLayout(context).apply {
             orientation = LinearLayout.VERTICAL
+            addView(sectionLabel("CONTINUE LEARNING", first = true))
             addView(continueCardHost, LinearLayout.LayoutParams(
                 LayoutParams.MATCH_PARENT,
                 LayoutParams.WRAP_CONTENT,
             ))
             addView(sectionLabel("QUICK ACTIONS"))
             addView(quickActions(onLearn, onPractice, onSkillCoach))
-            addView(sectionLabel("TODAY'S FOCUS"))
-            addView(focusCard())
-            addView(sectionLabel("RECENT ACTIVITY"))
-            addView(activityCard())
-            addView(sectionLabel("LEARNING PROGRESS"))
-            addView(progressCard())
         }
         addView(StickyHeaderPageLayout(
             context = context,
             header = mainHeader,
             body = content,
+            topContentPaddingDp = 16,
             bottomContentClearanceDp = AppBottomNavigationView.CONTENT_CLEARANCE_DP,
         ), LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT))
         renderContinueCard()
@@ -149,69 +144,56 @@ class HomeScreenView(
 
     private fun continueCard(content: ContinueLearningContent, onClick: () -> Unit) = card().apply {
         orientation = LinearLayout.VERTICAL
-        setPadding(16.dp(), 15.dp(), 16.dp(), 16.dp())
-        addView(label("Continue learning", 15f, Typeface.BOLD).apply {
-            setTextColor(red)
+        setPadding(16.dp(), 16.dp(), 16.dp(), 16.dp())
+        addView(LinearLayout(context).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            addView(LinearLayout(context).apply {
+                orientation = LinearLayout.VERTICAL
+                addView(label(content.lessonTitle, 20f, Typeface.BOLD))
+                addView(label(content.category, 14f).apply {
+                    setTextColor(muted)
+                    setPadding(0, 3.dp(), 0, 0)
+                })
+            }, LinearLayout.LayoutParams(0, LayoutParams.WRAP_CONTENT, 1f))
+            val artwork = content.artwork
+            val enso = content.ensoVariant
+            if (artwork != null && enso != null) {
+                addView(LearningPathArtworkView(context).apply {
+                    setPathArtwork(artwork, enso)
+                    importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
+                }, LinearLayout.LayoutParams(64.dp(), 64.dp()).apply {
+                    marginStart = 12.dp()
+                })
+            }
+        }, LinearLayout.LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT).apply {
+            topMargin = 0
         })
         addView(LinearLayout(context).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
-
-            addView(continueArtwork(content), LinearLayout.LayoutParams(0, 164.dp(), 0.38f).apply {
-                marginEnd = 10.dp()
-            })
-
             addView(LinearLayout(context).apply {
                 orientation = LinearLayout.VERTICAL
-                gravity = Gravity.CENTER_VERTICAL
-                minimumHeight = 164.dp()
-                addView(label(content.lessonTitle, 20f, Typeface.BOLD).apply {
-                    setTextColor(ink)
-                })
-                addView(label(content.category, 14f).apply {
-                    setTextColor(muted)
-                    setPadding(0, 2.dp(), 0, 12.dp())
-                })
-                addView(label("", 14f, Typeface.BOLD).apply {
+                addView(label("", 13f).apply {
                     text = progressCopy(content)
+                    setTextColor(muted)
                 })
                 addView(ProgressBar(context, null, android.R.attr.progressBarStyleHorizontal).apply {
                     max = content.totalSteps.coerceAtLeast(1)
                     progress = content.currentStep.coerceIn(0, max)
                     progressTintList = android.content.res.ColorStateList.valueOf(red)
-                    progressBackgroundTintList = android.content.res.ColorStateList.valueOf(Color.rgb(225, 218, 210))
-                }, LinearLayout.LayoutParams(LayoutParams.MATCH_PARENT, 7.dp()).apply {
-                    topMargin = 5.dp()
-                    bottomMargin = 12.dp()
+                    progressBackgroundTintList = android.content.res.ColorStateList.valueOf(border)
+                }, LinearLayout.LayoutParams(LayoutParams.MATCH_PARENT, 5.dp()).apply {
+                    topMargin = 6.dp()
                 })
-                addView(actionButton("Continue ›", onClick), LinearLayout.LayoutParams(120.dp(), 44.dp()).apply {
-                    gravity = Gravity.END
-                })
-            }, LinearLayout.LayoutParams(0, LayoutParams.WRAP_CONTENT, 0.62f))
+            }, LinearLayout.LayoutParams(0, LayoutParams.WRAP_CONTENT, 1f).apply {
+                marginEnd = 20.dp()
+            })
+            addView(actionButton("Continue ›", onClick), LinearLayout.LayoutParams(104.dp(), 48.dp()))
         }, LinearLayout.LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT).apply {
-            topMargin = 4.dp()
+            topMargin = 16.dp()
         })
     }
-
-    private fun continueArtwork(content: ContinueLearningContent): View {
-        val artwork = content.artwork
-        val enso = content.ensoVariant
-        if (artwork != null && enso != null) {
-            return LearningPathArtworkView(context).apply { setPathArtwork(artwork, enso) }
-        }
-        return FrameLayout(context).apply {
-            addView(FrameLayout(context).apply {
-                background = GradientDrawable().apply {
-                    setColor(ContextCompat.getColor(context, R.color.progress_pale_fill))
-                    shape = GradientDrawable.OVAL
-                }
-                addView(AppIconView(context, AppIcon.KARATE, sizeDp = 58).apply {
-                    setIconColor(red)
-                }, FrameLayout.LayoutParams(58.dp(), 58.dp(), Gravity.CENTER))
-            }, FrameLayout.LayoutParams(112.dp(), 112.dp(), Gravity.CENTER))
-        }
-    }
-
     private fun progressCopy(content: ContinueLearningContent): SpannableString {
         val current = content.currentStep.coerceAtLeast(0).toString()
         return SpannableString("$current of ${content.totalSteps.coerceAtLeast(0)} ${content.progressUnit}").apply {
@@ -223,12 +205,13 @@ class HomeScreenView(
         LinearLayout(context).apply {
             orientation = LinearLayout.HORIZONTAL
             val actions = listOf(
-                Triple(R.drawable.ic_learn_torii, "Learn\nStep-by-step lessons", onLearn),
-                Triple(R.drawable.ic_practice, "Practice\nFree practice & drills", onPractice),
-                Triple(R.drawable.ic_skill_coach_target, "Skill Coach\nTechnique feedback", onCoach),
+                Triple(R.drawable.ic_learn_torii, "Learn", onLearn),
+                Triple(R.drawable.ic_practice, "Practice", onPractice),
+                Triple(R.drawable.ic_skill_coach_target, "Skill Coach", onCoach),
             )
             actions.forEachIndexed { index, (iconRes, copy, callback) ->
                 addView(card().apply {
+                    elevation = 0f
                     orientation = LinearLayout.VERTICAL
                     gravity = Gravity.CENTER
                     setOnClickListener { callback() }
@@ -239,68 +222,26 @@ class HomeScreenView(
                         setImageResource(iconRes)
                         imageTintList = ContextCompat.getColorStateList(context, R.color.content_icon_tint)
                         importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
-                    }, LayoutParams(32.dp(), 32.dp()))
+                    }, LayoutParams(52.dp(), 52.dp()))
                     addView(label(copy, 14f, Typeface.BOLD, Gravity.CENTER).apply {
-                        setTextColor(if (index == 0) ink else red)
+                        setTextColor(ink)
                         importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
                     }, LayoutParams(LayoutParams.WRAP_CONTENT, LayoutParams.WRAP_CONTENT).apply {
                         topMargin = 8.dp()
                     })
-                }, LinearLayout.LayoutParams(0, 142.dp(), 1f).apply {
+                }, LinearLayout.LayoutParams(0, 112.dp(), 1f).apply {
                     if (index > 0) marginStart = 8.dp()
                 })
             }
         }
 
-    private fun focusCard() = card().apply {
-        gravity = Gravity.CENTER_VERTICAL
-        addView(label("🥋", 34f, gravity = Gravity.CENTER), LinearLayout.LayoutParams(58.dp(), 58.dp()))
-        addView(label("Work on\nChūdan Punch\nTarget awareness", 16f, Typeface.BOLD), LinearLayout.LayoutParams(0, LayoutParams.WRAP_CONTENT, 1f))
-        addView(label("›", 30f, gravity = Gravity.CENTER), LinearLayout.LayoutParams(30.dp(), 50.dp()))
-    }
-
-    private fun activityCard() = card().apply {
-        orientation = LinearLayout.VERTICAL
-        activityRow("◎", "Skill Coach — Jōdan Punch", "10 punches analyzed  ·  2 days ago")
-        divider()
-        activityRow("✦", "Practice — Speed & Control", "8 min session  ·  3 days ago")
-        divider()
-        activityRow("▰", "Learn — Chūdan Punch", "Step 2: Target awareness  ·  4 days ago")
-    }
-
-    private fun LinearLayout.activityRow(icon: String, title: String, detail: String) {
-        addView(LinearLayout(context).apply {
-            gravity = Gravity.CENTER_VERTICAL
-            addView(label(icon, 23f, Typeface.BOLD, Gravity.CENTER).apply { setTextColor(red) }, LinearLayout.LayoutParams(42.dp(), 54.dp()))
-            addView(label("$title\n$detail", 14f, Typeface.BOLD).apply { setTextColor(ink) }, LinearLayout.LayoutParams(0, LayoutParams.WRAP_CONTENT, 1f))
-            addView(label("›", 25f, gravity = Gravity.CENTER), LinearLayout.LayoutParams(25.dp(), 54.dp()))
-        })
-    }
-
-    private fun LinearLayout.divider() = addView(View(context).apply { setBackgroundColor(dividerColor) }, LayoutParams(LayoutParams.MATCH_PARENT, 1.dp()))
-
-    private fun progressCard() = card().apply {
-        orientation = LinearLayout.VERTICAL
-        progressRow("Jōdan Punch", 4, 7)
-        progressRow("Chūdan Punch", 2, 6)
-        addView(label("Gedan Punch                         Not started", 14f, Typeface.BOLD))
-    }
-
-    private fun LinearLayout.progressRow(title: String, value: Int, max: Int) {
-        addView(label("$title                                      $value / $max steps", 14f, Typeface.BOLD))
-        addView(ProgressBar(context, null, android.R.attr.progressBarStyleHorizontal).apply {
-            this.max = max
-            progress = value
-            progressTintList = android.content.res.ColorStateList.valueOf(red)
-        }, LayoutParams(LayoutParams.MATCH_PARENT, 10.dp()).apply { bottomMargin = 12.dp() })
-    }
-
-    private fun sectionLabel(text: String) = label(text, 13f, Typeface.BOLD).apply {
+    private fun sectionLabel(text: String, first: Boolean = false) = label(text, 12f, Typeface.BOLD).apply {
         setTextColor(muted)
-        setPadding(2.dp(), 18.dp(), 0, 8.dp())
+        letterSpacing = 0.08f
+        setPadding(2.dp(), if (first) 0 else 22.dp(), 0, 8.dp())
     }
 
-    private fun actionButton(text: String, onClick: () -> Unit) = label(text, 17f, Typeface.BOLD, Gravity.CENTER).apply {
+    private fun actionButton(text: String, onClick: () -> Unit) = label(text, 15f, Typeface.BOLD, Gravity.CENTER).apply {
         setTextColor(Color.WHITE)
         background = rounded(red, 10.dp().toFloat())
         setOnClickListener { onClick() }
@@ -313,7 +254,7 @@ class HomeScreenView(
     private fun card() = LinearLayout(context).apply {
         setPadding(14.dp(), 14.dp(), 14.dp(), 14.dp())
         background = rounded(paper, 14.dp().toFloat(), border)
-        elevation = 2.dp().toFloat()
+        elevation = 0f
     }
 
     private fun label(text: String, size: Float, style: Int = Typeface.NORMAL, gravity: Int = Gravity.START) = TextView(context).apply {

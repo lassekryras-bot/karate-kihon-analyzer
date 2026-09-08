@@ -13,7 +13,7 @@ class ProfileAvatarButton(
     private val repository: ProfileRepository,
     onProfile: () -> Unit,
 ) : FrameLayout(context) {
-    private val avatar = AvatarView(context)
+    private val avatar = AvatarView(context).apply { showPortraitOutline = false }
     private val listener: (Profile) -> Unit = { profile ->
         avatar.setProfile(profile)
         contentDescription = "Open ${profile.name}'s profile"
