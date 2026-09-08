@@ -88,6 +88,8 @@ class ActivityShellContractArchitectureTest {
         assertTrue(onDestroy.contains("japaneseCountFullExamplePlayer.release()"))
         assertTrue(onDestroy.contains("shortCommandRecognizer.release()"))
         assertTrue(onDestroy.contains("terminologySpeechPlayer.close()"))
+        assertTrue(onDestroy.contains("stopReadyOsuSelfieCamera()"))
+        assertTrue(onDestroy.contains("clearReadyOsuSelfie()"))
         assertTrue(onDestroy.contains("recognizerRunner?.close()"))
         assertTrue(onDestroy.contains("poseRecognizerRunner?.close()"))
         assertTrue(onDestroy.contains("recordingAdapter?.close()"))

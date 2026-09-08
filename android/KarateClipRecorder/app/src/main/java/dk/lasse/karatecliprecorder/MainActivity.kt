@@ -55,6 +55,7 @@ import dk.lasse.karatecliprecorder.learningactivity.OsuMeaningUseController
 import dk.lasse.karatecliprecorder.learningactivity.OsuMeaningUsePresentation
 import dk.lasse.karatecliprecorder.learningactivity.OsuMeaningUseView
 import dk.lasse.karatecliprecorder.learningactivity.ReadyOsuController
+import dk.lasse.karatecliprecorder.learningactivity.ReadyOsuCameraError
 import dk.lasse.karatecliprecorder.learningactivity.ReadyOsuPhase
 import dk.lasse.karatecliprecorder.learningactivity.ReadyOsuPresentation
 import dk.lasse.karatecliprecorder.learningactivity.ReadyOsuView
@@ -109,6 +110,9 @@ import dk.lasse.karatecliprecorder.learning.PunchHeightSessionCoordinator
 import dk.lasse.karatecliprecorder.learning.PunchHeightSessionStage
 import dk.lasse.karatecliprecorder.learning.PunchHeightSessionState
 import dk.lasse.karatecliprecorder.learning.PunchHeightVoiceCoach
+import dk.lasse.karatecliprecorder.learning.RandomAudioSampleSelector
+import dk.lasse.karatecliprecorder.learning.ReadyOsuSelfieCamera
+import dk.lasse.karatecliprecorder.learning.ReadyOsuSelfieCameraFailure
 import dk.lasse.karatecliprecorder.learning.ShortVoiceCommand
 import dk.lasse.karatecliprecorder.learning.ShortVoiceCommandMatcher
 import dk.lasse.karatecliprecorder.learning.ShortVoiceRecognitionConfig
@@ -144,7 +148,6 @@ import org.json.JSONObject
 
 private enum class PendingAudioPermissionAction {
     JAPANESE_COUNT_TEST,
-    READY_OSU,
     STOP_COUNT,
 }
 
@@ -240,6 +243,9 @@ class MainActivity : AppCompatActivity() {
     private lateinit var japaneseCountLiveRecognizer: JapaneseCountLiveRecognizer
     private lateinit var shortCommandRecognizer: LiveSpeechRecognizer
     private lateinit var terminologySpeechPlayer: TerminologySpeechPlayer
+    private lateinit var osuSampleSelector: RandomAudioSampleSelector
+    private var readyOsuSelfieCamera: ReadyOsuSelfieCamera? = null
+    private var readyOsuSelfieBitmap: Bitmap? = null
     private lateinit var osuMeaningUseController: OsuMeaningUseController
     private lateinit var readyOsuController: ReadyOsuController
     private lateinit var stopCountController: StopCountController
@@ -328,17 +334,26 @@ class MainActivity : AppCompatActivity() {
             } else {
                 showJapaneseCountLevel2Error(CountRecognitionError.MICROPHONE_PERMISSION_DENIED)
             }
-            PendingAudioPermissionAction.READY_OSU -> if (granted) {
-                playReadyPromptAndListen()
-            } else {
-                readyOsuController.fail(SpeechRecognitionError.MICROPHONE_PERMISSION_DENIED)
-            }
             PendingAudioPermissionAction.STOP_COUNT -> if (granted) {
                 beginStopCountPractice(voiceEnabled = true)
             } else {
                 stopCountController.permissionError(SpeechRecognitionError.MICROPHONE_PERMISSION_DENIED)
             }
             null -> Unit
+        }
+    }
+
+    private val readyOsuPermissionLauncher = registerForActivityResult(
+        ActivityResultContracts.RequestMultiplePermissions(),
+    ) { permissions ->
+        if (readyOsuScreen == null) return@registerForActivityResult
+        val cameraAllowed = permissions[Manifest.permission.CAMERA] == true || hasCameraPermission()
+        val microphoneAllowed = permissions[Manifest.permission.RECORD_AUDIO] == true || hasAudioPermission()
+        if (cameraAllowed && microphoneAllowed) {
+            beginReadyOsuSelfieAttempt()
+        } else {
+            stopReadyOsuSelfieCamera()
+            readyOsuController.permissionFailure(cameraAllowed, microphoneAllowed)
         }
     }
 
@@ -433,6 +448,9 @@ class MainActivity : AppCompatActivity() {
         japaneseCountLiveRecognizer = JapaneseCountLiveRecognizer(this)
         shortCommandRecognizer = LiveSpeechRecognizer(this)
         terminologySpeechPlayer = TerminologySpeechPlayer(this)
+        osuSampleSelector = RandomAudioSampleSelector(
+            intArrayOf(R.raw.osu_voice_01, R.raw.osu_voice_02),
+        )
         onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
             override fun handleOnBackPressed() {
                 if (secondaryScreen != null) {
@@ -615,8 +633,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun playOsuExample() {
-        terminologySpeechPlayer.play(
-            prompts = listOf(TerminologyPrompt("おす", Locale.JAPAN)),
+        playRandomOsuSample(
             onError = { Toast.makeText(this, "The Osu audio example is unavailable.", Toast.LENGTH_SHORT).show() },
         )
     }
@@ -647,6 +664,7 @@ class MainActivity : AppCompatActivity() {
     private fun openReadyOsu(pathPosition: String) {
         stopJapaneseCountSession()
         stopTerminologyRunners()
+        clearReadyOsuSelfie()
         profileRepository.touchActiveLearningActivity(karateBasicsPath.id, "ready-osu")
         readyOsuController.restart()
         readyOsuCompletionSaved = false
@@ -686,6 +704,8 @@ class MainActivity : AppCompatActivity() {
                 resultPayload = JSONObject()
                     .put("activityCompleted", true)
                     .put("voiceVerified", presentation.state.voiceVerified)
+                    .put("selfieCaptured", presentation.state.selfieCaptured)
+                    .put("selfiePersisted", false)
                     .put("attemptCount", presentation.state.attempts)
                     .toString(),
             ))
@@ -693,23 +713,66 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun playReadyOsuModel() {
+        val playOsuResponse = {
+            playRandomOsuSample(
+                onError = { Toast.makeText(this, "The spoken example is unavailable. You can use the visible text.", Toast.LENGTH_SHORT).show() },
+            )
+        }
         terminologySpeechPlayer.play(
-            prompts = listOf(
-                TerminologyPrompt("Ready?", Locale.ENGLISH),
-                TerminologyPrompt("おす", Locale.JAPAN),
-            ),
-            onError = { Toast.makeText(this, "The spoken example is unavailable. You can use the visible text.", Toast.LENGTH_SHORT).show() },
+            prompts = listOf(TerminologyPrompt("Ready?", Locale.ENGLISH)),
+            onComplete = playOsuResponse,
+            onError = { playOsuResponse() },
+        )
+    }
+
+    private fun playRandomOsuSample(
+        onComplete: () -> Unit = {},
+        onError: (Throwable) -> Unit = {},
+    ) {
+        terminologySpeechPlayer.playRecording(
+            resourceId = osuSampleSelector.nextResourceId(),
+            onComplete = onComplete,
+            onError = onError,
         )
     }
 
     private fun requestReadyOsuResponse() {
         stopTerminologyVoiceWork()
-        if (!hasAudioPermission()) {
-            pendingAudioPermissionAction = PendingAudioPermissionAction.READY_OSU
-            audioPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+        stopReadyOsuSelfieCamera()
+        clearReadyOsuSelfie()
+        readyOsuController.beginCameraPreparation()
+        if (!hasCameraPermission() || !hasAudioPermission()) {
+            readyOsuPermissionLauncher.launch(arrayOf(
+                Manifest.permission.CAMERA,
+                Manifest.permission.RECORD_AUDIO,
+            ))
             return
         }
-        playReadyPromptAndListen()
+        beginReadyOsuSelfieAttempt()
+    }
+
+    private fun beginReadyOsuSelfieAttempt() {
+        val screen = readyOsuScreen ?: return
+        stopTerminologyVoiceWork()
+        stopReadyOsuSelfieCamera()
+        clearReadyOsuSelfie()
+        if (readyOsuController.state.phase != ReadyOsuPhase.PREPARING_CAMERA) {
+            readyOsuController.beginCameraPreparation()
+        }
+        val selfieCamera = ReadyOsuSelfieCamera(
+            context = this,
+            lifecycleOwner = this,
+            previewView = screen.cameraPreview,
+            onReady = {
+                if (readyOsuController.state.phase == ReadyOsuPhase.PREPARING_CAMERA) {
+                    playReadyPromptAndListen()
+                }
+            },
+            onCaptured = ::handleReadyOsuSelfieCaptured,
+            onFailure = ::handleReadyOsuSelfieCameraError,
+        )
+        readyOsuSelfieCamera = selfieCamera
+        selfieCamera.start()
     }
 
     private fun playReadyPromptAndListen() {
@@ -748,6 +811,12 @@ class MainActivity : AppCompatActivity() {
         shortCommandRecognizer.cancel()
         readyOsuController.beginChecking()
         readyOsuController.handleTranscripts(transcripts)
+        if (readyOsuController.state.phase == ReadyOsuPhase.CAPTURING) {
+            readyOsuSelfieCamera?.capture()
+                ?: handleReadyOsuSelfieCameraError(ReadyOsuSelfieCameraFailure.CAPTURE_FAILED)
+        } else {
+            stopReadyOsuSelfieCamera()
+        }
     }
 
     private fun handleReadyOsuRecognitionError(failure: SpeechRecognitionFailure) {
@@ -756,40 +825,88 @@ class MainActivity : AppCompatActivity() {
             SpeechRecognitionError.NO_SPEECH_DETECTED,
             SpeechRecognitionError.EMPTY_TRANSCRIPTION,
             SpeechRecognitionError.TIMEOUT,
-            -> readyOsuController.handleTranscripts(emptyList())
-            else -> readyOsuController.fail(failure.error)
+            -> {
+                readyOsuController.handleTranscripts(emptyList())
+                stopReadyOsuSelfieCamera()
+            }
+            else -> {
+                stopReadyOsuSelfieCamera()
+                readyOsuController.fail(failure.error)
+            }
         }
     }
 
     private fun stopReadyOsuListening() {
-        shortCommandRecognizer.cancel()
+        stopTerminologyVoiceWork()
+        stopReadyOsuSelfieCamera()
         readyOsuController.stopListening()
     }
 
     private fun cancelReadyOsuPrompt() {
         stopTerminologyVoiceWork()
+        stopReadyOsuSelfieCamera()
         readyOsuController.returnToModel()
     }
 
     private fun continueReadyOsuWithoutVoice() {
         stopTerminologyVoiceWork()
-        readyOsuController.continueWithoutVerification()
+        stopReadyOsuSelfieCamera()
+        clearReadyOsuSelfie()
+        readyOsuController.continueToResultWithoutSelfie()
     }
 
     private fun restartReadyOsuPractice() {
-        stopTerminologyVoiceWork()
+        stopTerminologyRunners()
+        clearReadyOsuSelfie()
         readyOsuController.restart()
         readyOsuController.start()
     }
 
+    private fun handleReadyOsuSelfieCaptured(bitmap: Bitmap) {
+        if (readyOsuController.state.phase != ReadyOsuPhase.CAPTURING || readyOsuScreen == null) {
+            bitmap.recycle()
+            return
+        }
+        clearReadyOsuSelfie()
+        readyOsuSelfieBitmap = bitmap
+        readyOsuScreen?.setSelfie(bitmap)
+        stopReadyOsuSelfieCamera()
+        readyOsuController.selfieCaptured()
+    }
+
+    private fun handleReadyOsuSelfieCameraError(failure: ReadyOsuSelfieCameraFailure) {
+        if (readyOsuScreen == null) return
+        stopTerminologyVoiceWork()
+        stopReadyOsuSelfieCamera()
+        readyOsuController.failCamera(when (failure) {
+            ReadyOsuSelfieCameraFailure.FRONT_CAMERA_UNAVAILABLE -> ReadyOsuCameraError.FRONT_CAMERA_UNAVAILABLE
+            ReadyOsuSelfieCameraFailure.CAPTURE_FAILED -> ReadyOsuCameraError.CAPTURE_FAILED
+        })
+    }
+
+    private fun stopReadyOsuSelfieCamera() {
+        readyOsuSelfieCamera?.close()
+        readyOsuSelfieCamera = null
+    }
+
+    private fun clearReadyOsuSelfie() {
+        readyOsuScreen?.clearSelfie()
+        readyOsuSelfieBitmap?.let { bitmap ->
+            if (!bitmap.isRecycled) bitmap.recycle()
+        }
+        readyOsuSelfieBitmap = null
+    }
+
     private fun exitReadyOsu() {
         stopTerminologyRunners()
+        clearReadyOsuSelfie()
         dismissReadyOsu()
         showKarateBasicsPath()
     }
 
     private fun continueFromReadyOsu() {
         stopTerminologyRunners()
+        clearReadyOsuSelfie()
         dismissReadyOsu()
         openStopCount(karateBasicsPathPosition("stop-session"))
     }
@@ -992,6 +1109,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun stopTerminologyRunners() {
         stopTerminologyVoiceWork()
+        stopReadyOsuSelfieCamera()
         cancelStopCountPlayback()
         if (pendingAudioPermissionAction != PendingAudioPermissionAction.JAPANESE_COUNT_TEST) {
             pendingAudioPermissionAction = null
@@ -2808,9 +2926,11 @@ class MainActivity : AppCompatActivity() {
         if (cameraSetupActive) closeCameraSetupSession()
         if (punchHeightActive) cancelPunchHeightSession()
         val readyOsuWasInFlight = readyOsuScreen != null && readyOsuController.state.phase in setOf(
+            ReadyOsuPhase.PREPARING_CAMERA,
             ReadyOsuPhase.PROMPTING,
             ReadyOsuPhase.LISTENING,
             ReadyOsuPhase.CHECKING,
+            ReadyOsuPhase.CAPTURING,
         )
         val stopCountWasInFlight = stopCountScreen != null && stopCountController.state.phase == StopCountPhase.COUNTING
         stopTerminologyRunners()
@@ -2844,6 +2964,8 @@ class MainActivity : AppCompatActivity() {
 
     override fun onDestroy() {
         cancelPendingFindYourWeaponAdvance()
+        stopReadyOsuSelfieCamera()
+        clearReadyOsuSelfie()
         if (::shortCommandRecognizer.isInitialized) {
             shortCommandRecognizer.release()
         }

@@ -1,11 +1,14 @@
 package dk.lasse.karatecliprecorder.learning
 
 import android.content.Context
+import android.media.MediaPlayer
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.speech.tts.TextToSpeech
 import android.speech.tts.UtteranceProgressListener
+import androidx.annotation.RawRes
+import java.io.IOException
 import java.util.Locale
 import java.util.concurrent.atomic.AtomicLong
 
@@ -16,18 +19,21 @@ data class TerminologyPrompt(
 
 /** Small prompt player for terminology activities; it owns no activity state or recognition. */
 class TerminologySpeechPlayer(context: Context) : AutoCloseable {
+    private val appContext = context.applicationContext
     private val requestIds = AtomicLong(0L)
     private val mainHandler = Handler(Looper.getMainLooper())
     private var tts: TextToSpeech? = null
+    private var recordingPlayer: MediaPlayer? = null
     private var ready = false
     private var closed = false
     private var pendingRequest: (() -> Unit)? = null
+    private var activeRequestId: Long? = null
     private var activeLastUtteranceId: String? = null
     private var activeOnComplete: (() -> Unit)? = null
     private var activeOnError: ((Throwable) -> Unit)? = null
 
     init {
-        tts = TextToSpeech(context.applicationContext) { status ->
+        tts = TextToSpeech(appContext) { status ->
             if (closed) return@TextToSpeech
             ready = status == TextToSpeech.SUCCESS
             if (ready) {
@@ -70,6 +76,7 @@ class TerminologySpeechPlayer(context: Context) : AutoCloseable {
             return
         }
         val requestId = requestIds.incrementAndGet()
+        activeRequestId = requestId
         activeLastUtteranceId = utteranceId(requestId, prompts.lastIndex)
         activeOnComplete = onComplete
         activeOnError = onError
@@ -92,12 +99,63 @@ class TerminologySpeechPlayer(context: Context) : AutoCloseable {
         if (ready) request() else pendingRequest = request
     }
 
+    fun playRecording(
+        @RawRes resourceId: Int,
+        onComplete: () -> Unit = {},
+        onError: (Throwable) -> Unit = {},
+    ) {
+        stop()
+        val requestId = requestIds.incrementAndGet()
+        activeRequestId = requestId
+        activeOnComplete = onComplete
+        activeOnError = onError
+        if (closed) {
+            finishError(IllegalStateException("Terminology audio player is closed."))
+            return
+        }
+        val player = try {
+            MediaPlayer.create(appContext, resourceId)
+                ?: throw IOException("Recorded terminology audio is unavailable.")
+        } catch (error: Throwable) {
+            finishError(error)
+            return
+        }
+        recordingPlayer = player
+        player.setOnCompletionListener { completedPlayer ->
+            if (recordingPlayer !== completedPlayer) return@setOnCompletionListener
+            recordingPlayer = null
+            completedPlayer.release()
+            finishSuccess()
+        }
+        player.setOnErrorListener { failedPlayer, what, extra ->
+            if (recordingPlayer !== failedPlayer) return@setOnErrorListener true
+            recordingPlayer = null
+            failedPlayer.release()
+            finishError(IOException("Recorded terminology playback failed (what=$what, extra=$extra)."))
+            true
+        }
+        try {
+            player.start()
+        } catch (error: Throwable) {
+            if (recordingPlayer === player) recordingPlayer = null
+            runCatching { player.release() }
+            finishError(error)
+        }
+    }
+
     fun stop() {
+        requestIds.incrementAndGet()
         pendingRequest = null
+        activeRequestId = null
         activeLastUtteranceId = null
         activeOnComplete = null
         activeOnError = null
         tts?.stop()
+        recordingPlayer?.let { player ->
+            runCatching { player.stop() }
+            runCatching { player.release() }
+        }
+        recordingPlayer = null
     }
 
     override fun close() {
@@ -109,19 +167,31 @@ class TerminologySpeechPlayer(context: Context) : AutoCloseable {
     }
 
     private fun finishSuccess() {
+        val requestId = activeRequestId ?: return
         val callback = activeOnComplete
+        activeRequestId = null
         activeLastUtteranceId = null
         activeOnComplete = null
         activeOnError = null
-        callback?.let { onComplete -> mainHandler.post { onComplete() } }
+        callback?.let { onComplete ->
+            mainHandler.post {
+                if (!closed && requestIds.get() == requestId) onComplete()
+            }
+        }
     }
 
     private fun finishError(error: Throwable) {
+        val requestId = activeRequestId ?: return
         val callback = activeOnError
+        activeRequestId = null
         activeLastUtteranceId = null
         activeOnComplete = null
         activeOnError = null
-        callback?.let { onError -> mainHandler.post { onError(error) } }
+        callback?.let { onError ->
+            mainHandler.post {
+                if (!closed && requestIds.get() == requestId) onError(error)
+            }
+        }
     }
 
     private fun utteranceId(requestId: Long, index: Int) = "terminology-$requestId-$index"
