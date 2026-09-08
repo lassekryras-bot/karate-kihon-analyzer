@@ -141,6 +141,17 @@ the operative baseline.
 
 ## Navigation and lifecycle
 
+The bottom-navigation Train destination is now a passive, non-scrolling mode
+chooser with three equally sized cards: Learn, Practice, and Skill Coach.
+Home's Learn shortcut opens the learning catalogue directly; Train's Learn card
+opens that same catalogue. Back from the catalogue returns to Train. The
+measurement wiki and pathways remain in the catalogue, while Continue Learning
+appears only on Home. Practice and Skill Coach show a short Coming soon message
+from both Home and Train; they no longer open the legacy training destination.
+Their card descriptions express the planned direction, not implemented exercise
+planning or coaching flows. These entry points start no camera, microphone, or
+permission flow.
+
 Implemented host behavior includes:
 
 - stopping active training before opening counting practice/test;
@@ -303,3 +314,8 @@ Current limitations:
 Before claiming release readiness, run native compilation, View/presentation
 tests, screenshot/layout review, TalkBack and large-text checks, and real-device
 voice/camera/interruption matrices.
+
+Profile management can reset all persisted learning-progress rows for a selected
+profile after confirmation. Activities return to their not-started state; session
+history, calibration and other profiles are preserved. Active-profile observers
+are notified so progress-dependent screens refresh.

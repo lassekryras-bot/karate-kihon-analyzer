@@ -7,6 +7,31 @@ import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 class ProfileContractTest {
+    @Test fun everyAvatarHasOnePrecomputedTransparencyMask() {
+        val assets = File(locateSourceRoot(), "../../../../assets/avatars")
+        Profile.AVATAR_BASE_IDS.forEach { id ->
+            val xml = File(assets, "$id.xml").readText()
+            assertEquals(1, Regex("<mask-path ").findAll(xml).count(), id)
+            assertTrue(xml.contains("<mask-path operation=\"union\""), id)
+        }
+    }
+    @Test fun portraitBackgroundBelongsToItsHost() {
+        val renderer = File(locateSourceRoot(), "profile/AvatarView.kt").readText()
+        val shortcut = File(locateSourceRoot(), "profile/ProfileAvatarButton.kt").readText()
+        assertFalse(renderer.contains("canvas.drawColor"))
+        assertTrue(renderer.contains("asset.mask?.let(canvas::clipPath)"))
+        assertTrue(shortcut.contains("shape = GradientDrawable.OVAL"))
+        assertTrue(shortcut.contains("R.color.profile_avatar_background"))
+    }
+    @Test fun carouselSettlesOnlyAfterADeliberateDrag() {
+        assertEquals(0, AvatarCarouselModel.settledDelta(20f, 100f))
+        assertEquals(0, AvatarCarouselModel.settledDelta(-20f, 100f))
+        assertEquals(1, AvatarCarouselModel.settledDelta(-40f, 100f))
+        assertEquals(-1, AvatarCarouselModel.settledDelta(40f, 100f))
+        assertEquals(0, AvatarCarouselModel.settledDelta(40f, 0f))
+        assertEquals(11, AvatarCarouselModel.move(0, -1))
+        assertEquals(0, AvatarCarouselModel.move(11, 1))
+    }
     @Test
     fun beltRankOrderMatchesKyokushinMvpContract() {
         assertEquals(

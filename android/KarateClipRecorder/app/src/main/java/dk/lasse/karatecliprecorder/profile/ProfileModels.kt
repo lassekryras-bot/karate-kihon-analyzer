@@ -43,6 +43,8 @@ data class Profile(
     val experienceLevel: ExperienceLevel? = null,
     val createdAt: Long = System.currentTimeMillis(),
     val updatedAt: Long = createdAt,
+    val forearmLengthCm: Float? = null,
+    val lowerLegLengthCm: Float? = null,
 ) {
     init {
         require(name.isNotBlank()) { "Profile name cannot be blank" }
@@ -50,6 +52,8 @@ data class Profile(
         require(skinTonePosition in 0f..1f) { "Skin tone must be normalized" }
         require(hairColorPosition in 0f..1f) { "Hair color must be normalized" }
         require(heightCm == null || heightCm > 0f) { "Height must be positive" }
+        require(forearmLengthCm == null || forearmLengthCm.isFinite() && forearmLengthCm > 0f)
+        require(lowerLegLengthCm == null || lowerLegLengthCm.isFinite() && lowerLegLengthCm > 0f)
     }
 
     companion object {

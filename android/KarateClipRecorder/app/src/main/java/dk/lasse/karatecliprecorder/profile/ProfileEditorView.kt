@@ -28,7 +28,6 @@ class ProfileEditorView(
     private val editing: Profile?,
     private val onBack: () -> Unit,
     private val onSaved: (Profile) -> Unit,
-    private val onDeleted: () -> Unit,
 ) : FrameLayout(context) {
     private val original = editing
     private var gender = editing?.gender ?: Gender.FEMALE
@@ -37,7 +36,9 @@ class ProfileEditorView(
     private var skinPosition = editing?.skinTonePosition ?: 0.5f
     private var hairPosition = editing?.hairColorPosition ?: 0.35f
     private var beltRank = editing?.beltRank ?: BeltRank.WHITE
-    private val preview = AvatarView(context)
+    private val preview = AvatarView(context).apply {
+        setBackgroundColor(ContextCompat.getColor(context, R.color.app_card_surface))
+    }
     private val nameInput = EditText(context)
     private val genderChoices = LinearLayout(context)
     private val ageChoices = LinearLayout(context)
@@ -50,9 +51,7 @@ class ProfileEditorView(
         title = if (createMode) "Add new profile" else "Edit profile",
         subtitle = if (createMode) {
             "Create a trainee profile to save progress and personal results."
-        } else {
-            "Update profile details without changing training data."
-        },
+        } else null,
         onBack = onBack,
     )
 
@@ -92,10 +91,6 @@ class ProfileEditorView(
                 addView(choiceBlock("Gender", genderChoices), LinearLayout.LayoutParams(0, LayoutParams.WRAP_CONTENT, 1f).apply { marginEnd = 8.dp() })
                 addView(choiceBlock("Age group", ageChoices), LinearLayout.LayoutParams(0, LayoutParams.WRAP_CONTENT, 1f).apply { marginStart = 8.dp() })
             }, LinearLayout.LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT).apply { topMargin = 18.dp() })
-            addView(context.profileText("Gender and age group are saved in the profile. Characters are not filtered.", 13f).apply {
-                setTextColor(ContextCompat.getColor(context, R.color.app_text_secondary))
-                setPadding(0, 14.dp(), 0, 0)
-            })
         })
         renderIdentityChoices()
 
@@ -105,11 +100,7 @@ class ProfileEditorView(
         content.addView(beltSection(), LinearLayout.LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT).apply { topMargin = 12.dp() })
         content.addView(context.primaryProfileButton(if (createMode) "✓  Save profile" else "✓  Save changes", ::save),
             LinearLayout.LayoutParams(LayoutParams.MATCH_PARENT, 54.dp()).apply { topMargin = 16.dp() })
-        if (!createMode) {
-            content.addView(context.outlinedChoice("Delete profile", false, ::confirmDelete).apply {
-                setTextColor(ContextCompat.getColor(context, R.color.app_accent))
-            }, LinearLayout.LayoutParams(LayoutParams.MATCH_PARENT, 50.dp()).apply { topMargin = 12.dp() })
-        }
+
     }
 
     private fun choiceBlock(title: String, container: LinearLayout) = LinearLayout(context).apply {
@@ -138,18 +129,39 @@ class ProfileEditorView(
     }
 
     private fun characterSection() = sectionCard().apply {
+        clipToPadding = false
+        foreground = GradientDrawable().apply {
+            setColor(android.graphics.Color.TRANSPARENT)
+            cornerRadius = 14.dp().toFloat()
+            setStroke(1.dp(), ContextCompat.getColor(context, R.color.app_border))
+        }
         addView(LinearLayout(context).apply {
             gravity = Gravity.CENTER_VERTICAL
             addView(context.profileText("Choose character", 16f, bold = true), LinearLayout.LayoutParams(0, LayoutParams.WRAP_CONTENT, 1f))
-            addView(context.profileText("See all  ›\nComing soon", 13f, gravity = Gravity.END).apply {
-                isEnabled = false
-                alpha = 0.6f
-                contentDescription = "See all characters, coming soon"
+            addView(LinearLayout(context).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = Gravity.CENTER
+                setPadding(6.dp(), 0, 6.dp(), 0)
+                minimumHeight = 48.dp()
+                minimumWidth = 80.dp()
+                isClickable = true
+                isFocusable = true
+                contentDescription = "See all characters"
+                addView(context.profileText("See all", 14f).apply {
+                    importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
+                })
+                addView(AppIconView(context, AppIcon.CHEVRON_RIGHT).apply {
+                    setIconColor(ContextCompat.getColor(context, R.color.app_text_secondary))
+                    importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
+                }, LinearLayout.LayoutParams(16.dp(), 16.dp()).apply { marginStart = 4.dp() })
+                setOnClickListener { showAllCharacters() }
             })
         })
-        addView(carousel.apply {
-            orientation = LinearLayout.HORIZONTAL
-        }, LinearLayout.LayoutParams(LayoutParams.MATCH_PARENT, 126.dp()).apply { topMargin = 10.dp() })
+        addView(carousel, LinearLayout.LayoutParams(LayoutParams.MATCH_PARENT, 148.dp()).apply {
+            topMargin = 10.dp()
+            marginStart = -14.dp()
+            marginEnd = -14.dp()
+        })
         addView(context.profileText("Swipe left or right to browse characters.", 13f, gravity = Gravity.CENTER).apply {
             setTextColor(ContextCompat.getColor(context, R.color.app_text_secondary))
         }, LinearLayout.LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT).apply { topMargin = 8.dp() })
@@ -162,29 +174,22 @@ class ProfileEditorView(
         AvatarCarouselModel.visibleBaseIds(selectedIndex).forEachIndexed { visibleIndex, baseId ->
             val selected = visibleIndex == 2
             carousel.addView(FrameLayout(context).apply {
-                val inset = if (selected) 0 else 5.dp()
-                setPadding(inset, if (selected) 0 else 8.dp(), inset, if (selected) 0 else 8.dp())
                 background = GradientDrawable().apply {
                     setColor(ContextCompat.getColor(context, R.color.app_card_surface))
                     cornerRadius = 10.dp().toFloat()
-                    setStroke((if (selected) 2 else 1).dp(), ContextCompat.getColor(context, if (selected) R.color.app_accent else R.color.app_border))
                 }
+                clipToOutline = true
+                isSelected = selected
                 addView(AvatarView(context).apply {
                     setAvatar(baseId, skinPosition, hairPosition, beltRank)
-                    bottomCropFraction = 0.22f
+                    portraitCrop = true
                     importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
                 }, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT))
                 isClickable = true
                 isFocusable = true
                 contentDescription = if (selected) "$baseId selected" else "Select $baseId"
-                setOnClickListener {
-                    avatarBaseId = baseId
-                    updatePreview()
-                    renderCarousel()
-                }
-            }, LinearLayout.LayoutParams(0, LayoutParams.MATCH_PARENT, 1f).apply {
-                if (visibleIndex > 0) marginStart = 3.dp()
-            })
+                setOnClickListener { carousel.selectOffset(visibleIndex - 2) }
+            }, FrameLayout.LayoutParams(LayoutParams.WRAP_CONTENT, LayoutParams.MATCH_PARENT))
         }
     }
 
@@ -193,6 +198,63 @@ class ProfileEditorView(
         avatarBaseId = Profile.AVATAR_BASE_IDS[AvatarCarouselModel.move(current, delta)]
         updatePreview()
         renderCarousel()
+    }
+
+    private fun showAllCharacters() {
+        val grid = LinearLayout(context).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(12.dp(), 8.dp(), 12.dp(), 8.dp())
+        }
+        fun renderGrid() {
+            grid.removeAllViews()
+            Profile.AVATAR_BASE_IDS.chunked(3).forEach { rowIds ->
+                grid.addView(LinearLayout(context).apply {
+                    orientation = LinearLayout.HORIZONTAL
+                    rowIds.forEachIndexed { index, baseId ->
+                        val selected = baseId == avatarBaseId
+                        addView(FrameLayout(context).apply {
+                            background = GradientDrawable().apply {
+                                setColor(ContextCompat.getColor(context, R.color.app_card_surface))
+                                cornerRadius = 10.dp().toFloat()
+                            }
+                            clipToOutline = true
+                            foreground = GradientDrawable().apply {
+                                setColor(android.graphics.Color.TRANSPARENT)
+                                cornerRadius = 10.dp().toFloat()
+                                setStroke((if (selected) 2 else 1).dp(), ContextCompat.getColor(context,
+                                    if (selected) R.color.app_accent else R.color.app_border))
+                            }
+                            addView(AvatarView(context).apply {
+                                portraitCrop = true
+                                setAvatar(baseId, skinPosition, hairPosition, beltRank)
+                                importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
+                            }, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT))
+                            isSelected = selected
+                            isClickable = true
+                            isFocusable = true
+                            contentDescription = "Character ${Profile.AVATAR_BASE_IDS.indexOf(baseId) + 1}" + if (selected) ", selected" else ""
+                            setOnClickListener {
+                                avatarBaseId = baseId
+                                updatePreview()
+                                renderCarousel()
+                                renderGrid()
+                            }
+                        }, LinearLayout.LayoutParams(0, 136.dp(), 1f).apply {
+                            if (index > 0) marginStart = 8.dp()
+                        })
+                    }
+                }, LinearLayout.LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT).apply {
+                    bottomMargin = 8.dp()
+                })
+            }
+        }
+        renderGrid()
+        val scroller = android.widget.ScrollView(context).apply { addView(grid) }
+        AlertDialog.Builder(context)
+            .setTitle("Choose character")
+            .setView(scroller)
+            .setPositiveButton("Done", null)
+            .show()
     }
 
     private fun sliderSection(title: String, skin: Boolean) = sectionCard().apply {
@@ -215,10 +277,10 @@ class ProfileEditorView(
     }
 
     private fun beltSection() = sectionCard().apply {
-        addView(context.profileText("Current belt (rank)", 16f, bold = true))
+        addView(context.profileText("Current belt", 16f, bold = true))
         addView(beltChoices.apply { orientation = LinearLayout.HORIZONTAL },
             LinearLayout.LayoutParams(LayoutParams.MATCH_PARENT, 56.dp()).apply { topMargin = 10.dp() })
-        addView(context.profileText("Belt color is also used for matching accessories such as hair ties.", 13f).apply {
+        addView(context.profileText("Accessories match your belt color.", 13f).apply {
             setTextColor(ContextCompat.getColor(context, R.color.app_text_secondary))
             setPadding(0, 8.dp(), 0, 0)
         })
@@ -251,9 +313,9 @@ class ProfileEditorView(
         addView(AppIconView(
             context,
             AppIcon.KARATE_BELT,
-            sizeDp = 28,
+            sizeDp = 36,
             tint = ColorStateList.valueOf(beltIconColor(rank)),
-        ), LinearLayout.LayoutParams(28.dp(), 28.dp()))
+        ), LinearLayout.LayoutParams(36.dp(), 36.dp()))
         contentDescription = "${rank.displayName} belt${if (selected) ", selected" else ""}"
         isClickable = true
         isFocusable = true
@@ -302,19 +364,6 @@ class ProfileEditorView(
         if (original == null) repository.switchActiveProfile(saved.id)
         Toast.makeText(context, if (original == null) "Profile saved" else "Changes saved", Toast.LENGTH_SHORT).show()
         onSaved(saved)
-    }
-
-    private fun confirmDelete() {
-        val profile = original ?: return
-        AlertDialog.Builder(context)
-            .setTitle("Delete ${profile.name}?")
-            .setMessage("This removes this trainee's progress, sessions and calibration data from this device.")
-            .setNegativeButton("Cancel", null)
-            .setPositiveButton("Delete") { _, _ ->
-                repository.deleteProfile(profile.id)
-                onDeleted()
-            }
-            .show()
     }
 
     private fun sectionCard() = LinearLayout(context).apply {

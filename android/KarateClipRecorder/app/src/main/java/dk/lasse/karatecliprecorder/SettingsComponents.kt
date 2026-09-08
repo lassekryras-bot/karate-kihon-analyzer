@@ -20,7 +20,6 @@ import androidx.core.view.accessibility.AccessibilityNodeInfoCompat
 class SettingsCardView(context: Context) : LinearLayout(context) {
     init {
         orientation = VERTICAL
-        elevation = 1.dp().toFloat()
         background = GradientDrawable().apply {
             setColor(ContextCompat.getColor(context, R.color.app_card_surface))
             cornerRadius = 16.dp().toFloat()
@@ -44,7 +43,7 @@ class SettingsCardView(context: Context) : LinearLayout(context) {
 }
 
 /** Section heading and its single settings card. */
-class SettingsSectionView(context: Context, heading: String) : LinearLayout(context) {
+class SettingsSectionView(context: Context, heading: String, first: Boolean = false) : LinearLayout(context) {
     private val card = SettingsCardView(context)
 
     init {
@@ -57,7 +56,7 @@ class SettingsSectionView(context: Context, heading: String) : LinearLayout(cont
             setTextColor(ContextCompat.getColor(context, R.color.app_text_secondary))
             ViewCompat.setAccessibilityHeading(this, true)
         }, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT).apply {
-            topMargin = 22.dp()
+            topMargin = if (first) 0 else 22.dp()
             bottomMargin = 8.dp()
             marginStart = 2.dp()
         })

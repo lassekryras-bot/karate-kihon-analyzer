@@ -19,22 +19,20 @@ class SettingsScreenView(
     private val onProfile: () -> Unit,
     private val preferences: AppPreferences,
     private val hasCameraPermission: () -> Boolean,
+    private val hasMicrophonePermission: () -> Boolean,
+    private val onMicrophonePermissionRequest: () -> Unit,
     private val onHome: () -> Unit,
     private val onTrain: () -> Unit,
     private val onProgress: () -> Unit,
-    private val onCameraSetup: () -> Unit,
     private val onCameraPermissionRequest: () -> Unit,
-    private val onTrainingData: () -> Unit,
-    private val onClearTrainingHistory: () -> Unit,
     private val onDeveloperModeChanged: (Boolean) -> Unit,
     private val onCameraDebug: () -> Unit,
     private val onLearningUiDebug: () -> Unit,
     private val onAbout: () -> Unit,
-    private val onHelp: () -> Unit,
-    private val onPrivacy: () -> Unit,
     private val onThemeChanged: (AppTheme) -> Unit,
 ) : FrameLayout(context) {
     private lateinit var cameraPermissionRow: SettingsRowView
+    private lateinit var microphonePermissionRow: SettingsRowView
     private lateinit var trainingSoundsSwitch: SwitchCompat
     private lateinit var voiceGuidanceSwitch: SwitchCompat
     private lateinit var developerModeSwitch: SwitchCompat
@@ -53,11 +51,10 @@ class SettingsScreenView(
 
         val content = LinearLayout(context).apply {
             orientation = LinearLayout.VERTICAL
-            addView(cameraAndAnalysisSection())
+            addView(permissionsSection())
             addView(soundAndVoiceSection())
             addView(trainingPreferencesSection())
             addView(appearanceSection())
-            addView(dataAndPrivacySection())
             addView(developerSection())
             addView(aboutSection())
         }
@@ -85,6 +82,13 @@ class SettingsScreenView(
     fun refresh() {
         if (!::cameraPermissionRow.isInitialized) return
         refreshCameraPermissionState()
+        if (hasMicrophonePermission()) {
+            microphonePermissionRow.setStatus("Allowed", ContextCompat.getColor(context, R.color.app_success), AppIcon.SHIELD_CHECK)
+            microphonePermissionRow.clearAction()
+        } else {
+            microphonePermissionRow.setStatus("Not allowed", ContextCompat.getColor(context, R.color.app_text_secondary))
+            microphonePermissionRow.setAction(onMicrophonePermissionRequest, "Not allowed. Tap to allow")
+        }
         syncSwitch(trainingSoundsSwitch, preferences.trainingSounds)
         syncSwitch(voiceGuidanceSwitch, preferences.voiceGuidance)
         syncSwitch(developerModeSwitch, preferences.developerMode)
@@ -111,13 +115,7 @@ class SettingsScreenView(
         }
     }
 
-    private fun cameraAndAnalysisSection() = SettingsSectionView(context, "CAMERA & ANALYSIS").apply {
-        addRow(SettingsRowView(
-            context,
-            AppIcon.CAMERA,
-            "Camera setup",
-            "Get the best results from your camera",
-        ).apply { configureAsNavigation(onClick = onCameraSetup) })
+    private fun permissionsSection() = SettingsSectionView(context, "PERMISSIONS", first = true).apply {
         cameraPermissionRow = SettingsRowView(
             context,
             AppIcon.SHIELD_CHECK,
@@ -125,6 +123,8 @@ class SettingsScreenView(
             "Access to camera for analysis",
         )
         addRow(cameraPermissionRow)
+        microphonePermissionRow = SettingsRowView(context, AppIcon.MICROPHONE, "Microphone permission", "Access for spoken responses")
+        addRow(microphonePermissionRow)
     }
 
     private fun soundAndVoiceSection() = SettingsSectionView(context, "SOUND & VOICE").apply {
@@ -148,6 +148,9 @@ class SettingsScreenView(
                 preferences.voiceGuidance = enabled
             }
         })
+    }
+
+    private fun trainingPreferencesSection() = SettingsSectionView(context, "TRAINING PREFERENCES").apply {
         addRow(SettingsRowView(
             context,
             AppIcon.CLOCK,
@@ -159,9 +162,6 @@ class SettingsScreenView(
                 onClick = ::showCountdownDialog,
             ))
         })
-    }
-
-    private fun trainingPreferencesSection() = SettingsSectionView(context, "TRAINING PREFERENCES").apply {
         addRow(SettingsRowView(
             context,
             AppIcon.CLOCK,
@@ -187,21 +187,6 @@ class SettingsScreenView(
                 onClick = ::showThemeDialog,
             ))
         })
-    }
-
-    private fun dataAndPrivacySection() = SettingsSectionView(context, "DATA & PRIVACY").apply {
-        addRow(SettingsRowView(
-            context,
-            AppIcon.DATABASE,
-            "Training data",
-            "Manage how your training data is stored",
-        ).apply { configureAsNavigation(onClick = onTrainingData) })
-        addRow(SettingsRowView(
-            context,
-            AppIcon.TRASH,
-            "Clear training history",
-            "Remove all training sessions and results",
-        ).apply { configureAsNavigation(onClick = onClearTrainingHistory) })
     }
 
     private fun developerSection() = SettingsSectionView(context, "DEVELOPER & DEBUG").apply {
@@ -237,18 +222,6 @@ class SettingsScreenView(
             "About Karate Kihon Analyzer",
             "App information and version",
         ).apply { configureAsNavigation(onClick = onAbout) })
-        addRow(SettingsRowView(
-            context,
-            AppIcon.HELP_CIRCLE,
-            "Help & how it works",
-            "Learn more about the app",
-        ).apply { configureAsNavigation(onClick = onHelp) })
-        addRow(SettingsRowView(
-            context,
-            AppIcon.SHIELD,
-            "Privacy",
-            "Privacy and data information",
-        ).apply { configureAsNavigation(onClick = onPrivacy) })
     }
 
     private fun showCountdownDialog() {

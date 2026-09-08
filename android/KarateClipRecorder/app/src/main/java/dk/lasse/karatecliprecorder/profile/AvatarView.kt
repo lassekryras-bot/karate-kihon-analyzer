@@ -23,6 +23,13 @@ class AvatarView @JvmOverloads constructor(
     private var skinTonePosition = 0.5f
     private var hairColorPosition = 0.35f
     private var beltRank = BeltRank.WHITE
+    var showPortraitOutline: Boolean = true
+        set(value) { field = value; invalidate() }
+    var portraitCrop: Boolean = false
+        set(value) {
+            field = value
+            invalidate()
+        }
 
     /** Set above zero for carousel thumbnails that should de-emphasize the belt. */
     var bottomCropFraction: Float = 0f
@@ -47,35 +54,55 @@ class AvatarView @JvmOverloads constructor(
 
     override fun onDraw(canvas: Canvas) {
         super.onDraw(canvas)
-        // Always provide a fully opaque square canvas behind the circular avatar backdrop.
-        canvas.drawColor(ContextCompat.getColor(context, R.color.app_card_surface))
+        // The portrait is transparent; its host owns the card or circular shortcut surface.
         val asset = loadAsset(context, avatarBaseId)
         val visibleHeight = asset.height * (1f - bottomCropFraction)
-        val scale = minOf(width / asset.width, height / visibleHeight)
+        val scale = if (portraitCrop) {
+            maxOf(width / (asset.width * 0.6f), height / (asset.height * 0.66f))
+        } else minOf(width / asset.width, height / visibleHeight)
         val dx = (width - asset.width * scale) / 2f
-        val dy = (height - visibleHeight * scale) / 2f
+        val dy = if (portraitCrop) -asset.height * 0.02f * scale else (height - visibleHeight * scale) / 2f
         val save = canvas.save()
         canvas.clipRect(0f, 0f, width.toFloat(), height.toFloat())
+        val outlineRadius = minOf(width, height) * 0.49f
+        val outlineX = width / 2f
+        val outlineY = height / 2f
+        if (showPortraitOutline && !portraitCrop) {
+            canvas.clipPath(Path().apply {
+                addCircle(outlineX, outlineY, outlineRadius, Path.Direction.CW)
+            })
+        }
         canvas.translate(dx, dy)
         canvas.scale(scale, scale)
+        asset.mask?.let(canvas::clipPath)
         asset.paths.forEach { avatarPath ->
             paint.color = colorFor(avatarPath)
             canvas.drawPath(avatarPath.path, paint)
         }
         canvas.restoreToCount(save)
+        if (showPortraitOutline && !portraitCrop) {
+            paint.style = Paint.Style.STROKE
+            paint.strokeWidth = resources.displayMetrics.density * 1.5f
+            paint.color = ContextCompat.getColor(context, R.color.app_border)
+            canvas.drawCircle(
+                outlineX,
+                outlineY,
+                outlineRadius,
+                paint,
+            )
+            paint.style = Paint.Style.FILL
+        }
     }
 
     private fun colorFor(path: AvatarPath): Int = when (path.role) {
         "skin" -> AvatarPalette.shade(AvatarPalette.skin(skinTonePosition), path.tone)
         "hair" -> AvatarPalette.shade(AvatarPalette.hair(hairColorPosition), path.tone)
         "belt" -> AvatarPalette.shade(AvatarPalette.belt(beltRank), path.tone)
-        // Background paths form the inner circle. Keep every layer at one opaque color so
-        // neither the avatar canvas nor its parent surface can show through.
         "background" -> ContextCompat.getColor(context, R.color.profile_avatar_background)
         else -> Color.rgb(path.red, path.green, path.blue)
     }
 
-    private data class AvatarAsset(val width: Float, val height: Float, val paths: List<AvatarPath>)
+    private data class AvatarAsset(val width: Float, val height: Float, val paths: List<AvatarPath>, val mask: Path?)
     private data class AvatarPath(
         val role: String,
         val tone: Float,
@@ -95,9 +122,17 @@ class AvatarView @JvmOverloads constructor(
                 var width = 1f
                 var height = 1f
                 val paths = mutableListOf<AvatarPath>()
+                var mask: Path? = null
                 while (parser.next() != XmlPullParser.END_DOCUMENT) {
                     if (parser.eventType != XmlPullParser.START_TAG) continue
                     when (parser.name) {
+                        "mask-path" -> {
+                            val region = requireNotNull(PathParser.createPathFromPathData(parser.attribute("data")))
+                            require(mask == null && parser.attribute("operation") == "union") {
+                                "Avatar transparency must be precomputed"
+                            }
+                            mask = region
+                        }
                         "avatar" -> {
                             width = parser.attribute("width").toFloat()
                             height = parser.attribute("height").toFloat()
@@ -112,7 +147,7 @@ class AvatarView @JvmOverloads constructor(
                         )
                     }
                 }
-                AvatarAsset(width, height, paths)
+                AvatarAsset(width, height, paths, mask)
             }
         }
 

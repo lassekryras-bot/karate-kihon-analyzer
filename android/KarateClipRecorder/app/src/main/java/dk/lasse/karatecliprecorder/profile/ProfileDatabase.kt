@@ -26,7 +26,12 @@ internal class ProfileDatabase(context: Context) : SQLiteOpenHelper(
         db.execSQL("CREATE INDEX calibration_profile_idx ON calibrations(profile_id, updated_at DESC)")
     }
 
-    override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) = Unit
+    override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
+        if (oldVersion < 2) {
+            db.execSQL("ALTER TABLE profiles ADD COLUMN forearm_length_cm REAL")
+            db.execSQL("ALTER TABLE profiles ADD COLUMN lower_leg_length_cm REAL")
+        }
+    }
 
     fun profiles(): List<Profile> = readableDatabase.query(
         "profiles", null, null, null, null, null, "created_at ASC",
@@ -48,6 +53,10 @@ internal class ProfileDatabase(context: Context) : SQLiteOpenHelper(
 
     fun deleteProfile(id: String): Boolean = writableDatabase.delete("profiles", "id = ?", arrayOf(id)) == 1
 
+    fun resetLearningProgress(profileId: String) {
+        writableDatabase.delete("learning_progress", "profile_id = ?", arrayOf(profileId))
+    }
+
     fun upsertLearningProgress(progress: LearningProgress) {
         writableDatabase.insertWithOnConflict(
             "learning_progress", null, progress.values(), SQLiteDatabase.CONFLICT_REPLACE,
@@ -66,8 +75,8 @@ internal class ProfileDatabase(context: Context) : SQLiteOpenHelper(
         "training_sessions", null, "profile_id = ?", arrayOf(profileId), null, null, "started_at DESC",
     ).use { cursor -> buildList { while (cursor.moveToNext()) add(cursor.trainingSession()) } }
 
-    fun clearTrainingSessions() {
-        writableDatabase.delete("training_sessions", null, null)
+    fun clearTrainingSessions(profileId: String) {
+        writableDatabase.delete("training_sessions", "profile_id = ?", arrayOf(profileId))
     }
 
     fun upsertCalibration(calibration: Calibration) {
@@ -90,6 +99,8 @@ internal class ProfileDatabase(context: Context) : SQLiteOpenHelper(
         put("hair_color_position", hairColorPosition)
         put("belt_rank", beltRank.name)
         heightCm?.let { put("height_cm", it) } ?: putNull("height_cm")
+        forearmLengthCm?.let { put("forearm_length_cm", it) } ?: putNull("forearm_length_cm")
+        lowerLegLengthCm?.let { put("lower_leg_length_cm", it) } ?: putNull("lower_leg_length_cm")
         dominantSide?.let { put("dominant_side", it.name) } ?: putNull("dominant_side")
         experienceLevel?.let { put("experience_level", it.name) } ?: putNull("experience_level")
         put("created_at", createdAt)
@@ -133,6 +144,8 @@ internal class ProfileDatabase(context: Context) : SQLiteOpenHelper(
         hairColorPosition = float("hair_color_position"),
         beltRank = BeltRank.valueOf(string("belt_rank")),
         heightCm = nullableFloat("height_cm"),
+        forearmLengthCm = nullableFloat("forearm_length_cm"),
+        lowerLegLengthCm = nullableFloat("lower_leg_length_cm"),
         dominantSide = nullableString("dominant_side")?.let(DominantSide::valueOf),
         experienceLevel = nullableString("experience_level")?.let(ExperienceLevel::valueOf),
         createdAt = long("created_at"),
@@ -176,7 +189,7 @@ internal class ProfileDatabase(context: Context) : SQLiteOpenHelper(
 
     companion object {
         private const val DATABASE_NAME = "trainee_profiles.db"
-        private const val DATABASE_VERSION = 1
+        private const val DATABASE_VERSION = 2
 
         private const val CREATE_PROFILES = """
             CREATE TABLE profiles (
@@ -189,6 +202,8 @@ internal class ProfileDatabase(context: Context) : SQLiteOpenHelper(
                 hair_color_position REAL NOT NULL,
                 belt_rank TEXT NOT NULL,
                 height_cm REAL,
+                forearm_length_cm REAL,
+                lower_leg_length_cm REAL,
                 dominant_side TEXT,
                 experience_level TEXT,
                 created_at INTEGER NOT NULL,

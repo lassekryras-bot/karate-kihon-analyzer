@@ -156,6 +156,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var trainingRoot: View
     private lateinit var homeScreen: HomeScreenView
     private var measurementWiki: dk.lasse.karatecliprecorder.wiki.MeasurementWikiView? = null
+    private lateinit var trainScreen: TrainScreenView
     private lateinit var learnScreen: LearnScreenView
     private lateinit var settingsScreen: SettingsScreenView
     private lateinit var progressScreen: ProgressScreenView
@@ -311,13 +312,17 @@ class MainActivity : AppCompatActivity() {
             savedClipText.text = "Camera permission is required to record clips."
         }
         openCameraSetupAfterPermission = false
-        if (::settingsScreen.isInitialized) settingsScreen.refreshCameraPermissionState()
+        if (::settingsScreen.isInitialized) settingsScreen.refresh()
     }
+
+    private val settingsMicrophonePermissionLauncher = registerForActivityResult(
+        ActivityResultContracts.RequestPermission(),
+    ) { _ -> if (::settingsScreen.isInitialized) settingsScreen.refresh() }
 
     private val settingsCameraPermissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestPermission(),
     ) { granted ->
-        if (::settingsScreen.isInitialized) settingsScreen.refreshCameraPermissionState()
+        if (::settingsScreen.isInitialized) settingsScreen.refresh()
         Toast.makeText(
             this,
             if (granted) "Camera permission allowed." else "Camera permission was not allowed.",
@@ -379,12 +384,23 @@ class MainActivity : AppCompatActivity() {
             karateBasics = karateBasicsPath,
             onContinue = ::continueLearning,
             onLearn = ::showLearnUi,
-            onPractice = ::openTrainingHub,
-            onSkillCoach = ::openTrainingHub,
-            onTrain = ::showLearnUi,
+            onPractice = { showHomeDestinationPlaceholder("Practice") },
+            onSkillCoach = { showHomeDestinationPlaceholder("Skill Coach") },
+            onTrain = ::showTrainUi,
             onProgress = ::showProgressUi,
             onSettings = ::showSettingsUi,
         )
+        trainScreen = TrainScreenView(
+            context = this,
+            repository = profileRepository,
+            onProfile = ::showProfileUi,
+            onLearn = ::showLearnUi,
+            onPractice = { showHomeDestinationPlaceholder("Practice") },
+            onSkillCoach = { showHomeDestinationPlaceholder("Skill Coach") },
+            onHome = ::showHomeUi,
+            onProgress = ::showProgressUi,
+            onSettings = ::showSettingsUi,
+        ).apply { visibility = View.GONE }
         learnScreen = LearnScreenView(
             context = this,
             profileRepository = profileRepository,
@@ -392,6 +408,7 @@ class MainActivity : AppCompatActivity() {
             paths = learningPaths,
             karateBasics = karateBasicsPath,
             onWiki = ::showMeasurementWiki,
+            onTrain = ::showTrainUi,
             onPathSelected = ::showSkillProgression,
             onKarateBasicsSelected = ::showKarateBasicsPath,
             onHome = ::showHomeUi,
@@ -406,21 +423,18 @@ class MainActivity : AppCompatActivity() {
             onProfile = ::showProfileUi,
             preferences = appPreferences,
             hasCameraPermission = ::hasCameraPermission,
+            hasMicrophonePermission = { ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED },
+            onMicrophonePermissionRequest = { settingsMicrophonePermissionLauncher.launch(Manifest.permission.RECORD_AUDIO) },
             onHome = ::showHomeUi,
-            onTrain = ::showLearnUi,
+            onTrain = ::showTrainUi,
             onProgress = ::showProgressUi,
-            onCameraSetup = ::openCameraSetupFromSettings,
             onCameraPermissionRequest = {
                 settingsCameraPermissionLauncher.launch(Manifest.permission.CAMERA)
             },
-            onTrainingData = { showHomeDestinationPlaceholder("Training data") },
-            onClearTrainingHistory = ::confirmClearTrainingHistory,
             onDeveloperModeChanged = ::setDeveloperMode,
             onCameraDebug = ::openCameraDebug,
             onLearningUiDebug = ::openEnsoDebugGallery,
             onAbout = ::showAboutDialog,
-            onHelp = ::showHelpDialog,
-            onPrivacy = ::showPrivacyDialog,
             onThemeChanged = { theme -> AppCompatDelegate.setDefaultNightMode(theme.nightMode) },
         ).apply {
             visibility = View.GONE
@@ -430,7 +444,7 @@ class MainActivity : AppCompatActivity() {
             repository = profileRepository,
             onProfile = ::showProfileUi,
             onHome = ::showHomeUi,
-            onTrain = ::showLearnUi,
+            onTrain = ::showTrainUi,
             onSettings = ::showSettingsUi,
         ).apply {
             visibility = View.GONE
@@ -438,6 +452,7 @@ class MainActivity : AppCompatActivity() {
         appRoot = FrameLayout(this).apply {
             addView(trainingRoot)
             addView(homeScreen)
+            addView(trainScreen)
             addView(learnScreen)
             addView(settingsScreen)
             addView(progressScreen)
@@ -464,6 +479,8 @@ class MainActivity : AppCompatActivity() {
                 } else if (currentAppDestination == AppDestination.SETTINGS) {
                     showHomeUi()
                 } else if (currentAppDestination == AppDestination.TRAIN && learnScreen.visibility == View.VISIBLE) {
+                    showTrainUi()
+                } else if (currentAppDestination == AppDestination.TRAIN && trainScreen.visibility == View.VISIBLE) {
                     showHomeUi()
                 } else {
                     isEnabled = false
@@ -476,7 +493,7 @@ class MainActivity : AppCompatActivity() {
         } else if (savedInstanceState?.getString(STATE_APP_DESTINATION) == AppDestination.PROGRESS.name) {
             showProgressUi()
         } else if (savedInstanceState?.getString(STATE_APP_DESTINATION) == AppDestination.TRAIN.name) {
-            showLearnUi()
+            showTrainUi()
         }
     }
 
@@ -496,11 +513,18 @@ class MainActivity : AppCompatActivity() {
         closeSecondaryScreen()
         currentAppDestination = AppDestination.HOME
         trainingRoot.visibility = View.GONE
+        trainScreen.visibility = View.GONE
         learnScreen.visibility = View.GONE
         skillProgressionScreen?.visibility = View.GONE
         settingsScreen.visibility = View.GONE
         progressScreen.visibility = View.GONE
         homeScreen.visibility = View.VISIBLE
+    }
+
+    private fun showTrainUi() {
+        showLearnUi()
+        learnScreen.visibility = View.GONE
+        trainScreen.visibility = View.VISIBLE
     }
 
     private fun showLearnUi() {
@@ -511,6 +535,7 @@ class MainActivity : AppCompatActivity() {
         settingsScreen.visibility = View.GONE
         progressScreen.visibility = View.GONE
         skillProgressionScreen?.visibility = View.GONE
+        trainScreen.visibility = View.GONE
         learnScreen.visibility = View.VISIBLE
     }
 
@@ -520,6 +545,7 @@ class MainActivity : AppCompatActivity() {
         homeScreen.visibility = View.GONE
         settingsScreen.visibility = View.GONE
         progressScreen.visibility = View.GONE
+        trainScreen.visibility = View.GONE
         learnScreen.visibility = View.GONE
         skillProgressionScreen?.let(appRoot::removeView)
         skillProgressionScreen = SkillProgressionView(
@@ -1139,7 +1165,6 @@ class MainActivity : AppCompatActivity() {
                 editing = activeProfile,
                 onBack = ::showKarateBasicsPath,
                 onSaved = { showKarateBasicsPath() },
-                onDeleted = { showKarateBasicsPath() },
             ),
             ::showKarateBasicsPath,
         )
@@ -1152,6 +1177,7 @@ class MainActivity : AppCompatActivity() {
         closeSecondaryScreen()
         currentAppDestination = AppDestination.SETTINGS
         trainingRoot.visibility = View.GONE
+        trainScreen.visibility = View.GONE
         learnScreen.visibility = View.GONE
         skillProgressionScreen?.visibility = View.GONE
         homeScreen.visibility = View.GONE
@@ -1165,6 +1191,7 @@ class MainActivity : AppCompatActivity() {
         currentAppDestination = AppDestination.PROGRESS
         trainingRoot.visibility = View.GONE
         homeScreen.visibility = View.GONE
+        trainScreen.visibility = View.GONE
         learnScreen.visibility = View.GONE
         skillProgressionScreen?.visibility = View.GONE
         settingsScreen.visibility = View.GONE
@@ -1185,7 +1212,7 @@ class MainActivity : AppCompatActivity() {
             onAddProfile = { showProfileEditor(null) },
             onEditProfile = ::showProfileEditor,
             onManageProfiles = ::showManageProfiles,
-            onUnavailable = ::showHomeDestinationPlaceholder,
+            onBodyMeasurements = ::showBodyMeasurements,
         ), returnFromProfile)
     }
 
@@ -1196,7 +1223,15 @@ class MainActivity : AppCompatActivity() {
             editing = profile,
             onBack = ::showProfileUi,
             onSaved = { showProfileUi() },
-            onDeleted = { showProfileUi() },
+        ), ::showProfileUi)
+    }
+
+    private fun showBodyMeasurements() {
+        showSecondary(dk.lasse.karatecliprecorder.profile.BodyMeasurementsView(
+            context = this,
+            repository = profileRepository,
+            profile = profileRepository.activeProfile(),
+            onBack = ::showProfileUi,
         ), ::showProfileUi)
     }
 
@@ -1205,8 +1240,8 @@ class MainActivity : AppCompatActivity() {
             context = this,
             repository = profileRepository,
             onBack = ::showProfileUi,
-            onAdd = { showProfileEditor(null) },
-            onEdit = ::showProfileEditor,
+            onProfilesChanged = ::showManageProfiles,
+            onClearTrainingHistory = ::confirmClearTrainingHistory,
         ), ::showProfileUi)
     }
 
@@ -1214,6 +1249,7 @@ class MainActivity : AppCompatActivity() {
         closeSecondaryScreen()
         trainingRoot.visibility = View.GONE
         homeScreen.visibility = View.GONE
+        trainScreen.visibility = View.GONE
         learnScreen.visibility = View.GONE
         skillProgressionScreen?.visibility = View.GONE
         settingsScreen.visibility = View.GONE
@@ -1232,7 +1268,7 @@ class MainActivity : AppCompatActivity() {
     private fun showProfileReturnDestination() {
         when (profileReturnDestination) {
             AppDestination.HOME -> showHomeUi()
-            AppDestination.TRAIN -> showLearnUi()
+            AppDestination.TRAIN -> showTrainUi()
             AppDestination.PROGRESS -> showProgressUi()
             AppDestination.SETTINGS -> showSettingsUi()
         }
@@ -1291,6 +1327,7 @@ class MainActivity : AppCompatActivity() {
     private fun showTrainingUi() {
         currentAppDestination = AppDestination.TRAIN
         homeScreen.visibility = View.GONE
+        trainScreen.visibility = View.GONE
         learnScreen.visibility = View.GONE
         skillProgressionScreen?.visibility = View.GONE
         settingsScreen.visibility = View.GONE
@@ -1330,20 +1367,20 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private fun confirmClearTrainingHistory() {
+    private fun confirmClearTrainingHistory(profile: dk.lasse.karatecliprecorder.profile.Profile) {
         AlertDialog.Builder(this)
-            .setTitle("Clear training history?")
-            .setMessage("This permanently removes all saved training sessions and results from this device. This cannot be undone.")
+            .setTitle("Clear ${profile.name}'s training history?")
+            .setMessage("This permanently removes this profile's session history and profile-owned recordings. Learning progress, measurements, calibration and other profiles stay. Older shared recordings will be kept because their owner is unknown. This cannot be undone.")
             .setNegativeButton("Cancel", null)
             .setPositiveButton("Clear") { _, _ ->
                 punchHeightStorageExecutor.execute {
-                    val result = TrainingHistoryStore(this).clear()
+                    val result = TrainingHistoryStore(this).clear(profile.id)
                     runOnMainThread {
-                        if (result.succeeded) profileRepository.clearAllTrainingSessions()
+                        if (result.succeeded) profileRepository.clearTrainingSessions(profile.id)
                         val message = when {
                             !result.succeeded -> "Some training history could not be removed."
-                            result.removedDirectoryCount == 0 -> "There was no saved training history to clear."
-                            else -> "Training history cleared."
+
+                            else -> "Training history cleared. Older shared recordings were kept."
                         }
                         Toast.makeText(this, message, Toast.LENGTH_LONG).show()
                     }
@@ -1358,19 +1395,9 @@ class MainActivity : AppCompatActivity() {
         }.getOrNull().orEmpty().ifBlank { "Unknown" }
         showInformationDialog(
             title = "Karate Kihon Analyzer",
-            message = "Version $version\n\nCamera-based tools for learning and practicing karate kihon.",
+            message = "Version $version\n\nCamera-based tools for learning and practicing karate kihon.\n\nYour profiles and training data are stored on this device. Android may include them in device backups, depending on your settings. Voice recognition may use your speech provider's online services.",
         )
     }
-
-    private fun showHelpDialog() = showInformationDialog(
-        title = "Help & how it works",
-        message = "Choose Learn for guided lessons, Practice for drills, or Skill Coach for camera-based technique feedback. Camera setup helps you find a reliable position before analysis.",
-    )
-
-    private fun showPrivacyDialog() = showInformationDialog(
-        title = "Privacy",
-        message = "Camera analysis runs within the app. Saved clips and training results are stored in this app's private device storage. You can remove saved training history from Settings.",
-    )
 
     private fun showInformationDialog(title: String, message: String) {
         AlertDialog.Builder(this)
@@ -1382,7 +1409,7 @@ class MainActivity : AppCompatActivity() {
 
     override fun onResume() {
         super.onResume()
-        if (::settingsScreen.isInitialized) settingsScreen.refreshCameraPermissionState()
+        if (::settingsScreen.isInitialized) settingsScreen.refresh()
     }
 
     override fun onSaveInstanceState(outState: Bundle) {

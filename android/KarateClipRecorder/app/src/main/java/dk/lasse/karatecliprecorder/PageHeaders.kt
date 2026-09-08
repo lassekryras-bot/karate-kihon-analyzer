@@ -3,6 +3,8 @@ package dk.lasse.karatecliprecorder
 import android.content.Context
 import android.content.res.ColorStateList
 import android.graphics.Typeface
+import android.graphics.drawable.ColorDrawable
+import android.graphics.drawable.LayerDrawable
 import android.view.Gravity
 import android.view.View
 import android.view.ViewGroup
@@ -17,7 +19,15 @@ import androidx.core.view.WindowInsetsCompat
 
 internal object AppChromeStyle {
     val SURFACE_COLOR_RES = R.color.app_card_surface
-    const val ELEVATION_DP = 4
+    const val ELEVATION_DP = 0
+
+    fun background(context: Context, dividerGravity: Int) = LayerDrawable(arrayOf(
+        ColorDrawable(ContextCompat.getColor(context, SURFACE_COLOR_RES)),
+        ColorDrawable(ContextCompat.getColor(context, R.color.app_divider)),
+    )).apply {
+        setLayerHeight(1, context.pageDp(1).coerceAtLeast(1))
+        setLayerGravity(1, dividerGravity or Gravity.FILL_HORIZONTAL)
+    }
 }
 
 /** Sticky header for the four primary bottom-navigation destinations. */
@@ -27,7 +37,11 @@ class MainPageHeader(
     subtitle: String? = null,
     trailingSlot: View? = null,
 ) : LinearLayout(context) {
-    private val titleView = headerText(title, if (title.length > 20) 25f else 29f, Typeface.BOLD)
+    private val titleView = headerText(title, if (title.length > 20) 25f else 29f, Typeface.BOLD).apply {
+        // Reserve the same title row even when a long app name uses smaller type.
+        minimumHeight = kotlin.math.ceil(29f * resources.displayMetrics.scaledDensity * 1.4f).toInt()
+        gravity = Gravity.CENTER_VERTICAL
+    }
     private val subtitleView = headerText(subtitle.orEmpty(), 15f, Typeface.NORMAL).apply {
         setTextColor(ContextCompat.getColor(context, R.color.app_text_secondary))
         visibility = if (subtitle.isNullOrBlank()) View.GONE else View.VISIBLE
@@ -37,7 +51,7 @@ class MainPageHeader(
     init {
         orientation = HORIZONTAL
         gravity = Gravity.CENTER_VERTICAL
-        setBackgroundColor(ContextCompat.getColor(context, AppChromeStyle.SURFACE_COLOR_RES))
+        background = AppChromeStyle.background(context, Gravity.BOTTOM)
         elevation = context.pageDp(AppChromeStyle.ELEVATION_DP).toFloat()
 
         addView(LinearLayout(context).apply {
@@ -105,7 +119,7 @@ class SubPageHeader(
     private val trailingHost = FrameLayout(context)
 
     init {
-        setBackgroundColor(ContextCompat.getColor(context, AppChromeStyle.SURFACE_COLOR_RES))
+        background = AppChromeStyle.background(context, Gravity.BOTTOM)
         elevation = context.pageDp(AppChromeStyle.ELEVATION_DP).toFloat()
 
         addView(ImageButton(context).apply {

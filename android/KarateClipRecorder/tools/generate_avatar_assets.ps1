@@ -52,6 +52,10 @@ Get-ChildItem -LiteralPath $SourceDirectory -Filter 'avatar_*.svg' | Sort-Object
     $builder = [Text.StringBuilder]::new()
     [void]$builder.AppendLine('<?xml version="1.0" encoding="utf-8"?>')
     [void]$builder.AppendLine(('<avatar width="{0}" height="{1}">' -f $viewBoxMatch.Groups[1].Value, $viewBoxMatch.Groups[2].Value))
+    $maskMatches = [regex]::Matches($svg, '<path d="([^"]+)" fill="(?:black|white)" data-operation="(union|difference)"\s*/>')
+    foreach ($mask in $maskMatches) {
+        [void]$builder.AppendLine(('  <mask-path operation="{0}" data="{1}" />' -f $mask.Groups[2].Value, [Security.SecurityElement]::Escape($mask.Groups[1].Value)))
+    }
     foreach ($path in $paths) {
         $tone = 1.0
         if ($path.Role -in @('skin', 'hair', 'belt', 'background')) {

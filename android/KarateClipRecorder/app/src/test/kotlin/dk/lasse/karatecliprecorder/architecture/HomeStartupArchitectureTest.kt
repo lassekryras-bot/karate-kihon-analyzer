@@ -11,6 +11,30 @@ class HomeStartupArchitectureTest {
     private val appSources = appRoot
         .resolve("app/src/main/java/dk/lasse/karatecliprecorder")
 
+    @Test fun trainModeChooserIsPassiveAndSeparateFromLearningCatalogue() {
+        val chooser = appSources.resolve("TrainScreenView.kt").readText()
+        val activity = appSources.resolve("MainActivity.kt").readText()
+        val catalogue = appSources.resolve("learningpath/LearnScreenView.kt").readText()
+        assertFalse(chooser.contains("ScrollView"))
+        assertFalse(chooser.contains("requestCameraPermission"))
+        assertFalse(chooser.contains("openTrainingHub"))
+        assertFalse(chooser.contains("Continue learning"))
+        assertFalse(chooser.contains("Measurement wiki"))
+        assertTrue(activity.contains("onTrain = ::showTrainUi"))
+        assertTrue(activity.contains("onLearn = ::showLearnUi"))
+        assertFalse(activity.contains("onPractice = ::openTrainingHub"))
+        assertFalse(activity.contains("onSkillCoach = ::openTrainingHub"))
+        listOf("Practice", "Skill Coach").forEach { destination ->
+            val callback = "showHomeDestinationPlaceholder(\"$destination\")"
+            assertTrue(activity.windowed(callback.length).count { it == callback } == 2)
+        }
+        assertFalse(catalogue.contains("content.addView(continueCard"))
+        val trainEntry = activity.substringAfter("private fun showTrainUi()").substringBefore("private fun showLearnUi()")
+        assertTrue(trainEntry.contains("learnScreen.visibility = View.GONE"))
+        assertTrue(trainEntry.contains("trainScreen.visibility = View.VISIBLE"))
+        assertFalse(trainEntry.contains("requestCameraPermission"))
+    }
+
     @Test fun homeScreenConstructionIsPassive() {
         val home = appSources.resolve("HomeScreenView.kt").readText()
 
@@ -158,7 +182,8 @@ class HomeStartupArchitectureTest {
         assertTrue(headerSource.indexOf("addView(header") < headerSource.indexOf("addView(scroller"))
         assertTrue(headerSource.contains("trailingSlot: View? = null"))
         assertTrue(headerSource.contains("SURFACE_COLOR_RES = R.color.app_card_surface"))
-        assertTrue(headerSource.contains("ELEVATION_DP = 4"))
+        assertTrue(headerSource.contains("ELEVATION_DP = 0"))
+        assertTrue(headerSource.contains("AppChromeStyle.background(context, Gravity.BOTTOM)"))
 
         mainScreens.forEach { relativePath ->
             val source = appSources.resolve(relativePath).readText()
@@ -186,7 +211,7 @@ class HomeStartupArchitectureTest {
         assertTrue(navigation.contains("minimumWidth = 48.dp()"))
         assertTrue(navigation.contains("minimumHeight = 48.dp()"))
         assertTrue(navigation.contains("AppChromeStyle.ELEVATION_DP"))
-        assertTrue(navigation.contains("AppChromeStyle.SURFACE_COLOR_RES"))
+        assertTrue(navigation.contains("AppChromeStyle.background(context, Gravity.TOP)"))
         assertTrue(navigation.contains("AppIcon.KARATE"))
     }
 
