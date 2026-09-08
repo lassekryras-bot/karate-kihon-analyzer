@@ -25,8 +25,16 @@ class KarateBasicsProgressResolverTest {
         id = "counting",
         title = "Counting",
         activities = listOf(
-            activity("count-1-5", prerequisites = listOf("how-activities-work")),
-            activity("count-6-10", prerequisites = listOf("count-1-5")),
+            activity(
+                "practice-count-1-10",
+                type = DraftActivityType.JAPANESE_COUNTING_PRACTICE,
+                prerequisites = listOf("how-activities-work"),
+            ),
+            activity(
+                "test-count-1-10",
+                type = DraftActivityType.JAPANESE_COUNTING_TEST,
+                prerequisites = listOf("practice-count-1-10"),
+            ),
         ),
     )
     private val setup = DraftSectionDefinition(
@@ -60,32 +68,32 @@ class KarateBasicsProgressResolverTest {
             activeProfileExists = true,
         )
 
-        assertTrue(listOf("osu", "count-1-5", "find-space", "find-weapon").all {
+        assertTrue(listOf("osu", "practice-count-1-10", "find-space", "find-weapon").all {
             resolved.stateOf(it) == DraftActivityProgressState.AVAILABLE
         })
-        assertEquals(DraftActivityProgressState.LOCKED, resolved.stateOf("count-6-10"))
+        assertEquals(DraftActivityProgressState.LOCKED, resolved.stateOf("test-count-1-10"))
     }
 
     @Test fun completedActivitiesRemainCompletedInsteadOfBecomingUnavailable() {
         val resolved = DraftLearningPathProgressResolver.resolve(
             path,
-            completedActivityIds = setOf("how-activities-work", "count-1-5"),
+            completedActivityIds = setOf("how-activities-work", "practice-count-1-10"),
             activeProfileExists = true,
         )
 
-        assertEquals(DraftActivityProgressState.COMPLETED, resolved.stateOf("count-1-5"))
-        assertEquals(DraftActivityProgressState.AVAILABLE, resolved.stateOf("count-6-10"))
+        assertEquals(DraftActivityProgressState.COMPLETED, resolved.stateOf("practice-count-1-10"))
+        assertEquals(DraftActivityProgressState.AVAILABLE, resolved.stateOf("test-count-1-10"))
     }
 
     @Test fun continuePrefersTheNextAvailableActivityInTheSameBranch() {
         val next = DraftLearningPathProgressResolver.nextAvailable(
             path,
-            completedActivityIds = setOf("how-activities-work", "count-1-5"),
+            completedActivityIds = setOf("how-activities-work", "practice-count-1-10"),
             activeProfileExists = true,
-            afterActivityId = "count-1-5",
+            afterActivityId = "practice-count-1-10",
         )
 
-        assertEquals("count-6-10", next?.definition?.id)
+        assertEquals("test-count-1-10", next?.definition?.id)
     }
 
     private fun ResolvedDraftLearningPath.stateOf(id: String) = activities
