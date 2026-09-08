@@ -210,7 +210,7 @@ audio, movement, or content the learner may reasonably repeat.
 Voice runners MUST:
 
 - separate app playback from learner listening and start recognition only after
-  playback completion;
+  playback completion, except for a documented interruption-command simulation;
 - expose visible and accessible `Listening`, `Checking`, and stopped status;
 - provide `Stop listening` while the microphone is active;
 - distinguish no speech, no match, timeout, busy, unavailable service,
@@ -222,6 +222,14 @@ Voice runners MUST:
 
 Short command and ordered-sequence runners MAY share infrastructure, but MUST NOT
 share counting-specific presentation or state assumptions.
+
+An interruption-command simulation MAY listen during its own non-command audio
+only when simultaneous listening is necessary to the learning objective. Such a
+runner MUST use a narrow command matcher, keep an immediately effective manual
+Stop visible, cancel playback and listening as one operation, ignore late
+callbacks, and treat playback leakage or recognition failure as technical rather
+than learner failure. This is an activity-specific barge-in exception, not a
+shared-shell behavior.
 
 ## Camera and physical extension
 

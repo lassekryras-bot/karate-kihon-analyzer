@@ -207,6 +207,14 @@ Design explicit turn-taking:
 5. the learner can tap `Stop listening`;
 6. checking reports a match, uncertainty, or technical recovery.
 
+An activity whose objective is to practise an interruption command may use a
+documented **barge-in** runner instead: the recognizer listens while harmless
+simulation audio is playing so the learner can interrupt it. Keep this exception
+inside that runner, match only the intended command, provide a persistent manual
+Stop, stop playback and listening together, and validate false positives and
+missed commands on real devices. Do not use barge-in for ordinary prompt-response
+practice.
+
 The recognizer must not hear the app's prompt. Distinguish no speech, no match,
 timeout, service busy/unavailable, unsupported language, and permission denial.
 Use neutral copy such as “The app couldn't confirm that” rather than “You said it

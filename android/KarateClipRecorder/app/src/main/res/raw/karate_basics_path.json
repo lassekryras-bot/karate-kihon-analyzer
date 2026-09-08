@@ -16,8 +16,9 @@
       "id": "voice-interaction",
       "title": "Karate Terminology & Voice Interaction",
       "activities": [
-        { "id": "osu-meaning-use", "title": "Osu — Meaning & Use", "type": "placeholder", "prerequisites": ["how-activities-work"] },
-        { "id": "ready-osu", "title": "Ready? — Osu", "type": "placeholder", "prerequisites": ["osu-meaning-use"] }
+        { "id": "osu-meaning-use", "title": "Osu — Meaning & Use", "type": "osu-meaning-use", "prerequisites": ["how-activities-work"] },
+        { "id": "ready-osu", "title": "Ready? — Osu", "type": "ready-osu", "prerequisites": ["osu-meaning-use"] },
+        { "id": "stop-session", "title": "Stop the Session", "type": "stop-count", "prerequisites": ["ready-osu"] }
       ]
     },
     {
@@ -55,7 +56,7 @@
       "activities": [
         { "id": "punch-on-count", "title": "Punch on Count", "type": "placeholder", "prerequisites": ["test-count-1-10", "one-straight-punch"] },
         { "id": "short-set", "title": "Short Set", "type": "placeholder", "prerequisites": ["punch-on-count"] },
-        { "id": "hands-free-session", "title": "Hands-Free Session", "type": "placeholder", "prerequisites": ["ready-osu", "camera-check", "short-set"] },
+        { "id": "hands-free-session", "title": "Hands-Free Session", "type": "placeholder", "prerequisites": ["stop-session", "camera-check", "short-set"] },
         { "id": "karate-basics-challenge", "title": "Karate Basics Challenge", "type": "placeholder", "prerequisites": ["hands-free-session"] }
       ]
     }

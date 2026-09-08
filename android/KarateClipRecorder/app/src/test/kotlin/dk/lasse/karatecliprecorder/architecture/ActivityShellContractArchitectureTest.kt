@@ -82,9 +82,12 @@ class ActivityShellContractArchitectureTest {
         assertTrue(onStop.contains("cancelJapaneseCountRecognitionRestart()"))
         assertTrue(onStop.contains("japaneseCountFullExamplePlayer.stop()"))
         assertTrue(onStop.contains("japaneseCountLiveRecognizer.cancel()"))
+        assertTrue(onStop.contains("stopTerminologyRunners()"))
 
         assertTrue(onDestroy.contains("japaneseCountLiveRecognizer.release()"))
         assertTrue(onDestroy.contains("japaneseCountFullExamplePlayer.release()"))
+        assertTrue(onDestroy.contains("shortCommandRecognizer.release()"))
+        assertTrue(onDestroy.contains("terminologySpeechPlayer.close()"))
         assertTrue(onDestroy.contains("recognizerRunner?.close()"))
         assertTrue(onDestroy.contains("poseRecognizerRunner?.close()"))
         assertTrue(onDestroy.contains("recordingAdapter?.close()"))

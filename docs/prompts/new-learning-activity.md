@@ -219,7 +219,10 @@ Use these decisions only when the named activity is being implemented:
 
 - Category: Practice and safety-command simulation.
 - Intended lifecycle: Ready → Active ↔ Error → Complete.
-- Camera-free; spoken Stop plus a persistent tappable Stop that always works.
+- Camera-free; the app counts from 1–10 in Japanese while spoken Stop can
+  interrupt it, and a persistent tappable Stop always works.
+- The simultaneous count/listen behavior is an intentional runner-level barge-in
+  exception. Match only the Stop intent and stop playback/listening together.
 - Manual Stop completes the safety simulation but does not claim spoken-command
   verification.
 - Do not connect this activity to or redesign the old guided-session MVP.

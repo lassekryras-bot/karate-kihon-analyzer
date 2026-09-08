@@ -16,6 +16,8 @@ Paths are relative to `android/KarateClipRecorder/app/src` unless stated otherwi
 | Counting practice View/presentation | `main/java/dk/lasse/karatecliprecorder/learningactivity/JapaneseCountingPracticeView.kt` and `JapaneseCountingPracticePresentation.kt` |
 | Counting test View/presentation | `main/java/dk/lasse/karatecliprecorder/learningactivity/JapaneseCountingTestView.kt` and `JapaneseCountingTestPresentation.kt` |
 | Counting controllers/audio/recognition | `main/java/dk/lasse/karatecliprecorder/learning/` and `MainActivity.kt` |
+| Terminology presentations and Views | `main/java/dk/lasse/karatecliprecorder/learningactivity/KarateTerminologyPresentations.kt` and `KarateTerminologyViews.kt` |
+| Generic live speech and terminology prompts | `main/java/dk/lasse/karatecliprecorder/learning/LiveSpeechRecognizer.kt`, `ShortVoiceCommand.kt`, and `TerminologySpeechPlayer.kt` |
 | Karate Basics catalogue | `main/res/raw/karate_basics_path.json` |
 | Draft pathway parsing/resolution | `main/java/dk/lasse/karatecliprecorder/learningpath/DraftLearningPathModels.kt` |
 | Routing and host lifecycle | `main/java/dk/lasse/karatecliprecorder/MainActivity.kt` |
@@ -122,15 +124,15 @@ its own presentation/runner. Do not preserve development controls when doing so.
 defines the pathway whose purpose is to prepare the learner for a first
 hands-free ten-punch session. Many entries remain placeholders.
 
-`DraftLearningPathModels.kt` currently recognizes conditional-profile,
-Japanese-counting-practice, Japanese-counting-test, and placeholder activity
-types. This draft enum is routing infrastructure, not the complete pedagogical
-taxonomy from the authoring guide.
+`DraftLearningPathModels.kt` currently recognizes conditional-profile, the three
+terminology activities, Japanese-counting-practice, Japanese-counting-test, and
+placeholder activity types. This draft enum is routing infrastructure, not the
+complete pedagogical taxonomy from the authoring guide.
 
-`MainActivity.openLearningActivity` routes concrete counting activity types to
-their dedicated Views and all unfinished entries to the placeholder. The host
-supplies pathway position and uses profile state/prerequisites to resolve
-availability and completion.
+`MainActivity.openKarateBasicsActivity` routes the terminology and counting
+activity types to dedicated Views and all unfinished entries to the placeholder.
+The host supplies pathway position and uses profile state/prerequisites to
+resolve availability and completion.
 
 The repository does not currently contain a separate active roadmap document for
 the Activity Shell. The branch, Karate Basics JSON, and implementations above are
@@ -196,21 +198,55 @@ practice entry, camera-free test routing, and the updated 1–10 activity catalo
 placeholder-is-not-contract, passive-view modality isolation, and host cleanup
 invariants from the formal contract.
 
+`KarateTerminologyPresentationTest` covers the passive lesson sequence, Osu
+variant recognition, unverified completion, Stop methods, count completion, and
+interruption recovery. `ShortVoiceCommandMatcherTest` verifies narrow command
+matching, and `KarateTerminologyActivityArchitectureTest` protects concrete
+routing, passive hardware boundaries, permission entry points, and Stop cleanup.
+
 These source-level architecture tests are fast safeguards, not substitutes for
 compiled View tests, accessibility tests, screenshots, or real-device validation.
 
-## Planned terminology activities
+## Implemented terminology activities
 
-The following are designed but not implemented:
+The Karate Terminology & Voice Interaction section now has three concrete routes:
 
-| Activity | Category | Intended lifecycle | Important deviation |
+| Activity | Category | Implemented lifecycle | Important deviation |
 | --- | --- | --- | --- |
 | Osu — Meaning & Use | Learn | Ready → Active → Complete | No Result or microphone. |
-| Ready? — Osu | Practice | Ready → Active ↔ Error → Complete | Prompt/listen/check are runner substates; completion and voice verification separate. |
-| Stop the Session | Practice | Ready → Active ↔ Error → Complete | Camera-free simulation with persistent tappable Stop; no connection to old guided-session MVP yet. |
+| Ready? — Osu | Practice | Ready → Active ↔ Error → Complete | Model/prompt/listen/check are runner substates; `Osu`, `Oss`, and Japanese recognizer forms map to one internal intent. |
+| Stop the Session | Practice | Ready → Active ↔ Error → Complete | The app counts 1–10 in Japanese while a narrow Stop recognizer listens; persistent tappable Stop is always available. |
 
-Their content, accepted speech variants, cultural framing, and physical/session
-safety behavior require instructor/content review before implementation.
+Implemented behavior:
+
+- all three use `ActivityShellView` and remain camera/MediaPipe/recording-free;
+- Ready pages start no recognition and microphone permission follows a labelled
+  voice-practice action;
+- Ready? — Osu finishes prompt playback before recognition starts and treats a
+  recognizer match as intent verification, not pronunciation quality;
+- Stop the Session intentionally uses a runner-level barge-in exception so Stop
+  can interrupt the Japanese count; the exact-token matcher ignores count words;
+- tapping Stop immediately cancels both count playback and recognition and still
+  completes the activity without a voice-verification claim;
+- permission and service failures offer button-only completion rather than
+  trapping the pathway;
+- activity completion is stored in learning progress, while voice verification,
+  attempt count, and Stop method are stored separately in a training-session
+  result payload; and
+- backgrounding cancels audio/listening and presents an interrupted recovery
+  state that requires a new learner action.
+
+Current limitations:
+
+- the cultural wording remains deliberately cautious and still requires karate-
+  instructor/content review before release;
+- Osu and Ready prompt examples use the device text-to-speech voice; instructor-
+  approved recorded cues remain preferable for final learning content;
+- speech recognition may use the device's configured online service;
+- Stop barge-in needs real-device testing across speakers, recognizers, noise,
+  volumes, and Bluetooth routes to assess false positives and masking; and
+- TalkBack, large-text, narrow-screen, interruption, and permission-revocation
+  behavior still need physical-device validation.
 
 ## Known contract gaps and next implementation order
 
@@ -218,13 +254,13 @@ safety behavior require instructor/content review before implementation.
    recognition algorithm unnecessarily.
 2. Add common accessibility/status and exit/cleanup behavior only when a concrete
    activity proves the reusable API; do not pre-load the shell with modality UI.
-3. Specify and implement Osu — Meaning & Use as the first passive contract example.
-4. Generalize short-command voice infrastructure for Ready? — Osu without
-   inheriting counting-specific presentation.
-5. Implement Stop the Session with a runner-level persistent manual Stop and no
-   camera/full-session integration.
-6. Add durable checkpoint/evidence concepts when a concrete activity needs them,
-   with migration and truthful-copy tests.
+3. Replace device-generated terminology prompts with instructor-approved audio
+   after content and pronunciation review.
+4. Validate short-command recognition and Stop barge-in on representative real
+   devices without connecting it to the old guided-session MVP.
+5. Add a typed durable activity-attempt/evidence model when more activities need
+   to query voice evidence; the current training-session JSON keeps completion
+   and verification separate without a premature migration.
 
 Before claiming release readiness, run native compilation, View/presentation
 tests, screenshot/layout review, TalkBack and large-text checks, and real-device
