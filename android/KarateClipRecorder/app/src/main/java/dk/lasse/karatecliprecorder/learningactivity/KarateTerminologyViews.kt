@@ -9,6 +9,7 @@ import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
 import android.view.Gravity
 import android.view.View
+import android.view.ViewGroup
 import android.widget.FrameLayout
 import android.widget.Button
 import android.widget.ImageView
@@ -554,6 +555,8 @@ private class TerminologyActivityUi(private val context: Context) {
     }
 
     fun cameraCard(title: String, body: String, preview: View) = card(title, listOf(body)).apply {
+        // Runner stages reuse one live preview; release its previous card first.
+        (preview.parent as? ViewGroup)?.removeView(preview)
         addView(preview, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 280.dp()).apply {
             topMargin = 16.dp()
         })
