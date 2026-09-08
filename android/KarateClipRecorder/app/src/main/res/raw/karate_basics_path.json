@@ -24,9 +24,8 @@
       "id": "counting",
       "title": "Japanese Counting",
       "activities": [
-        { "id": "count-1-5", "title": "Count 1–5", "type": "placeholder", "prerequisites": ["how-activities-work"] },
-        { "id": "count-6-10", "title": "Count 6–10", "type": "placeholder", "prerequisites": ["count-1-5"] },
-        { "id": "follow-count-1-10", "title": "Follow the Count 1–10", "type": "placeholder", "prerequisites": ["count-6-10"] }
+        { "id": "practice-count-1-10", "title": "Practice Numbers 1–10", "type": "japanese-counting-practice", "prerequisites": ["how-activities-work"] },
+        { "id": "test-count-1-10", "title": "Count from 1 to 10", "type": "japanese-counting-test", "prerequisites": ["practice-count-1-10"] }
       ]
     },
     {
@@ -54,7 +53,7 @@
       "id": "put-it-together",
       "title": "Put It Together",
       "activities": [
-        { "id": "punch-on-count", "title": "Punch on Count", "type": "placeholder", "prerequisites": ["follow-count-1-10", "one-straight-punch"] },
+        { "id": "punch-on-count", "title": "Punch on Count", "type": "placeholder", "prerequisites": ["test-count-1-10", "one-straight-punch"] },
         { "id": "short-set", "title": "Short Set", "type": "placeholder", "prerequisites": ["punch-on-count"] },
         { "id": "hands-free-session", "title": "Hands-Free Session", "type": "placeholder", "prerequisites": ["ready-osu", "camera-check", "short-set"] },
         { "id": "karate-basics-challenge", "title": "Karate Basics Challenge", "type": "placeholder", "prerequisites": ["hands-free-session"] }
