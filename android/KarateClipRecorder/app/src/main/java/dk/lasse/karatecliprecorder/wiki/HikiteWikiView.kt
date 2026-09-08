@@ -22,6 +22,7 @@ internal class HikiteWikiView(context: Context, bundle: JSONObject) : LinearLayo
     private var timestamp = last
     private var mode = 0
     private var playing = false
+    private var playbackRate = .5
     private var clock = 0L
     private val ink = ContextCompat.getColor(context, R.color.app_text_primary)
     private val accent = ContextCompat.getColor(context, R.color.app_accent)
@@ -29,19 +30,32 @@ internal class HikiteWikiView(context: Context, bundle: JSONObject) : LinearLayo
     private val density = resources.displayMetrics.density
     private val pose = Drawing(false)
     private val graph = Drawing(true)
-    private val position = label("")
-    private val values = label("")
-    private val play = Button(context)
-    private val slider = SeekBar(context)
+    private val controls = WikiMotionControls(
+        context,
+        listOf(WikiJumpPoint("Maximum speed", (marker.getDouble("timestamp_ms") - first) / (last - first))),
+    )
+    private val metrics = WikiMetricList(
+        context,
+        listOf(
+            WikiMetricDefinition("shoulder", "Wrist to shoulder line", "upper-arm lengths", selectable = true),
+            WikiMetricDefinition("forearm", "Forearm to torso", "°", selectable = true),
+            WikiMetricDefinition("wrist", "Wrist position", "upper-arm lengths", selectable = true),
+            WikiMetricDefinition("speed", "Elbow speed", "upper-arm lengths/s"),
+            WikiMetricDefinition("bend", "Wrist bend", "—"),
+        ),
+    )
     private val points = rows.flatMap { row -> row.getJSONObject("p").let { p -> p.keys().asSequence().map { point(p, it) }.toList() } } + point(rows.last(), "shoulder_foot")
     private val xmin = points.minOf { it.x }; private val xmax = points.maxOf { it.x }
-    private val ymin = points.minOf { it.y } - rows.maxOf { it.getDouble("radius") }.toFloat()
+    private val headRadius = rows.map { it.getDouble("radius") }.sorted().let { values ->
+        (values[(values.size - 1) / 2] + values[values.size / 2]) / 2
+    }.toFloat()
+    private val ymin = points.minOf { it.y } - headRadius
     private val ymax = points.maxOf { it.y }
     private val tick = object : Runnable {
         override fun run() {
             if (!playing) return
             val now = SystemClock.uptimeMillis()
-            timestamp = min(last, timestamp + (now - clock) * .5); clock = now
+            timestamp = min(last, timestamp + (now - clock) * playbackRate); clock = now
             if (timestamp >= last) playing = false
             update(); if (playing) postDelayed(this, 16)
         }
@@ -57,49 +71,57 @@ internal class HikiteWikiView(context: Context, bundle: JSONObject) : LinearLayo
         require(rows.any { it.getInt("f") == marker.getInt("frame_number") && it.getDouble("t") == marker.getDouble("timestamp_ms") })
         orientation = VERTICAL
         addView(label("Example punch 6 · right-arm hikite"))
-        listOf("Wrist to shoulder line", "Forearm to torso", "Wrist position").forEachIndexed { i, copy ->
-            addView(Button(context).apply { text = copy; setOnClickListener { mode = i; update() } })
-        }
         addView(pose, LayoutParams(-1, (260*density).roundToInt()))
+        controls.onSeek = { seek(it) }
+        controls.onPlayToggle = { if (playing) pause() else play() }
+        controls.onSpeedChange = { rate ->
+            playbackRate = rate
+            if (playing) clock = SystemClock.uptimeMillis()
+        }
+        addView(controls)
+        metrics.onMetricSelected = { key ->
+            mode = when (key) {
+                "shoulder" -> 0
+                "forearm" -> 1
+                else -> 2
+            }
+            metrics.select(key)
+            update()
+        }
+        metrics.select("shoulder")
+        addView(metrics)
         addView(label("Position lines appear at the finish."))
         addView(graph, LayoutParams(-1, (190*density).roundToInt()))
         addView(label("See how your elbow speed changes. Drag along the graph to inspect the movement."))
-        slider.max = 1000; slider.contentDescription = "Punch position"
-        slider.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
-            override fun onProgressChanged(bar: SeekBar?, progress: Int, fromUser: Boolean) { if (fromUser) seek(progress / 1000.0) }
-            override fun onStartTrackingTouch(bar: SeekBar?) { pause() }
-            override fun onStopTrackingTouch(bar: SeekBar?) {}
-        })
-        addView(slider)
-        play.setOnClickListener {
-            if (playing) pause() else {
-                if (timestamp >= last) timestamp = first
-                playing = true; clock = SystemClock.uptimeMillis(); update(); post(tick)
-            }
-        }
-        addView(play)
-        addView(Button(context).apply { text = "Show finish"; setOnClickListener { seek(1.0) } })
-        addView(Button(context).apply { text = "Show maximum speed"; setOnClickListener { seek((marker.getDouble("timestamp_ms")-first)/(last-first)) } })
-        addView(position); addView(values)
-        addView(label("Maximum elbow speed: %.2f upper-arm lengths/s".format(marker.getDouble("speed"))))
-        addView(label("Wrist bend: not measured yet"))
         update()
     }
     private fun label(copy: String) = TextView(context).apply { text = copy; textSize = 17f; setTextColor(ink); setPadding(0, (8*density).toInt(), 0, (8*density).toInt()) }
     private fun point(obj: JSONObject, key: String): PointF = obj.getJSONArray(key).let { PointF(it.getDouble(0).toFloat(), it.getDouble(1).toFloat()) }
     private fun selected() = rows.minBy { abs(it.getDouble("t") - timestamp) }
+    private fun play() {
+        if (timestamp >= last) timestamp = first
+        playing = true
+        clock = SystemClock.uptimeMillis()
+        removeCallbacks(tick)
+        update()
+        post(tick)
+    }
     fun pause() { playing = false; removeCallbacks(tick); update() }
     private fun seek(progress: Double) { playing = false; removeCallbacks(tick); timestamp = first + progress.coerceIn(0.0,1.0)*(last-first); update() }
     private fun update() {
         val r = selected()
-        slider.progress = ((timestamp-first)/(last-first)*1000).roundToInt()
-        play.text = if (playing) "Pause" else "Play at half speed"
-        position.text = "Frame ${r.getInt("f")} · %.3f s".format(r.getDouble("t")/1000)
-        values.text = "Elbow speed: %.2f upper-arm lengths/s\n".format(r.getDouble("speed")) + when(mode) {
-            0 -> "Wrist to shoulder line: %.2f upper-arm lengths".format(r.getDouble("shoulder_distance"))
-            1 -> "Forearm to torso: %.0f°".format(r.getDouble("forearm_angle"))
-            else -> "Wrist ${if(r.getDouble("behind") >= 0) "behind" else "in front"}: %.2f upper-arm lengths".format(abs(r.getDouble("behind")))
-        }
+        controls.update((timestamp-first)/(last-first), playing)
+        metrics.setValue("shoulder", "%.2f".format(r.getDouble("shoulder_distance")))
+        metrics.setValue("forearm", "%.0f".format(r.getDouble("forearm_angle")))
+        metrics.setValue(
+            "wrist",
+            "%.2f %s".format(
+                abs(r.getDouble("behind")),
+                if (r.getDouble("behind") >= 0) "behind" else "in front",
+            ),
+        )
+        metrics.setValue("speed", "%.2f".format(r.getDouble("speed")))
+        metrics.setValue("bend", "Not measured")
         pose.invalidate(); graph.invalidate()
     }
     override fun onDetachedFromWindow() { pause(); super.onDetachedFromWindow() }
@@ -149,7 +171,17 @@ internal class HikiteWikiView(context: Context, bundle: JSONObject) : LinearLayo
             val body=Path().apply { moveTo(corners[0].x,corners[0].y); corners.drop(1).forEach { lineTo(it.x,it.y) }; close() }
             paint.pathEffect=null; paint.color=paper; paint.style=Paint.Style.FILL; c.drawPath(body,paint)
             paint.color=ink; paint.style=Paint.Style.STROKE; paint.strokeWidth=2*density; c.drawPath(body,paint)
-            arm("right"); val head=at("head_center"); c.drawCircle(head.x,head.y,r.getDouble("radius").toFloat()*z,paint)
+            arm("right")
+            val rawHead = point(p, "head_center")
+            val shoulderMid = point(r, "shoulder_mid")
+            val hipMid = point(r, "hip_mid")
+            val torsoHeight = hipMid.y - shoulderMid.y
+            val headLevel = if (abs(torsoHeight) > 1e-6f) (rawHead.y - shoulderMid.y) / torsoHeight else 0f
+            val head = xy(PointF(
+                shoulderMid.x + headLevel * (hipMid.x - shoulderMid.x),
+                rawHead.y,
+            ))
+            c.drawCircle(head.x, head.y, headRadius * z, paint)
             if(r.getInt("f")==marker.getInt("frame_number")) ring(at("right_elbow"))
             if(r !== rows.last()) return
             fun dashed(a: PointF,b: PointF) { paint.pathEffect=DashPathEffect(floatArrayOf(6*density,5*density),0f); line(a,b,ink,1.5f); paint.pathEffect=null }
