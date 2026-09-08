@@ -60,13 +60,20 @@ class OsuMeaningUseController(
 enum class ReadyOsuPhase {
     READY,
     MODEL,
+    PREPARING_CAMERA,
     PROMPTING,
     LISTENING,
     CHECKING,
-    FEEDBACK_CONFIRMED,
-    FEEDBACK_UNCONFIRMED,
+    CAPTURING,
+    RESULT,
     ERROR,
     COMPLETE,
+}
+
+enum class ReadyOsuCameraError {
+    CAMERA_PERMISSION_DENIED,
+    FRONT_CAMERA_UNAVAILABLE,
+    CAPTURE_FAILED,
 }
 
 data class ReadyOsuState(
@@ -74,12 +81,15 @@ data class ReadyOsuState(
     val attempts: Int = 0,
     val voiceVerified: Boolean = false,
     val error: SpeechRecognitionError? = null,
+    val cameraError: ReadyOsuCameraError? = null,
+    val selfieCaptured: Boolean = false,
     val interrupted: Boolean = false,
 )
 
 data class ReadyOsuPresentation(val state: ReadyOsuState = ReadyOsuState()) {
     val shellState: ActivityShellState = when (state.phase) {
         ReadyOsuPhase.READY -> ActivityShellState.READY
+        ReadyOsuPhase.RESULT -> ActivityShellState.RESULT
         ReadyOsuPhase.ERROR -> ActivityShellState.ERROR
         ReadyOsuPhase.COMPLETE -> ActivityShellState.COMPLETE
         else -> ActivityShellState.ACTIVE
@@ -87,11 +97,15 @@ data class ReadyOsuPresentation(val state: ReadyOsuState = ReadyOsuState()) {
     val microphoneActive = state.phase == ReadyOsuPhase.LISTENING
     val promptPlaying = state.phase == ReadyOsuPhase.PROMPTING
     val checking = state.phase == ReadyOsuPhase.CHECKING
-    val canFinish = state.phase in setOf(
-        ReadyOsuPhase.FEEDBACK_CONFIRMED,
-        ReadyOsuPhase.FEEDBACK_UNCONFIRMED,
+    val cameraActive = state.phase in setOf(
+        ReadyOsuPhase.PREPARING_CAMERA,
+        ReadyOsuPhase.PROMPTING,
+        ReadyOsuPhase.LISTENING,
+        ReadyOsuPhase.CHECKING,
+        ReadyOsuPhase.CAPTURING,
     )
-    val cameraRequired = false
+    val canFinish = state.phase == ReadyOsuPhase.RESULT
+    val cameraRequired = true
 }
 
 class ReadyOsuController(private val onChanged: (ReadyOsuPresentation) -> Unit) {
@@ -99,6 +113,11 @@ class ReadyOsuController(private val onChanged: (ReadyOsuPresentation) -> Unit) 
         private set
 
     fun start() = update(state.copy(phase = ReadyOsuPhase.MODEL, error = null, interrupted = false))
+
+    fun beginCameraPreparation() = update(ReadyOsuState(
+        phase = ReadyOsuPhase.PREPARING_CAMERA,
+        attempts = state.attempts,
+    ))
 
     fun beginPrompt() = update(state.copy(phase = ReadyOsuPhase.PROMPTING, error = null, interrupted = false))
 
@@ -109,28 +128,55 @@ class ReadyOsuController(private val onChanged: (ReadyOsuPresentation) -> Unit) 
     fun handleTranscripts(transcripts: List<String>) {
         val confirmed = ShortVoiceCommandMatcher.matches(ShortVoiceCommand.OSU, transcripts)
         update(state.copy(
-            phase = if (confirmed) ReadyOsuPhase.FEEDBACK_CONFIRMED else ReadyOsuPhase.FEEDBACK_UNCONFIRMED,
+            phase = if (confirmed) ReadyOsuPhase.CAPTURING else ReadyOsuPhase.RESULT,
             attempts = state.attempts + 1,
             voiceVerified = state.voiceVerified || confirmed,
             error = null,
+            cameraError = null,
+            selfieCaptured = false,
         ))
     }
 
     fun stopListening() = update(state.copy(
-        phase = ReadyOsuPhase.FEEDBACK_UNCONFIRMED,
+        phase = ReadyOsuPhase.RESULT,
         attempts = state.attempts + 1,
         error = null,
+        cameraError = null,
+        selfieCaptured = false,
     ))
 
     fun fail(error: SpeechRecognitionError, interrupted: Boolean = false) = update(state.copy(
         phase = ReadyOsuPhase.ERROR,
         error = error,
+        cameraError = null,
         interrupted = interrupted,
     ))
 
-    fun continueWithoutVerification() = update(state.copy(
-        phase = ReadyOsuPhase.FEEDBACK_UNCONFIRMED,
+    fun failCamera(error: ReadyOsuCameraError, interrupted: Boolean = false) = update(state.copy(
+        phase = ReadyOsuPhase.ERROR,
         error = null,
+        cameraError = error,
+        interrupted = interrupted,
+    ))
+
+    fun permissionFailure(cameraAllowed: Boolean, microphoneAllowed: Boolean) = update(state.copy(
+        phase = ReadyOsuPhase.ERROR,
+        error = if (microphoneAllowed) null else SpeechRecognitionError.MICROPHONE_PERMISSION_DENIED,
+        cameraError = if (cameraAllowed) null else ReadyOsuCameraError.CAMERA_PERMISSION_DENIED,
+        interrupted = false,
+    ))
+
+    fun selfieCaptured() {
+        if (state.phase == ReadyOsuPhase.CAPTURING) {
+            update(state.copy(phase = ReadyOsuPhase.RESULT, selfieCaptured = true, cameraError = null))
+        }
+    }
+
+    fun continueToResultWithoutSelfie() = update(state.copy(
+        phase = ReadyOsuPhase.RESULT,
+        error = null,
+        cameraError = null,
+        selfieCaptured = false,
         interrupted = false,
     ))
 
@@ -144,7 +190,10 @@ class ReadyOsuController(private val onChanged: (ReadyOsuPresentation) -> Unit) 
 
     fun returnToModel() = update(state.copy(
         phase = ReadyOsuPhase.MODEL,
+        voiceVerified = false,
         error = null,
+        cameraError = null,
+        selfieCaptured = false,
         interrupted = false,
     ))
 

@@ -34,15 +34,27 @@ class KarateTerminologyPresentationTest {
         var presentation = ReadyOsuPresentation()
         val controller = ReadyOsuController { presentation = it }
 
+        assertTrue(presentation.cameraRequired)
+        assertFalse(presentation.cameraActive)
+        assertFalse(presentation.microphoneActive)
         controller.start()
+        assertFalse(presentation.cameraActive)
+        controller.beginCameraPreparation()
+        assertTrue(presentation.cameraActive)
         controller.beginPrompt()
         controller.beginListening()
         assertTrue(presentation.microphoneActive)
 
         controller.beginChecking()
         controller.handleTranscripts(listOf("oss"))
-        assertEquals(ReadyOsuPhase.FEEDBACK_CONFIRMED, presentation.state.phase)
+        assertEquals(ReadyOsuPhase.CAPTURING, presentation.state.phase)
         assertTrue(presentation.state.voiceVerified)
+        assertFalse(presentation.canFinish)
+
+        controller.selfieCaptured()
+        assertEquals(ReadyOsuPhase.RESULT, presentation.state.phase)
+        assertEquals(ActivityShellState.RESULT, presentation.shellState)
+        assertTrue(presentation.state.selfieCaptured)
         assertTrue(presentation.canFinish)
 
         controller.finish()
@@ -58,17 +70,41 @@ class KarateTerminologyPresentationTest {
         controller.beginPrompt()
         controller.beginListening()
         controller.handleTranscripts(listOf("something else"))
-        assertEquals(ReadyOsuPhase.FEEDBACK_UNCONFIRMED, presentation.state.phase)
+        assertEquals(ReadyOsuPhase.RESULT, presentation.state.phase)
         assertFalse(presentation.state.voiceVerified)
+        assertFalse(presentation.state.selfieCaptured)
         controller.finish()
         assertEquals(ActivityShellState.COMPLETE, presentation.shellState)
 
         controller.restart()
-        controller.fail(SpeechRecognitionError.MICROPHONE_PERMISSION_DENIED)
+        controller.permissionFailure(cameraAllowed = false, microphoneAllowed = false)
         assertEquals(ActivityShellState.ERROR, presentation.shellState)
-        controller.continueWithoutVerification()
-        assertEquals(ReadyOsuPhase.FEEDBACK_UNCONFIRMED, presentation.state.phase)
+        assertEquals(ReadyOsuCameraError.CAMERA_PERMISSION_DENIED, presentation.state.cameraError)
+        controller.continueToResultWithoutSelfie()
+        assertEquals(ReadyOsuPhase.RESULT, presentation.state.phase)
         assertNull(presentation.state.error)
+    }
+
+    @Test fun selfieCaptureFailureDoesNotEraseRecognizedVoiceEvidence() {
+        var presentation = ReadyOsuPresentation()
+        val controller = ReadyOsuController { presentation = it }
+
+        controller.beginCameraPreparation()
+        controller.beginPrompt()
+        controller.beginListening()
+        controller.handleTranscripts(listOf("osu"))
+        controller.failCamera(ReadyOsuCameraError.CAPTURE_FAILED)
+
+        assertEquals(ActivityShellState.ERROR, presentation.shellState)
+        assertTrue(presentation.state.voiceVerified)
+        assertFalse(presentation.state.selfieCaptured)
+        controller.continueToResultWithoutSelfie()
+        assertEquals(ActivityShellState.RESULT, presentation.shellState)
+        assertTrue(presentation.state.voiceVerified)
+
+        controller.beginCameraPreparation()
+        assertFalse(presentation.state.voiceVerified)
+        assertFalse(presentation.state.selfieCaptured)
     }
 
     @Test fun stopCountKeepsCompletionAndVoiceEvidenceSeparate() {

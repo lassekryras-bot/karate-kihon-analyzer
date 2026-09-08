@@ -3,6 +3,7 @@ package dk.lasse.karatecliprecorder.learningactivity
 import android.annotation.SuppressLint
 import android.content.Context
 import android.content.res.ColorStateList
+import android.graphics.Bitmap
 import android.graphics.Color
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
@@ -10,8 +11,10 @@ import android.view.Gravity
 import android.view.View
 import android.widget.FrameLayout
 import android.widget.Button
+import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.TextView
+import androidx.camera.view.PreviewView
 import androidx.core.content.ContextCompat
 import dk.lasse.karatecliprecorder.AppIcon
 import dk.lasse.karatecliprecorder.AppIconView
@@ -156,6 +159,11 @@ class ReadyOsuView(
 ) : FrameLayout(context) {
     private val ui = TerminologyActivityUi(context)
     private val shell = ActivityShellView(context, onExit)
+    val cameraPreview = PreviewView(context).apply {
+        scaleType = PreviewView.ScaleType.FILL_CENTER
+        contentDescription = "Front camera preview for the hands-free selfie"
+    }
+    private var selfieBitmap: Bitmap? = null
     var presentation = ReadyOsuPresentation()
         private set
 
@@ -172,11 +180,20 @@ class ReadyOsuView(
         when (next.state.phase) {
             ReadyOsuPhase.READY -> renderReady()
             ReadyOsuPhase.MODEL -> renderModel()
+            ReadyOsuPhase.PREPARING_CAMERA -> renderCameraStage(
+                subtitle = "Starting the front camera…",
+                status = "Preparing camera",
+                body = "Keep the phone steady and place your face in the preview.",
+            )
             ReadyOsuPhase.PROMPTING -> renderPrompting()
             ReadyOsuPhase.LISTENING -> renderListening()
             ReadyOsuPhase.CHECKING -> renderChecking()
-            ReadyOsuPhase.FEEDBACK_CONFIRMED -> renderFeedback(confirmed = true)
-            ReadyOsuPhase.FEEDBACK_UNCONFIRMED -> renderFeedback(confirmed = false)
+            ReadyOsuPhase.CAPTURING -> renderCameraStage(
+                subtitle = "Osu recognized — taking your photo…",
+                status = "Taking selfie",
+                body = "No tap is needed. Hold the phone steady for a moment.",
+            )
+            ReadyOsuPhase.RESULT -> renderResult()
             ReadyOsuPhase.ERROR -> renderError()
             ReadyOsuPhase.COMPLETE -> renderComplete()
         }
@@ -191,10 +208,11 @@ class ReadyOsuView(
             title = "How the practice works",
             paragraphs = listOf(
                 "First, hear the complete exchange. Then the app says “Ready?” and waits for your response.",
-                "The microphone starts only when you choose to try the response. Android speech recognition may use an online service.",
-                "A recognition match confirms the intended response. It does not assess pronunciation.",
+                "When you start the hands-free attempt, the front camera and microphone turn on. Saying “Osu” takes a selfie without another tap.",
+                "The photo appears only on the result page and is discarded when you retry or leave. Android speech recognition may use an online service.",
+                "A recognition match triggers the camera. It does not assess pronunciation or karate skill.",
             ),
-            footer = "Microphone optional  ·  Camera not used",
+            footer = "Front camera + microphone start only after your action",
         ))
         shell.setProgressContent(null)
         shell.setActions(null, ActivityShellAction("Start practice  →", onClick = onStart))
@@ -208,56 +226,58 @@ class ReadyOsuView(
             response = "Osu",
         ).apply { addView(ui.inlineAction("Play example", AppIcon.VOLUME, onReplayModel)) })
         shell.setProgressContent(ui.stepProgress(0, 2, "Practice step"))
-        shell.setActions(null, ActivityShellAction("Try voice response  →", onClick = onTryResponding))
+        shell.setActions(null, ActivityShellAction("Start hands-free selfie  →", onClick = onTryResponding))
     }
 
     private fun renderPrompting() {
-        shell.setHeading("Ready? — Osu", "Listen for the question.")
-        shell.setRunnerContent(ui.exchangeCard("Playing prompt", "Ready?", "Your turn comes next"))
-        shell.setProgressContent(ui.stepProgress(1, 2, "Practice step"))
-        shell.setActions(null, ActivityShellAction("Stop playback", onClick = onCancelPrompt))
+        renderCameraStage(
+            subtitle = "Listen for the question.",
+            status = "Playing prompt",
+            body = "Ready? Your turn comes next.",
+            onStop = onCancelPrompt,
+        )
     }
 
     private fun renderListening() {
-        shell.setHeading("Ready? — Osu", "Your turn — say “Osu”.")
-        shell.setRunnerContent(ui.voiceStatusCard(
-            title = "Listening…",
-            body = "Say Osu now.",
-            active = true,
-        ))
-        shell.setProgressContent(ui.stepProgress(1, 2, "Practice step"))
-        shell.setActions(null, ActivityShellAction("Stop listening", onClick = onStopListening))
+        renderCameraStage(
+            subtitle = "Your turn — say “Osu”.",
+            status = "Listening…",
+            body = "Say Osu now. A recognized response takes the selfie automatically.",
+            onStop = onStopListening,
+        )
     }
 
     private fun renderChecking() {
-        shell.setHeading("Ready? — Osu", "Checking what the app heard…")
-        shell.setRunnerContent(ui.voiceStatusCard("Checking response", "This confirms the intended word, not pronunciation.", false))
-        shell.setProgressContent(ui.stepProgress(1, 2, "Practice step"))
-        shell.setActions(null, ActivityShellAction("Cancel check", onClick = onContinueWithoutVoice))
+        renderCameraStage(
+            subtitle = "Checking what the app heard…",
+            status = "Checking response",
+            body = "The camera will trigger only if the intended Osu response is recognized.",
+            onStop = onContinueWithoutVoice,
+        )
     }
 
-    private fun renderFeedback(confirmed: Boolean) {
-        shell.setHeading(
-            "Ready? — Osu",
-            if (confirmed) "The app recognized your Osu response." else "The app could not confirm the response.",
-        )
-        shell.setRunnerContent(ui.card(
-            title = if (confirmed) "Response confirmed" else "Practice completed without voice confirmation",
-            paragraphs = if (confirmed) {
-                listOf(
-                    "You responded after the Ready prompt.",
-                    "This recognition result is not a pronunciation score.",
-                )
-            } else {
-                listOf(
-                    "You can hear the example and try again, or finish without voice verification.",
-                    "A missed recognition result does not mean you pronounced the word incorrectly.",
-                )
-            },
-        ))
+    private fun renderResult() {
+        val verified = presentation.state.voiceVerified
+        val captured = presentation.state.selfieCaptured && selfieBitmap != null
+        shell.setHeading("Your hands-free result", when {
+            captured -> "You said Osu, and the app took the selfie."
+            verified -> "The app recognized Osu, but no selfie was available."
+            else -> "The app did not confirm Osu, so no selfie was taken."
+        })
+        shell.setRunnerContent(if (captured) {
+            ui.selfieResultCard(requireNotNull(selfieBitmap))
+        } else {
+            ui.card(
+                title = if (verified) "Voice response confirmed" else "No hands-free photo",
+                paragraphs = listOf(
+                    if (verified) "The intended response was recognized." else "You can try again or finish without voice verification.",
+                    "This result is not a pronunciation score or a karate-skill assessment.",
+                ),
+            )
+        })
         shell.setProgressContent(ui.stepProgress(1, 2, "Practice step"))
         shell.setActions(
-            secondary = ActivityShellAction("Try voice again", onClick = onTryAgain),
+            secondary = ActivityShellAction("Try again", onClick = onTryAgain),
             primary = ActivityShellAction("Finish practice  →", onClick = onFinish),
         )
     }
@@ -266,20 +286,20 @@ class ReadyOsuView(
         val message = if (presentation.state.interrupted) {
             "The response was interrupted. Restart the response when you are ready."
         } else {
-            voiceErrorCopy(presentation.state.error)
+            readyOsuErrorCopy(presentation)
         }
-        shell.setHeading("Voice practice paused", message)
+        shell.setHeading("Selfie practice paused", message)
         shell.setRunnerContent(ui.card(
-            title = "No voice result was saved",
+            title = "No selfie was saved",
             paragraphs = listOf(
-                "You can try the microphone again or complete the guided practice without voice confirmation.",
-                "The camera is not used.",
+                "You can try the front camera and microphone again, or continue without a photo.",
+                "Any recognized voice response remains separate from whether the camera captured an image.",
             ),
         ))
         shell.setProgressContent(null)
         shell.setActions(
-            secondary = ActivityShellAction("Practice without microphone", onClick = onContinueWithoutVoice),
-            primary = ActivityShellAction("Try microphone again  →", onClick = onTryAgain),
+            secondary = ActivityShellAction("Continue without photo", onClick = onContinueWithoutVoice),
+            primary = ActivityShellAction("Try selfie again  →", onClick = onTryAgain),
         )
     }
 
@@ -290,6 +310,7 @@ class ReadyOsuView(
             title = if (verified) "Voice response confirmed" else "Completed without voice confirmation",
             paragraphs = listOf(
                 if (verified) "The app recognized the intended Osu response." else "No voice-verification claim was recorded.",
+                if (presentation.state.selfieCaptured) "A selfie was captured for the result page." else "No successful selfie capture was recorded.",
                 "This activity does not assess pronunciation or karate skill.",
             ),
         ))
@@ -298,6 +319,26 @@ class ReadyOsuView(
             secondary = ActivityShellAction("Practice again", onClick = onPracticeAgain),
             primary = ActivityShellAction("Practise stopping  →", onClick = onContinue),
         )
+    }
+
+    fun setSelfie(bitmap: Bitmap) {
+        selfieBitmap = bitmap
+    }
+
+    fun clearSelfie() {
+        selfieBitmap = null
+    }
+
+    private fun renderCameraStage(
+        subtitle: String,
+        status: String,
+        body: String,
+        onStop: () -> Unit = onContinueWithoutVoice,
+    ) {
+        shell.setHeading("Ready? — Osu", subtitle)
+        shell.setRunnerContent(ui.cameraCard(status, body, cameraPreview))
+        shell.setProgressContent(ui.stepProgress(1, 2, "Practice step"))
+        shell.setActions(null, ActivityShellAction("Stop selfie practice", onClick = onStop))
     }
 }
 
@@ -512,6 +553,34 @@ private class TerminologyActivityUi(private val context: Context) {
         })
     }
 
+    fun cameraCard(title: String, body: String, preview: View) = card(title, listOf(body)).apply {
+        addView(preview, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 280.dp()).apply {
+            topMargin = 16.dp()
+        })
+    }
+
+    fun selfieResultCard(bitmap: Bitmap) = card(
+        title = "Selfie captured",
+        paragraphs = emptyList(),
+    ).apply {
+        addView(ImageView(context).apply {
+            setImageBitmap(bitmap)
+            scaleType = ImageView.ScaleType.CENTER_CROP
+            adjustViewBounds = false
+            contentDescription = "Selfie captured after the Osu response"
+        }, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 320.dp()).apply {
+            topMargin = 16.dp()
+        })
+        addView(label(
+            "The hands-free action worked: the recognized Osu response triggered this photo.",
+            15f,
+        ).apply { setPadding(0, 12.dp(), 0, 0) })
+        addView(label(
+            "The photo is kept only for this result and is not a pronunciation or skill assessment.",
+            15f,
+        ).apply { setPadding(0, 9.dp(), 0, 0) })
+    }
+
     fun countingCard(number: String, kanji: String, spoken: String, status: String, listening: Boolean) = card(
         title = status,
         paragraphs = emptyList(),
@@ -589,13 +658,31 @@ private fun voiceErrorCopy(error: SpeechRecognitionError?): String = when (error
     else -> "Speech recognition could not start."
 }
 
+private fun readyOsuErrorCopy(presentation: ReadyOsuPresentation): String {
+    val cameraError = presentation.state.cameraError
+    val voiceError = presentation.state.error
+    return when {
+        cameraError == ReadyOsuCameraError.CAMERA_PERMISSION_DENIED &&
+            voiceError == SpeechRecognitionError.MICROPHONE_PERMISSION_DENIED ->
+            "Front-camera and microphone access were not allowed."
+        cameraError == ReadyOsuCameraError.CAMERA_PERMISSION_DENIED ->
+            "Front-camera access was not allowed."
+        cameraError == ReadyOsuCameraError.FRONT_CAMERA_UNAVAILABLE ->
+            "A front camera is not available for this activity."
+        cameraError == ReadyOsuCameraError.CAPTURE_FAILED ->
+            "The response was processed, but the selfie could not be captured."
+        else -> voiceErrorCopy(voiceError)
+    }
+}
+
 private fun readyOsuStatus(presentation: ReadyOsuPresentation): String = when (presentation.state.phase) {
+    ReadyOsuPhase.PREPARING_CAMERA -> "Starting front camera"
     ReadyOsuPhase.PROMPTING -> "Playing Ready prompt"
     ReadyOsuPhase.LISTENING -> "Listening. Say Osu"
     ReadyOsuPhase.CHECKING -> "Checking response"
-    ReadyOsuPhase.FEEDBACK_CONFIRMED -> "Osu response recognized"
-    ReadyOsuPhase.FEEDBACK_UNCONFIRMED -> "Response not confirmed"
-    ReadyOsuPhase.ERROR -> "Voice practice paused"
+    ReadyOsuPhase.CAPTURING -> "Osu recognized. Taking selfie"
+    ReadyOsuPhase.RESULT -> if (presentation.state.selfieCaptured) "Selfie captured" else "No selfie captured"
+    ReadyOsuPhase.ERROR -> "Selfie practice paused"
     ReadyOsuPhase.COMPLETE -> "Practice complete"
     else -> ""
 }
@@ -611,10 +698,11 @@ private fun stopCountStatus(presentation: StopCountPresentation): String = when 
 
 private val ANNOUNCED_READY_OSU_PHASES = setOf(
     ReadyOsuPhase.PROMPTING,
+    ReadyOsuPhase.PREPARING_CAMERA,
     ReadyOsuPhase.LISTENING,
     ReadyOsuPhase.CHECKING,
-    ReadyOsuPhase.FEEDBACK_CONFIRMED,
-    ReadyOsuPhase.FEEDBACK_UNCONFIRMED,
+    ReadyOsuPhase.CAPTURING,
+    ReadyOsuPhase.RESULT,
     ReadyOsuPhase.ERROR,
     ReadyOsuPhase.COMPLETE,
 )

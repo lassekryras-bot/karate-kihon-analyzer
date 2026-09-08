@@ -18,6 +18,7 @@ Paths are relative to `android/KarateClipRecorder/app/src` unless stated otherwi
 | Counting controllers/audio/recognition | `main/java/dk/lasse/karatecliprecorder/learning/` and `MainActivity.kt` |
 | Terminology presentations and Views | `main/java/dk/lasse/karatecliprecorder/learningactivity/KarateTerminologyPresentations.kt` and `KarateTerminologyViews.kt` |
 | Generic live speech and terminology prompts | `main/java/dk/lasse/karatecliprecorder/learning/LiveSpeechRecognizer.kt`, `ShortVoiceCommand.kt`, and `TerminologySpeechPlayer.kt` |
+| Ready? — Osu front-camera capture | `main/java/dk/lasse/karatecliprecorder/learning/ReadyOsuSelfieCamera.kt` |
 | Karate Basics catalogue | `main/res/raw/karate_basics_path.json` |
 | Draft pathway parsing/resolution | `main/java/dk/lasse/karatecliprecorder/learningpath/DraftLearningPathModels.kt` |
 | Routing and host lifecycle | `main/java/dk/lasse/karatecliprecorder/MainActivity.kt` |
@@ -199,10 +200,11 @@ placeholder-is-not-contract, passive-view modality isolation, and host cleanup
 invariants from the formal contract.
 
 `KarateTerminologyPresentationTest` covers the passive lesson sequence, Osu
-variant recognition, unverified completion, Stop methods, count completion, and
-interruption recovery. `ShortVoiceCommandMatcherTest` verifies narrow command
-matching, and `KarateTerminologyActivityArchitectureTest` protects concrete
-routing, passive hardware boundaries, permission entry points, and Stop cleanup.
+variant recognition, selfie capture/result evidence, unverified completion, Stop
+methods, count completion, and interruption recovery. `ShortVoiceCommandMatcherTest`
+verifies narrow command matching, and `KarateTerminologyActivityArchitectureTest`
+protects concrete routing, passive hardware boundaries, front-camera ownership,
+permission entry points, and Stop cleanup.
 
 These source-level architecture tests are fast safeguards, not substitutes for
 compiled View tests, accessibility tests, screenshots, or real-device validation.
@@ -214,16 +216,27 @@ The Karate Terminology & Voice Interaction section now has three concrete routes
 | Activity | Category | Implemented lifecycle | Important deviation |
 | --- | --- | --- | --- |
 | Osu — Meaning & Use | Learn | Ready → Active → Complete | No Result or microphone. |
-| Ready? — Osu | Practice | Ready → Active ↔ Error → Complete | Model/prompt/listen/check are runner substates; `Osu`, `Oss`, and Japanese recognizer forms map to one internal intent. |
+| Ready? — Osu | Practice | Ready → Active ↔ Error → Result → Complete | Model/camera/prompt/listen/check/capture are runner substates; a recognized `Osu` triggers a front-camera selfie. |
 | Stop the Session | Practice | Ready → Active ↔ Error → Complete | The app counts 1–10 in Japanese while a narrow Stop recognizer listens; persistent tappable Stop is always available. |
 
 Implemented behavior:
 
-- all three use `ActivityShellView` and remain camera/MediaPipe/recording-free;
-- Ready pages start no recognition and microphone permission follows a labelled
-  voice-practice action;
+- all three use `ActivityShellView`; only Ready? — Osu uses a camera, while none
+  uses MediaPipe or video recording;
+- Ready pages and the passive model start no camera or recognition; front-camera
+  and microphone permissions follow the labelled `Start hands-free selfie`
+  action;
 - Ready? — Osu finishes prompt playback before recognition starts and treats a
   recognizer match as intent verification, not pronunciation quality;
+- Ready? — Osu opens a front-camera preview, automatically captures a mirrored
+  selfie after a recognized response, stops both modalities, and shows the image
+  on a distinct Result page;
+- the selfie remains in memory for the current result only and is discarded on
+  retry, exit, or destruction; the activity separately records `voiceVerified`,
+  `selfieCaptured`, and `selfiePersisted=false` evidence;
+- Osu examples use two packaged voice recordings and make a fresh random sample
+  choice for each playback; the English Ready prompt continues to use device
+  text-to-speech;
 - Stop the Session intentionally uses a runner-level barge-in exception so Stop
   can interrupt the Japanese count; the exact-token matcher ignores count words;
 - tapping Stop immediately cancels both count playback and recognition and still
@@ -236,13 +249,33 @@ Implemented behavior:
 - backgrounding cancels audio/listening and presents an interrupted recovery
   state that requires a new learner action.
 
+### Ready? — Osu hands-free selfie definition
+
+- **Objective:** respond to the app's Ready prompt with Osu and experience that
+  acknowledgement starting the next action without touching the phone.
+- **Conditions:** after an explicit learner action, the front camera provides a
+  framing preview and the microphone listens only after the Ready prompt ends.
+- **Completion:** review the captured selfie or the truthful no-photo result,
+  then explicitly finish the practice.
+- **Evidence:** activity completion, recognized Osu intent, and successful selfie
+  capture are independent facts.
+- **Evidence exclusions:** the photo and recognizer do not assess pronunciation,
+  readiness quality, appearance, or karate skill.
+- **Transfer:** prepares the learner for later hands-free prompts where Osu means
+  `I heard the instruction and I am ready to continue`.
+
+Adding a Result page and front-camera capture intentionally replaces the earlier
+camera-free/no-Result design. The Result is justified as immediate experiential
+feedback showing that the spoken acknowledgement caused an action. It is not an
+assessment result.
+
 Current limitations:
 
-- the cultural wording remains deliberately cautious and still requires karate-
+- the packaged Osu recordings and cultural wording still require karate-
   instructor/content review before release;
-- Osu and Ready prompt examples use the device text-to-speech voice; instructor-
-  approved recorded cues remain preferable for final learning content;
 - speech recognition may use the device's configured online service;
+- front-camera availability, preview mirroring, shutter timing, permission
+  revocation, and selfie orientation still require representative-device tests;
 - Stop barge-in needs real-device testing across speakers, recognizers, noise,
   volumes, and Bluetooth routes to assess false positives and masking; and
 - TalkBack, large-text, narrow-screen, interruption, and permission-revocation
@@ -254,11 +287,13 @@ Current limitations:
    recognition algorithm unnecessarily.
 2. Add common accessibility/status and exit/cleanup behavior only when a concrete
    activity proves the reusable API; do not pre-load the shell with modality UI.
-3. Replace device-generated terminology prompts with instructor-approved audio
-   after content and pronunciation review.
+3. Review the packaged Osu recordings and remaining device-generated English
+   prompts with an instructor/content owner before release.
 4. Validate short-command recognition and Stop barge-in on representative real
    devices without connecting it to the old guided-session MVP.
-5. Add a typed durable activity-attempt/evidence model when more activities need
+5. Validate the Ready? — Osu front-camera capture and hands-free timing on
+   representative devices without persisting its session-only selfie.
+6. Add a typed durable activity-attempt/evidence model when more activities need
    to query voice evidence; the current training-session JSON keeps completion
    and verification separate without a premature migration.
 
