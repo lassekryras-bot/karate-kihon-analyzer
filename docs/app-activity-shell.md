@@ -231,6 +231,9 @@ Implemented behavior:
 - Ready? — Osu opens a front-camera preview, automatically captures a mirrored
   selfie after a recognized response, stops both modalities, and shows the image
   on a distinct Result page;
+- Camera-stage rendering detaches the reused preview from its previous card
+  before attaching it to the next. This fixes startup immediately entering
+  recovery when preparing the camera transitions to playing the Ready prompt.
 - the selfie remains in memory for the current result only and is discarded on
   retry, exit, or destruction; the activity separately records `voiceVerified`,
   `selfieCaptured`, and `selfiePersisted=false` evidence;
