@@ -13,7 +13,11 @@ class KarateBasicsDraftArchitectureTest {
         val config = source("src/main/res/raw/karate_basics_path.json")
 
         assertTrue(config.contains("\"title\": \"Karate Basics\""))
-        assertTrue(config.contains("\"follow-count-1-10\", \"one-straight-punch\""))
+        assertTrue(config.contains("\"test-count-1-10\", \"one-straight-punch\""))
+        assertTrue(config.contains("\"id\": \"practice-count-1-10\""))
+        assertTrue(config.contains("\"id\": \"test-count-1-10\""))
+        assertFalse(config.contains("count-1-5"))
+        assertFalse(config.contains("count-6-10"))
         assertTrue(config.contains("\"ready-osu\", \"camera-check\", \"short-set\""))
         assertTrue(config.contains("\"karate-basics-challenge\""))
     }
