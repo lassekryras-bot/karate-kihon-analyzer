@@ -1,3 +1,6 @@
+Warning: truncated output (original token count: 33818)
+Total output lines: 2898
+
 package dk.lasse.karatecliprecorder
 
 import android.Manifest
@@ -50,6 +53,7 @@ import dk.lasse.karatecliprecorder.learningpath.ResolvedDraftActivity
 import dk.lasse.karatecliprecorder.learningpath.RecentLearningTarget
 import dk.lasse.karatecliprecorder.learningactivity.DraftPlaceholderActivityView
 import dk.lasse.karatecliprecorder.learningactivity.JapaneseCountingPracticeView
+import dk.lasse.karatecliprecorder.learningactivity.JapaneseCountingTestView
 import dk.lasse.karatecliprecorder.orders.SoundFileTrainingOrderPlayer
 import dk.lasse.karatecliprecorder.orders.TrainingOrder
 import dk.lasse.karatecliprecorder.orders.TrainingOrderMapper
@@ -132,6 +136,8 @@ class MainActivity : AppCompatActivity() {
     private var profileReturnDestination = AppDestination.HOME
     private var skillProgressionScreen: SkillProgressionView? = null
     private var japaneseCountingPracticeScreen: JapaneseCountingPracticeView? = null
+    private var japaneseCountingTestScreen: JapaneseCountingTestView? = null
+    private var japaneseCountingKarateBasicsFlow = false
     private val learningPaths by lazy(LearningPathCatalog::create)
     private val karateBasicsPath by lazy { DraftLearningPathCatalog.karateBasics(this) }
     private var karateBasicsScrollY = 0
@@ -489,6 +495,14 @@ class MainActivity : AppCompatActivity() {
     private fun openKarateBasicsActivity(activity: ResolvedDraftActivity) {
         when (activity.definition.type) {
             DraftActivityType.CONDITIONAL_PROFILE -> openKarateBasicsProfile()
+            DraftActivityType.JAPANESE_COUNTING_PRACTICE -> {
+                japaneseCountingKarateBasicsFlow = true
+                openJapaneseCountingPractice(karateBasicsPathPosition(activity.definition.id))
+            }
+            DraftActivityType.JAPANESE_COUNTING_TEST -> {
+                japaneseCountingKarateBasicsFlow = true
+                openJapaneseCountingTest(karateBasicsPathPosition(activity.definition.id))
+            }
             DraftActivityType.PLACEHOLDER -> showSecondary(
                 DraftPlaceholderActivityView(
                     context = this,
@@ -504,6 +518,11 @@ class MainActivity : AppCompatActivity() {
                 ::showKarateBasicsPath,
             )
         }
+    }
+
+    private fun karateBasicsPathPosition(activityId: String): String {
+        val position = karateBasicsPath.activities.indexOfFirst { it.id == activityId } + 1
+        return "$position / ${karateBasicsPath.activities.size}"
     }
 
     private fun openKarateBasicsProfile() {
@@ -652,13 +671,14 @@ class MainActivity : AppCompatActivity() {
                 openTrainingHub()
             }
             LearningDestination.JAPANESE_COUNTING_PRACTICE -> {
+                japaneseCountingKarateBasicsFlow = false
                 profileRepository.touchActiveLearningActivity(LearningPathId.JAPANESE_COUNTING.name, "step-1")
                 openJapaneseCountingPractice()
             }
             LearningDestination.JAPANESE_COUNTING_TEST -> {
+                japaneseCountingKarateBasicsFlow = false
                 profileRepository.touchActiveLearningActivity(LearningPathId.JAPANESE_COUNTING.name, "step-2")
-                showTrainingUi()
-                startJapaneseCountingTest()
+                openJapaneseCountingTest()
             }
         }
     }
@@ -1315,324 +1335,7 @@ class MainActivity : AppCompatActivity() {
         cameraSetupVoiceCoach = if (appPreferences.voiceGuidance) PunchHeightVoiceCoach(this) else null
         completedCameraSetupCapture = null
         lastSpokenCameraSetupMessage = null
-        cameraSetupCapturedImage.setImageDrawable(null)
-        cameraSetupActive = true
-        latestCameraSetupState = cameraSetupCoordinator.start()
-        updateCameraSetupState(latestCameraSetupState, speak = false)
-        updateMainMenuAvailability()
-        updateControlVisibility()
-        recognizerExecutor.execute {
-            val runner = createPoseRecognizerRunner()
-            runOnMainThread {
-                poseRecognizerRunner?.close()
-                poseRecognizerRunner = runner
-                poseRecognizerState = runner.lifecycleState
-                if (!cameraSetupActive) return@runOnMainThread
-                if (runner.initializationSucceeded()) {
-                    recordingAdapter?.setAnalysisEnabled(
-                        cameraSetupCoordinator.currentState().stage == CameraSetupStage.POSITIONING,
-                    )
-                } else {
-                    updateCameraSetupState(cameraSetupCoordinator.fail("Pose tracking could not start."))
-                }
-            }
-        }
-    }
-
-    private fun selectCameraSetupView(view: CameraView) {
-        if (!cameraSetupActive) return
-        completedCameraSetupCapture = null
-        cameraSetupCapturedImage.setImageDrawable(null)
-        cameraSetupVoiceCoach?.reset()
-        lastSpokenCameraSetupMessage = null
-        updateCameraSetupState(cameraSetupCoordinator.selectView(view), speak = true)
-        recordingAdapter?.setAnalysisEnabled(poseRecognizerState == PoseRecognizerLifecycleState.READY)
-    }
-
-    private fun handleCameraSetupPoseResult(output: LivePoseLandmarkerOutput, bitmap: Bitmap) {
-        processedFrameCount.incrementAndGet()
-        val decision = cameraSetupCoordinator.process(output.poseFrame)
-        if (!decision.shouldCapture) {
-            if (!bitmap.isRecycled) bitmap.recycle()
-            runOnMainThread {
-                if (cameraSetupActive) {
-                    if (decision.state.stage == CameraSetupStage.ADJUST_CAMERA) {
-                        recordingAdapter?.setAnalysisEnabled(false)
-                    }
-                    updateCameraSetupState(decision.state)
-                }
-            }
-            return
-        }
-        recordingAdapter?.setAnalysisEnabled(false)
-        runOnMainThread { if (cameraSetupActive) updateCameraSetupState(decision.state) }
-        val view = decision.state.selectedView ?: run {
-            if (!bitmap.isRecycled) bitmap.recycle()
-            return
-        }
-        val captureFrame = decision.captureFrame ?: run {
-            if (!bitmap.isRecycled) bitmap.recycle()
-            return
-        }
-        punchHeightStorageExecutor.execute {
-            val captureProfileId = profileRepository.activeProfile().id
-            runCatching { cameraSetupCaptureStore.save(bitmap, view, captureFrame, captureProfileId) }
-                .onSuccess { capture ->
-                    runOnMainThread {
-                        if (!cameraSetupActive) return@runOnMainThread
-                        completedCameraSetupCapture = capture
-                        profileRepository.saveCalibration(Calibration(
-                            profileId = profileRepository.activeProfile().id,
-                            calibrationType = "camera_setup_${view.name.lowercase()}",
-                            payload = capture.metadataFile.absolutePath,
-                        ))
-                        cameraSetupCapturedImage.setImageBitmap(BitmapFactory.decodeFile(capture.imageFile.absolutePath))
-                        metadataPathText.text = "Camera setup: ${capture.imageFile.absolutePath}"
-                        updateCameraSetupState(cameraSetupCoordinator.captureSaved())
-                    }
-                }
-                .onFailure { error ->
-                    runOnMainThread {
-                        if (cameraSetupActive) updateCameraSetupState(
-                            cameraSetupCoordinator.fail("Could not save the setup picture: ${error.message}"),
-                        )
-                    }
-                }
-        }
-    }
-
-    private fun updateCameraSetupState(state: CameraSetupState, speak: Boolean = true) {
-        latestCameraSetupState = state
-        cameraSetupTitleText.text = state.selectedView?.let { "Camera setup - ${it.displayName}" } ?: "Camera setup"
-        cameraSetupMessageText.text = state.message
-        cameraSetupProgress.progress = (state.holdProgress * cameraSetupProgress.max).toInt()
-        if (appPreferences.voiceGuidance && speak && cameraSetupActive && state.message != lastSpokenCameraSetupMessage) {
-            val spoken = cameraSetupVoiceCoach?.speak(state.message, SystemClock.elapsedRealtime()) == true
-            if (spoken) lastSpokenCameraSetupMessage = state.message
-        }
-        updateControlVisibility()
-    }
-
-    private fun restartCameraSetupAfterAdjustment() {
-        if (!cameraSetupActive || latestCameraSetupState.stage != CameraSetupStage.ADJUST_CAMERA) return
-        cameraSetupVoiceCoach?.reset()
-        lastSpokenCameraSetupMessage = null
-        updateCameraSetupState(cameraSetupCoordinator.restartAfterCameraAdjustment())
-        recordingAdapter?.setAnalysisEnabled(poseRecognizerState == PoseRecognizerLifecycleState.READY)
-    }
-
-    private fun closeCameraSetupSession() {
-        recordingAdapter?.setAnalysisEnabled(false)
-        cameraSetupCoordinator.cancel()
-        cameraSetupActive = false
-        poseRecognizerRunner?.close()
-        poseRecognizerRunner = null
-        poseRecognizerState = PoseRecognizerLifecycleState.CLOSED
-        cameraSetupVoiceCoach?.close()
-        cameraSetupVoiceCoach = null
-        lastSpokenCameraSetupMessage = null
-        completedCameraSetupCapture = null
-        cameraSetupCapturedImage.setImageDrawable(null)
-        updateMainMenuAvailability()
-        updateControlVisibility()
-    }
-
-    private fun startPunchHeightSession() {
-        recordingAdapter?.setAnalysisEnabled(false)
-        poseRecognizerRunner?.close()
-        poseRecognizerRunner = null
-        poseRecognizerState = PoseRecognizerLifecycleState.INITIALIZING
-        punchHeightVoiceCoach?.close()
-        punchHeightVoiceCoach = if (appPreferences.voiceGuidance) PunchHeightVoiceCoach(this) else null
-        completedPunchHeightSession = null
-        clearPunchHeightReview()
-        try {
-            punchHeightCaptureStore.beginSession(profileRepository.activeProfile().id)
-        } catch (error: Exception) {
-            Toast.makeText(this, error.message ?: "Could not start Punch Heights.", Toast.LENGTH_LONG).show()
-            return
-        }
-        punchHeightActive = true
-        val state = punchHeightCoordinator.start()
-        updatePunchHeightState(state)
-        updateMainMenuAvailability()
-        updateControlVisibility()
-        recognizerExecutor.execute {
-            val runner = createPoseRecognizerRunner()
-            runOnMainThread {
-                poseRecognizerRunner?.close()
-                poseRecognizerRunner = runner
-                poseRecognizerState = runner.lifecycleState
-                if (punchHeightActive && runner.initializationSucceeded()) {
-                    recordingAdapter?.setAnalysisEnabled(true)
-                } else if (punchHeightActive) {
-                    failPunchHeightSession("Pose tracking could not start. Check that the Pose Landmarker model is installed.")
-                }
-            }
-        }
-    }
-
-    private fun createPoseRecognizerRunner(): LivePoseLandmarkerRunner = LivePoseLandmarkerRunner(
-        context = this,
-        onResult = { output, bitmap ->
-            if (cameraSetupActive) handleCameraSetupPoseResult(output, bitmap)
-            else handlePunchHeightPoseResult(output, bitmap)
-        },
-        onError = { message -> runOnMainThread {
-            if (cameraSetupActive) updateCameraSetupState(cameraSetupCoordinator.fail(message))
-            else failPunchHeightSession(message)
-        } },
-    )
-
-    private fun handlePunchHeightPoseResult(output: LivePoseLandmarkerOutput, bitmap: Bitmap) {
-        processedFrameCount.incrementAndGet()
-        val decision = punchHeightCoordinator.process(output)
-        val snapshot = decision.captureSnapshot
-        if (snapshot == null) {
-            if (!bitmap.isRecycled) bitmap.recycle()
-            runOnMainThread { if (punchHeightActive) updatePunchHeightState(decision.state) }
-            return
-        }
-        recordingAdapter?.setAnalysisEnabled(false)
-        runOnMainThread { if (punchHeightActive) updatePunchHeightState(decision.state) }
-        punchHeightStorageExecutor.execute {
-            runCatching { punchHeightCaptureStore.saveCapture(bitmap, snapshot) }
-                .onSuccess {
-                    runOnMainThread {
-                        if (!punchHeightActive) return@runOnMainThread
-                        updatePunchHeightState(punchHeightCoordinator.captureSaved(snapshot.targetType))
-                        mainHandler.postDelayed({ advancePunchHeightAfterCapture(snapshot.targetType) }, PUNCH_HEIGHT_CAPTURE_PAUSE_MS)
-                    }
-                }
-                .onFailure { error -> runOnMainThread { failPunchHeightSession("Could not save ${snapshot.targetType.name.lowercase()}: ${error.message}") } }
-        }
-    }
-
-    private fun advancePunchHeightAfterCapture(capturedTarget: PunchHeightTargetType) {
-        if (!punchHeightActive || capturedTarget !in punchHeightCoordinator.currentState().capturedTargets) return
-        val state = punchHeightCoordinator.advanceAfterCapture()
-        updatePunchHeightState(state)
-        if (state.stage == PunchHeightSessionStage.SESSION_REVIEW) {
-            finishPunchHeightSessionStorage()
-        } else {
-            recordingAdapter?.setAnalysisEnabled(poseRecognizerState == PoseRecognizerLifecycleState.READY)
-        }
-    }
-
-    private fun finishPunchHeightSessionStorage() {
-        recordingAdapter?.setAnalysisEnabled(false)
-        punchHeightStorageExecutor.execute {
-            runCatching { punchHeightCaptureStore.completeSession() }
-                .onSuccess { session ->
-                    runOnMainThread {
-                        if (!punchHeightActive) return@runOnMainThread
-                        completedPunchHeightSession = session
-                        profileRepository.saveTrainingSession(TrainingSession(
-                            profileId = profileRepository.activeProfile().id,
-                            mode = TrainingMode.SKILL_COACH,
-                            skillOrActivityId = "punch_height_level_1",
-                            completedAt = System.currentTimeMillis(),
-                            resultPayload = session.metadataFile.absolutePath,
-                        ))
-                        val state = punchHeightCoordinator.markReviewReady()
-                        updatePunchHeightState(state)
-                        showPunchHeightReview(session)
-                    }
-                }
-                .onFailure { error -> runOnMainThread { failPunchHeightSession("Could not finish the image set: ${error.message}") } }
-        }
-    }
-
-    private fun showPunchHeightReview(session: PunchHeightCompletedSession) {
-        punchHeightReviewThumbnails.removeAllViews()
-        session.captures.forEach { capture ->
-            val thumbnail = ImageView(this).apply {
-                layoutParams = LinearLayout.LayoutParams(0, 100.dp(), 1f).apply { marginStart = 4.dp(); marginEnd = 4.dp() }
-                scaleType = ImageView.ScaleType.CENTER_CROP
-                setImageBitmap(BitmapFactory.decodeFile(capture.analysisFile.absolutePath))
-                contentDescription = "${capture.targetType.name.lowercase()} analysis"
-                setOnClickListener { selectPunchHeightReviewCapture(capture) }
-            }
-            punchHeightReviewThumbnails.addView(thumbnail)
-        }
-        session.captures.firstOrNull()?.let(::selectPunchHeightReviewCapture)
-        updateControlVisibility()
-    }
-
-    private fun selectPunchHeightReviewCapture(capture: dk.lasse.karatecliprecorder.learning.PunchHeightSavedCapture) {
-        punchHeightReviewLargeImage.setImageBitmap(BitmapFactory.decodeFile(capture.analysisFile.absolutePath))
-        punchHeightReviewExplanation.text = buildString {
-            append(capture.snapshot.target.explanation)
-            append(" Your fist was ")
-            append(String.format(java.util.Locale.US, "%+.1f%%", capture.snapshot.signedHeightErrorTorsoRatio * 100f))
-            append(" of your torso length from the target centre.")
-        }
-    }
-
-    private fun clearPunchHeightReview() {
-        if (::punchHeightReviewThumbnails.isInitialized) punchHeightReviewThumbnails.removeAllViews()
-        if (::punchHeightReviewLargeImage.isInitialized) punchHeightReviewLargeImage.setImageDrawable(null)
-        if (::punchHeightReviewExplanation.isInitialized) punchHeightReviewExplanation.text = ""
-    }
-
-    private fun adjustPunchHeightMultiplier(delta: Float) {
-        setPunchHeightMultiplier(punchHeightCoordinator.currentState().chinProjectionMultiplier + delta)
-    }
-
-    private fun setPunchHeightMultiplier(value: Float) {
-        if (!punchHeightActive) return
-        updatePunchHeightState(punchHeightCoordinator.setChinProjectionMultiplier(value), speak = false)
-    }
-
-    private fun cancelPunchHeightSession() {
-        recordingAdapter?.setAnalysisEnabled(false)
-        punchHeightCoordinator.cancel()
-        punchHeightActive = false
-        poseRecognizerRunner?.close()
-        poseRecognizerRunner = null
-        poseRecognizerState = PoseRecognizerLifecycleState.CLOSED
-        punchHeightVoiceCoach?.close()
-        punchHeightVoiceCoach = null
-        punchHeightStorageExecutor.execute { punchHeightCaptureStore.cancelSession() }
-        clearPunchHeightReview()
-        latestPunchHeightState = PunchHeightSessionState()
-        updateMainMenuAvailability()
-        updateControlVisibility()
-    }
-
-    private fun closePunchHeightSession() {
-        punchHeightCoordinator.complete()
-        punchHeightActive = false
-        recordingAdapter?.setAnalysisEnabled(false)
-        poseRecognizerRunner?.close()
-        poseRecognizerRunner = null
-        poseRecognizerState = PoseRecognizerLifecycleState.CLOSED
-        punchHeightVoiceCoach?.close()
-        punchHeightVoiceCoach = null
-        completedPunchHeightSession = null
-        clearPunchHeightReview()
-        latestPunchHeightState = PunchHeightSessionState()
-        updateMainMenuAvailability()
-        updateControlVisibility()
-    }
-
-    private fun failPunchHeightSession(message: String) {
-        if (!punchHeightActive) return
-        recordingAdapter?.setAnalysisEnabled(false)
-        val failed = punchHeightCoordinator.fail(message)
-        updatePunchHeightState(failed, speak = false)
-        Toast.makeText(this, message, Toast.LENGTH_LONG).show()
-        punchHeightActive = false
-        poseRecognizerRunner?.close()
-        poseRecognizerRunner = null
-        poseRecognizerState = PoseRecognizerLifecycleState.FAILED
-        punchHeightVoiceCoach?.close()
-        punchHeightVoiceCoach = null
-        punchHeightStorageExecutor.execute { punchHeightCaptureStore.cancelSession() }
-        updateMainMenuAvailability()
-        updateControlVisibility()
-    }
-
+        cameraSetupCaptur…3818 tokens truncated…
     private fun updatePunchHeightState(state: PunchHeightSessionState, speak: Boolean = true) {
         latestPunchHeightState = state
         val inReview = state.stage == PunchHeightSessionStage.SESSION_REVIEW && completedPunchHeightSession != null
@@ -1674,34 +1377,21 @@ class MainActivity : AppCompatActivity() {
         updateControlVisibility()
     }
 
-    private fun openJapaneseCountingPractice() {
+    private fun openJapaneseCountingPractice(pathPosition: String = "1 / 2") {
         stopJapaneseCountSession()
         currentAppDestination = AppDestination.TRAIN
-        trainingRoot.visibility = View.GONE
-        homeScreen.visibility = View.GONE
-        learnScreen.visibility = View.GONE
-        settingsScreen.visibility = View.GONE
-        progressScreen.visibility = View.GONE
-        skillProgressionScreen?.visibility = View.GONE
         dismissJapaneseCountingPracticeScreen()
         japaneseCountingPracticeScreen = JapaneseCountingPracticeView(
             context = this,
             onExit = ::exitJapaneseCountingPractice,
+            pathPosition = pathPosition,
             onStartPractice = ::beginJapaneseCountingPractice,
             onPrevious = { navigateJapaneseCountLevel1 { japaneseCountLevel1Controller.back() } },
             onNext = { navigateJapaneseCountLevel1 { japaneseCountLevel1Controller.next() } },
             onReplay = ::playJapaneseCountLevel1Item,
             onPracticeAgain = ::beginJapaneseCountingPractice,
             onContinueToTest = ::continueFromJapaneseCountingPracticeToTest,
-        ).also { activityView ->
-            appRoot.addView(
-                activityView,
-                FrameLayout.LayoutParams(
-                    ViewGroup.LayoutParams.MATCH_PARENT,
-                    ViewGroup.LayoutParams.MATCH_PARENT,
-                ),
-            )
-        }
+        ).also { activityView -> showSecondary(activityView, ::exitJapaneseCountingPractice) }
     }
 
     private fun beginJapaneseCountingPractice() {
@@ -1716,19 +1406,72 @@ class MainActivity : AppCompatActivity() {
     private fun exitJapaneseCountingPractice() {
         stopJapaneseCountSession()
         dismissJapaneseCountingPracticeScreen()
-        showSkillProgression(requireLearningPath(LearningPathId.JAPANESE_COUNTING))
+        if (japaneseCountingKarateBasicsFlow) {
+            japaneseCountingKarateBasicsFlow = false
+            showKarateBasicsPath()
+        } else {
+            showSkillProgression(requireLearningPath(LearningPathId.JAPANESE_COUNTING))
+        }
     }
 
     private fun continueFromJapaneseCountingPracticeToTest() {
         stopJapaneseCountSession()
         dismissJapaneseCountingPracticeScreen()
-        showTrainingUi()
-        startJapaneseCountingTest()
+        openJapaneseCountingTest(
+            if (japaneseCountingKarateBasicsFlow) karateBasicsPathPosition("test-count-1-10") else "2 / 2",
+        )
     }
 
     private fun dismissJapaneseCountingPracticeScreen() {
-        japaneseCountingPracticeScreen?.let(appRoot::removeView)
+        japaneseCountingPracticeScreen?.let { screen ->
+            if (secondaryScreen === screen) closeSecondaryScreen() else appRoot.removeView(screen)
+        }
         japaneseCountingPracticeScreen = null
+    }
+
+    private fun openJapaneseCountingTest(pathPosition: String = "2 / 2") {
+        stopJapaneseCountSession()
+        currentAppDestination = AppDestination.TRAIN
+        dismissJapaneseCountingTestScreen()
+        japaneseCountingTestScreen = JapaneseCountingTestView(
+            context = this,
+            onExit = ::exitJapaneseCountingTest,
+            pathPosition = pathPosition,
+            onPlayExample = ::playJapaneseCountFullExample,
+            onStartListening = ::requestJapaneseCountLiveRecognition,
+            onStopListening = ::finishJapaneseCountLiveRecognition,
+            onTryAgain = ::requestJapaneseCountLiveRecognition,
+            onFinish = ::finishJapaneseCountingTest,
+        ).also { activityView -> showSecondary(activityView, ::exitJapaneseCountingTest) }
+        startJapaneseCountingTest()
+    }
+
+    private fun exitJapaneseCountingTest() {
+        stopJapaneseCountSession()
+        dismissJapaneseCountingTestScreen()
+        returnFromJapaneseCountingTest()
+    }
+
+    private fun finishJapaneseCountingTest() {
+        stopJapaneseCountSession()
+        dismissJapaneseCountingTestScreen()
+        returnFromJapaneseCountingTest()
+    }
+
+    private fun returnFromJapaneseCountingTest() {
+        if (japaneseCountingKarateBasicsFlow) {
+            japaneseCountingKarateBasicsFlow = false
+            showKarateBasicsPath()
+        } else {
+            showSkillProgression(requireLearningPath(LearningPathId.JAPANESE_COUNTING))
+        }
+    }
+
+    private fun dismissJapaneseCountingTestScreen() {
+        japaneseCountingTestScreen?.let { screen ->
+            if (secondaryScreen === screen) closeSecondaryScreen() else appRoot.removeView(screen)
+        }
+        japaneseCountingTestScreen = null
     }
 
     private fun startJapaneseCountingTest() {
@@ -2078,11 +1821,20 @@ class MainActivity : AppCompatActivity() {
         if (session.phase != CountTrainingPhase.LISTENING) cancelJapaneseCountRecognitionRestart()
         japaneseCountTrainingSession = session
         if (session.phase == CountTrainingPhase.RESULT && session.successful) {
-            profileRepository.saveActiveLearningProgress(
-                LearningPathId.JAPANESE_COUNTING.name,
-                "step-2",
-                LearningStatus.COMPLETED,
-            )
+            if (japaneseCountingKarateBasicsFlow) {
+                profileRepository.saveActiveLearningProgress(
+                    karateBasicsPath.id,
+                    "test-count-1-10",
+                    LearningStatus.COMPLETED,
+                )
+                pendingKarateBasicsCompletionAnimationId = "test-count-1-10"
+            } else {
+                profileRepository.saveActiveLearningProgress(
+                    LearningPathId.JAPANESE_COUNTING.name,
+                    "step-2",
+                    LearningStatus.COMPLETED,
+                )
+            }
         }
         if ((applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE) != 0) {
             Log.d(JAPANESE_COUNT_LOG_TAG, session.toString())
@@ -2129,6 +1881,7 @@ class MainActivity : AppCompatActivity() {
                 )
             }
         }.joinToString("\n")
+        japaneseCountingTestScreen?.render(session)
         updateJapaneseCountDebugText()
         updateControlVisibility()
     }
@@ -2345,11 +2098,20 @@ class MainActivity : AppCompatActivity() {
             japaneseCountFeedbackText.text = if (state.isComplete) "You practiced all ten numbers." else ""
             japaneseCountNextButton.text = "Next"
             if (state.isComplete) {
-                profileRepository.saveActiveLearningProgress(
-                    LearningPathId.JAPANESE_COUNTING.name,
-                    "step-1",
-                    LearningStatus.COMPLETED,
-                )
+                if (japaneseCountingKarateBasicsFlow) {
+                    profileRepository.saveActiveLearningProgress(
+                        karateBasicsPath.id,
+                        "practice-count-1-10",
+                        LearningStatus.COMPLETED,
+                    )
+                    pendingKarateBasicsCompletionAnimationId = "practice-count-1-10"
+                } else {
+                    profileRepository.saveActiveLearningProgress(
+                        LearningPathId.JAPANESE_COUNTING.name,
+                        "step-1",
+                        LearningStatus.COMPLETED,
+                    )
+                }
             }
         }
         updateMainMenuAvailability()
