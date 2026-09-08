@@ -51,6 +51,18 @@ import dk.lasse.karatecliprecorder.learningpath.RecentLearningTarget
 import dk.lasse.karatecliprecorder.learningactivity.DraftPlaceholderActivityView
 import dk.lasse.karatecliprecorder.learningactivity.JapaneseCountingPracticeView
 import dk.lasse.karatecliprecorder.learningactivity.JapaneseCountingTestView
+import dk.lasse.karatecliprecorder.learningactivity.OsuMeaningUseController
+import dk.lasse.karatecliprecorder.learningactivity.OsuMeaningUsePresentation
+import dk.lasse.karatecliprecorder.learningactivity.OsuMeaningUseView
+import dk.lasse.karatecliprecorder.learningactivity.ReadyOsuController
+import dk.lasse.karatecliprecorder.learningactivity.ReadyOsuPhase
+import dk.lasse.karatecliprecorder.learningactivity.ReadyOsuPresentation
+import dk.lasse.karatecliprecorder.learningactivity.ReadyOsuView
+import dk.lasse.karatecliprecorder.learningactivity.StopCountController
+import dk.lasse.karatecliprecorder.learningactivity.StopCountMethod
+import dk.lasse.karatecliprecorder.learningactivity.StopCountPhase
+import dk.lasse.karatecliprecorder.learningactivity.StopCountPresentation
+import dk.lasse.karatecliprecorder.learningactivity.StopCountView
 import dk.lasse.karatecliprecorder.orders.SoundFileTrainingOrderPlayer
 import dk.lasse.karatecliprecorder.orders.TrainingOrder
 import dk.lasse.karatecliprecorder.orders.TrainingOrderMapper
@@ -89,6 +101,7 @@ import dk.lasse.karatecliprecorder.learning.JapaneseCountListeningPolicy
 import dk.lasse.karatecliprecorder.learning.JapaneseCountLiveRecognizer
 import dk.lasse.karatecliprecorder.learning.JapaneseCountLevel1Controller
 import dk.lasse.karatecliprecorder.learning.JapaneseCountLevel1State
+import dk.lasse.karatecliprecorder.learning.LiveSpeechRecognizer
 import dk.lasse.karatecliprecorder.learning.PunchHeightCaptureStore
 import dk.lasse.karatecliprecorder.learning.PunchHeightCompletedSession
 import dk.lasse.karatecliprecorder.learning.PunchHeightOverlayView
@@ -96,6 +109,14 @@ import dk.lasse.karatecliprecorder.learning.PunchHeightSessionCoordinator
 import dk.lasse.karatecliprecorder.learning.PunchHeightSessionStage
 import dk.lasse.karatecliprecorder.learning.PunchHeightSessionState
 import dk.lasse.karatecliprecorder.learning.PunchHeightVoiceCoach
+import dk.lasse.karatecliprecorder.learning.ShortVoiceCommand
+import dk.lasse.karatecliprecorder.learning.ShortVoiceCommandMatcher
+import dk.lasse.karatecliprecorder.learning.ShortVoiceRecognitionConfig
+import dk.lasse.karatecliprecorder.learning.SpeechRecognitionAlternative
+import dk.lasse.karatecliprecorder.learning.SpeechRecognitionError
+import dk.lasse.karatecliprecorder.learning.SpeechRecognitionFailure
+import dk.lasse.karatecliprecorder.learning.TerminologyPrompt
+import dk.lasse.karatecliprecorder.learning.TerminologySpeechPlayer
 import dk.lasse.karatecliprecorder.mediapipehandadapter.FramePermit
 import dk.lasse.karatecliprecorder.mediapipehandadapter.LiveGestureRecognizerRunner
 import dk.lasse.karatecliprecorder.mediapipehandadapter.RecognizerLifecycleState
@@ -118,6 +139,14 @@ import dk.lasse.karateanalyzer.core.PunchHeightTargetType
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicLong
+import java.util.Locale
+import org.json.JSONObject
+
+private enum class PendingAudioPermissionAction {
+    JAPANESE_COUNT_TEST,
+    READY_OSU,
+    STOP_COUNT,
+}
 
 class MainActivity : AppCompatActivity() {
     private lateinit var appRoot: FrameLayout
@@ -135,6 +164,9 @@ class MainActivity : AppCompatActivity() {
     private var japaneseCountingPracticeScreen: JapaneseCountingPracticeView? = null
     private var japaneseCountingTestScreen: JapaneseCountingTestView? = null
     private var japaneseCountingKarateBasicsFlow = false
+    private var osuMeaningUseScreen: OsuMeaningUseView? = null
+    private var readyOsuScreen: ReadyOsuView? = null
+    private var stopCountScreen: StopCountView? = null
     private val learningPaths by lazy(LearningPathCatalog::create)
     private val karateBasicsPath by lazy { DraftLearningPathCatalog.karateBasics(this) }
     private var karateBasicsScrollY = 0
@@ -206,6 +238,11 @@ class MainActivity : AppCompatActivity() {
     private lateinit var japaneseCountLevel1Controller: JapaneseCountLevel1Controller
     private lateinit var japaneseCountFullExamplePlayer: JapaneseCountFullExamplePlayer
     private lateinit var japaneseCountLiveRecognizer: JapaneseCountLiveRecognizer
+    private lateinit var shortCommandRecognizer: LiveSpeechRecognizer
+    private lateinit var terminologySpeechPlayer: TerminologySpeechPlayer
+    private lateinit var osuMeaningUseController: OsuMeaningUseController
+    private lateinit var readyOsuController: ReadyOsuController
+    private lateinit var stopCountController: StopCountController
     private var guidedSessionActive = false
     private var findYourWeaponActive = false
     private var japaneseCountActive = false
@@ -244,7 +281,12 @@ class MainActivity : AppCompatActivity() {
     private var japaneseCountCommittedTranscript = ""
     private var japaneseCountMode: LearningActivityType? = null
     private var lastPlayedJapaneseCountItemIndex: Int? = null
-    private var pendingJapaneseCountMicrophonePermission = false
+    private var pendingAudioPermissionAction: PendingAudioPermissionAction? = null
+    private var stopCountPlaybackGeneration = 0L
+    private var pendingStopCountAdvance: Runnable? = null
+    private var pendingShortCommandRecognitionRestart: Runnable? = null
+    private var readyOsuCompletionSaved = false
+    private var stopCountCompletionSaved = false
     private var japaneseCountTrainingSession = CountTrainingSession()
     private var recognizerState: RecognizerLifecycleState = RecognizerLifecycleState.INACTIVE
     private val submittedFrameCount = AtomicLong(0)
@@ -280,13 +322,23 @@ class MainActivity : AppCompatActivity() {
     private val audioPermissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestPermission(),
     ) { granted ->
-        if (pendingJapaneseCountMicrophonePermission) {
-            pendingJapaneseCountMicrophonePermission = false
-            if (granted) {
+        when (pendingAudioPermissionAction.also { pendingAudioPermissionAction = null }) {
+            PendingAudioPermissionAction.JAPANESE_COUNT_TEST -> if (granted) {
                 beginJapaneseCountLiveRecognition()
             } else {
                 showJapaneseCountLevel2Error(CountRecognitionError.MICROPHONE_PERMISSION_DENIED)
             }
+            PendingAudioPermissionAction.READY_OSU -> if (granted) {
+                playReadyPromptAndListen()
+            } else {
+                readyOsuController.fail(SpeechRecognitionError.MICROPHONE_PERMISSION_DENIED)
+            }
+            PendingAudioPermissionAction.STOP_COUNT -> if (granted) {
+                beginStopCountPractice(voiceEnabled = true)
+            } else {
+                stopCountController.permissionError(SpeechRecognitionError.MICROPHONE_PERMISSION_DENIED)
+            }
+            null -> Unit
         }
     }
 
@@ -298,6 +350,9 @@ class MainActivity : AppCompatActivity() {
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         debugUiVisible = appPreferences.developerMode
         japaneseCountLevel1Controller = JapaneseCountLevel1Controller(::updateJapaneseCountLevel1State)
+        osuMeaningUseController = OsuMeaningUseController(::renderOsuMeaningUse)
+        readyOsuController = ReadyOsuController(::renderReadyOsu)
+        stopCountController = StopCountController(::renderStopCount)
         punchHeightCaptureStore = PunchHeightCaptureStore(this)
         cameraSetupCaptureStore = CameraSetupCaptureStore(this)
         buildUi()
@@ -376,6 +431,8 @@ class MainActivity : AppCompatActivity() {
         trainingOrderPlayer = SoundFileTrainingOrderPlayer(this)
         japaneseCountFullExamplePlayer = JapaneseCountFullExamplePlayer(this)
         japaneseCountLiveRecognizer = JapaneseCountLiveRecognizer(this)
+        shortCommandRecognizer = LiveSpeechRecognizer(this)
+        terminologySpeechPlayer = TerminologySpeechPlayer(this)
         onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
             override fun handleOnBackPressed() {
                 if (secondaryScreen != null) {
@@ -492,6 +549,9 @@ class MainActivity : AppCompatActivity() {
     private fun openKarateBasicsActivity(activity: ResolvedDraftActivity) {
         when (activity.definition.type) {
             DraftActivityType.CONDITIONAL_PROFILE -> openKarateBasicsProfile()
+            DraftActivityType.OSU_MEANING_USE -> openOsuMeaningUse(activity)
+            DraftActivityType.READY_OSU -> openReadyOsu(activity)
+            DraftActivityType.STOP_COUNT -> openStopCount(activity)
             DraftActivityType.JAPANESE_COUNTING_PRACTICE -> {
                 japaneseCountingKarateBasicsFlow = true
                 openJapaneseCountingPractice(karateBasicsPathPosition(activity.definition.id))
@@ -520,6 +580,436 @@ class MainActivity : AppCompatActivity() {
     private fun karateBasicsPathPosition(activityId: String): String {
         val position = karateBasicsPath.activities.indexOfFirst { it.id == activityId } + 1
         return "$position / ${karateBasicsPath.activities.size}"
+    }
+
+    private fun openOsuMeaningUse(activity: ResolvedDraftActivity) {
+        openOsuMeaningUse(karateBasicsPathPosition(activity.definition.id))
+    }
+
+    private fun openOsuMeaningUse(pathPosition: String) {
+        stopJapaneseCountSession()
+        stopTerminologyRunners()
+        profileRepository.touchActiveLearningActivity(karateBasicsPath.id, "osu-meaning-use")
+        osuMeaningUseController.reset()
+        osuMeaningUseScreen = OsuMeaningUseView(
+            context = this,
+            onExit = ::exitOsuMeaningUse,
+            pathPosition = pathPosition,
+            onStart = osuMeaningUseController::start,
+            onPrevious = osuMeaningUseController::previous,
+            onNext = osuMeaningUseController::next,
+            onReplayOsu = ::playOsuExample,
+            onRestart = osuMeaningUseController::restart,
+            onContinue = ::continueFromOsuMeaningUse,
+        ).also { screen ->
+            screen.render(osuMeaningUseController.presentation)
+            showSecondary(screen, ::exitOsuMeaningUse)
+        }
+    }
+
+    private fun renderOsuMeaningUse(presentation: OsuMeaningUsePresentation) {
+        osuMeaningUseScreen?.render(presentation)
+        if (presentation.shellState == dk.lasse.karatecliprecorder.learningactivity.ActivityShellState.COMPLETE) {
+            markKarateBasicsActivityComplete("osu-meaning-use")
+        }
+    }
+
+    private fun playOsuExample() {
+        terminologySpeechPlayer.play(
+            prompts = listOf(TerminologyPrompt("おす", Locale.JAPAN)),
+            onError = { Toast.makeText(this, "The Osu audio example is unavailable.", Toast.LENGTH_SHORT).show() },
+        )
+    }
+
+    private fun exitOsuMeaningUse() {
+        stopTerminologyRunners()
+        dismissOsuMeaningUse()
+        showKarateBasicsPath()
+    }
+
+    private fun continueFromOsuMeaningUse() {
+        stopTerminologyRunners()
+        dismissOsuMeaningUse()
+        openReadyOsu(karateBasicsPathPosition("ready-osu"))
+    }
+
+    private fun dismissOsuMeaningUse() {
+        osuMeaningUseScreen?.let { screen ->
+            if (secondaryScreen === screen) closeSecondaryScreen() else appRoot.removeView(screen)
+        }
+        osuMeaningUseScreen = null
+    }
+
+    private fun openReadyOsu(activity: ResolvedDraftActivity) {
+        openReadyOsu(karateBasicsPathPosition(activity.definition.id))
+    }
+
+    private fun openReadyOsu(pathPosition: String) {
+        stopJapaneseCountSession()
+        stopTerminologyRunners()
+        profileRepository.touchActiveLearningActivity(karateBasicsPath.id, "ready-osu")
+        readyOsuController.restart()
+        readyOsuCompletionSaved = false
+        readyOsuScreen = ReadyOsuView(
+            context = this,
+            onExit = ::exitReadyOsu,
+            pathPosition = pathPosition,
+            onStart = readyOsuController::start,
+            onReplayModel = ::playReadyOsuModel,
+            onTryResponding = ::requestReadyOsuResponse,
+            onCancelPrompt = ::cancelReadyOsuPrompt,
+            onStopListening = ::stopReadyOsuListening,
+            onTryAgain = ::requestReadyOsuResponse,
+            onContinueWithoutVoice = ::continueReadyOsuWithoutVoice,
+            onFinish = readyOsuController::finish,
+            onPracticeAgain = ::restartReadyOsuPractice,
+            onContinue = ::continueFromReadyOsu,
+        ).also { screen ->
+            screen.render(ReadyOsuPresentation(readyOsuController.state))
+            showSecondary(screen, ::exitReadyOsu)
+        }
+    }
+
+    private fun renderReadyOsu(presentation: ReadyOsuPresentation) {
+        readyOsuScreen?.render(presentation)
+        if (
+            presentation.shellState == dk.lasse.karatecliprecorder.learningactivity.ActivityShellState.COMPLETE &&
+            !readyOsuCompletionSaved
+        ) {
+            readyOsuCompletionSaved = true
+            markKarateBasicsActivityComplete("ready-osu")
+            profileRepository.saveTrainingSession(TrainingSession(
+                profileId = profileRepository.activeProfile().id,
+                mode = TrainingMode.PRACTICE,
+                skillOrActivityId = "ready-osu",
+                completedAt = System.currentTimeMillis(),
+                resultPayload = JSONObject()
+                    .put("activityCompleted", true)
+                    .put("voiceVerified", presentation.state.voiceVerified)
+                    .put("attemptCount", presentation.state.attempts)
+                    .toString(),
+            ))
+        }
+    }
+
+    private fun playReadyOsuModel() {
+        terminologySpeechPlayer.play(
+            prompts = listOf(
+                TerminologyPrompt("Ready?", Locale.ENGLISH),
+                TerminologyPrompt("おす", Locale.JAPAN),
+            ),
+            onError = { Toast.makeText(this, "The spoken example is unavailable. You can use the visible text.", Toast.LENGTH_SHORT).show() },
+        )
+    }
+
+    private fun requestReadyOsuResponse() {
+        stopTerminologyVoiceWork()
+        if (!hasAudioPermission()) {
+            pendingAudioPermissionAction = PendingAudioPermissionAction.READY_OSU
+            audioPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+            return
+        }
+        playReadyPromptAndListen()
+    }
+
+    private fun playReadyPromptAndListen() {
+        if (readyOsuScreen == null) return
+        readyOsuController.beginPrompt()
+        if (!appPreferences.trainingSounds) {
+            beginReadyOsuListening()
+            return
+        }
+        terminologySpeechPlayer.play(
+            prompts = listOf(TerminologyPrompt("Ready?", Locale.ENGLISH)),
+            onComplete = ::beginReadyOsuListening,
+            onError = { beginReadyOsuListening() },
+        )
+    }
+
+    private fun beginReadyOsuListening() {
+        if (readyOsuController.state.phase != ReadyOsuPhase.PROMPTING || readyOsuScreen == null) return
+        readyOsuController.beginListening()
+        shortCommandRecognizer.start(
+            config = ShortVoiceRecognitionConfig.OSU,
+            onPartialResults = { transcripts ->
+                if (ShortVoiceCommandMatcher.matches(ShortVoiceCommand.OSU, transcripts)) {
+                    handleReadyOsuTranscripts(transcripts)
+                }
+            },
+            onFinalResults = { alternatives ->
+                handleReadyOsuTranscripts(alternatives.map(SpeechRecognitionAlternative::transcript))
+            },
+            onError = ::handleReadyOsuRecognitionError,
+        )
+    }
+
+    private fun handleReadyOsuTranscripts(transcripts: List<String>) {
+        if (readyOsuController.state.phase != ReadyOsuPhase.LISTENING) return
+        shortCommandRecognizer.cancel()
+        readyOsuController.beginChecking()
+        readyOsuController.handleTranscripts(transcripts)
+    }
+
+    private fun handleReadyOsuRecognitionError(failure: SpeechRecognitionFailure) {
+        if (readyOsuController.state.phase != ReadyOsuPhase.LISTENING) return
+        when (failure.error) {
+            SpeechRecognitionError.NO_SPEECH_DETECTED,
+            SpeechRecognitionError.EMPTY_TRANSCRIPTION,
+            SpeechRecognitionError.TIMEOUT,
+            -> readyOsuController.handleTranscripts(emptyList())
+            else -> readyOsuController.fail(failure.error)
+        }
+    }
+
+    private fun stopReadyOsuListening() {
+        shortCommandRecognizer.cancel()
+        readyOsuController.stopListening()
+    }
+
+    private fun cancelReadyOsuPrompt() {
+        stopTerminologyVoiceWork()
+        readyOsuController.returnToModel()
+    }
+
+    private fun continueReadyOsuWithoutVoice() {
+        stopTerminologyVoiceWork()
+        readyOsuController.continueWithoutVerification()
+    }
+
+    private fun restartReadyOsuPractice() {
+        stopTerminologyVoiceWork()
+        readyOsuController.restart()
+        readyOsuController.start()
+    }
+
+    private fun exitReadyOsu() {
+        stopTerminologyRunners()
+        dismissReadyOsu()
+        showKarateBasicsPath()
+    }
+
+    private fun continueFromReadyOsu() {
+        stopTerminologyRunners()
+        dismissReadyOsu()
+        openStopCount(karateBasicsPathPosition("stop-session"))
+    }
+
+    private fun dismissReadyOsu() {
+        readyOsuScreen?.let { screen ->
+            if (secondaryScreen === screen) closeSecondaryScreen() else appRoot.removeView(screen)
+        }
+        readyOsuScreen = null
+    }
+
+    private fun openStopCount(activity: ResolvedDraftActivity) {
+        openStopCount(karateBasicsPathPosition(activity.definition.id))
+    }
+
+    private fun openStopCount(pathPosition: String) {
+        stopJapaneseCountSession()
+        stopTerminologyRunners()
+        profileRepository.touchActiveLearningActivity(karateBasicsPath.id, "stop-session")
+        stopCountController.restart()
+        stopCountCompletionSaved = false
+        stopCountScreen = StopCountView(
+            context = this,
+            onExit = ::exitStopCount,
+            pathPosition = pathPosition,
+            onStartVoice = ::requestStopCountVoicePractice,
+            onStartButtonOnly = { beginStopCountPractice(voiceEnabled = false) },
+            onStopSession = { stopStopCountPractice(StopCountMethod.BUTTON) },
+            onTryVoiceAgain = ::requestStopCountVoicePractice,
+            onFinish = stopCountController::finish,
+            onPracticeAgain = ::restartStopCountPractice,
+            onContinue = ::continueFromStopCount,
+        ).also { screen ->
+            screen.render(StopCountPresentation(stopCountController.state))
+            showSecondary(screen, ::exitStopCount)
+        }
+    }
+
+    private fun renderStopCount(presentation: StopCountPresentation) {
+        stopCountScreen?.render(presentation)
+        if (
+            presentation.shellState == dk.lasse.karatecliprecorder.learningactivity.ActivityShellState.COMPLETE &&
+            !stopCountCompletionSaved
+        ) {
+            stopCountCompletionSaved = true
+            markKarateBasicsActivityComplete("stop-session")
+            profileRepository.saveTrainingSession(TrainingSession(
+                profileId = profileRepository.activeProfile().id,
+                mode = TrainingMode.PRACTICE,
+                skillOrActivityId = "stop-session",
+                completedAt = System.currentTimeMillis(),
+                resultPayload = JSONObject()
+                    .put("activityCompleted", true)
+                    .put("voiceVerified", presentation.voiceVerified)
+                    .put("stopMethod", presentation.state.stopMethod?.name)
+                    .toString(),
+            ))
+        }
+    }
+
+    private fun requestStopCountVoicePractice() {
+        stopTerminologyVoiceWork()
+        cancelStopCountPlayback()
+        if (!hasAudioPermission()) {
+            pendingAudioPermissionAction = PendingAudioPermissionAction.STOP_COUNT
+            audioPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+            return
+        }
+        beginStopCountPractice(voiceEnabled = true)
+    }
+
+    private fun beginStopCountPractice(voiceEnabled: Boolean) {
+        stopTerminologyVoiceWork()
+        cancelStopCountPlayback()
+        val generation = ++stopCountPlaybackGeneration
+        stopCountController.start(voiceEnabled)
+        if (voiceEnabled) startStopCommandRecognition(generation)
+        playStopCountNumber(index = 0, generation = generation)
+    }
+
+    private fun startStopCommandRecognition(generation: Long) {
+        if (
+            generation != stopCountPlaybackGeneration ||
+            stopCountController.state.phase != StopCountPhase.COUNTING ||
+            !stopCountController.state.voiceEnabled
+        ) return
+        shortCommandRecognizer.start(
+            config = ShortVoiceRecognitionConfig.STOP,
+            onPartialResults = { transcripts ->
+                if (ShortVoiceCommandMatcher.matches(ShortVoiceCommand.STOP, transcripts)) {
+                    stopStopCountPractice(StopCountMethod.VOICE)
+                }
+            },
+            onFinalResults = { alternatives ->
+                val transcripts = alternatives.map(SpeechRecognitionAlternative::transcript)
+                if (ShortVoiceCommandMatcher.matches(ShortVoiceCommand.STOP, transcripts)) {
+                    stopStopCountPractice(StopCountMethod.VOICE)
+                } else {
+                    scheduleStopCommandRecognitionRestart(generation)
+                }
+            },
+            onError = { failure -> handleStopCountRecognitionError(failure, generation) },
+        )
+    }
+
+    private fun handleStopCountRecognitionError(failure: SpeechRecognitionFailure, generation: Long) {
+        if (generation != stopCountPlaybackGeneration || stopCountController.state.phase != StopCountPhase.COUNTING) return
+        when (failure.error) {
+            SpeechRecognitionError.NO_SPEECH_DETECTED,
+            SpeechRecognitionError.EMPTY_TRANSCRIPTION,
+            SpeechRecognitionError.TIMEOUT,
+            -> scheduleStopCommandRecognitionRestart(generation)
+            SpeechRecognitionError.BUSY -> scheduleStopCommandRecognitionRestart(
+                generation,
+                SHORT_COMMAND_BUSY_RETRY_DELAY_MS,
+            )
+            else -> {
+                shortCommandRecognizer.cancel()
+                stopCountController.voiceUnavailableDuringCount(failure.error)
+            }
+        }
+    }
+
+    private fun scheduleStopCommandRecognitionRestart(generation: Long, delayMs: Long = 0L) {
+        pendingShortCommandRecognitionRestart?.let(mainHandler::removeCallbacks)
+        pendingShortCommandRecognitionRestart = Runnable {
+            pendingShortCommandRecognitionRestart = null
+            startStopCommandRecognition(generation)
+        }.also { mainHandler.postDelayed(it, delayMs) }
+    }
+
+    private fun playStopCountNumber(index: Int, generation: Long) {
+        if (generation != stopCountPlaybackGeneration || stopCountController.state.phase != StopCountPhase.COUNTING) return
+        stopCountController.showNumber(index)
+        val advance = {
+            if (generation == stopCountPlaybackGeneration && stopCountController.state.phase == StopCountPhase.COUNTING) {
+                if (index == JapaneseCountLesson.items.lastIndex) {
+                    shortCommandRecognizer.cancel()
+                    stopCountController.countFinished()
+                } else {
+                    playStopCountNumber(index + 1, generation)
+                }
+            }
+        }
+        if (appPreferences.trainingSounds) {
+            trainingOrderPlayer?.play(JapaneseCountLesson.items[index].order, advance) ?: advance()
+        } else {
+            pendingStopCountAdvance = Runnable {
+                pendingStopCountAdvance = null
+                advance()
+            }.also { mainHandler.postDelayed(it, SILENT_STOP_COUNT_STEP_MS) }
+        }
+    }
+
+    private fun stopStopCountPractice(method: StopCountMethod) {
+        if (stopCountController.state.phase != StopCountPhase.COUNTING) return
+        stopTerminologyVoiceWork()
+        cancelStopCountPlayback()
+        stopCountController.stop(method)
+    }
+
+    private fun restartStopCountPractice() {
+        stopTerminologyRunners()
+        stopCountController.restart()
+    }
+
+    private fun cancelStopCountPlayback() {
+        stopCountPlaybackGeneration += 1L
+        pendingStopCountAdvance?.let(mainHandler::removeCallbacks)
+        pendingStopCountAdvance = null
+        trainingOrderPlayer?.stop()
+    }
+
+    private fun exitStopCount() {
+        stopTerminologyRunners()
+        dismissStopCount()
+        showKarateBasicsPath()
+    }
+
+    private fun continueFromStopCount() {
+        stopTerminologyRunners()
+        dismissStopCount()
+        japaneseCountingKarateBasicsFlow = true
+        openJapaneseCountingPractice(karateBasicsPathPosition("practice-count-1-10"))
+    }
+
+    private fun dismissStopCount() {
+        stopCountScreen?.let { screen ->
+            if (secondaryScreen === screen) closeSecondaryScreen() else appRoot.removeView(screen)
+        }
+        stopCountScreen = null
+    }
+
+    private fun stopTerminologyVoiceWork() {
+        pendingShortCommandRecognitionRestart?.let(mainHandler::removeCallbacks)
+        pendingShortCommandRecognitionRestart = null
+        if (::shortCommandRecognizer.isInitialized) shortCommandRecognizer.cancel()
+        if (::terminologySpeechPlayer.isInitialized) terminologySpeechPlayer.stop()
+    }
+
+    private fun stopTerminologyRunners() {
+        stopTerminologyVoiceWork()
+        cancelStopCountPlayback()
+        if (pendingAudioPermissionAction != PendingAudioPermissionAction.JAPANESE_COUNT_TEST) {
+            pendingAudioPermissionAction = null
+        }
+    }
+
+    private fun hasAudioPermission(): Boolean = ContextCompat.checkSelfPermission(
+        this,
+        Manifest.permission.RECORD_AUDIO,
+    ) == PackageManager.PERMISSION_GRANTED
+
+    private fun markKarateBasicsActivityComplete(activityId: String) {
+        profileRepository.saveActiveLearningProgress(
+            karateBasicsPath.id,
+            activityId,
+            LearningStatus.COMPLETED,
+        )
+        pendingKarateBasicsCompletionAnimationId = activityId
     }
 
     private fun openKarateBasicsProfile() {
@@ -1801,7 +2291,9 @@ class MainActivity : AppCompatActivity() {
 
     private fun stopJapaneseCountSession() {
         cancelJapaneseCountRecognitionRestart()
-        pendingJapaneseCountMicrophonePermission = false
+        if (pendingAudioPermissionAction == PendingAudioPermissionAction.JAPANESE_COUNT_TEST) {
+            pendingAudioPermissionAction = null
+        }
         trainingOrderPlayer?.stop()
         if (::japaneseCountFullExamplePlayer.isInitialized) {
             japaneseCountFullExamplePlayer.stop()
@@ -1867,7 +2359,7 @@ class MainActivity : AppCompatActivity() {
             Manifest.permission.RECORD_AUDIO,
         ) == PackageManager.PERMISSION_GRANTED
         if (!hasAudioPermission) {
-            pendingJapaneseCountMicrophonePermission = true
+            pendingAudioPermissionAction = PendingAudioPermissionAction.JAPANESE_COUNT_TEST
             audioPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
             return
         }
@@ -2107,7 +2599,9 @@ class MainActivity : AppCompatActivity() {
 
     private fun resetJapaneseCountLevel2() {
         if (japaneseCountMode != LearningActivityType.TEST) return
-        pendingJapaneseCountMicrophonePermission = false
+        if (pendingAudioPermissionAction == PendingAudioPermissionAction.JAPANESE_COUNT_TEST) {
+            pendingAudioPermissionAction = null
+        }
         cancelJapaneseCountRecognitionRestart()
         japaneseCountCommittedTranscript = ""
         japaneseCountLiveRecognizer.cancel()
@@ -2313,6 +2807,19 @@ class MainActivity : AppCompatActivity() {
     override fun onStop() {
         if (cameraSetupActive) closeCameraSetupSession()
         if (punchHeightActive) cancelPunchHeightSession()
+        val readyOsuWasInFlight = readyOsuScreen != null && readyOsuController.state.phase in setOf(
+            ReadyOsuPhase.PROMPTING,
+            ReadyOsuPhase.LISTENING,
+            ReadyOsuPhase.CHECKING,
+        )
+        val stopCountWasInFlight = stopCountScreen != null && stopCountController.state.phase == StopCountPhase.COUNTING
+        stopTerminologyRunners()
+        if (readyOsuWasInFlight) {
+            readyOsuController.fail(SpeechRecognitionError.CLIENT, interrupted = true)
+        }
+        if (stopCountWasInFlight) {
+            stopCountController.interrupt()
+        }
         cancelJapaneseCountRecognitionRestart()
         trainingOrderPlayer?.stop()
         if (::japaneseCountFullExamplePlayer.isInitialized) {
@@ -2337,6 +2844,12 @@ class MainActivity : AppCompatActivity() {
 
     override fun onDestroy() {
         cancelPendingFindYourWeaponAdvance()
+        if (::shortCommandRecognizer.isInitialized) {
+            shortCommandRecognizer.release()
+        }
+        if (::terminologySpeechPlayer.isInitialized) {
+            terminologySpeechPlayer.close()
+        }
         if (::japaneseCountLiveRecognizer.isInitialized) {
             japaneseCountLiveRecognizer.release()
         }
@@ -2876,6 +3389,8 @@ class MainActivity : AppCompatActivity() {
         private const val JAPANESE_COUNT_LOG_TAG = "JapaneseCountTraining"
         private const val MAX_JAPANESE_PARTIAL_TRANSCRIPTS = 20
         private const val JAPANESE_COUNT_BUSY_RETRY_DELAY_MS = 250L
+        private const val SHORT_COMMAND_BUSY_RETRY_DELAY_MS = 250L
+        private const val SILENT_STOP_COUNT_STEP_MS = 900L
         private const val PUNCH_HEIGHT_CAPTURE_PAUSE_MS = 800L
         private const val MAX_CONTROLS_HEIGHT_RATIO = 0.82f
 

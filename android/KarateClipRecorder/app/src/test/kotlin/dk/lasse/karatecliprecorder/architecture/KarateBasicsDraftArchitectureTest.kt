@@ -18,7 +18,7 @@ class KarateBasicsDraftArchitectureTest {
         assertTrue(config.contains("\"id\": \"test-count-1-10\""))
         assertFalse(config.contains("count-1-5"))
         assertFalse(config.contains("count-6-10"))
-        assertTrue(config.contains("\"ready-osu\", \"camera-check\", \"short-set\""))
+        assertTrue(config.contains("\"stop-session\", \"camera-check\", \"short-set\""))
         assertTrue(config.contains("\"karate-basics-challenge\""))
     }
 
