@@ -40,7 +40,7 @@ class AppBottomNavigationView(
 
         listOf(
             navigationItem("Home", AppIcon.HOME, selectedDestination == AppDestination.HOME, onHome),
-            navigationItem("Train", AppIcon.KARATE, selectedDestination == AppDestination.TRAIN, onTrain),
+            navigationItem("Training", AppIcon.KARATE, selectedDestination == AppDestination.TRAIN, onTrain),
             navigationItem("Performance", AppIcon.CHART_BAR, selectedDestination == AppDestination.PROGRESS, onProgress),
             navigationItem("Settings", AppIcon.SETTINGS, selectedDestination == AppDestination.SETTINGS, onSettings),
         ).forEach { item ->

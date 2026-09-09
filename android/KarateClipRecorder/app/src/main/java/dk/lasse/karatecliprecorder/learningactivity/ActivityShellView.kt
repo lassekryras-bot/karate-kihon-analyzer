@@ -118,6 +118,7 @@ open class ActivityShellView(
     fun setHeading(title: String, subtitle: String) {
         activityTitle.text = title
         activitySubtitle.text = subtitle
+        activitySubtitle.visibility = if (subtitle.isBlank()) View.GONE else View.VISIBLE
         activitySubtitle.setTextColor(muted)
     }
 

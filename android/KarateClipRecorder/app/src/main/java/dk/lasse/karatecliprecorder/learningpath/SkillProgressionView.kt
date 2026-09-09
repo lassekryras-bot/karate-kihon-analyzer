@@ -381,7 +381,7 @@ internal class ProgressionTimelineLayout(
     }
 }
 
-/** Rounded card with a controlled low-opacity shadow offset below the independent state border. */
+/** Flat rounded card with an independent state border. */
 private class ProgressCardView(
     context: Context,
     private val surfaceColor: Int,
@@ -391,7 +391,6 @@ private class ProgressCardView(
     private val surfacePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         style = Paint.Style.FILL
         color = surfaceColor
-        setShadowLayer(8.dp().toFloat(), 0f, 3.dp().toFloat(), 0x14000000)
     }
     private val borderPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         style = Paint.Style.STROKE

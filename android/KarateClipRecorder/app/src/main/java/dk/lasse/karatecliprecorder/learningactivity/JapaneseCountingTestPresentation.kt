@@ -2,12 +2,21 @@ package dk.lasse.karatecliprecorder.learningactivity
 
 import dk.lasse.karatecliprecorder.learning.CountTrainingPhase
 import dk.lasse.karatecliprecorder.learning.CountTrainingSession
+import dk.lasse.karatecliprecorder.learning.CountTranscriptNormalizer
 
 data class JapaneseCountingTestPresentation(
     val shellState: ActivityShellState,
     val session: CountTrainingSession,
 ) {
-    val recognizedCount: Int = session.normalizedSequence.size.coerceIn(0, session.expectedSequence.size)
+    private val liveCount = if (session.phase == CountTrainingPhase.LISTENING ||
+        session.phase == CountTrainingPhase.FINALIZING) {
+        session.partialTranscripts.lastOrNull()?.let {
+            CountTranscriptNormalizer.normalizeJapaneseTranscript(it).normalizedSequence.size
+        } ?: 0
+    } else 0
+    val recognizedCount: Int = maxOf(session.normalizedSequence.size, liveCount)
+        .coerceIn(0, session.expectedSequence.size)
+    val highlightedIndex: Int? = (recognizedCount - 1).takeIf { it >= 0 }
     val isListening: Boolean = session.phase == CountTrainingPhase.LISTENING
     val isFinalizing: Boolean = session.phase == CountTrainingPhase.FINALIZING
     val isSuccessful: Boolean = session.phase == CountTrainingPhase.RESULT && session.successful

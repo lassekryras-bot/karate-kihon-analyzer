@@ -27,7 +27,7 @@ class TrainScreenView(
     init {
         orientation = VERTICAL
         setBackgroundColor(ContextCompat.getColor(context, R.color.app_background))
-        addView(MainPageHeader(context, "Train", "How would you like to train?",
+        addView(MainPageHeader(context, "Training", "How would you like to train?",
             ProfileAvatarButton(context, repository, onProfile)), LayoutParams(-1, -2))
         addView(LinearLayout(context).apply {
             orientation = VERTICAL

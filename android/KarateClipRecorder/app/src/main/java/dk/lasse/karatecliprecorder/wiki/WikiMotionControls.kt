@@ -1,6 +1,7 @@
 package dk.lasse.karatecliprecorder.wiki
 
 import android.content.Context
+import android.content.res.ColorStateList
 import android.graphics.Typeface
 import android.graphics.drawable.ColorDrawable
 import android.view.Gravity
@@ -18,9 +19,18 @@ import android.widget.TableRow
 import android.widget.TextView
 import androidx.core.content.ContextCompat
 import dk.lasse.karatecliprecorder.R
+import dk.lasse.karatecliprecorder.SettingsCardView
 import kotlin.math.roundToInt
 
 internal data class WikiJumpPoint(val label: String, val progress: Double)
+
+internal fun wikiSectionCard(context: Context) = SettingsCardView(context).apply {
+    val spacing = (12 * resources.displayMetrics.density).roundToInt()
+    setPadding(spacing, spacing, spacing, spacing)
+    layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
+        bottomMargin = spacing
+    }
+}
 
 /**
  * Shared controls for wiki animations: timeline, important-frame navigation,
@@ -39,7 +49,10 @@ internal class WikiMotionControls(
         minimumWidth = 48.dp()
         minimumHeight = 48.dp()
         setPadding(12.dp(), 12.dp(), 12.dp(), 12.dp())
-        setBackgroundResource(android.R.drawable.btn_default)
+        val selectable = android.util.TypedValue()
+        context.theme.resolveAttribute(android.R.attr.selectableItemBackgroundBorderless, selectable, true)
+        setBackgroundResource(selectable.resourceId)
+        imageTintList = ColorStateList.valueOf(ContextCompat.getColor(context, R.color.app_accent))
     }
     private val jumpPoints = listOf(
         WikiJumpPoint("Jump to…", Double.NaN),

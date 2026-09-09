@@ -27,6 +27,7 @@ class GuidedJodanSessionController(
 
     fun start() {
         if (running) return
+        recordingAdapter.beginMeasurementSession()
         running = true
         cancelled = false
         currentPlanIndex = 0
@@ -45,6 +46,7 @@ class GuidedJodanSessionController(
         running = false
         handler.removeCallbacksAndMessages(null)
         recordingAdapter.stopRecording()
+        recordingAdapter.endMeasurementSession()
         activePlan = null
         onStateChanged(GuidedSessionState.CANCELLED)
         onPromptChanged("Session cancelled")
@@ -111,6 +113,7 @@ class GuidedJodanSessionController(
 
     private fun finishSession(completed: Boolean) {
         running = false
+        recordingAdapter.endMeasurementSession()
         handler.removeCallbacksAndMessages(null)
         onStateChanged(GuidedSessionState.SAVING)
         val metadataFile = recordingAdapter.createGuidedSessionFile(METADATA_FILE_NAME)

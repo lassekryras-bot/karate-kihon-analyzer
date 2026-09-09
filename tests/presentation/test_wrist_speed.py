@@ -10,14 +10,21 @@ def test_installed_speed_matches_approved_preview_and_preserves_motion():
     before=deepcopy((path,motion))
     speed=build_wrist_speed_presentation(path,motion,bundle['frame_geometry'])
     installed=next(p for p in bundle['presentations'] if p['measurement_id']=='camera_relative_wrist_speed')
-    assert speed==installed
+    from karate_analyzer.presentation.metric_scale import metric_bundle
+    generated = deepcopy(bundle)
+    generated['presentations'] = [speed]
+    speed = metric_bundle(generated)['presentations'][0]
+    assert speed['scale'] == installed['scale']
+    assert speed['summary'] == pytest.approx(installed['summary'])
+    for calculated, saved in zip(speed['graph']['samples'], installed['graph']['samples'], strict=True):
+        assert calculated == pytest.approx(saved)
     assert (path,motion)==before
-    assert speed['summary']['maximum_speed_output_units']==pytest.approx(11.974932398924)
+    assert speed['summary']['maximum_speed_output_units']==pytest.approx(4.397026095600011)
     assert speed['maximum_marker']['frame_number']==237
     assert speed['maximum_marker']['timestamp_ms']==3950
     assert speed['scale']['reference_side']=='right'
     assert speed['scale']['reference_frame_numbers']==list(range(211,218))
-    assert speed['graph']['output_unit']=='upper_arm_lengths_per_second'
+    assert speed['graph']['output_unit']=='meters_per_second'
     assert any(e['measurement_id']==speed['measurement_id'] for e in catalogue['measurements'])
 
 

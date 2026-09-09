@@ -126,7 +126,7 @@ Paths below are relative to the repository root:
 | Native wiki and initial renderer | `android/KarateClipRecorder/app/src/main/java/dk/lasse/karatecliprecorder/wiki/MeasurementWikiView.kt` |
 | Discoverable wiki entries and copy | `android/KarateClipRecorder/app/src/main/assets/wiki/catalogue.json` |
 | Installed example bundles | `android/KarateClipRecorder/app/src/main/assets/wiki/examples/` |
-| Navigation | `MainActivity.kt` and `learningpath/LearnScreenView.kt` under the app Java package |
+| Navigation | `MainActivity.kt` and `profile/ProgressScreenView.kt` under the app Java package |
 | Export and asset regression tests | `tests/presentation/` |
 
 The analyzer owns measurement values, selection evidence, windows, quality,

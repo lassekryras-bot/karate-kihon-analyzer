@@ -8,6 +8,21 @@ import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 class JapaneseCountingTestPresentationTest {
+    @Test fun listeningHighlightsOnlyNumbersAlreadyHeard() {
+        val empty = CountTrainingSession(phase = CountTrainingPhase.LISTENING)
+        assertEquals(null, JapaneseCountingTestPresentation.fromSession(empty).highlightedIndex)
+        val live = JapaneseCountingTestPresentation.fromSession(empty.copy(
+            partialTranscripts = listOf("ichi ni san"),
+        ))
+        assertEquals(3, live.recognizedCount)
+        assertEquals(2, live.highlightedIndex)
+        val result = JapaneseCountingTestPresentation.fromSession(empty.copy(
+            phase = CountTrainingPhase.RESULT,
+            partialTranscripts = listOf("ichi ni san"),
+            normalizedSequence = listOf("1", "2"),
+        ))
+        assertEquals(2, result.recognizedCount)
+    }
     @Test fun readyAndIdleSessionsRenderTheReadyShell() {
         assertEquals(
             ActivityShellState.READY,

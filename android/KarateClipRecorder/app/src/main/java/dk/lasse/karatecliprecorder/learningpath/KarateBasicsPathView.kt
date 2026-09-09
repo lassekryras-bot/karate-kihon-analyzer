@@ -120,7 +120,7 @@ class KarateBasicsPathView(
         orientation = LinearLayout.VERTICAL
         setPadding(16.dp(), 15.dp(), 16.dp(), 16.dp())
         background = cardBackground(border)
-        elevation = 2.dp().toFloat()
+        elevation = 0f
         addView(LinearLayout(context).apply {
             gravity = Gravity.CENTER_VERTICAL
             addView(AppIconView(context, AppIcon.KARATE, sizeDp = 42).apply { setIconColor(red) }, LayoutParams(48.dp(), 48.dp()))

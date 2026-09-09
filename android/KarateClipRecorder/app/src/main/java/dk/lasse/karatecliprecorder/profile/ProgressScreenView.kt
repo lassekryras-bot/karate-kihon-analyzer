@@ -19,6 +19,7 @@ class ProgressScreenView(
     context: Context,
     private val repository: ProfileRepository,
     private val onProfile: () -> Unit,
+    private val onWiki: () -> Unit,
     onHome: () -> Unit,
     onTrain: () -> Unit,
     onSettings: () -> Unit,
@@ -63,7 +64,12 @@ class ProgressScreenView(
     private fun renderHeaderAndSummary(onProfile: () -> Unit) {
         content.removeAllViews()
         mainHeader.setSubtitle("Track your technique over time")
-        content.addView(SettingsSectionView(context, "ACTIVITIES", first = true).apply {
+        content.addView(SettingsSectionView(context, "MEASUREMENTS", first = true).apply {
+            addRow(SettingsRowView(context, AppIcon.KARATE, "Measurement wiki", "Understand your technique measurements").apply {
+                configureAsNavigation(onClick = onWiki)
+            })
+        })
+        content.addView(SettingsSectionView(context, "ACTIVITIES").apply {
             addRow(SettingsRowView(context, AppIcon.KARATE, "Punching", "Measurement trends for your punches").apply {
                 configureAsNavigation(onClick = { showEmptyPerformance("Punching") })
             })

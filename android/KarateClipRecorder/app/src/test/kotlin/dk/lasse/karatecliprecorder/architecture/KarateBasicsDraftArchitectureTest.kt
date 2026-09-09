@@ -12,7 +12,7 @@ class KarateBasicsDraftArchitectureTest {
     @Test fun curriculumLivesInStructuredConfigAndContainsTheRequiredCrossBranchDependencies() {
         val config = source("src/main/res/raw/karate_basics_path.json")
 
-        assertTrue(config.contains("\"title\": \"Karate Basics\""))
+        assertTrue(config.contains("\"title\": \"How to use the app\""))
         assertTrue(config.contains("\"test-count-1-10\", \"one-straight-punch\""))
         assertTrue(config.contains("\"id\": \"practice-count-1-10\""))
         assertTrue(config.contains("\"id\": \"test-count-1-10\""))

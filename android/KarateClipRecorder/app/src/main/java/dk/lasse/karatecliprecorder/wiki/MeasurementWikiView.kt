@@ -9,7 +9,11 @@ import android.view.View
 import android.widget.*
 import androidx.core.content.ContextCompat
 import androidx.core.view.ViewCompat
-import androidx.core.view.WindowInsetsCompat
+import dk.lasse.karatecliprecorder.AppIcon
+import dk.lasse.karatecliprecorder.SettingsCardView
+import dk.lasse.karatecliprecorder.SettingsRowView
+import dk.lasse.karatecliprecorder.StickyHeaderPageLayout
+import dk.lasse.karatecliprecorder.SubPageHeader
 import dk.lasse.karatecliprecorder.R
 import org.json.JSONArray
 import org.json.JSONObject
@@ -25,22 +29,22 @@ class MeasurementWikiView(context: Context, private val onClose: () -> Unit) : L
     private var page = "index"
     private val ink = ContextCompat.getColor(context, R.color.app_text_primary)
     private val paper = ContextCompat.getColor(context, R.color.home_card_surface)
+    private val header = SubPageHeader(context, title = "Measurement wiki", onBack = ::back)
+    private var measurementTitle = "Measurement wiki"
     init {
         orientation = VERTICAL
         setBackgroundColor(ContextCompat.getColor(context, R.color.app_background))
-        setPadding(20.dp(), 20.dp(), 20.dp(), 20.dp())
-        addView(Button(context).apply { text = "‹ Back"; setOnClickListener { back() } })
-        addView(ScrollView(context).apply { addView(content) }, LayoutParams(-1, 0, 1f))
-        ViewCompat.setOnApplyWindowInsetsListener(this) { _, insets ->
-            val bars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
-            setPadding(20.dp(), bars.top + 12.dp(), 20.dp(), bars.bottom + 12.dp())
-            insets
-        }
+        addView(StickyHeaderPageLayout(
+            context = context,
+            header = header,
+            body = content,
+            topContentPaddingDp = 16,
+        ), LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT))
         index()
     }
     fun back() {
         when (page) {
-            "method" -> { content.removeAllViews(); content.addView(visual); page = "visual" }
+            "method" -> { content.removeAllViews(); content.addView(visual); header.setTitle(measurementTitle); page = "visual" }
             "visual" -> index()
             else -> onClose()
         }
@@ -51,28 +55,38 @@ class MeasurementWikiView(context: Context, private val onClose: () -> Unit) : L
         if (heading) { typeface = Typeface.DEFAULT_BOLD; ViewCompat.setAccessibilityHeading(this, true) }
     }
     private fun index() {
+        header.setTitle("Measurement wiki")
         player?.pause(); hikitePlayer?.pause(); hikitePlayer = null; player = null; visual = null; page = "index"; content.removeAllViews()
-        content.addView(label("Measurement wiki", true))
-        content.addView(label("Explore what each measurement means, using an example punch."))
+        content.addView(TextView(context).apply {
+            text = "Explore what each measurement means, using an example punch."
+            textSize = 14f
+            setTextColor(ContextCompat.getColor(context, R.color.app_text_secondary))
+        }, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT).apply {
+            bottomMargin = 16.dp()
+        })
         val entries = catalogue.getJSONArray("measurements")
         for (i in 0 until entries.length()) {
             val definition = entries.getJSONObject(i)
-            content.addView(Button(context).apply {
-                text = definition.getString("title")
-                setOnClickListener { open(definition) }
+            content.addView(SettingsCardView(context).apply {
+                addSettingsRow(SettingsRowView(
+                    context,
+                    AppIcon.KARATE,
+                    definition.getString("title"),
+                    definition.getString("description"),
+                ).apply { configureAsNavigation(onClick = { open(definition) }) })
+            }, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT).apply {
+                if (i > 0) topMargin = 10.dp()
             })
-            content.addView(label(definition.getString("description")))
         }
     }
     private fun open(definition: JSONObject) {
         content.removeAllViews(); page = "visual"
+        measurementTitle = definition.getString("title")
+        header.setTitle(measurementTitle)
         val card = LinearLayout(context).apply {
             orientation = VERTICAL
-            setPadding(12.dp(), 8.dp(), 12.dp(), 16.dp())
-            background = GradientDrawable().apply { setColor(paper); cornerRadius = 18.dp().toFloat() }
         }
         visual = card; content.addView(card)
-        card.addView(label(definition.getString("title"), true))
         card.addView(label(definition.getString("description")))
         try {
             if (definition.getString("renderer_id") == "hikite_pose_graph") {
@@ -111,7 +125,8 @@ class MeasurementWikiView(context: Context, private val onClose: () -> Unit) : L
             val graphUnit = presentation.getJSONObject("graph").getString("output_unit")
             require(if (speed) (scaleUnit == "upper_arm_length" && graphUnit == "upper_arm_lengths_per_second") ||
                 (scaleUnit == "meter" && graphUnit == "meters_per_second")
-                else scaleUnit == "shoulder_width" && graphUnit == "shoulder_width") { "Unsupported unit" }
+                else (scaleUnit == "shoulder_width" && graphUnit == "shoulder_width") ||
+                    (scaleUnit == "meter" && graphUnit == "meter")) { "Unsupported unit" }
             require(presentation.getString("coordinate_reference") == "fixed_analysis_camera" &&
                 presentation.getJSONObject("overlays").getString("coordinate_space") == "fixed_analysis_camera_output_units") {
                 "Fixed-camera path required; update this example"
@@ -127,7 +142,11 @@ class MeasurementWikiView(context: Context, private val onClose: () -> Unit) : L
                 it.getInt("frame_number") == marker.getInt("frame_number") &&
                     it.getDouble("timestamp_ms") == marker.getDouble("timestamp_ms") && !it.isNull("pose")
             }) { "Maximum pose unavailable" }
-            card.addView(label(bundle.getJSONObject("example").getString("label")))
+            val animationCard = wikiSectionCard(context)
+            val graphCard = wikiSectionCard(context)
+            card.addView(animationCard)
+            card.addView(graphCard)
+            animationCard.addView(label(bundle.getJSONObject("example").getString("label")))
             val drawing = PunchGraphView(context, bundle, presentation, motion)
             player = drawing
             val graph = PunchGraphView(context, bundle, presentation, motion, graphOnly = true)
@@ -147,27 +166,30 @@ class MeasurementWikiView(context: Context, private val onClose: () -> Unit) : L
                 graph.seek(progress)
                 controls.update(progress, drawing.playing)
             }
-            card.addView(drawing, LayoutParams(-1, 290.dp()))
-            card.addView(controls)
-            card.addView(label(definition.getString("figure_text")))
-            card.addView(graph, LayoutParams(-1, 170.dp()))
-            card.addView(label(definition.getString("graph_text")))
-            val unit = if (speed) (if (graphUnit == "meters_per_second") "m/s" else "upper-arm lengths/s") else "shoulder widths"
-            if (!speed) card.addView(label("Typical deviation (RMS): %.3f %s".format(rms, unit)))
-            card.addView(label((if (speed) "Maximum speed: %.2f %s" else "Maximum deviation: %.3f %s").format(maximum, unit)))
+            animationCard.addView(drawing, LayoutParams(-1, 290.dp()))
+            animationCard.addView(controls)
+            animationCard.addView(label(definition.getString("figure_text")))
+            graphCard.addView(graph, LayoutParams(-1, 170.dp()))
+            graphCard.addView(label(definition.getString("graph_text")))
+            val unit = if (speed) (if (graphUnit == "meters_per_second") "m/s" else "upper-arm lengths/s") else if (graphUnit == "meter") "m" else "shoulder widths"
+            if (!speed) graphCard.addView(label("Typical deviation (RMS): %.3f %s".format(rms, unit)))
+            graphCard.addView(label((if (speed) "Maximum speed: %.2f %s" else "Maximum deviation: %.3f %s").format(maximum, unit)))
             drawing.seek(0.0)
             }
         } catch (error: Exception) {
             card.addView(label("Example unavailable: ${error.message ?: "Could not load this measurement"}"))
         }
-        card.addView(Button(context).apply {
-            text = "How is this calculated?"
-            setOnClickListener {
+        card.addView(SettingsCardView(context).apply {
+            addSettingsRow(SettingsRowView(context, AppIcon.KARATE,
+                "How is this calculated?", "See the measurement method").apply {
+            configureAsNavigation(onClick = {
                 player?.pause(); hikitePlayer?.pause(); page = "method"; content.removeAllViews()
-                content.addView(label("How it is calculated", true))
-                content.addView(label(definition.getString("method_text")))
-                content.addView(Button(context).apply { text = "Back to animation"; setOnClickListener { back() } })
-            }
+                header.setTitle("How it is calculated")
+                content.addView(wikiSectionCard(context).apply {
+                    addView(label(definition.getString("method_text")))
+                })
+            })
+            })
         })
     }
     private fun Int.dp() = (this * resources.displayMetrics.density).roundToInt()
@@ -177,7 +199,7 @@ class MeasurementWikiView(context: Context, private val onClose: () -> Unit) : L
 internal class PunchGraphView(context: Context, bundle: JSONObject, presentation: JSONObject, motion: JSONObject, private val graphOnly: Boolean = false) : View(context) {
     private val speed = presentation.getString("measurement_id") == "camera_relative_wrist_speed"
     private val valueKey = if (speed) "speed_output_units" else "signed_deviation_output_units"
-    private val graphLabel = if (speed) (if (presentation.getJSONObject("graph").getString("output_unit") == "meters_per_second") "Speed · m/s" else "Speed · upper-arm lengths/s") else "Signed deviation · shoulder widths"
+    private val graphLabel = if (speed) (if (presentation.getJSONObject("graph").getString("output_unit") == "meters_per_second") "Speed · m/s" else "Speed · upper-arm lengths/s") else if (presentation.getJSONObject("graph").getString("output_unit") == "meter") "Signed deviation · m" else "Signed deviation · shoulder widths"
     private val frames = motion.getJSONArray("frames").objects()
     private val samples = presentation.getJSONObject("graph").getJSONArray("samples").objects()
     private val trajectory = presentation.getJSONObject("overlays").getJSONArray("trajectory_samples").objects()
@@ -190,6 +212,16 @@ internal class PunchGraphView(context: Context, bundle: JSONObject, presentation
     private val geometry = bundle.getJSONObject("frame_geometry").getJSONObject("analysis_frame")
     private val iw = geometry.getDouble("width_px")
     private val ih = geometry.getDouble("height_px")
+    private val figureHeadRadius = frames.map { it.getJSONObject("pose").getDouble("head_radius") * iw }.sorted().let { it[it.size / 2].toFloat() }
+    private val figurePoints = frames.flatMap { frame ->
+        val p = frame.getJSONObject("pose")
+        p.keys().asSequence().mapNotNull { key -> p.optJSONObject(key)?.let {
+            PointF((it.getDouble("x") * iw).toFloat(), (it.getDouble("y") * ih).toFloat())
+        } }.toList() + p.getJSONObject("head_center").let {
+            val x = (it.getDouble("x") * iw).toFloat(); val y = (it.getDouble("y") * ih).toFloat()
+            listOf(PointF(x - figureHeadRadius, y - figureHeadRadius), PointF(x + figureHeadRadius, y + figureHeadRadius))
+        }
+    }
     private val first = samples.first().getDouble("timestamp_ms")
     private val last = samples.last().getDouble("timestamp_ms")
     private var timestamp = first
@@ -244,13 +276,12 @@ internal class PunchGraphView(context: Context, bundle: JSONObject, presentation
         if (graphOnly) canvas.translate(0f, -height * .64f)
         val pose = selected().optJSONObject("pose") ?: return
         // Pose and historical overlays share the same fixed camera transform.
-        val zoom = min(width / (iw * 1.1), height * .62 / (ih * .65))
-        fun xy(p: JSONObject) = PointF((width * .30 + (p.getDouble("x") - origin.getDouble("x")) * iw * zoom).toFloat(),
-            (height * .24 + (p.getDouble("y") - origin.getDouble("y")) * ih * zoom).toFloat())
+        val transform = WikiFigureTransform(figurePoints, width.toFloat(), this.height.toFloat(), 16 * resources.displayMetrics.density)
+        val zoom = transform.scale
+        fun xy(p: JSONObject) = transform.map((p.getDouble("x") * iw).toFloat(), (p.getDouble("y") * ih).toFloat())
         fun cameraPoint(row: JSONObject): PointF {
             val p = row.getJSONArray("camera_wrist")
-            return PointF((width * .30 + (p.getDouble(0) * scale - origin.getDouble("x") * iw) * zoom).toFloat(),
-                (height * .24 + (p.getDouble(1) * scale - origin.getDouble("y") * ih) * zoom).toFloat())
+            return transform.map((p.getDouble(0) * scale).toFloat(), (p.getDouble(1) * scale).toFloat())
         }
         fun line(a: PointF, b: PointF, color: Int, thickness: Float = 4f) {
             paint.color = color; paint.style = Paint.Style.STROKE; paint.strokeWidth = thickness * resources.displayMetrics.density
@@ -270,12 +301,13 @@ internal class PunchGraphView(context: Context, bundle: JSONObject, presentation
                 val points = listOf("left_shoulder", "right_shoulder", "right_hip", "left_hip").map { xy(pose.getJSONObject(it)) }
                 val path = Path().apply { moveTo(points[0].x, points[0].y); points.drop(1).forEach { lineTo(it.x,it.y) }; close() }
                 paint.style = Paint.Style.FILL; paint.color = paper; canvas.drawPath(path,paint)
-                paint.style = Paint.Style.STROKE; paint.color = ink; canvas.drawPath(path,paint)
+                paint.style = Paint.Style.STROKE; paint.color = ink; paint.strokeWidth = 2 * resources.displayMetrics.density; canvas.drawPath(path,paint)
             }
         }
         val head = xy(pose.getJSONObject("head_center"))
         paint.style = Paint.Style.STROKE; paint.color = ink
-        canvas.drawCircle(head.x,head.y,(pose.getDouble("head_radius") * iw * zoom).toFloat(),paint)
+        paint.strokeWidth = 2 * resources.displayMetrics.density
+        canvas.drawCircle(head.x,head.y,figureHeadRadius * zoom,paint)
         if (!speed) {
             paint.pathEffect = DashPathEffect(floatArrayOf(10f,8f),0f)
             line(cameraPoint(trajectory.first()),cameraPoint(trajectory.last()),ink,1.5f)

@@ -37,10 +37,10 @@ internal class HikiteWikiView(context: Context, bundle: JSONObject) : LinearLayo
     private val metrics = WikiMetricList(
         context,
         listOf(
-            WikiMetricDefinition("shoulder", "Wrist to shoulder line", "upper-arm lengths", selectable = true),
+            WikiMetricDefinition("shoulder", "Wrist to shoulder line", "m", selectable = true),
             WikiMetricDefinition("forearm", "Forearm to torso", "°", selectable = true),
-            WikiMetricDefinition("wrist", "Wrist position", "upper-arm lengths", selectable = true),
-            WikiMetricDefinition("speed", "Elbow speed", "upper-arm lengths/s"),
+            WikiMetricDefinition("wrist", "Wrist position", "m", selectable = true),
+            WikiMetricDefinition("speed", "Elbow speed", "m/s"),
             WikiMetricDefinition("bend", "Wrist bend", "—"),
         ),
     )
@@ -65,20 +65,24 @@ internal class HikiteWikiView(context: Context, bundle: JSONObject) : LinearLayo
         require(presentation.getString("measurement_id") == "hikite_finish")
         require(presentation.getString("presentation_id") == "hikite:event:6")
         require(presentation.getString("coordinate_reference") == "fixed_analysis_camera")
-        require(presentation.getString("distance_unit") == "upper_arm_length")
-        require(presentation.getString("speed_unit") == "upper_arm_lengths_per_second")
+        require(presentation.getString("distance_unit") == "meter")
+        require(presentation.getString("speed_unit") == "meters_per_second")
         require(rows.size > 1 && rows.zipWithNext().all { (a,b) -> a.getDouble("t") < b.getDouble("t") })
         require(rows.any { it.getInt("f") == marker.getInt("frame_number") && it.getDouble("t") == marker.getDouble("timestamp_ms") })
         orientation = VERTICAL
-        addView(label("Example punch 6 · right-arm hikite"))
-        addView(pose, LayoutParams(-1, (260*density).roundToInt()))
+        val animationCard = wikiSectionCard(context)
+        val graphCard = wikiSectionCard(context)
+        addView(animationCard)
+        addView(graphCard)
+        animationCard.addView(label("Example punch 6 · right-arm hikite"))
+        animationCard.addView(pose, LayoutParams(-1, (290*density).roundToInt()))
         controls.onSeek = { seek(it) }
         controls.onPlayToggle = { if (playing) pause() else play() }
         controls.onSpeedChange = { rate ->
             playbackRate = rate
             if (playing) clock = SystemClock.uptimeMillis()
         }
-        addView(controls)
+        animationCard.addView(controls)
         metrics.onMetricSelected = { key ->
             mode = when (key) {
                 "shoulder" -> 0
@@ -89,10 +93,10 @@ internal class HikiteWikiView(context: Context, bundle: JSONObject) : LinearLayo
             update()
         }
         metrics.select("shoulder")
-        addView(metrics)
-        addView(label("Position lines appear at the finish."))
-        addView(graph, LayoutParams(-1, (190*density).roundToInt()))
-        addView(label("See how your elbow speed changes. Drag along the graph to inspect the movement."))
+        animationCard.addView(metrics)
+        animationCard.addView(label("Position lines appear at the finish."))
+        graphCard.addView(graph, LayoutParams(-1, (190*density).roundToInt()))
+        graphCard.addView(label("See how your elbow speed changes. Drag along the graph to inspect the movement."))
         update()
     }
     private fun label(copy: String) = TextView(context).apply { text = copy; textSize = 17f; setTextColor(ink); setPadding(0, (8*density).toInt(), 0, (8*density).toInt()) }
@@ -129,7 +133,7 @@ internal class HikiteWikiView(context: Context, bundle: JSONObject) : LinearLayo
     override fun onWindowVisibilityChanged(visibility: Int) { super.onWindowVisibilityChanged(visibility); if (visibility != VISIBLE) pause() }
     private inner class Drawing(private val graphOnly: Boolean) : View(context) {
         private val paint = Paint(Paint.ANTI_ALIAS_FLAG)
-        init { contentDescription = if(graphOnly) "Elbow speed graph, upper-arm lengths per second" else "Hikite animation with selected finish measurement" }
+        init { contentDescription = if(graphOnly) "Elbow speed graph, meters per second" else "Hikite animation with selected finish measurement" }
         override fun performClick(): Boolean { super.performClick(); return true }
         override fun onTouchEvent(event: MotionEvent): Boolean {
             if (!graphOnly) return false
@@ -154,15 +158,20 @@ internal class HikiteWikiView(context: Context, bundle: JSONObject) : LinearLayo
                 val current=xy(r); line(PointF(current.x,top),PointF(current.x,bottom),ink,1f)
                 ring(xy(rows.first { it.getInt("f")==marker.getInt("frame_number") }))
                 paint.color=accent; paint.style=Paint.Style.FILL; c.drawCircle(current.x,current.y,4*density,paint)
-                text("Elbow speed · upper-arm lengths/s",0f,18*density)
+                text("Elbow speed · m/s",0f,18*density)
                 text("0",0f,bottom); text("%.1f".format(max),0f,top)
                 text("%.2f s".format(first/1000),left,height-12*density)
                 paint.textSize=12*resources.displayMetrics.scaledDensity
                 val end="%.2f s".format(last/1000); text(end,right-paint.measureText(end),height-12*density)
                 return
             }
-            val z=min((width-32*density)/(xmax-xmin),(height-32*density)/(ymax-ymin))
-            fun xy(p: PointF)=PointF((width-(xmax-xmin)*z)/2+(p.x-xmin)*z,16*density+(p.y-ymin)*z)
+            val headBounds = rows.flatMap { row ->
+                val h = point(row.getJSONObject("p"), "head_center")
+                listOf(PointF(h.x-headRadius, h.y-headRadius), PointF(h.x+headRadius, h.y+headRadius))
+            }
+            val transform = WikiFigureTransform(points + headBounds, width.toFloat(), height.toFloat(), 16*density)
+            val z = transform.scale
+            fun xy(p: PointF)=transform.map(p.x, p.y)
             val p=r.getJSONObject("p")
             fun at(key: String)=xy(point(p,key))
             fun arm(side: String) { line(at("${side}_shoulder"),at("${side}_elbow"),ink,4f); line(at("${side}_elbow"),at("${side}_wrist"),ink,4f) }

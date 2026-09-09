@@ -32,6 +32,7 @@ def build_punch_path_presentation_bundle(
     *,
     event_index: int | None = None,
     upper_arm_length_m: float | None = None,
+    body_measurements: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Build a deterministic, renderer-neutral bundle for one or all events."""
 
@@ -81,7 +82,7 @@ def build_punch_path_presentation_bundle(
         presentations.append(build_wrist_speed_presentation(
             presentation, motion, video_landmarks.get("frame_geometry"),
             upper_arm_length_m=upper_arm_length_m))
-    return {
+    bundle = {
         "schema_version": 2,
         "contract": "karate_measurement_presentation_v2",
         "content_key": "punch_path_straightness",
@@ -91,6 +92,11 @@ def build_punch_path_presentation_bundle(
         "motions": motions,
         "presentations": presentations,
     }
+    if body_measurements is not None:
+        from .metric_scale import metric_bundle
+        bundle['body_measurements'] = deepcopy(body_measurements)
+        return metric_bundle(bundle)
+    return bundle
 
 
 def build_fixed_camera_path_presentation(

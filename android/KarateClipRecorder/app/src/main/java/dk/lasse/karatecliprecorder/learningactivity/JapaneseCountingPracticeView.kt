@@ -72,7 +72,7 @@ class JapaneseCountingPracticeView(
     private fun renderReadyState() {
         shell.setHeading(
             "Practice Numbers 1–10",
-            "Learn the Japanese numbers used in the dojo.\nThis is the first step before the test.",
+            "",
         )
         shell.setRunnerContent(introCard())
         shell.setProgressContent(null)
@@ -83,7 +83,7 @@ class JapaneseCountingPracticeView(
     }
 
     private fun renderActiveState(item: JapaneseCountLessonItem, itemIndex: Int) {
-        shell.setHeading("Practice Numbers 1–10", "Learn one number at a time.")
+        shell.setHeading("Practice Numbers 1–10", "")
         shell.setRunnerContent(numberCard(item))
         shell.setProgressContent(numberProgress(itemIndex))
         shell.setActions(
@@ -111,36 +111,16 @@ class JapaneseCountingPracticeView(
         setPadding(16.dp(), 18.dp(), 16.dp(), 16.dp())
         addView(label("Why this matters in karate", 18f, Typeface.BOLD).apply { setTextColor(red) })
         addView(label(
-            "In the dojo, the instructor calls each count to cue the next punch or technique. " +
-                "The class moves together with the rhythm of the counting.",
+            "The instructor’s count cues each movement and helps the class move together.",
             15f,
         ).apply { setPadding(0, 8.dp(), 0, 13.dp()) })
         addView(divider())
         addView(label(
-            "You will often hear the numbers pronounced shorter and sharper than in normal Japanese speech. For example:",
+            "This practice uses short dojo-style counts, like these:",
             15f,
         ).apply { setPadding(0, 13.dp(), 0, 10.dp()) })
         addView(pronunciationExamples())
-        addView(label("This lesson uses that short dojo-style pronunciation.", 15f).apply {
-            setPadding(0, 12.dp(), 0, 13.dp())
-        })
-        addView(divider())
-        addView(label("What you’ll do", 18f, Typeface.BOLD).apply {
-            setTextColor(red)
-            setPadding(0, 13.dp(), 0, 6.dp())
-        })
-        listOf(
-            "See the number, Japanese character, and name.",
-            "Hear the dojo pronunciation automatically.",
-            "Repeat it out loud.",
-            "Use Replay as often as you like.",
-            "Press Next when you’re ready.",
-        ).forEach { copy ->
-            addView(label("•  $copy", 14f).apply { setPadding(0, 4.dp(), 0, 4.dp()) })
-        }
-        addView(divider(), matchWrap().apply { topMargin = 10.dp() })
-        addView(label("10 numbers  ·  about 2–3 minutes", 14f, Typeface.BOLD).apply {
-            setTextColor(muted)
+        addView(label("Listen, repeat, then tap Next. Use Replay whenever you need it.", 15f).apply {
             setPadding(0, 12.dp(), 0, 0)
         })
     }
@@ -168,21 +148,20 @@ class JapaneseCountingPracticeView(
     private fun numberCard(item: JapaneseCountLessonItem) = card().apply {
         orientation = LinearLayout.VERTICAL
         gravity = Gravity.CENTER_HORIZONTAL
-        minimumHeight = 360.dp()
-        setPadding(20.dp(), 20.dp(), 20.dp(), 20.dp())
+        setPadding(16.dp(), 12.dp(), 16.dp(), 12.dp())
         contentDescription = "Number ${item.number}, ${item.displayKanji}, ${item.standardJapanese}"
-        addView(label(item.number, 76f, Typeface.BOLD, Gravity.CENTER).apply { setTextColor(red) })
+        addView(label(item.number, 56f, Typeface.BOLD, Gravity.CENTER).apply { setTextColor(red) })
         addView(divider(), LinearLayout.LayoutParams(108.dp(), 1.dp()).apply {
             topMargin = 2.dp()
             bottomMargin = 10.dp()
         })
-        addView(label(item.displayKanji, 50f, Typeface.NORMAL, Gravity.CENTER))
+        addView(label(item.displayKanji, 40f, Typeface.NORMAL, Gravity.CENTER))
         addView(divider(), LinearLayout.LayoutParams(108.dp(), 1.dp()).apply {
             topMargin = 8.dp()
             bottomMargin = 12.dp()
         })
         addView(label(item.standardJapanese, 29f, Typeface.BOLD, Gravity.CENTER))
-        addView(replayButton(), LinearLayout.LayoutParams(76.dp(), 76.dp()).apply { topMargin = 16.dp() })
+        addView(replayButton(), LinearLayout.LayoutParams(56.dp(), 56.dp()).apply { topMargin = 8.dp() })
         addView(label("Replay", 15f, Typeface.BOLD, Gravity.CENTER).apply { setPadding(0, 7.dp(), 0, 0) })
     }
 
@@ -200,43 +179,7 @@ class JapaneseCountingPracticeView(
         }, FrameLayout.LayoutParams(38.dp(), 38.dp(), Gravity.CENTER))
     }
 
-    private fun numberProgress(currentIndex: Int) = GridLayout(context).apply {
-        columnCount = 5
-        rowCount = 2
-        alignmentMode = GridLayout.ALIGN_BOUNDS
-        useDefaultMargins = false
-        setPadding(0, 2.dp(), 0, 2.dp())
-        JapaneseCountLesson.items.forEachIndexed { index, item ->
-            val completed = index < currentIndex
-            val current = index == currentIndex
-            addView(FrameLayout(context).apply {
-                addView(TextView(context).apply {
-                    text = item.number
-                    textSize = 15f
-                    typeface = Typeface.create("sans-serif", Typeface.BOLD)
-                    gravity = Gravity.CENTER
-                    setTextColor(if (current) Color.WHITE else if (completed) red else ink)
-                    background = GradientDrawable().apply {
-                        shape = GradientDrawable.OVAL
-                        setColor(if (current) red else if (completed) paleRed else Color.TRANSPARENT)
-                        setStroke(1.dp(), if (current || completed) red else border)
-                    }
-                    contentDescription = when {
-                        current -> "${item.number}, current"
-                        completed -> "${item.number}, completed"
-                        else -> "${item.number}, upcoming"
-                    }
-                }, FrameLayout.LayoutParams(42.dp(), 42.dp(), Gravity.CENTER))
-            }, GridLayout.LayoutParams(
-                GridLayout.spec(index / 5),
-                GridLayout.spec(index % 5, 1f),
-            ).apply {
-                width = 0
-                height = 56.dp()
-                setMargins(3.dp(), 3.dp(), 3.dp(), 3.dp())
-            })
-        }
-    }
+    private fun numberProgress(currentIndex: Int) = countingNumberProgress(context, currentIndex, currentIndex)
 
     private fun completionContent() = LinearLayout(context).apply {
         orientation = LinearLayout.VERTICAL
@@ -244,11 +187,6 @@ class JapaneseCountingPracticeView(
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
             setPadding(14.dp(), 12.dp(), 16.dp(), 12.dp())
-            addView(KarateCharacterView(
-                context = context,
-                faceVariant = DEFAULT_FACE_VARIANT,
-                beltRank = KarateBeltRank.WHITE,
-            ), LinearLayout.LayoutParams(116.dp(), 302.dp()).apply { marginEnd = 14.dp() })
             addView(LinearLayout(context).apply {
                 orientation = LinearLayout.VERTICAL
                 addView(label("You completed the full set", 18f, Typeface.BOLD).apply { setTextColor(red) })
@@ -294,7 +232,7 @@ class JapaneseCountingPracticeView(
 
     private fun card() = LinearLayout(context).apply {
         background = roundedSurface(warmSurface, 24.dp(), border)
-        elevation = 2.dp().toFloat()
+        elevation = 0f
     }
 
     private fun divider() = FrameLayout(context).apply { setBackgroundColor(border) }
@@ -322,8 +260,4 @@ class JapaneseCountingPracticeView(
 
     private fun Int.dp() = (this * resources.displayMetrics.density).toInt()
 
-    private companion object {
-        /** Temporary default until an existing profile preference is introduced. */
-        val DEFAULT_FACE_VARIANT = KarateFaceVariant.MALE
-    }
 }
