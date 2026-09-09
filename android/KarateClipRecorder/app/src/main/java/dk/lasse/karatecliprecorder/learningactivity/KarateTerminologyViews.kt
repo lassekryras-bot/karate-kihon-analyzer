@@ -165,6 +165,7 @@ class ReadyOsuView(
         contentDescription = "Front camera preview for the hands-free selfie"
     }
     private var selfieBitmap: Bitmap? = null
+    private var liveCameraCard: LinearLayout? = null
     var presentation = ReadyOsuPresentation()
         private set
 
@@ -337,7 +338,13 @@ class ReadyOsuView(
         onStop: () -> Unit = onContinueWithoutVoice,
     ) {
         shell.setHeading("Ready? — Osu", subtitle)
-        shell.setRunnerContent(ui.cameraCard(status, body, cameraPreview))
+        val card = liveCameraCard ?: ui.cameraCard(status, body, cameraPreview).also {
+            liveCameraCard = it
+        }
+        (card.getChildAt(0) as TextView).text = status
+        (card.getChildAt(1) as TextView).text = body
+        // Keep the live CameraX surface attached between prompt, recognition and capture.
+        if (card.parent == null) shell.setRunnerContent(card)
         shell.setProgressContent(ui.stepProgress(1, 2, "Practice step"))
         shell.setActions(null, ActivityShellAction("Stop selfie practice", onClick = onStop))
     }
@@ -515,7 +522,7 @@ private class TerminologyActivityUi(private val context: Context) {
             cornerRadius = 24.dp().toFloat()
             setStroke(1.dp(), border)
         }
-        elevation = 2.dp().toFloat()
+        elevation = 0f
         addView(label(title, 19f, Typeface.BOLD).apply { setTextColor(red) })
         paragraphs.forEach { paragraph ->
             addView(label(paragraph, 15f).apply { setPadding(0, 9.dp(), 0, 0) })
@@ -710,4 +717,4 @@ private val ANNOUNCED_READY_OSU_PHASES = setOf(
     ReadyOsuPhase.COMPLETE,
 )
 
-private const val GROUP_TITLE = "Karate Terminology & Voice Interaction"
+private const val GROUP_TITLE = "Voice Interaction"

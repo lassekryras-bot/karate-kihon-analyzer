@@ -407,7 +407,6 @@ class MainActivity : AppCompatActivity() {
             onProfile = ::showProfileUi,
             paths = learningPaths,
             karateBasics = karateBasicsPath,
-            onWiki = ::showMeasurementWiki,
             onTrain = ::showTrainUi,
             onPathSelected = ::showSkillProgression,
             onKarateBasicsSelected = ::showKarateBasicsPath,
@@ -442,6 +441,7 @@ class MainActivity : AppCompatActivity() {
         progressScreen = ProgressScreenView(
             context = this,
             repository = profileRepository,
+            onWiki = ::showMeasurementWiki,
             onProfile = ::showProfileUi,
             onHome = ::showHomeUi,
             onTrain = ::showTrainUi,
@@ -593,6 +593,17 @@ class MainActivity : AppCompatActivity() {
     private fun openKarateBasicsActivity(activity: ResolvedDraftActivity) {
         when (activity.definition.type) {
             DraftActivityType.CONDITIONAL_PROFILE -> openKarateBasicsProfile()
+            DraftActivityType.ACTIVITY_WALKTHROUGH -> showSecondary(
+                dk.lasse.karatecliprecorder.learningactivity.HowActivitiesWorkView(
+                    this, profileRepository, karateBasicsPath, activity,
+                    onReturn = ::showKarateBasicsPath,
+                    onFinished = {
+                        pendingKarateBasicsCompletionAnimationId = activity.definition.id
+                        showKarateBasicsPath()
+                    },
+                ),
+                ::showKarateBasicsPath,
+            )
             DraftActivityType.OSU_MEANING_USE -> openOsuMeaningUse(activity)
             DraftActivityType.READY_OSU -> openReadyOsu(activity)
             DraftActivityType.STOP_COUNT -> openStopCount(activity)
@@ -815,17 +826,32 @@ class MainActivity : AppCompatActivity() {
         )
     }
 
+    private val readyOsuDiagnostics by lazy { dk.lasse.karatecliprecorder.learning.ReadyOsuDiagnostics(this) }
+
+    private fun recordReadyOsuDiagnostic(
+        event: String,
+        alternatives: List<SpeechRecognitionAlternative> = emptyList(),
+        error: String? = null,
+    ) {
+        if (appPreferences.developerMode) {
+            readyOsuDiagnostics.record(event, readyOsuController.state.phase.name, alternatives, error)
+        }
+    }
+
     private fun beginReadyOsuListening() {
         if (readyOsuController.state.phase != ReadyOsuPhase.PROMPTING || readyOsuScreen == null) return
         readyOsuController.beginListening()
+        recordReadyOsuDiagnostic("listening_started")
         shortCommandRecognizer.start(
             config = ShortVoiceRecognitionConfig.OSU,
             onPartialResults = { transcripts ->
+                recordReadyOsuDiagnostic("partial", transcripts.map { SpeechRecognitionAlternative(it) })
                 if (ShortVoiceCommandMatcher.matches(ShortVoiceCommand.OSU, transcripts)) {
                     handleReadyOsuTranscripts(transcripts)
                 }
             },
             onFinalResults = { alternatives ->
+                recordReadyOsuDiagnostic("final", alternatives)
                 handleReadyOsuTranscripts(alternatives.map(SpeechRecognitionAlternative::transcript))
             },
             onError = ::handleReadyOsuRecognitionError,
@@ -837,6 +863,7 @@ class MainActivity : AppCompatActivity() {
         shortCommandRecognizer.cancel()
         readyOsuController.beginChecking()
         readyOsuController.handleTranscripts(transcripts)
+        recordReadyOsuDiagnostic("decision", transcripts.map { SpeechRecognitionAlternative(it) })
         if (readyOsuController.state.phase == ReadyOsuPhase.CAPTURING) {
             readyOsuSelfieCamera?.capture()
                 ?: handleReadyOsuSelfieCameraError(ReadyOsuSelfieCameraFailure.CAPTURE_FAILED)
@@ -846,6 +873,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun handleReadyOsuRecognitionError(failure: SpeechRecognitionFailure) {
+        recordReadyOsuDiagnostic("recognition_error", error = "${failure.error}: ${failure.technicalMessage.orEmpty()}")
         if (readyOsuController.state.phase != ReadyOsuPhase.LISTENING) return
         when (failure.error) {
             SpeechRecognitionError.NO_SPEECH_DETECTED,
@@ -889,6 +917,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun handleReadyOsuSelfieCaptured(bitmap: Bitmap) {
+        recordReadyOsuDiagnostic("selfie_captured")
         if (readyOsuController.state.phase != ReadyOsuPhase.CAPTURING || readyOsuScreen == null) {
             bitmap.recycle()
             return
@@ -901,6 +930,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun handleReadyOsuSelfieCameraError(failure: ReadyOsuSelfieCameraFailure) {
+        recordReadyOsuDiagnostic("camera_error", error = failure.name)
         if (readyOsuScreen == null) return
         stopTerminologyVoiceWork()
         stopReadyOsuSelfieCamera()
@@ -1013,6 +1043,16 @@ class MainActivity : AppCompatActivity() {
         playStopCountNumber(index = 0, generation = generation)
     }
 
+    private val stopVoiceDiagnostics by lazy {
+        dk.lasse.karatecliprecorder.learning.ReadyOsuDiagnostics(this, ShortVoiceCommand.STOP)
+    }
+
+    private fun recordStopVoiceDiagnostic(event: String, alternatives: List<SpeechRecognitionAlternative> = emptyList(), error: String? = null) {
+        if (appPreferences.developerMode) {
+            stopVoiceDiagnostics.record(event, stopCountController.state.phase.name, alternatives, error)
+        }
+    }
+
     private fun startStopCommandRecognition(generation: Long) {
         if (
             generation != stopCountPlaybackGeneration ||
@@ -1022,12 +1062,14 @@ class MainActivity : AppCompatActivity() {
         shortCommandRecognizer.start(
             config = ShortVoiceRecognitionConfig.STOP,
             onPartialResults = { transcripts ->
+                recordStopVoiceDiagnostic("partial", transcripts.map { SpeechRecognitionAlternative(it) })
                 if (ShortVoiceCommandMatcher.matches(ShortVoiceCommand.STOP, transcripts)) {
                     stopStopCountPractice(StopCountMethod.VOICE)
                 }
             },
             onFinalResults = { alternatives ->
                 val transcripts = alternatives.map(SpeechRecognitionAlternative::transcript)
+                recordStopVoiceDiagnostic("final", alternatives)
                 if (ShortVoiceCommandMatcher.matches(ShortVoiceCommand.STOP, transcripts)) {
                     stopStopCountPractice(StopCountMethod.VOICE)
                 } else {
@@ -1039,6 +1081,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun handleStopCountRecognitionError(failure: SpeechRecognitionFailure, generation: Long) {
+        recordStopVoiceDiagnostic("recognition_error", error = "${failure.error}: ${failure.technicalMessage.orEmpty()}")
         if (generation != stopCountPlaybackGeneration || stopCountController.state.phase != StopCountPhase.COUNTING) return
         when (failure.error) {
             SpeechRecognitionError.NO_SPEECH_DETECTED,
@@ -1089,6 +1132,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun stopStopCountPractice(method: StopCountMethod) {
         if (stopCountController.state.phase != StopCountPhase.COUNTING) return
+        recordStopVoiceDiagnostic("stopped_${method.name.lowercase()}")
         stopTerminologyVoiceWork()
         cancelStopCountPlayback()
         stopCountController.stop(method)
@@ -1874,6 +1918,7 @@ class MainActivity : AppCompatActivity() {
     private fun startCamera() {
         val adapter = CameraXRecordingAdapter(
             context = this,
+            bodyMeasurements = { dk.lasse.karatecliprecorder.profile.BodyMeasurementSnapshot.from(profileRepository.activeProfile()) },
             lifecycleOwner = this,
             previewView = previewView,
             onStateChanged = ::updateRecordingState,

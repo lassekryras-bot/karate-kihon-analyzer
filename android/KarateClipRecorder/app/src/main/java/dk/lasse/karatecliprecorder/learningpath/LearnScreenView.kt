@@ -26,7 +26,7 @@ import dk.lasse.karatecliprecorder.learningartwork.LearningPathArtworkView
 import dk.lasse.karatecliprecorder.profile.ProfileAvatarButton
 import dk.lasse.karatecliprecorder.profile.ProfileRepository
 
-/** Passive Train destination: choosing a path never starts camera or speech infrastructure. */
+/** Passive Learn catalogue: choosing a path never starts camera or speech infrastructure. */
 class LearnScreenView(
     context: Context,
     private val profileRepository: ProfileRepository,
@@ -39,7 +39,6 @@ class LearnScreenView(
     onTrain: () -> Unit,
     onProgress: () -> Unit,
     onSettings: () -> Unit,
-    private val onWiki: () -> Unit,
 ) : FrameLayout(context) {
     private val red = ContextCompat.getColor(context, R.color.app_accent)
     private val ink = ContextCompat.getColor(context, R.color.app_text_primary)
@@ -65,7 +64,7 @@ class LearnScreenView(
             context = context,
             header = mainHeader,
             body = content,
-            topContentPaddingDp = 14,
+            topContentPaddingDp = 16,
             bottomContentClearanceDp = AppBottomNavigationView.CONTENT_CLEARANCE_DP,
         ), LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT))
 
@@ -101,12 +100,8 @@ class LearnScreenView(
 
     private fun renderContent() {
         content.removeAllViews()
-        content.addView(
-            actionLabel("Measurement wiki  ›", onWiki),
-            LayoutParams(LayoutParams.MATCH_PARENT, 52.dp()).apply { bottomMargin = 16.dp() },
-        )
         val scopedPaths = profileScopedPaths()
-        content.addView(sectionTitle("Foundations"))
+        content.addView(sectionTitle("TUTORIAL", first = true))
         content.addView(draftPathCard())
         scopedPaths.groupBy(LearningPath::category).forEach { (category, categoryPaths) ->
             content.addView(sectionTitle(category))
@@ -120,7 +115,9 @@ class LearnScreenView(
     }
 
     private fun profileScopedPaths(): List<LearningPath> {
-        return LearningPathProgressResolver.resolve(paths, profileRepository.learningProgress())
+        // Retire the old MVP catalogue entries without deleting their activities or saved progress.
+        val visiblePaths = paths.filterNot { it.category in setOf("Punching", "Japanese") }
+        return LearningPathProgressResolver.resolve(visiblePaths, profileRepository.learningProgress())
     }
 
     private fun draftPathCard(): LinearLayout {
@@ -139,7 +136,7 @@ class LearnScreenView(
             minimumHeight = 118.dp()
             isClickable = true
             isFocusable = true
-            contentDescription = "Karate Basics, ${resolved.completedCount} of ${resolved.totalCount} activities complete"
+            contentDescription = "${karateBasics.title}, ${resolved.completedCount} of ${resolved.totalCount} activities complete"
             setOnClickListener { onKarateBasicsSelected() }
             addView(FrameLayout(context).apply {
                 background = GradientDrawable().apply {
@@ -170,37 +167,6 @@ class LearnScreenView(
             }, LinearLayout.LayoutParams(0, LayoutParams.WRAP_CONTENT, 1f))
             addView(AppIconView(context, AppIcon.CHEVRON_RIGHT).apply { setIconColor(ink) }, LayoutParams(24.dp(), 44.dp()))
         }
-    }
-
-    private fun continueCard(path: LearningPath, onClick: () -> Unit) = card().apply {
-        orientation = LinearLayout.VERTICAL
-        setPadding(16.dp(), 15.dp(), 16.dp(), 16.dp())
-        isClickable = true
-        isFocusable = true
-        contentDescription = "Continue learning ${path.title}, ${path.progressValue} of ${path.totalSteps} steps"
-        setOnClickListener { onClick() }
-        addView(label("Continue learning", 17f, Typeface.BOLD).apply { setTextColor(red) })
-        addView(LinearLayout(context).apply {
-            gravity = Gravity.CENTER_VERTICAL
-            addView(pathArtwork(path), LinearLayout.LayoutParams(0, 150.dp(), 0.42f).apply { marginEnd = 8.dp() })
-            addView(LinearLayout(context).apply {
-                orientation = LinearLayout.VERTICAL
-                gravity = Gravity.CENTER_VERTICAL
-                addView(label(path.title, 22f, Typeface.BOLD))
-                addView(label(path.category, 15f).apply {
-                    setTextColor(muted)
-                    setPadding(0, 2.dp(), 0, 11.dp())
-                })
-                addView(progressCopy(path, "of"), LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT)
-                addView(progressBar(path), LayoutParams(LayoutParams.MATCH_PARENT, 7.dp()).apply {
-                    topMargin = 5.dp()
-                    bottomMargin = 13.dp()
-                })
-                addView(actionLabel("Continue  ›", onClick), LayoutParams(132.dp(), 46.dp()).apply {
-                    gravity = Gravity.END
-                })
-            }, LinearLayout.LayoutParams(0, LayoutParams.WRAP_CONTENT, 0.58f))
-        }, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT))
     }
 
     private fun pathCard(path: LearningPath, onClick: () -> Unit) = card().apply {
@@ -261,8 +227,11 @@ class LearnScreenView(
         progressBackgroundTintList = ColorStateList.valueOf(border)
     }
 
-    private fun sectionTitle(text: String) = label(text, 22f, Typeface.BOLD).apply {
-        setPadding(2.dp(), 24.dp(), 0, 10.dp())
+    private fun sectionTitle(text: String, first: Boolean = false) = label(text, 12f, Typeface.BOLD).apply {
+        setTextColor(muted)
+        letterSpacing = 0.08f
+        androidx.core.view.ViewCompat.setAccessibilityHeading(this, true)
+        setPadding(2.dp(), if (first) 0 else 22.dp(), 0, 8.dp())
     }
 
     private fun card() = LinearLayout(context).apply {
@@ -271,7 +240,7 @@ class LearnScreenView(
             cornerRadius = 16.dp().toFloat()
             setStroke(1.dp(), border)
         }
-        elevation = 2.dp().toFloat()
+        elevation = 0f
     }
 
     private fun actionLabel(text: String, onClick: () -> Unit) = label(

@@ -8,6 +8,7 @@ const val KARATE_BASICS_PATH_ID = "karate-basics"
 
 enum class DraftActivityType {
     CONDITIONAL_PROFILE,
+    ACTIVITY_WALKTHROUGH,
     OSU_MEANING_USE,
     READY_OSU,
     STOP_COUNT,
@@ -80,6 +81,7 @@ object DraftLearningPathCatalog {
                                 title = activityJson.getString("title"),
                                 type = when (activityJson.getString("type")) {
                                     "conditional" -> DraftActivityType.CONDITIONAL_PROFILE
+                                    "activity-walkthrough" -> DraftActivityType.ACTIVITY_WALKTHROUGH
                                     "osu-meaning-use" -> DraftActivityType.OSU_MEANING_USE
                                     "ready-osu" -> DraftActivityType.READY_OSU
                                     "stop-count" -> DraftActivityType.STOP_COUNT

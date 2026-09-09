@@ -60,7 +60,8 @@ def test_wiki_summary_and_assets_have_explicit_units_and_no_video():
     _, bundle, p, motion = example()
     values = [s['signed_deviation_output_units'] for s in p['graph']['samples']]
     assert math.sqrt(sum(v*v for v in values)/len(values)) == pytest.approx(p['summary']['typical_deviation_rms_output_units'])
-    assert p['scale']['output_unit'] == 'shoulder_width'
+    assert p['scale']['output_unit'] == 'meter'
+    assert p['scale']['measured_forearm_length_m'] == .3
     assert p['scale']['is_physical_measurement'] is False
     assert all('landmarks' not in f for f in motion['frames'])
     assert not list((ASSETS / 'wiki').rglob('*.mp4'))

@@ -1,6 +1,6 @@
 {
   "id": "karate-basics",
-  "title": "Karate Basics",
+  "title": "How to use the app",
   "status": "draft",
   "purpose": "Learn how to train with the app and prepare for the first 10-punch hands-free session.",
   "sections": [
@@ -9,12 +9,12 @@
       "title": "Getting Started",
       "activities": [
         { "id": "create-profile", "title": "Create Your Profile", "type": "conditional", "completeWhen": "activeProfileExists", "prerequisites": [] },
-        { "id": "how-activities-work", "title": "How Activities Work", "type": "placeholder", "prerequisites": ["create-profile"] }
+        { "id": "how-activities-work", "title": "How Activities Work", "type": "activity-walkthrough", "prerequisites": ["create-profile"] }
       ]
     },
     {
       "id": "voice-interaction",
-      "title": "Karate Terminology & Voice Interaction",
+      "title": "Voice Interaction",
       "activities": [
         { "id": "osu-meaning-use", "title": "Osu — Meaning & Use", "type": "osu-meaning-use", "prerequisites": ["how-activities-work"] },
         { "id": "ready-osu", "title": "Ready? — Osu", "type": "ready-osu", "prerequisites": ["osu-meaning-use"] },

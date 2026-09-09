@@ -27,7 +27,7 @@ class LearningActivityEntryView(
             cornerRadius = 14.dp().toFloat()
             setStroke(1.dp(), Color.rgb(226, 219, 210))
         }
-        elevation = 2.dp().toFloat()
+        elevation = 0f
         isClickable = true
         isFocusable = true
         contentDescription = "$title, ${activityType.accessibilityLabel}"

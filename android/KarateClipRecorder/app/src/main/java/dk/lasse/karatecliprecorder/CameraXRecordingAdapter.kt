@@ -44,11 +44,24 @@ class CameraXRecordingAdapter(
     private val onAnalysisFramePermit: (Long) -> Any? = { null },
     private val onAnalysisPermitRelease: (Any) -> Unit = {},
     private val onAnalysisFrame: (Bitmap, Long, Any?, FloatArray?) -> Boolean = { _, _, _, _ -> false },
+    private val bodyMeasurements: () -> dk.lasse.karatecliprecorder.profile.BodyMeasurementSnapshot? = { null },
 ) : AutoCloseable {
     private var videoCapture: VideoCapture<Recorder>? = null
     private var imageAnalysis: ImageAnalysis? = null
     private var activeRecording: Recording? = null
     private var nextClipNumber = 1
+    private var measurementSessionActive = false
+    private var sessionMeasurements: dk.lasse.karatecliprecorder.profile.BodyMeasurementSnapshot? = null
+
+    fun beginMeasurementSession() {
+        sessionMeasurements = bodyMeasurements()
+        measurementSessionActive = true
+    }
+
+    fun endMeasurementSession() {
+        measurementSessionActive = false
+        sessionMeasurements = null
+    }
     var selectedCaptureProfile: SelectedCaptureProfile? = null
         private set
     private val mainExecutor: Executor = ContextCompat.getMainExecutor(context)
@@ -160,11 +173,23 @@ class CameraXRecordingAdapter(
         }
 
         val outputFile = if (fileName == null) createNextOutputFile() else createGuidedSessionFile(fileName)
+        val measurementSnapshot = if (measurementSessionActive) sessionMeasurements else bodyMeasurements()
         if (fileName != null && outputFile.exists()) {
             outputFile.delete()
         }
         val outputOptions = FileOutputOptions.Builder(outputFile).build()
         val pendingRecording: PendingRecording = capture.output.prepareRecording(context, outputOptions)
+
+        try {
+            File(outputFile.parentFile, "${outputFile.nameWithoutExtension}.body-measurements.json")
+                .writeText((measurementSnapshot?.toJson() ?: org.json.JSONObject()
+                    .put("contract", "body_measurements_v1")
+                    .put("source", "unavailable")).toString(2))
+        } catch (error: Exception) {
+            onStateChanged(RecordingState.FAILED)
+            onError("Could not save recording body measurements: ${error.message}")
+            return
+        }
 
         onStateChanged(RecordingState.RECORDING)
         activeRecording = pendingRecording.start(mainExecutor) { event ->

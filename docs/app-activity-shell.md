@@ -90,6 +90,11 @@ camera-heavy training surface. It has an explicit Start test action and a Stop
 listening action. Recognition is bounded to the expected ten-number sequence.
 The test does not use camera preview.
 
+The listening indicators use live partial recognition as provisional progress,
+alongside committed counts. No number is highlighted before speech is recognized;
+the latest heard number is highlighted, with earlier numbers filled. Final results
+use the committed sequence only. This display does not change assessment scoring.
+
 Current gaps relative to the contract:
 
 - its Error mapping predates the formal recovery contract and needs UI review for
@@ -104,6 +109,29 @@ These gaps do not change the current implemented logic during this documentation
 slice.
 
 ## Placeholder-only behavior
+
+### How Activities Work walkthrough (local source)
+
+`HowActivitiesWorkView` replaces the `how-activities-work` placeholder through
+the dedicated `activity-walkthrough` route. The learning objective is to practise
+starting, navigating and finishing an activity using its real shell actions.
+It is touch-only, with no camera, microphone, timer or permission requirements.
+Ready → two learner-paced Active pages → Complete is the lifecycle. The feedback
+page explains optional results; it is not an assessment and gives no score.
+This intentional omission of Result reflects the informational objective.
+
+Finish walkthrough saves completion for the profile that opened the activity.
+Revisiting an already completed activity preserves its completion timestamp.
+Save failure keeps the learner at the final instruction with retry and Back.
+Back exits immediately without new completion. Backgrounding retains the current
+in-memory step; reopening after process loss restarts the brief walkthrough,
+without erasing saved completion. There is no asynchronous work to clean up.
+The final action returns to the tutorial with its completion animation.
+
+The route retains the same activity ID/prerequisites. Other placeholder routes
+retain their developer controls. Shared shell behavior is unchanged. Transition
+tests are added; Android compilation/tests and phone accessibility/layout review
+await a user-approved build.
 
 `DraftPlaceholderActivityView` states in its source that it is a temporary
 developer shell for unfinished Karate Basics activities. It uses:
@@ -245,6 +273,12 @@ Implemented behavior:
 - Camera-stage rendering detaches the reused preview from its previous card
   before attaching it to the next. This fixes startup immediately entering
   recovery when preparing the camera transitions to playing the Ready prompt.
+- Follow-up local fix: camera stages now retain one card and preview parent
+  throughout prompting, listening, checking and capture, updating only text.
+  Device logs showed closed preview surfaces and abandoned buffers during the
+  failing attempt. Repeated reparenting is removed; capture verification and
+  the updated regression test await an approved rebuild. The section and shared
+  terminology header are now titled Voice Interaction.
 - the selfie remains in memory for the current result only and is discarded on
   retry, exit, or destruction; the activity separately records `voiceVerified`,
   `selfieCaptured`, and `selfiePersisted=false` evidence;
@@ -264,6 +298,20 @@ Implemented behavior:
   state that requires a new learner action.
 
 ### Ready? — Osu hands-free selfie definition
+
+Local troubleshooting adds a bounded app-private, backup-excluded diagnostic file
+for the latest 100 Osu recognition events, only while Developer mode is enabled.
+It records language, phase, partial
+and final text alternatives/confidence, match decision, recognition error and
+capture outcome. No audio or profile identity is recorded. The activity UI does
+not display this diagnostic text, and logging failure cannot stop the activity.
+This diagnostic addition awaits an approved rebuild before it can capture a
+new phone attempt.
+
+Stop the Session uses the same Developer-mode diagnostic recorder in a separate
+bounded file. It records partial/final alternatives, command-match decisions,
+recognition errors and the final stop method. No audio is saved and no diagnostic
+result is shown in the learner interface.
 
 - **Objective:** respond to the app's Ready prompt with Osu and experience that
   acknowledgement starting the next action without touching the phone.
@@ -319,3 +367,5 @@ Profile management can reset all persisted learning-progress rows for a selected
 profile after confirmation. Activities return to their not-started state; session
 history, calibration and other profiles are preserved. Active-profile observers
 are notified so progress-dependent screens refresh.
+
+The Learn catalogue no longer presents the legacy Punching and Japanese MVP path cards. Foundations (Karate Basics) remains. Measurement wiki is available from Performance. Existing activity routes, definitions and profile progress are unchanged.

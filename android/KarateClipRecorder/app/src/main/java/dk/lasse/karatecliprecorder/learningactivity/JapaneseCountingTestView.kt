@@ -226,32 +226,9 @@ class JapaneseCountingTestView(
         })
     }
 
-    private fun countProgress(completedCount: Int) = GridLayout(context).apply {
-        columnCount = 5
-        rowCount = 2
-        JapaneseCountLesson.items.forEachIndexed { index, item ->
-            val complete = index < completedCount
-            addView(TextView(context).apply {
-                text = item.number
-                textSize = 15f
-                typeface = Typeface.create("sans-serif", Typeface.BOLD)
-                gravity = Gravity.CENTER
-                setTextColor(if (complete) Color.WHITE else ink)
-                background = GradientDrawable().apply {
-                    shape = GradientDrawable.OVAL
-                    setColor(if (complete) red else Color.TRANSPARENT)
-                    setStroke(1.dp(), if (complete) red else border)
-                }
-            }, GridLayout.LayoutParams(
-                GridLayout.spec(index / 5),
-                GridLayout.spec(index % 5, 1f),
-            ).apply {
-                width = 0
-                height = 50.dp()
-                setMargins(5.dp(), 4.dp(), 5.dp(), 4.dp())
-            })
-        }
-    }
+    private fun countProgress(completedCount: Int) = countingNumberProgress(
+        context, completedCount, presentation.highlightedIndex,
+    )
 
     private fun microphoneBadge(active: Boolean = false) = FrameLayout(context).apply {
         background = GradientDrawable().apply {
@@ -278,7 +255,7 @@ class JapaneseCountingTestView(
             cornerRadius = 24.dp().toFloat()
             setStroke(1.dp(), border)
         }
-        elevation = 2.dp().toFloat()
+        elevation = 0f
     }
 
     private fun label(text: String, size: Float, style: Int = Typeface.NORMAL, gravity: Int = Gravity.START) =

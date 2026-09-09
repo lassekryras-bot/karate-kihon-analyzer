@@ -4,7 +4,7 @@ import android.view.ViewGroup
 import androidx.test.core.app.ApplicationProvider
 import kotlin.test.Test
 import kotlin.test.assertNotNull
-import kotlin.test.assertNotSame
+import kotlin.test.assertSame
 import kotlin.test.assertEquals
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
@@ -30,8 +30,10 @@ class ReadyOsuViewTest {
             view.render(presentation)
             if (presentation.cameraActive) {
                 assertNotNull(view.cameraPreview.parent)
-                assertNotSame(previousParent, view.cameraPreview.parent)
-                previousParent?.let { assertEquals(-1, it.indexOfChild(view.cameraPreview)) }
+                previousParent?.let {
+                    assertSame(it, view.cameraPreview.parent)
+                    assertEquals(2, it.indexOfChild(view.cameraPreview))
+                }
             }
         }
     }

@@ -5,7 +5,17 @@ and [starter prompt](prompts/new-measurement-wiki-entry.md).
 
 ## Entry and behavior
 
-Open **Train → Measurement wiki → Wrist path deviation**. One page shows
+The wiki uses the shared white subpage header with an integrated Back arrow.
+Its index presents each measurement title and description together in a flat
+settings-style navigation card. Detail pages place the measurement title in the
+shared header, group animation and playback controls in one flat card, and put
+the graph and its explanation in another. Hikite keeps its selectable geometry
+values with the animation. The calculation link uses a settings-style row and
+opens a text card with shared Back navigation. Playback uses the existing player
+icons with a flat accent-tinted button. The user-approved build passes; phone
+visual review of this batch remains pending.
+
+Open **Performance → Measurement wiki → Wrist path deviation**. One page shows
 **Typical deviation (RMS)** and **Maximum deviation** from the same wrist path,
 with one animation, signed graph and short calculation explanation.
 
@@ -20,6 +30,31 @@ Returning from the calculation page preserves position. Playback pauses when the
 view detaches, hides or loses window focus.
 
 ## Data and registration
+
+Both bundled examples include a `body_measurements_v1` snapshot with the example
+owner's confirmed forearm length of 0.30 m. The source is a fixed example-owner
+measurement, not the active viewer's profile. All installed wiki presentations
+now use metres and metres per second, with angles remaining degrees and ratios
+remaining dimensionless. This local data migration awaits an approved rebuild.
+The earlier shoulder-width and upper-arm values documented below are historical.
+
+`presentation.metric_scale.metric_bundle` uses a fixed median visible forearm
+observation from the first 100 ms of the example's displayed analysis window.
+The wrist pages use the camera-near elbow and wrist in aspect-correct pixels;
+Hikite uses its recorded right elbow and wrist in the frozen fixture's coordinate
+system. The measured 0.30 m forearm fixes the scale. Samples, references, markers,
+distances and speeds scale together; angles, ratios, timing and rendered motion
+are preserved. These are estimated camera-plane physical distances, not recovered
+3D distances. The scale stores the reference side, frames and measured length.
+Export callers can pass a body-measurement snapshot to the punch-path bundle
+builder to produce metric presentations through the same converter.
+
+New video recordings save a sibling `<clip>.body-measurements.json` snapshot of
+the recording owner's forearm length, lower-leg length and height, in metres.
+Guided sessions freeze one snapshot at session start for all clips. Missing
+measurements remain null; there is no lookup of the current viewer on replay.
+This recording metadata code is local and awaits a user-approved Android build
+and tests. Existing recordings are not retroactively assigned measurements.
 
 The installed catalogue has one wrist-path entry using `punch_path:event:5`.
 That presentation now contains both summaries and the exported `maximum_marker`.
@@ -91,7 +126,7 @@ calibration UI or CLI option in this change. Scale and sample failures are expli
 
 ## Hikite phone preview
 
-Train → Measurement wiki → Hikite now loads the approved pose-only punch 6
+Performance → Measurement wiki → Hikite now loads the approved pose-only punch 6
 (right hikite arm nearest the camera) with a dedicated native Canvas renderer.
 Playback and the graph show frames 271–295, trimming only idle presentation time.
 The original speed window and fixed scale remain unchanged. The peak remains

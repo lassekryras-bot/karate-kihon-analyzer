@@ -1,5 +1,17 @@
 # Measurement presentation contract
 
+## Forearm-based metric wiki scale
+
+Wiki bundles may carry `body_measurements` with contract `body_measurements_v1`
+and positive `forearm_length_m`. The installed examples freeze 0.30 m from their
+owner independently of any viewing profile. Metric path and speed presentations
+use `scale.output_unit: meter`, graph units `meter` or `meters_per_second`, and
+the same fixed camera reference. Hikite declares `distance_unit: meter` and
+`speed_unit: meters_per_second`; its spatial samples and speed values are scaled
+together. Angles and dimensionless ratios are unchanged. Scale provenance records
+the forearm observation and labels physical distances as estimated camera-plane
+values. Legacy unconverted data retains its original units.
+
 ## Purpose
 
 The analyzer can export renderer-neutral data for interactive measurement

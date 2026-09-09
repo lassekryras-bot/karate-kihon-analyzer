@@ -86,7 +86,7 @@ def test_installed_maximum_matches_pose_graph_summary_and_resolver():
     m = maximum['maximum_marker']
     assert m['frame_number'] == 229 and m['timestamp_ms'] == 3817
     assert maximum['motion_id'] == rms['motion_id']
-    assert maximum['scale']['output_unit'] == 'shoulder_width'
+    assert maximum['scale']['output_unit'] == 'meter'
     assert maximum['graph'] == rms['graph']
     assert max(abs(s['signed_deviation_output_units']) for s in maximum['graph']['samples']) == m['absolute_deviation_output_units']
     assert math.dist(m['camera_wrist'], m['camera_reference_point']) == pytest.approx(m['absolute_deviation_output_units'])
