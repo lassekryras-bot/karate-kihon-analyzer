@@ -116,11 +116,13 @@ slice.
 the dedicated `activity-walkthrough` route. The learning objective is to practise
 starting, navigating and finishing an activity using its real shell actions.
 It is touch-only, with no camera, microphone, timer or permission requirements.
-Ready → two learner-paced Active pages → Complete is the lifecycle. The feedback
-page explains optional results; it is not an assessment and gives no score.
-This intentional omission of Result reflects the informational objective.
+Ready → Active target interaction → Result feedback → Complete is the lifecycle.
+The learner must tap the app-red bullseye before Show feedback becomes available.
+The brief Result confirms the attempt without scoring, and Previous returns to
+the already-tapped target so the learner can repeat the shell interaction.
 
-Finish walkthrough saves completion for the profile that opened the activity.
+Return to tutorial on the Complete page saves completion for the profile that
+opened the activity; reaching Complete alone does not save it.
 Revisiting an already completed activity preserves its completion timestamp.
 Save failure keeps the learner at the final instruction with retry and Back.
 Back exits immediately without new completion. Backgrounding retains the current
