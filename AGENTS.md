@@ -12,6 +12,14 @@ A reusable task prompt is in `docs/prompts/new-measurement-wiki-entry.md`.
 Keep the guide aligned when implementation changes these conventions. It records
 the current baseline and distinguishes planned capabilities from implemented ones.
 
+## Outstanding development tasks
+
+Small agreed requirements that are not yet implemented or verified live in
+`docs/backlog/`. Check `docs/backlog/README.md` when asked for outstanding work,
+to pick a task, or to continue a short design/debug chat as implementation work.
+Verify the current implementation before changing code and update the task status
+when the work is completed.
+
 ## Learning activity authoring
 
 For work on learning activities, `ActivityShellView`, learning-path activity
