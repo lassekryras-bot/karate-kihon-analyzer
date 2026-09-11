@@ -1,0 +1,3 @@
+# Preserve the authorized validation inputs byte-for-byte, including JSON newlines.
+/input/task5/1000002073.mp4 -text
+/input/task5/video_landmarks.json -text whitespace=cr-at-eol

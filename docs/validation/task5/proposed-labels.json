@@ -1,0 +1,249 @@
+{
+  "schema_version": "motion-review-proposals-v1",
+  "sequence_id": "real-kihon-10-punch-1000002073-v1",
+  "review_status": "PROPOSED",
+  "labels_are_ground_truth": false,
+  "punches": [
+    {
+      "punch_number": 1,
+      "expected_side": "RIGHT",
+      "theoretical_impact_frame": null,
+      "theoretical_impact_timestamp_ms": null,
+      "movement_start_frame": 24,
+      "movement_end_frame": 56,
+      "terminal_stable_start_frame": 56,
+      "review_confidence": "MEDIUM",
+      "ambiguity_notes": [
+        "Include preparation, opposite-arm withdrawal, torso turn and settling. Stable means visually held pose, not zero landmark motion."
+      ],
+      "terminal_stable_end_frame": 76,
+      "left_censored": false,
+      "boundary_uncertainty_frames": 5,
+      "movement_start_timestamp_ms": 400,
+      "movement_end_timestamp_ms": 933,
+      "terminal_stable_start_timestamp_ms": 933,
+      "terminal_stable_end_timestamp_ms": 1267
+    },
+    {
+      "punch_number": 2,
+      "expected_side": "LEFT",
+      "theoretical_impact_frame": 99,
+      "theoretical_impact_timestamp_ms": 1650,
+      "movement_start_frame": 80,
+      "movement_end_frame": 110,
+      "terminal_stable_start_frame": 110,
+      "review_confidence": "MEDIUM",
+      "ambiguity_notes": [
+        "Include preparation, opposite-arm withdrawal, torso turn and settling. Stable means visually held pose, not zero landmark motion."
+      ],
+      "terminal_stable_end_frame": 123,
+      "left_censored": false,
+      "boundary_uncertainty_frames": 5,
+      "movement_start_timestamp_ms": 1333,
+      "movement_end_timestamp_ms": 1833,
+      "terminal_stable_start_timestamp_ms": 1833,
+      "terminal_stable_end_timestamp_ms": 2050
+    },
+    {
+      "punch_number": 3,
+      "expected_side": "RIGHT",
+      "theoretical_impact_frame": 144,
+      "theoretical_impact_timestamp_ms": 2400,
+      "movement_start_frame": 125,
+      "movement_end_frame": 158,
+      "terminal_stable_start_frame": 158,
+      "review_confidence": "MEDIUM",
+      "ambiguity_notes": [
+        "Include preparation, opposite-arm withdrawal, torso turn and settling. Stable means visually held pose, not zero landmark motion."
+      ],
+      "terminal_stable_end_frame": 175,
+      "left_censored": false,
+      "boundary_uncertainty_frames": 5,
+      "movement_start_timestamp_ms": 2083,
+      "movement_end_timestamp_ms": 2633,
+      "terminal_stable_start_timestamp_ms": 2633,
+      "terminal_stable_end_timestamp_ms": 2917
+    },
+    {
+      "punch_number": 4,
+      "expected_side": "LEFT",
+      "theoretical_impact_frame": 198,
+      "theoretical_impact_timestamp_ms": 3300,
+      "movement_start_frame": 179,
+      "movement_end_frame": 210,
+      "terminal_stable_start_frame": 210,
+      "review_confidence": "MEDIUM",
+      "ambiguity_notes": [
+        "Include preparation, opposite-arm withdrawal, torso turn and settling. Stable means visually held pose, not zero landmark motion."
+      ],
+      "terminal_stable_end_frame": 224,
+      "left_censored": false,
+      "boundary_uncertainty_frames": 5,
+      "movement_start_timestamp_ms": 2983,
+      "movement_end_timestamp_ms": 3500,
+      "terminal_stable_start_timestamp_ms": 3500,
+      "terminal_stable_end_timestamp_ms": 3733
+    },
+    {
+      "punch_number": 5,
+      "expected_side": "RIGHT",
+      "theoretical_impact_frame": 243,
+      "theoretical_impact_timestamp_ms": 4050,
+      "movement_start_frame": 225,
+      "movement_end_frame": 257,
+      "terminal_stable_start_frame": 257,
+      "review_confidence": "MEDIUM",
+      "ambiguity_notes": [
+        "Include preparation, opposite-arm withdrawal, torso turn and settling. Stable means visually held pose, not zero landmark motion."
+      ],
+      "terminal_stable_end_frame": 275,
+      "left_censored": false,
+      "boundary_uncertainty_frames": 5,
+      "movement_start_timestamp_ms": 3750,
+      "movement_end_timestamp_ms": 4283,
+      "terminal_stable_start_timestamp_ms": 4283,
+      "terminal_stable_end_timestamp_ms": 4583
+    },
+    {
+      "punch_number": 6,
+      "expected_side": "LEFT",
+      "theoretical_impact_frame": 296,
+      "theoretical_impact_timestamp_ms": 4933,
+      "movement_start_frame": 277,
+      "movement_end_frame": 307,
+      "terminal_stable_start_frame": 307,
+      "review_confidence": "MEDIUM",
+      "ambiguity_notes": [
+        "Include preparation, opposite-arm withdrawal, torso turn and settling. Stable means visually held pose, not zero landmark motion."
+      ],
+      "terminal_stable_end_frame": 324,
+      "left_censored": false,
+      "boundary_uncertainty_frames": 5,
+      "movement_start_timestamp_ms": 4617,
+      "movement_end_timestamp_ms": 5117,
+      "terminal_stable_start_timestamp_ms": 5117,
+      "terminal_stable_end_timestamp_ms": 5400
+    },
+    {
+      "punch_number": 7,
+      "expected_side": "RIGHT",
+      "theoretical_impact_frame": 344,
+      "theoretical_impact_timestamp_ms": 5733,
+      "movement_start_frame": 325,
+      "movement_end_frame": 357,
+      "terminal_stable_start_frame": 357,
+      "review_confidence": "MEDIUM",
+      "ambiguity_notes": [
+        "Include preparation, opposite-arm withdrawal, torso turn and settling. Stable means visually held pose, not zero landmark motion."
+      ],
+      "terminal_stable_end_frame": 375,
+      "left_censored": false,
+      "boundary_uncertainty_frames": 5,
+      "movement_start_timestamp_ms": 5417,
+      "movement_end_timestamp_ms": 5950,
+      "terminal_stable_start_timestamp_ms": 5950,
+      "terminal_stable_end_timestamp_ms": 6250
+    },
+    {
+      "punch_number": 8,
+      "expected_side": "LEFT",
+      "theoretical_impact_frame": 396,
+      "theoretical_impact_timestamp_ms": 6600,
+      "movement_start_frame": 377,
+      "movement_end_frame": 407,
+      "terminal_stable_start_frame": 407,
+      "review_confidence": "MEDIUM",
+      "ambiguity_notes": [
+        "Include preparation, opposite-arm withdrawal, torso turn and settling. Stable means visually held pose, not zero landmark motion."
+      ],
+      "terminal_stable_end_frame": 425,
+      "left_censored": false,
+      "boundary_uncertainty_frames": 5,
+      "movement_start_timestamp_ms": 6283,
+      "movement_end_timestamp_ms": 6783,
+      "terminal_stable_start_timestamp_ms": 6783,
+      "terminal_stable_end_timestamp_ms": 7083
+    },
+    {
+      "punch_number": 9,
+      "expected_side": "RIGHT",
+      "theoretical_impact_frame": 444,
+      "theoretical_impact_timestamp_ms": 7400,
+      "movement_start_frame": 427,
+      "movement_end_frame": 457,
+      "terminal_stable_start_frame": 457,
+      "review_confidence": "MEDIUM",
+      "ambiguity_notes": [
+        "Include preparation, opposite-arm withdrawal, torso turn and settling. Stable means visually held pose, not zero landmark motion."
+      ],
+      "terminal_stable_end_frame": 475,
+      "left_censored": false,
+      "boundary_uncertainty_frames": 5,
+      "movement_start_timestamp_ms": 7117,
+      "movement_end_timestamp_ms": 7617,
+      "terminal_stable_start_timestamp_ms": 7617,
+      "terminal_stable_end_timestamp_ms": 7917
+    },
+    {
+      "punch_number": 10,
+      "expected_side": "LEFT",
+      "theoretical_impact_frame": 496,
+      "theoretical_impact_timestamp_ms": 8267,
+      "movement_start_frame": 477,
+      "movement_end_frame": 507,
+      "terminal_stable_start_frame": 507,
+      "review_confidence": "MEDIUM",
+      "ambiguity_notes": [
+        "Include preparation, opposite-arm withdrawal, torso turn and settling. Stable means visually held pose, not zero landmark motion."
+      ],
+      "terminal_stable_end_frame": 525,
+      "left_censored": false,
+      "boundary_uncertainty_frames": 5,
+      "movement_start_timestamp_ms": 7950,
+      "movement_end_timestamp_ms": 8450,
+      "terminal_stable_start_timestamp_ms": 8450,
+      "terminal_stable_end_timestamp_ms": 8750
+    }
+  ],
+  "method": "Assistant video contact-sheet and trace review; approximate full-body boundaries; pending human review.",
+  "frame_numbering": "zero-based source frame_number",
+  "opening_hold": {
+    "frames": [
+      0,
+      23
+    ],
+    "preceding_movement_left_censored": true,
+    "is_numbered_punch_1": false
+  },
+  "additional_visible_movements": [
+    {
+      "kind": "punch",
+      "approximate_frames": [
+        527,
+        557
+      ]
+    },
+    {
+      "kind": "punch",
+      "approximate_frames": [
+        577,
+        607
+      ]
+    },
+    {
+      "kind": "punch",
+      "approximate_frames": [
+        627,
+        657
+      ]
+    },
+    {
+      "kind": "lowering_arms",
+      "approximate_frames": [
+        685,
+        700
+      ],
+      "right_censored": true
+    }
+  ]
+}

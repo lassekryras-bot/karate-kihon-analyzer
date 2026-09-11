@@ -1,0 +1,62 @@
+{
+  "final_state": "BASELINE",
+  "transitions": [],
+  "below_completion_coverage_count": 377,
+  "clamped_landmark_samples": 99,
+  "status_counts": {
+    "articulated_status": {
+      "FIRST_FRAME": 1,
+      "VALID": 321,
+      "INSUFFICIENT_COVERAGE": 379
+    },
+    "image_status": {
+      "FIRST_FRAME": 1,
+      "VALID": 700
+    }
+  },
+  "coverage": {
+    "available": 701,
+    "min": 0.3299734989802043,
+    "max": 0.8699040412902832
+  },
+  "region_balanced_coverage": {
+    "available": 701,
+    "min": 0.7932908021741444,
+    "max": 0.9705362502071592
+  },
+  "articulated_motion": {
+    "available": 700,
+    "min": 0.11538101116007411,
+    "max": 4.8343214803518375
+  },
+  "image_space_motion": {
+    "available": 700,
+    "min": 0.0055737931372998465,
+    "max": 1.3629323405055898
+  },
+  "image_scale_change": {
+    "available": 700,
+    "min": 0.00017201631793498478,
+    "max": 0.9255409532754896
+  },
+  "slow_displacement": {
+    "available": 701,
+    "min": 0.0,
+    "max": 0.7133381948748138
+  },
+  "same_similarity": {
+    "available": 0,
+    "min": null,
+    "max": null
+  },
+  "mirrored_similarity": {
+    "available": 0,
+    "min": null,
+    "max": null
+  },
+  "baseline_dwell_ms": {
+    "available": 701,
+    "min": 0,
+    "max": 0
+  }
+}

@@ -1,0 +1,25 @@
+{
+  "schema_version": "pose-replay-import-summary-v1",
+  "sequence_id": "real-kihon-10-punch-1000002073-v1",
+  "source_path": "input/task5/video_landmarks.json",
+  "source_kind": "video",
+  "source_pose_backend": null,
+  "frame_count": 701,
+  "pose_detected_frame_count": 701,
+  "first_timestamp_ms": 0,
+  "last_timestamp_ms": 11667,
+  "warnings": [],
+  "exact_preservation_verified": true,
+  "pose_landmark_count": 23133,
+  "video": {
+    "frame_count": 701,
+    "fps": 59.99657651489216,
+    "width": 1056,
+    "height": 1354,
+    "decoded_frame_count": 701
+  },
+  "sha256": {
+    "video_landmarks.json": "59c2952a519d693d6ec0d0a89476f84e856445dca17e00057c6e816a95f4e24e",
+    "1000002073.mp4": "4d8b4e02ea17b4ffde305a5bf9839a7ac4ef1e332253560f3afac343bb2a5cf0"
+  }
+}

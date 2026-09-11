@@ -42,13 +42,14 @@ the segmenter.
 
 ## Fixtures and privacy
 
-Committed tests currently use synthetic pose sequences only. They exercise
+Automated unit tests use synthetic pose sequences. They exercise
 camera translation/scale, arm-only and slow motion, mirroring, multi-burst
 movement, occlusion, timestamp gaps, and outlier handling without containing a
 person's video or captured landmarks.
 
 Private or consented local fixtures can be stored under `input/`; that directory
-is ignored except for its placeholders. Decode them with `PoseReplayJson.decode`
+is ignored except for its placeholders and the explicitly authorized Task 5 pair.
+Decode them with `PoseReplayJson.decode`
 and pass the result to `MotionReplayRunner`. Write generated traces and plots
 under `output/`, which is also ignored. Do not commit video or captured landmark
 data without an explicit repository privacy decision.
@@ -68,11 +69,11 @@ integer millisecond timestamps, and marks cached MediaPipe values as
 uses `0.0` and records a warning so missing confidence becomes UNKNOWN evidence
 rather than fabricated stillness.
 
-For the private 10-punch fixture, run:
+For the authorized Task 5 recording, run:
 
 ```bash
 python -m karate_analyzer.diagnostics.pose_replay_import \
-  'input/private/video_landmarks(1).json' \
+  input/task5/video_landmarks.json \
   output/task5/real-kihon-10-punch.fixture.json \
   --sequence-id real-kihon-10-punch-1000002073-v1 \
   --summary output/task5/import-summary.json \
@@ -85,8 +86,13 @@ review context. Movement boundaries remain empty and `review_status` remains
 terminal-stable, censoring, and ambiguity labels before a score is treated as a
 validation result.
 
-The full `video_landmarks(1).json` / `1000002073.mp4` asset is not committed. If
-it is unavailable in a working copy, real replay results, plots, ten-punch
-boundaries, and confirmation that both names identify the same recording cannot
-be produced honestly. The converter and synthetic contract tests remain safe to
-commit independently of that private asset.
+The user authorized committing both supplied files under `input/task5/` on
+2026-09-11 and confirmed they are the same recording. The real validation is
+recorded in [Task 5 results](validation/task5/README.md), including complete
+701-frame traces, diagnostic plots, proposed boundaries, preservation checks,
+and the baseline/coverage failure. The recording includes additional movements
+beyond the ten numbered punches; it must not be silently truncated.
+
+The development-only `:karate-analyzer-core:replayMotion` Gradle task runs the
+same `conservative-v1` values as `MotionReplayValidationTest` without modifying
+the extractor or segmenter. See the result page for reproducible commands.
