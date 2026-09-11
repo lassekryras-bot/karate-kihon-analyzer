@@ -56,3 +56,37 @@ data without an explicit repository privacy decision.
 The current parameters and results are provisional until representative,
 manually reviewed real sequences are available. Live CameraX/audio integration
 is outside this harness.
+
+## Importing an existing analyzer landmark export
+
+`karate_analyzer.diagnostics.pose_replay_import` converts the analyzer's
+`video_landmarks.json` shape directly to `pose-motion-replay-v1`; it does not run
+MediaPipe, resample, reorder, or smooth observations. It maps MediaPipe's numeric
+landmark order to `PoseLandmarkId`, retains normalized/world coordinates and
+integer millisecond timestamps, and marks cached MediaPipe values as
+`LandmarkSource.OBSERVED`. If visibility or presence is absent, the importer
+uses `0.0` and records a warning so missing confidence becomes UNKNOWN evidence
+rather than fabricated stillness.
+
+For the private 10-punch fixture, run:
+
+```bash
+python -m karate_analyzer.diagnostics.pose_replay_import \
+  'input/private/video_landmarks(1).json' \
+  output/task5/real-kihon-10-punch.fixture.json \
+  --sequence-id real-kihon-10-punch-1000002073-v1 \
+  --summary output/task5/import-summary.json \
+  --review-proposal output/task5/proposed-labels.json
+```
+
+The optional proposal contains the known theoretical-impact frames only as
+review context. Movement boundaries remain empty and `review_status` remains
+`PROPOSED`; human video/trace review must establish full movement start, end,
+terminal-stable, censoring, and ambiguity labels before a score is treated as a
+validation result.
+
+The full `video_landmarks(1).json` / `1000002073.mp4` asset is not committed. If
+it is unavailable in a working copy, real replay results, plots, ten-punch
+boundaries, and confirmation that both names identify the same recording cannot
+be produced honestly. The converter and synthetic contract tests remain safe to
+commit independently of that private asset.
