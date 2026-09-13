@@ -1,0 +1,5 @@
+name	extractor_threshold	quiet_threshold	start_threshold	baseline_dwell_ms	settling_dwell_ms	window_ms	displacement_limit	coverage
+conservative-v1	0.12	0.1	0.2	100	100	600	0.1	0.7
+extractor-035	0.35	0.1	0.2	100	100	600	0.1	0.7
+extractor-050	0.5	0.1	0.2	100	100	600	0.1	0.7
+extractor-065	0.65	0.1	0.2	100	100	600	0.1	0.7

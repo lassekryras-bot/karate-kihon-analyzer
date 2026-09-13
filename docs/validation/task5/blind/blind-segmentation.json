@@ -1,0 +1,299 @@
+{
+  "sequence_id": "blind-20260911_223447",
+  "input_file": "input/task5/20260911_223447.mp4",
+  "video_properties": {
+    "total_frames": 763,
+    "total_duration_ms": 15495,
+    "frame_rate_fps": 49.18,
+    "resolution": "1080x1920"
+  },
+  "frozen_configuration": {
+    "extractor_reference_motion_limit": 0.3,
+    "segmenter_quiet_threshold": 0.5,
+    "segmenter_start_threshold": 0.5,
+    "accumulated_displacement_window_ms": 300,
+    "accumulated_displacement_limit": 0.05,
+    "baseline_dwell_ms": 100,
+    "movement_start_dwell_ms": 100,
+    "settling_dwell_ms": 100,
+    "minimum_coverage": 0.7,
+    "required_regions": [
+      "TORSO",
+      "LEFT_ARM",
+      "RIGHT_ARM"
+    ],
+    "end_pose_relationship": "DIFFERENT_STABLE_POSE",
+    "terminal_pose_similarity": 0.8,
+    "positive_motion_guardrail": true
+  },
+  "detected_movement_count": 0,
+  "segments": [
+    {
+      "movement_number": 1,
+      "completed": false,
+      "final_state": "MOVING",
+      "arm_timestamp_ms": 1015,
+      "arm_frame_index": 49,
+      "start_boundary_timestamp_ms": 2030,
+      "start_decision_timestamp_ms": 2132,
+      "terminal_boundary_timestamp_ms": null,
+      "completion_decision_timestamp_ms": null,
+      "start_boundary_frame_index": 99,
+      "start_decision_frame_index": 104,
+      "terminal_boundary_frame_index": null,
+      "completion_decision_frame_index": null,
+      "duration_ms": null,
+      "settling_resumptions": 13,
+      "coverage_unknown_frames": 457,
+      "start_reason": "sustained_motion",
+      "terminal_reason": null,
+      "failure_reason": "INCOMPLETE_AT_EOF (final state was MOVING)",
+      "transitions": [
+        {
+          "from": "BASELINE",
+          "to": "ARMED",
+          "decision_timestamp_ms": 1015,
+          "boundary_timestamp_ms": null,
+          "trigger": "armed"
+        },
+        {
+          "from": "ARMED",
+          "to": "MOVING",
+          "decision_timestamp_ms": 2132,
+          "boundary_timestamp_ms": 2030,
+          "trigger": "sustained_motion"
+        },
+        {
+          "from": "MOVING",
+          "to": "SETTLING",
+          "decision_timestamp_ms": 3493,
+          "boundary_timestamp_ms": 3493,
+          "trigger": "quiet_candidate"
+        },
+        {
+          "from": "SETTLING",
+          "to": "MOVING",
+          "decision_timestamp_ms": 3513,
+          "boundary_timestamp_ms": 3513,
+          "trigger": "movement_resumed"
+        },
+        {
+          "from": "MOVING",
+          "to": "SETTLING",
+          "decision_timestamp_ms": 3533,
+          "boundary_timestamp_ms": 3533,
+          "trigger": "quiet_candidate"
+        },
+        {
+          "from": "SETTLING",
+          "to": "MOVING",
+          "decision_timestamp_ms": 3574,
+          "boundary_timestamp_ms": 3574,
+          "trigger": "movement_resumed"
+        },
+        {
+          "from": "MOVING",
+          "to": "SETTLING",
+          "decision_timestamp_ms": 3594,
+          "boundary_timestamp_ms": 3594,
+          "trigger": "quiet_candidate"
+        },
+        {
+          "from": "SETTLING",
+          "to": "MOVING",
+          "decision_timestamp_ms": 3614,
+          "boundary_timestamp_ms": 3614,
+          "trigger": "movement_resumed"
+        },
+        {
+          "from": "MOVING",
+          "to": "SETTLING",
+          "decision_timestamp_ms": 3635,
+          "boundary_timestamp_ms": 3635,
+          "trigger": "quiet_candidate"
+        },
+        {
+          "from": "SETTLING",
+          "to": "MOVING",
+          "decision_timestamp_ms": 3757,
+          "boundary_timestamp_ms": 3757,
+          "trigger": "movement_resumed"
+        },
+        {
+          "from": "MOVING",
+          "to": "SETTLING",
+          "decision_timestamp_ms": 3797,
+          "boundary_timestamp_ms": 3797,
+          "trigger": "quiet_candidate"
+        },
+        {
+          "from": "SETTLING",
+          "to": "MOVING",
+          "decision_timestamp_ms": 3899,
+          "boundary_timestamp_ms": 3899,
+          "trigger": "movement_resumed"
+        },
+        {
+          "from": "MOVING",
+          "to": "SETTLING",
+          "decision_timestamp_ms": 3919,
+          "boundary_timestamp_ms": 3919,
+          "trigger": "quiet_candidate"
+        },
+        {
+          "from": "SETTLING",
+          "to": "MOVING",
+          "decision_timestamp_ms": 3939,
+          "boundary_timestamp_ms": 3939,
+          "trigger": "movement_resumed"
+        },
+        {
+          "from": "MOVING",
+          "to": "SETTLING",
+          "decision_timestamp_ms": 5259,
+          "boundary_timestamp_ms": 5259,
+          "trigger": "quiet_candidate"
+        },
+        {
+          "from": "SETTLING",
+          "to": "MOVING",
+          "decision_timestamp_ms": 5320,
+          "boundary_timestamp_ms": 5320,
+          "trigger": "movement_resumed"
+        },
+        {
+          "from": "MOVING",
+          "to": "SETTLING",
+          "decision_timestamp_ms": 5341,
+          "boundary_timestamp_ms": 5341,
+          "trigger": "quiet_candidate"
+        },
+        {
+          "from": "SETTLING",
+          "to": "MOVING",
+          "decision_timestamp_ms": 5442,
+          "boundary_timestamp_ms": 5442,
+          "trigger": "movement_resumed"
+        },
+        {
+          "from": "MOVING",
+          "to": "SETTLING",
+          "decision_timestamp_ms": 5483,
+          "boundary_timestamp_ms": 5483,
+          "trigger": "quiet_candidate"
+        },
+        {
+          "from": "SETTLING",
+          "to": "MOVING",
+          "decision_timestamp_ms": 5584,
+          "boundary_timestamp_ms": 5584,
+          "trigger": "movement_resumed"
+        },
+        {
+          "from": "MOVING",
+          "to": "SETTLING",
+          "decision_timestamp_ms": 5605,
+          "boundary_timestamp_ms": 5605,
+          "trigger": "quiet_candidate"
+        },
+        {
+          "from": "SETTLING",
+          "to": "MOVING",
+          "decision_timestamp_ms": 5666,
+          "boundary_timestamp_ms": 5666,
+          "trigger": "movement_resumed"
+        },
+        {
+          "from": "MOVING",
+          "to": "SETTLING",
+          "decision_timestamp_ms": 7087,
+          "boundary_timestamp_ms": 7087,
+          "trigger": "quiet_candidate"
+        },
+        {
+          "from": "SETTLING",
+          "to": "MOVING",
+          "decision_timestamp_ms": 7108,
+          "boundary_timestamp_ms": 7108,
+          "trigger": "movement_resumed"
+        },
+        {
+          "from": "MOVING",
+          "to": "SETTLING",
+          "decision_timestamp_ms": 7128,
+          "boundary_timestamp_ms": 7128,
+          "trigger": "quiet_candidate"
+        },
+        {
+          "from": "SETTLING",
+          "to": "MOVING",
+          "decision_timestamp_ms": 7290,
+          "boundary_timestamp_ms": 7290,
+          "trigger": "movement_resumed"
+        },
+        {
+          "from": "MOVING",
+          "to": "SETTLING",
+          "decision_timestamp_ms": 7311,
+          "boundary_timestamp_ms": 7311,
+          "trigger": "quiet_candidate"
+        },
+        {
+          "from": "SETTLING",
+          "to": "MOVING",
+          "decision_timestamp_ms": 7351,
+          "boundary_timestamp_ms": 7351,
+          "trigger": "movement_resumed"
+        }
+      ]
+    }
+  ],
+  "blind_audit_summary": {
+    "completed_movements": 0,
+    "started_movements": 1,
+    "movement_1": {
+      "arm_timestamp_ms": 1015,
+      "arm_frame_index": 49,
+      "start_boundary_timestamp_ms": 2030,
+      "start_boundary_frame_index": 99,
+      "start_decision_timestamp_ms": 2132,
+      "start_decision_frame_index": 104,
+      "start_reason": "sustained_motion",
+      "terminal_boundary_timestamp_ms": null,
+      "completion_decision_timestamp_ms": null,
+      "duration_ms": null,
+      "final_state": "MOVING",
+      "failure_reason": "INCOMPLETE_AT_EOF (final state was MOVING)",
+      "pre_roll_ms": 1015,
+      "post_roll_ms": null,
+      "settling_resumptions": 13,
+      "coverage_unknown_frames": 457
+    },
+    "failure_mechanisms_identified": [
+      {
+        "mechanism": "Coverage Drop on Far/Occluded Arm (Evidence.UNKNOWN)",
+        "description": "During terminal holds of strikes (e.g. frames 116-140 / 2376-2863 ms, and frames 416-679 / 8468-13809 ms), the left arm tracking coverage fell below 0.70 (dropping to 0.54-0.63 and later 0.33). Because LEFT_ARM was in the side-neutral required set [TORSO, LEFT_ARM, RIGHT_ARM], missing required evidence evaluated strictly to Evidence.UNKNOWN, safely blocking terminal completion dwell.",
+        "representative_frames": [
+          130,
+          425
+        ]
+      },
+      {
+        "mechanism": "Return to Starting Stance Rejected by DIFFERENT_STABLE_POSE (Evidence.FALSE)",
+        "description": "During periods where the participant returned to the initial stance and held stillness with full limb coverage >= 0.95 and quiet motion <= 0.50 (e.g. frames 178-183 / 3635-3736 ms [101 ms dwell] and frames 350-357 / 7128-7270 ms [142 ms dwell]), sameAsStartSimilarity was ~0.93 (>= 0.80). Because endPoseRelationship was set to DIFFERENT_STABLE_POSE, returning to the start posture evaluated strictly to Evidence.FALSE, preventing accidental completion.",
+        "representative_frames": [
+          178,
+          350
+        ]
+      }
+    ]
+  },
+  "deliverables": {
+    "timeline_png": "docs/validation/task5/blind/timeline.png",
+    "contact_sheet_png": "docs/validation/task5/blind/contact-sheet.png",
+    "blind_segmentation_json": "docs/validation/task5/blind/blind-segmentation.json",
+    "blind_segmentation_md": "docs/validation/task5/blind/blind-segmentation.md",
+    "rendered_movement_clips": [],
+    "diagnostic_uncompleted_clip": "docs/validation/task5/blind/uncompleted-movement-001.mp4"
+  }
+}

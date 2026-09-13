@@ -1,15 +1,18 @@
 package dk.lasse.karatecliprecorder
 
 import android.Manifest
+import android.content.Intent
 import android.content.pm.ApplicationInfo
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.Color
+import android.net.Uri
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.os.SystemClock
+import android.provider.Settings
 import android.util.Log
 import android.view.Gravity
 import android.view.View
@@ -30,6 +33,7 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.app.AppCompatDelegate
 import androidx.appcompat.widget.SwitchCompat
 import androidx.camera.view.PreviewView
+import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
@@ -138,6 +142,9 @@ import dk.lasse.karatecliprecorder.profile.ProfileScreenView
 import dk.lasse.karatecliprecorder.profile.ProgressScreenView
 import dk.lasse.karatecliprecorder.profile.TrainingMode
 import dk.lasse.karatecliprecorder.profile.TrainingSession
+import dk.lasse.karatecliprecorder.skillcoach.SkillCoachAction
+import dk.lasse.karatecliprecorder.skillcoach.SkillCoachLandingState
+import dk.lasse.karatecliprecorder.skillcoach.SkillCoachScreenView
 import dk.lasse.karateanalyzer.core.PunchHeightAnalyzer
 import dk.lasse.karateanalyzer.core.PunchHeightTargetType
 import java.util.concurrent.ExecutorService
@@ -158,6 +165,7 @@ class MainActivity : AppCompatActivity() {
     private var measurementWiki: dk.lasse.karatecliprecorder.wiki.MeasurementWikiView? = null
     private lateinit var trainScreen: TrainScreenView
     private lateinit var learnScreen: LearnScreenView
+    private lateinit var skillCoachScreen: SkillCoachScreenView
     private lateinit var settingsScreen: SettingsScreenView
     private lateinit var progressScreen: ProgressScreenView
     private lateinit var profileRepository: ProfileRepository
@@ -330,6 +338,35 @@ class MainActivity : AppCompatActivity() {
         ).show()
     }
 
+    private val settingsPermissionRequestHistory by lazy {
+        getSharedPreferences(SETTINGS_PERMISSION_REQUEST_HISTORY, MODE_PRIVATE)
+    }
+
+    private fun settingsPermissionRoute(permission: String): PermissionRequestRoute {
+        val granted = ContextCompat.checkSelfPermission(this, permission) == PackageManager.PERMISSION_GRANTED
+        val requestedBefore = settingsPermissionRequestHistory.getBoolean(permission, false)
+        val shouldShowRationale = ActivityCompat.shouldShowRequestPermissionRationale(this, permission)
+        return PermissionRequestPolicy.route(granted, requestedBefore, shouldShowRationale)
+    }
+
+    private fun resolveSettingsPermission(permission: String, launchDialog: () -> Unit) {
+        when (settingsPermissionRoute(permission)) {
+            PermissionRequestRoute.NONE -> Unit
+            PermissionRequestRoute.RUNTIME_DIALOG -> {
+                settingsPermissionRequestHistory.edit().putBoolean(permission, true).apply()
+                launchDialog()
+            }
+            PermissionRequestRoute.APP_SETTINGS -> openAppPermissionSettings()
+        }
+    }
+
+    private fun openAppPermissionSettings() {
+        val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+            data = Uri.fromParts("package", packageName, null)
+        }
+        startActivity(intent)
+    }
+
     private val audioPermissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestPermission(),
     ) { granted ->
@@ -375,6 +412,7 @@ class MainActivity : AppCompatActivity() {
         stopCountController = StopCountController(::renderStopCount)
         punchHeightCaptureStore = PunchHeightCaptureStore(this)
         cameraSetupCaptureStore = CameraSetupCaptureStore(this)
+        val isDebuggable = (applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE) != 0
         buildUi()
         homeScreen = HomeScreenView(
             context = this,
@@ -385,7 +423,7 @@ class MainActivity : AppCompatActivity() {
             onContinue = ::continueLearning,
             onLearn = ::showLearnUi,
             onPractice = { showHomeDestinationPlaceholder("Practice") },
-            onSkillCoach = { showHomeDestinationPlaceholder("Skill Coach") },
+            onSkillCoach = ::showSkillCoachUi,
             onTrain = ::showTrainUi,
             onProgress = ::showProgressUi,
             onSettings = ::showSettingsUi,
@@ -396,8 +434,19 @@ class MainActivity : AppCompatActivity() {
             onProfile = ::showProfileUi,
             onLearn = ::showLearnUi,
             onPractice = { showHomeDestinationPlaceholder("Practice") },
-            onSkillCoach = { showHomeDestinationPlaceholder("Skill Coach") },
+            onSkillCoach = ::showSkillCoachUi,
             onHome = ::showHomeUi,
+            onProgress = ::showProgressUi,
+            onSettings = ::showSettingsUi,
+        ).apply { visibility = View.GONE }
+        skillCoachScreen = SkillCoachScreenView(
+            context = this,
+            repository = profileRepository,
+            state = SkillCoachLandingState.initial(includeDemoRecent = isDebuggable),
+            onAction = ::handleSkillCoachAction,
+            onProfile = ::showProfileUi,
+            onHome = ::showHomeUi,
+            onTrain = ::showTrainUi,
             onProgress = ::showProgressUi,
             onSettings = ::showSettingsUi,
         ).apply { visibility = View.GONE }
@@ -423,12 +472,20 @@ class MainActivity : AppCompatActivity() {
             preferences = appPreferences,
             hasCameraPermission = ::hasCameraPermission,
             hasMicrophonePermission = { ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED },
-            onMicrophonePermissionRequest = { settingsMicrophonePermissionLauncher.launch(Manifest.permission.RECORD_AUDIO) },
+            cameraPermissionRoute = { settingsPermissionRoute(Manifest.permission.CAMERA) },
+            microphonePermissionRoute = { settingsPermissionRoute(Manifest.permission.RECORD_AUDIO) },
+            onMicrophonePermissionRequest = {
+                resolveSettingsPermission(Manifest.permission.RECORD_AUDIO) {
+                    settingsMicrophonePermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+                }
+            },
             onHome = ::showHomeUi,
             onTrain = ::showTrainUi,
             onProgress = ::showProgressUi,
             onCameraPermissionRequest = {
-                settingsCameraPermissionLauncher.launch(Manifest.permission.CAMERA)
+                resolveSettingsPermission(Manifest.permission.CAMERA) {
+                    settingsCameraPermissionLauncher.launch(Manifest.permission.CAMERA)
+                }
             },
             onDeveloperModeChanged = ::setDeveloperMode,
             onCameraDebug = ::openCameraDebug,
@@ -453,6 +510,7 @@ class MainActivity : AppCompatActivity() {
             addView(trainingRoot)
             addView(homeScreen)
             addView(trainScreen)
+            addView(skillCoachScreen)
             addView(learnScreen)
             addView(settingsScreen)
             addView(progressScreen)
@@ -478,6 +536,8 @@ class MainActivity : AppCompatActivity() {
                     showLearnUi()
                 } else if (currentAppDestination == AppDestination.SETTINGS) {
                     showHomeUi()
+                } else if (currentAppDestination == AppDestination.TRAIN && skillCoachScreen.visibility == View.VISIBLE) {
+                    showTrainUi()
                 } else if (currentAppDestination == AppDestination.TRAIN && learnScreen.visibility == View.VISIBLE) {
                     showTrainUi()
                 } else if (currentAppDestination == AppDestination.TRAIN && trainScreen.visibility == View.VISIBLE) {
@@ -509,12 +569,37 @@ class MainActivity : AppCompatActivity() {
         Toast.makeText(this, "$destination coming soon.", Toast.LENGTH_SHORT).show()
     }
 
+    private fun showSkillCoachUi() {
+        closeSecondaryScreen()
+        currentAppDestination = AppDestination.TRAIN
+        trainingRoot.visibility = View.GONE
+        homeScreen.visibility = View.GONE
+        trainScreen.visibility = View.GONE
+        learnScreen.visibility = View.GONE
+        skillProgressionScreen?.visibility = View.GONE
+        settingsScreen.visibility = View.GONE
+        progressScreen.visibility = View.GONE
+        skillCoachScreen.visibility = View.VISIBLE
+    }
+
+    private fun handleSkillCoachAction(action: SkillCoachAction) {
+        val destination = when (action) {
+            SkillCoachAction.RECORD_MOVEMENTS -> "Record movements"
+            SkillCoachAction.TECHNIQUE_REVIEW -> "Technique Review"
+            SkillCoachAction.FOCUS_ON_ONE_THING -> "Focus on One Thing"
+            SkillCoachAction.RECORD_AND_ANALYZE -> "Record & Analyze"
+            SkillCoachAction.VIEW_RECENT_ANALYSIS -> "Recent analysis"
+        }
+        showHomeDestinationPlaceholder(destination)
+    }
+
     private fun showHomeUi() {
         closeSecondaryScreen()
         currentAppDestination = AppDestination.HOME
         trainingRoot.visibility = View.GONE
         trainScreen.visibility = View.GONE
         learnScreen.visibility = View.GONE
+        skillCoachScreen.visibility = View.GONE
         skillProgressionScreen?.visibility = View.GONE
         settingsScreen.visibility = View.GONE
         progressScreen.visibility = View.GONE
@@ -532,6 +617,7 @@ class MainActivity : AppCompatActivity() {
         currentAppDestination = AppDestination.TRAIN
         trainingRoot.visibility = View.GONE
         homeScreen.visibility = View.GONE
+        skillCoachScreen.visibility = View.GONE
         settingsScreen.visibility = View.GONE
         progressScreen.visibility = View.GONE
         skillProgressionScreen?.visibility = View.GONE
@@ -543,6 +629,7 @@ class MainActivity : AppCompatActivity() {
         currentAppDestination = AppDestination.TRAIN
         trainingRoot.visibility = View.GONE
         homeScreen.visibility = View.GONE
+        skillCoachScreen.visibility = View.GONE
         settingsScreen.visibility = View.GONE
         progressScreen.visibility = View.GONE
         trainScreen.visibility = View.GONE
@@ -653,6 +740,7 @@ class MainActivity : AppCompatActivity() {
             onStart = osuMeaningUseController::start,
             onPrevious = osuMeaningUseController::previous,
             onNext = osuMeaningUseController::next,
+            onSelect = osuMeaningUseController::selectAnswer,
             onReplayOsu = ::playOsuExample,
             onRestart = osuMeaningUseController::restart,
             onContinue = ::continueFromOsuMeaningUse,
@@ -1223,6 +1311,7 @@ class MainActivity : AppCompatActivity() {
         trainingRoot.visibility = View.GONE
         trainScreen.visibility = View.GONE
         learnScreen.visibility = View.GONE
+        skillCoachScreen.visibility = View.GONE
         skillProgressionScreen?.visibility = View.GONE
         homeScreen.visibility = View.GONE
         progressScreen.visibility = View.GONE
@@ -1237,6 +1326,7 @@ class MainActivity : AppCompatActivity() {
         homeScreen.visibility = View.GONE
         trainScreen.visibility = View.GONE
         learnScreen.visibility = View.GONE
+        skillCoachScreen.visibility = View.GONE
         skillProgressionScreen?.visibility = View.GONE
         settingsScreen.visibility = View.GONE
         progressScreen.refresh()
@@ -1295,6 +1385,7 @@ class MainActivity : AppCompatActivity() {
         homeScreen.visibility = View.GONE
         trainScreen.visibility = View.GONE
         learnScreen.visibility = View.GONE
+        skillCoachScreen.visibility = View.GONE
         skillProgressionScreen?.visibility = View.GONE
         settingsScreen.visibility = View.GONE
         progressScreen.visibility = View.GONE
@@ -1373,6 +1464,7 @@ class MainActivity : AppCompatActivity() {
         homeScreen.visibility = View.GONE
         trainScreen.visibility = View.GONE
         learnScreen.visibility = View.GONE
+        skillCoachScreen.visibility = View.GONE
         skillProgressionScreen?.visibility = View.GONE
         settingsScreen.visibility = View.GONE
         progressScreen.visibility = View.GONE
@@ -1978,6 +2070,7 @@ class MainActivity : AppCompatActivity() {
         )
         sessionController = GuidedJodanSessionController(
             recordingAdapter = adapter,
+            videoPoseProcessor = dk.lasse.karatecliprecorder.mediapipeposeadapter.SequentialVideoPoseDecoder(this),
             onStateChanged = ::updateGuidedState,
             onPromptChanged = { prompt -> currentCountText.text = "Count: $prompt" },
             onStrikeChanged = ::showCurrentStrike,
@@ -3507,8 +3600,14 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun showSessionComplete(result: GuidedSessionResult) {
-        savedClipText.text = "Saved clips: ${result.savedClipCount} / ${result.expectedClipCount}"
-        metadataPathText.text = "Metadata: ${result.metadataPath}"
+        val retro = result.retrospectiveResult
+        if (retro != null) {
+            savedClipText.text = "Movements detected: ${retro.detectedMovementCount} / ${result.expectedClipCount}"
+            metadataPathText.text = "Master: ${java.io.File(result.masterVideoPath.orEmpty()).name}\nMetadata: ${result.metadataPath}"
+        } else {
+            savedClipText.text = "Saved clips: ${result.savedClipCount} / ${result.expectedClipCount}"
+            metadataPathText.text = "Metadata: ${result.metadataPath}"
+        }
         playTrainingOrder(TrainingOrderMapper.fromSessionResult(result))
         if (result.completed) {
             currentCountText.text = "Count: Session complete"
@@ -3580,6 +3679,7 @@ class MainActivity : AppCompatActivity() {
 
     companion object {
         private const val STATE_APP_DESTINATION = "app_destination"
+        private const val SETTINGS_PERMISSION_REQUEST_HISTORY = "settings_permission_request_history"
         private const val JAPANESE_COUNT_LOG_TAG = "JapaneseCountTraining"
         private const val MAX_JAPANESE_PARTIAL_TRANSCRIPTS = 20
         private const val JAPANESE_COUNT_BUSY_RETRY_DELAY_MS = 250L
@@ -3594,6 +3694,7 @@ class MainActivity : AppCompatActivity() {
             GuidedSessionState.PROMPTING_STRIKE,
             GuidedSessionState.RECORDING,
             GuidedSessionState.SAVING,
+            GuidedSessionState.ANALYZING,
         )
     }
 }

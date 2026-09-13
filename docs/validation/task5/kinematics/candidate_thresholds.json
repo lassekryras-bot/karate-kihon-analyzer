@@ -1,0 +1,26 @@
+{
+  "Conservative": {
+    "endpointSpeedThreshold": 1.0,
+    "radialSpeedThreshold": 0.8,
+    "jointAngularVelocityThreshold": 90.0,
+    "segmentOrientationRateThreshold": 90.0,
+    "pelvisRotationRateThreshold": 60.0,
+    "description": "High thresholds; eliminates almost all hold jitter, activates only on high-velocity strikes."
+  },
+  "Balanced": {
+    "endpointSpeedThreshold": 0.8,
+    "radialSpeedThreshold": 0.6,
+    "jointAngularVelocityThreshold": 60.0,
+    "segmentOrientationRateThreshold": 60.0,
+    "pelvisRotationRateThreshold": 45.0,
+    "description": "Balanced candidate; cleanly separates 95th percentile quiet hold noise from active movement strikes."
+  },
+  "Sensitive": {
+    "endpointSpeedThreshold": 0.5,
+    "radialSpeedThreshold": 0.4,
+    "jointAngularVelocityThreshold": 40.0,
+    "segmentOrientationRateThreshold": 40.0,
+    "pelvisRotationRateThreshold": 30.0,
+    "description": "Sensitive candidate; captures subtle pre-strike motion and slow chambers, but risks noise on low-confidence holds."
+  }
+}

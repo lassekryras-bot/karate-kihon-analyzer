@@ -16,6 +16,8 @@ import androidx.core.content.ContextCompat
  */
 enum class AppIcon(@DrawableRes val drawableRes: Int) {
     CAMERA(R.drawable.ic_tabler_camera),
+    CHECK(R.drawable.ic_tabler_check),
+    X(R.drawable.ic_tabler_x),
     SHIELD_CHECK(R.drawable.ic_tabler_shield_check),
     VOLUME(R.drawable.ic_tabler_volume),
     MICROPHONE(R.drawable.ic_tabler_microphone),
@@ -37,6 +39,7 @@ enum class AppIcon(@DrawableRes val drawableRes: Int) {
     SETTINGS(R.drawable.ic_nav_settings),
     KARATE(R.drawable.ic_tabler_karate),
     KARATE_BELT(R.drawable.ic_profile_belt),
+    TARGET(R.drawable.ic_skill_coach_target),
 }
 
 class AppIconView(

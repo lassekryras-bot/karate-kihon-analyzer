@@ -20,6 +20,8 @@ class SettingsScreenView(
     private val preferences: AppPreferences,
     private val hasCameraPermission: () -> Boolean,
     private val hasMicrophonePermission: () -> Boolean,
+    private val cameraPermissionRoute: () -> PermissionRequestRoute,
+    private val microphonePermissionRoute: () -> PermissionRequestRoute,
     private val onMicrophonePermissionRequest: () -> Unit,
     private val onHome: () -> Unit,
     private val onTrain: () -> Unit,
@@ -82,13 +84,12 @@ class SettingsScreenView(
     fun refresh() {
         if (!::cameraPermissionRow.isInitialized) return
         refreshCameraPermissionState()
-        if (hasMicrophonePermission()) {
-            microphonePermissionRow.setStatus("Allowed", ContextCompat.getColor(context, R.color.app_success), AppIcon.SHIELD_CHECK)
-            microphonePermissionRow.clearAction()
-        } else {
-            microphonePermissionRow.setStatus("Not allowed", ContextCompat.getColor(context, R.color.app_text_secondary))
-            microphonePermissionRow.setAction(onMicrophonePermissionRequest, "Not allowed. Tap to allow")
-        }
+        refreshPermissionRow(
+            row = microphonePermissionRow,
+            granted = hasMicrophonePermission(),
+            route = microphonePermissionRoute(),
+            onResolve = onMicrophonePermissionRequest,
+        )
         syncSwitch(trainingSoundsSwitch, preferences.trainingSounds)
         syncSwitch(voiceGuidanceSwitch, preferences.voiceGuidance)
         syncSwitch(developerModeSwitch, preferences.developerMode)
@@ -99,26 +100,39 @@ class SettingsScreenView(
 
     fun refreshCameraPermissionState() {
         if (!::cameraPermissionRow.isInitialized) return
-        if (hasCameraPermission()) {
-            cameraPermissionRow.setStatus(
-                text = "Allowed",
-                color = ContextCompat.getColor(context, R.color.app_success),
-                icon = AppIcon.SHIELD_CHECK,
-            )
-            cameraPermissionRow.clearAction()
+        refreshPermissionRow(
+            row = cameraPermissionRow,
+            granted = hasCameraPermission(),
+            route = cameraPermissionRoute(),
+            onResolve = onCameraPermissionRequest,
+        )
+    }
+
+    private fun refreshPermissionRow(
+        row: SettingsRowView,
+        granted: Boolean,
+        route: PermissionRequestRoute,
+        onResolve: () -> Unit,
+    ) {
+        val color = ContextCompat.getColor(context, if (granted) R.color.app_success else R.color.app_error)
+        row.setLeadingPermissionStatus(granted, color)
+        row.setStatus(if (granted) "Allowed" else "Not allowed", color)
+        if (granted) {
+            row.clearAction()
         } else {
-            cameraPermissionRow.setStatus(
-                text = "Not allowed",
-                color = ContextCompat.getColor(context, R.color.app_text_secondary),
-            )
-            cameraPermissionRow.setAction(onCameraPermissionRequest, "Not allowed. Tap to allow")
+            val actionDescription = when (route) {
+                PermissionRequestRoute.APP_SETTINGS -> "Not allowed. Tap to open Android app settings"
+                PermissionRequestRoute.RUNTIME_DIALOG -> "Not allowed. Tap to allow"
+                PermissionRequestRoute.NONE -> "Not allowed"
+            }
+            row.setAction(onResolve, actionDescription)
         }
     }
 
     private fun permissionsSection() = SettingsSectionView(context, "PERMISSIONS", first = true).apply {
         cameraPermissionRow = SettingsRowView(
             context,
-            AppIcon.SHIELD_CHECK,
+            AppIcon.CAMERA,
             "Camera permission",
             "Access to camera for analysis",
         )

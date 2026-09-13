@@ -1,0 +1,1171 @@
+{
+  "review_status": "PROPOSED",
+  "segmenter_control_quiet_01": {
+    "groups": {
+      "movement": {
+        "accepted": 0,
+        "total": 310,
+        "percent": 0.0
+      },
+      "terminal_stable": {
+        "accepted": 0,
+        "total": 181,
+        "percent": 0.0
+      },
+      "initial_hold": {
+        "accepted": 0,
+        "total": 24,
+        "percent": 0.0
+      },
+      "inter_punch_unreviewed_gap": {
+        "accepted": 0,
+        "total": 11,
+        "percent": 0.0
+      },
+      "low_coverage": {
+        "accepted": 0,
+        "total": 377,
+        "percent": 0.0
+      }
+    },
+    "longest_false_quiet_ms": 0,
+    "false_quiet_runs": []
+  },
+  "experiments": [
+    {
+      "threshold": 0.12,
+      "reference_first_frame": null,
+      "reference_first_timestamp_ms": null,
+      "reference_in_reviewed_stable": null,
+      "reference_source_frames": [],
+      "fresh_three_frame_probes_overlapping_movement": [],
+      "motion_only": {
+        "groups": {
+          "movement": {
+            "accepted": 0,
+            "total": 310,
+            "percent": 0.0
+          },
+          "terminal_stable": {
+            "accepted": 0,
+            "total": 181,
+            "percent": 0.0
+          },
+          "initial_hold": {
+            "accepted": 2,
+            "total": 24,
+            "percent": 8.333333333333334
+          },
+          "inter_punch_unreviewed_gap": {
+            "accepted": 0,
+            "total": 11,
+            "percent": 0.0
+          },
+          "low_coverage": {
+            "accepted": 0,
+            "total": 377,
+            "percent": 0.0
+          }
+        },
+        "longest_false_quiet_ms": 0,
+        "false_quiet_runs": []
+      },
+      "motion_and_coverage": {
+        "groups": {
+          "movement": {
+            "accepted": 0,
+            "total": 310,
+            "percent": 0.0
+          },
+          "terminal_stable": {
+            "accepted": 0,
+            "total": 181,
+            "percent": 0.0
+          },
+          "initial_hold": {
+            "accepted": 2,
+            "total": 24,
+            "percent": 8.333333333333334
+          },
+          "inter_punch_unreviewed_gap": {
+            "accepted": 0,
+            "total": 11,
+            "percent": 0.0
+          },
+          "low_coverage": {
+            "accepted": 0,
+            "total": 377,
+            "percent": 0.0
+          }
+        },
+        "longest_false_quiet_ms": 0,
+        "false_quiet_runs": []
+      },
+      "all_current_quiet_gates": {
+        "groups": {
+          "movement": {
+            "accepted": 0,
+            "total": 310,
+            "percent": 0.0
+          },
+          "terminal_stable": {
+            "accepted": 0,
+            "total": 181,
+            "percent": 0.0
+          },
+          "initial_hold": {
+            "accepted": 2,
+            "total": 24,
+            "percent": 8.333333333333334
+          },
+          "inter_punch_unreviewed_gap": {
+            "accepted": 0,
+            "total": 11,
+            "percent": 0.0
+          },
+          "low_coverage": {
+            "accepted": 0,
+            "total": 377,
+            "percent": 0.0
+          }
+        },
+        "longest_false_quiet_ms": 0,
+        "false_quiet_runs": []
+      }
+    },
+    {
+      "threshold": 0.3,
+      "reference_first_frame": 9,
+      "reference_first_timestamp_ms": 150,
+      "reference_in_reviewed_stable": true,
+      "reference_source_frames": [
+        7,
+        8,
+        9
+      ],
+      "fresh_three_frame_probes_overlapping_movement": [],
+      "motion_only": {
+        "groups": {
+          "movement": {
+            "accepted": 4,
+            "total": 310,
+            "percent": 1.2903225806451613
+          },
+          "terminal_stable": {
+            "accepted": 66,
+            "total": 181,
+            "percent": 36.46408839779006
+          },
+          "initial_hold": {
+            "accepted": 13,
+            "total": 24,
+            "percent": 54.166666666666664
+          },
+          "inter_punch_unreviewed_gap": {
+            "accepted": 1,
+            "total": 11,
+            "percent": 9.090909090909092
+          },
+          "low_coverage": {
+            "accepted": 47,
+            "total": 377,
+            "percent": 12.46684350132626
+          }
+        },
+        "longest_false_quiet_ms": 0,
+        "false_quiet_runs": [
+          {
+            "first_frame": 157,
+            "last_frame": 157,
+            "duration_ms": 0
+          },
+          {
+            "first_frame": 256,
+            "last_frame": 256,
+            "duration_ms": 0
+          },
+          {
+            "first_frame": 406,
+            "last_frame": 406,
+            "duration_ms": 0
+          },
+          {
+            "first_frame": 500,
+            "last_frame": 500,
+            "duration_ms": 0
+          }
+        ]
+      },
+      "motion_and_coverage": {
+        "groups": {
+          "movement": {
+            "accepted": 2,
+            "total": 310,
+            "percent": 0.6451612903225806
+          },
+          "terminal_stable": {
+            "accepted": 33,
+            "total": 181,
+            "percent": 18.23204419889503
+          },
+          "initial_hold": {
+            "accepted": 13,
+            "total": 24,
+            "percent": 54.166666666666664
+          },
+          "inter_punch_unreviewed_gap": {
+            "accepted": 0,
+            "total": 11,
+            "percent": 0.0
+          },
+          "low_coverage": {
+            "accepted": 0,
+            "total": 377,
+            "percent": 0.0
+          }
+        },
+        "longest_false_quiet_ms": 0,
+        "false_quiet_runs": [
+          {
+            "first_frame": 406,
+            "last_frame": 406,
+            "duration_ms": 0
+          },
+          {
+            "first_frame": 500,
+            "last_frame": 500,
+            "duration_ms": 0
+          }
+        ]
+      },
+      "all_current_quiet_gates": {
+        "groups": {
+          "movement": {
+            "accepted": 0,
+            "total": 310,
+            "percent": 0.0
+          },
+          "terminal_stable": {
+            "accepted": 0,
+            "total": 181,
+            "percent": 0.0
+          },
+          "initial_hold": {
+            "accepted": 13,
+            "total": 24,
+            "percent": 54.166666666666664
+          },
+          "inter_punch_unreviewed_gap": {
+            "accepted": 0,
+            "total": 11,
+            "percent": 0.0
+          },
+          "low_coverage": {
+            "accepted": 0,
+            "total": 377,
+            "percent": 0.0
+          }
+        },
+        "longest_false_quiet_ms": 0,
+        "false_quiet_runs": []
+      }
+    },
+    {
+      "threshold": 0.35,
+      "reference_first_frame": 9,
+      "reference_first_timestamp_ms": 150,
+      "reference_in_reviewed_stable": true,
+      "reference_source_frames": [
+        7,
+        8,
+        9
+      ],
+      "fresh_three_frame_probes_overlapping_movement": [
+        {
+          "first_frame": "209",
+          "formed_frame": "211"
+        }
+      ],
+      "motion_only": {
+        "groups": {
+          "movement": {
+            "accepted": 7,
+            "total": 310,
+            "percent": 2.2580645161290325
+          },
+          "terminal_stable": {
+            "accepted": 84,
+            "total": 181,
+            "percent": 46.408839779005525
+          },
+          "initial_hold": {
+            "accepted": 13,
+            "total": 24,
+            "percent": 54.166666666666664
+          },
+          "inter_punch_unreviewed_gap": {
+            "accepted": 2,
+            "total": 11,
+            "percent": 18.181818181818183
+          },
+          "low_coverage": {
+            "accepted": 66,
+            "total": 377,
+            "percent": 17.50663129973475
+          }
+        },
+        "longest_false_quiet_ms": 0,
+        "false_quiet_runs": [
+          {
+            "first_frame": 106,
+            "last_frame": 106,
+            "duration_ms": 0
+          },
+          {
+            "first_frame": 157,
+            "last_frame": 157,
+            "duration_ms": 0
+          },
+          {
+            "first_frame": 205,
+            "last_frame": 205,
+            "duration_ms": 0
+          },
+          {
+            "first_frame": 254,
+            "last_frame": 254,
+            "duration_ms": 0
+          },
+          {
+            "first_frame": 256,
+            "last_frame": 256,
+            "duration_ms": 0
+          },
+          {
+            "first_frame": 406,
+            "last_frame": 406,
+            "duration_ms": 0
+          },
+          {
+            "first_frame": 500,
+            "last_frame": 500,
+            "duration_ms": 0
+          }
+        ]
+      },
+      "motion_and_coverage": {
+        "groups": {
+          "movement": {
+            "accepted": 4,
+            "total": 310,
+            "percent": 1.2903225806451613
+          },
+          "terminal_stable": {
+            "accepted": 39,
+            "total": 181,
+            "percent": 21.54696132596685
+          },
+          "initial_hold": {
+            "accepted": 13,
+            "total": 24,
+            "percent": 54.166666666666664
+          },
+          "inter_punch_unreviewed_gap": {
+            "accepted": 0,
+            "total": 11,
+            "percent": 0.0
+          },
+          "low_coverage": {
+            "accepted": 0,
+            "total": 377,
+            "percent": 0.0
+          }
+        },
+        "longest_false_quiet_ms": 0,
+        "false_quiet_runs": [
+          {
+            "first_frame": 106,
+            "last_frame": 106,
+            "duration_ms": 0
+          },
+          {
+            "first_frame": 205,
+            "last_frame": 205,
+            "duration_ms": 0
+          },
+          {
+            "first_frame": 406,
+            "last_frame": 406,
+            "duration_ms": 0
+          },
+          {
+            "first_frame": 500,
+            "last_frame": 500,
+            "duration_ms": 0
+          }
+        ]
+      },
+      "all_current_quiet_gates": {
+        "groups": {
+          "movement": {
+            "accepted": 0,
+            "total": 310,
+            "percent": 0.0
+          },
+          "terminal_stable": {
+            "accepted": 0,
+            "total": 181,
+            "percent": 0.0
+          },
+          "initial_hold": {
+            "accepted": 13,
+            "total": 24,
+            "percent": 54.166666666666664
+          },
+          "inter_punch_unreviewed_gap": {
+            "accepted": 0,
+            "total": 11,
+            "percent": 0.0
+          },
+          "low_coverage": {
+            "accepted": 0,
+            "total": 377,
+            "percent": 0.0
+          }
+        },
+        "longest_false_quiet_ms": 0,
+        "false_quiet_runs": []
+      }
+    },
+    {
+      "threshold": 0.5,
+      "reference_first_frame": 7,
+      "reference_first_timestamp_ms": 117,
+      "reference_in_reviewed_stable": true,
+      "reference_source_frames": [
+        5,
+        6,
+        7
+      ],
+      "fresh_three_frame_probes_overlapping_movement": [
+        {
+          "first_frame": "103",
+          "formed_frame": "105"
+        },
+        {
+          "first_frame": "104",
+          "formed_frame": "106"
+        },
+        {
+          "first_frame": "109",
+          "formed_frame": "111"
+        },
+        {
+          "first_frame": "206",
+          "formed_frame": "208"
+        },
+        {
+          "first_frame": "209",
+          "formed_frame": "211"
+        },
+        {
+          "first_frame": "303",
+          "formed_frame": "305"
+        },
+        {
+          "first_frame": "304",
+          "formed_frame": "306"
+        },
+        {
+          "first_frame": "404",
+          "formed_frame": "406"
+        },
+        {
+          "first_frame": "405",
+          "formed_frame": "407"
+        },
+        {
+          "first_frame": "506",
+          "formed_frame": "508"
+        }
+      ],
+      "motion_only": {
+        "groups": {
+          "movement": {
+            "accepted": 26,
+            "total": 310,
+            "percent": 8.387096774193548
+          },
+          "terminal_stable": {
+            "accepted": 143,
+            "total": 181,
+            "percent": 79.00552486187846
+          },
+          "initial_hold": {
+            "accepted": 19,
+            "total": 24,
+            "percent": 79.16666666666667
+          },
+          "inter_punch_unreviewed_gap": {
+            "accepted": 3,
+            "total": 11,
+            "percent": 27.272727272727273
+          },
+          "low_coverage": {
+            "accepted": 111,
+            "total": 377,
+            "percent": 29.44297082228117
+          }
+        },
+        "longest_false_quiet_ms": 34,
+        "false_quiet_runs": [
+          {
+            "first_frame": 54,
+            "last_frame": 54,
+            "duration_ms": 0
+          },
+          {
+            "first_frame": 102,
+            "last_frame": 102,
+            "duration_ms": 0
+          },
+          {
+            "first_frame": 104,
+            "last_frame": 106,
+            "duration_ms": 34
+          },
+          {
+            "first_frame": 108,
+            "last_frame": 108,
+            "duration_ms": 0
+          },
+          {
+            "first_frame": 147,
+            "last_frame": 147,
+            "duration_ms": 0
+          },
+          {
+            "first_frame": 157,
+            "last_frame": 157,
+            "duration_ms": 0
+          },
+          {
+            "first_frame": 205,
+            "last_frame": 205,
+            "duration_ms": 0
+          },
+          {
+            "first_frame": 207,
+            "last_frame": 208,
+            "duration_ms": 17
+          },
+          {
+            "first_frame": 254,
+            "last_frame": 254,
+            "duration_ms": 0
+          },
+          {
+            "first_frame": 256,
+            "last_frame": 256,
+            "duration_ms": 0
+          },
+          {
+            "first_frame": 277,
+            "last_frame": 277,
+            "duration_ms": 0
+          },
+          {
+            "first_frame": 304,
+            "last_frame": 306,
+            "duration_ms": 33
+          },
+          {
+            "first_frame": 354,
+            "last_frame": 356,
+            "duration_ms": 33
+          },
+          {
+            "first_frame": 400,
+            "last_frame": 400,
+            "duration_ms": 0
+          },
+          {
+            "first_frame": 405,
+            "last_frame": 406,
+            "duration_ms": 17
+          },
+          {
+            "first_frame": 455,
+            "last_frame": 455,
+            "duration_ms": 0
+          },
+          {
+            "first_frame": 500,
+            "last_frame": 500,
+            "duration_ms": 0
+          },
+          {
+            "first_frame": 504,
+            "last_frame": 504,
+            "duration_ms": 0
+          }
+        ]
+      },
+      "motion_and_coverage": {
+        "groups": {
+          "movement": {
+            "accepted": 16,
+            "total": 310,
+            "percent": 5.161290322580645
+          },
+          "terminal_stable": {
+            "accepted": 70,
+            "total": 181,
+            "percent": 38.67403314917127
+          },
+          "initial_hold": {
+            "accepted": 19,
+            "total": 24,
+            "percent": 79.16666666666667
+          },
+          "inter_punch_unreviewed_gap": {
+            "accepted": 0,
+            "total": 11,
+            "percent": 0.0
+          },
+          "low_coverage": {
+            "accepted": 0,
+            "total": 377,
+            "percent": 0.0
+          }
+        },
+        "longest_false_quiet_ms": 34,
+        "false_quiet_runs": [
+          {
+            "first_frame": 102,
+            "last_frame": 102,
+            "duration_ms": 0
+          },
+          {
+            "first_frame": 104,
+            "last_frame": 106,
+            "duration_ms": 34
+          },
+          {
+            "first_frame": 108,
+            "last_frame": 108,
+            "duration_ms": 0
+          },
+          {
+            "first_frame": 205,
+            "last_frame": 205,
+            "duration_ms": 0
+          },
+          {
+            "first_frame": 207,
+            "last_frame": 208,
+            "duration_ms": 17
+          },
+          {
+            "first_frame": 304,
+            "last_frame": 306,
+            "duration_ms": 33
+          },
+          {
+            "first_frame": 400,
+            "last_frame": 400,
+            "duration_ms": 0
+          },
+          {
+            "first_frame": 405,
+            "last_frame": 406,
+            "duration_ms": 17
+          },
+          {
+            "first_frame": 500,
+            "last_frame": 500,
+            "duration_ms": 0
+          },
+          {
+            "first_frame": 504,
+            "last_frame": 504,
+            "duration_ms": 0
+          }
+        ]
+      },
+      "all_current_quiet_gates": {
+        "groups": {
+          "movement": {
+            "accepted": 0,
+            "total": 310,
+            "percent": 0.0
+          },
+          "terminal_stable": {
+            "accepted": 0,
+            "total": 181,
+            "percent": 0.0
+          },
+          "initial_hold": {
+            "accepted": 19,
+            "total": 24,
+            "percent": 79.16666666666667
+          },
+          "inter_punch_unreviewed_gap": {
+            "accepted": 0,
+            "total": 11,
+            "percent": 0.0
+          },
+          "low_coverage": {
+            "accepted": 0,
+            "total": 377,
+            "percent": 0.0
+          }
+        },
+        "longest_false_quiet_ms": 0,
+        "false_quiet_runs": []
+      }
+    },
+    {
+      "threshold": 0.65,
+      "reference_first_frame": 4,
+      "reference_first_timestamp_ms": 67,
+      "reference_in_reviewed_stable": true,
+      "reference_source_frames": [
+        2,
+        3,
+        4
+      ],
+      "fresh_three_frame_probes_overlapping_movement": [
+        {
+          "first_frame": "22",
+          "formed_frame": "24"
+        },
+        {
+          "first_frame": "23",
+          "formed_frame": "25"
+        },
+        {
+          "first_frame": "101",
+          "formed_frame": "103"
+        },
+        {
+          "first_frame": "102",
+          "formed_frame": "104"
+        },
+        {
+          "first_frame": "103",
+          "formed_frame": "105"
+        },
+        {
+          "first_frame": "104",
+          "formed_frame": "106"
+        },
+        {
+          "first_frame": "105",
+          "formed_frame": "107"
+        },
+        {
+          "first_frame": "106",
+          "formed_frame": "108"
+        },
+        {
+          "first_frame": "109",
+          "formed_frame": "111"
+        },
+        {
+          "first_frame": "201",
+          "formed_frame": "203"
+        },
+        {
+          "first_frame": "206",
+          "formed_frame": "208"
+        },
+        {
+          "first_frame": "207",
+          "formed_frame": "209"
+        },
+        {
+          "first_frame": "208",
+          "formed_frame": "210"
+        },
+        {
+          "first_frame": "209",
+          "formed_frame": "211"
+        },
+        {
+          "first_frame": "223",
+          "formed_frame": "225"
+        },
+        {
+          "first_frame": "224",
+          "formed_frame": "226"
+        },
+        {
+          "first_frame": "297",
+          "formed_frame": "299"
+        },
+        {
+          "first_frame": "298",
+          "formed_frame": "300"
+        },
+        {
+          "first_frame": "302",
+          "formed_frame": "304"
+        },
+        {
+          "first_frame": "303",
+          "formed_frame": "305"
+        },
+        {
+          "first_frame": "304",
+          "formed_frame": "306"
+        },
+        {
+          "first_frame": "305",
+          "formed_frame": "307"
+        },
+        {
+          "first_frame": "306",
+          "formed_frame": "308"
+        },
+        {
+          "first_frame": "398",
+          "formed_frame": "400"
+        },
+        {
+          "first_frame": "401",
+          "formed_frame": "403"
+        },
+        {
+          "first_frame": "402",
+          "formed_frame": "404"
+        },
+        {
+          "first_frame": "403",
+          "formed_frame": "405"
+        },
+        {
+          "first_frame": "404",
+          "formed_frame": "406"
+        },
+        {
+          "first_frame": "405",
+          "formed_frame": "407"
+        },
+        {
+          "first_frame": "406",
+          "formed_frame": "408"
+        },
+        {
+          "first_frame": "505",
+          "formed_frame": "507"
+        },
+        {
+          "first_frame": "506",
+          "formed_frame": "508"
+        }
+      ],
+      "motion_only": {
+        "groups": {
+          "movement": {
+            "accepted": 58,
+            "total": 310,
+            "percent": 18.70967741935484
+          },
+          "terminal_stable": {
+            "accepted": 168,
+            "total": 181,
+            "percent": 92.81767955801105
+          },
+          "initial_hold": {
+            "accepted": 21,
+            "total": 24,
+            "percent": 87.5
+          },
+          "inter_punch_unreviewed_gap": {
+            "accepted": 8,
+            "total": 11,
+            "percent": 72.72727272727273
+          },
+          "low_coverage": {
+            "accepted": 156,
+            "total": 377,
+            "percent": 41.37931034482759
+          }
+        },
+        "longest_false_quiet_ms": 100,
+        "false_quiet_runs": [
+          {
+            "first_frame": 24,
+            "last_frame": 25,
+            "duration_ms": 17
+          },
+          {
+            "first_frame": 51,
+            "last_frame": 54,
+            "duration_ms": 50
+          },
+          {
+            "first_frame": 102,
+            "last_frame": 108,
+            "duration_ms": 100
+          },
+          {
+            "first_frame": 147,
+            "last_frame": 147,
+            "duration_ms": 0
+          },
+          {
+            "first_frame": 152,
+            "last_frame": 152,
+            "duration_ms": 0
+          },
+          {
+            "first_frame": 154,
+            "last_frame": 157,
+            "duration_ms": 50
+          },
+          {
+            "first_frame": 202,
+            "last_frame": 203,
+            "duration_ms": 16
+          },
+          {
+            "first_frame": 205,
+            "last_frame": 205,
+            "duration_ms": 0
+          },
+          {
+            "first_frame": 207,
+            "last_frame": 209,
+            "duration_ms": 33
+          },
+          {
+            "first_frame": 225,
+            "last_frame": 226,
+            "duration_ms": 17
+          },
+          {
+            "first_frame": 252,
+            "last_frame": 252,
+            "duration_ms": 0
+          },
+          {
+            "first_frame": 254,
+            "last_frame": 256,
+            "duration_ms": 34
+          },
+          {
+            "first_frame": 277,
+            "last_frame": 277,
+            "duration_ms": 0
+          },
+          {
+            "first_frame": 298,
+            "last_frame": 300,
+            "duration_ms": 33
+          },
+          {
+            "first_frame": 303,
+            "last_frame": 306,
+            "duration_ms": 50
+          },
+          {
+            "first_frame": 354,
+            "last_frame": 356,
+            "duration_ms": 33
+          },
+          {
+            "first_frame": 378,
+            "last_frame": 378,
+            "duration_ms": 0
+          },
+          {
+            "first_frame": 399,
+            "last_frame": 400,
+            "duration_ms": 17
+          },
+          {
+            "first_frame": 402,
+            "last_frame": 406,
+            "duration_ms": 67
+          },
+          {
+            "first_frame": 455,
+            "last_frame": 456,
+            "duration_ms": 17
+          },
+          {
+            "first_frame": 477,
+            "last_frame": 477,
+            "duration_ms": 0
+          },
+          {
+            "first_frame": 479,
+            "last_frame": 479,
+            "duration_ms": 0
+          },
+          {
+            "first_frame": 500,
+            "last_frame": 500,
+            "duration_ms": 0
+          },
+          {
+            "first_frame": 502,
+            "last_frame": 502,
+            "duration_ms": 0
+          },
+          {
+            "first_frame": 504,
+            "last_frame": 504,
+            "duration_ms": 0
+          },
+          {
+            "first_frame": 506,
+            "last_frame": 506,
+            "duration_ms": 0
+          }
+        ]
+      },
+      "motion_and_coverage": {
+        "groups": {
+          "movement": {
+            "accepted": 35,
+            "total": 310,
+            "percent": 11.290322580645162
+          },
+          "terminal_stable": {
+            "accepted": 79,
+            "total": 181,
+            "percent": 43.646408839779006
+          },
+          "initial_hold": {
+            "accepted": 21,
+            "total": 24,
+            "percent": 87.5
+          },
+          "inter_punch_unreviewed_gap": {
+            "accepted": 1,
+            "total": 11,
+            "percent": 9.090909090909092
+          },
+          "low_coverage": {
+            "accepted": 0,
+            "total": 377,
+            "percent": 0.0
+          }
+        },
+        "longest_false_quiet_ms": 100,
+        "false_quiet_runs": [
+          {
+            "first_frame": 24,
+            "last_frame": 25,
+            "duration_ms": 17
+          },
+          {
+            "first_frame": 102,
+            "last_frame": 108,
+            "duration_ms": 100
+          },
+          {
+            "first_frame": 202,
+            "last_frame": 203,
+            "duration_ms": 16
+          },
+          {
+            "first_frame": 205,
+            "last_frame": 205,
+            "duration_ms": 0
+          },
+          {
+            "first_frame": 207,
+            "last_frame": 209,
+            "duration_ms": 33
+          },
+          {
+            "first_frame": 225,
+            "last_frame": 226,
+            "duration_ms": 17
+          },
+          {
+            "first_frame": 298,
+            "last_frame": 300,
+            "duration_ms": 33
+          },
+          {
+            "first_frame": 303,
+            "last_frame": 306,
+            "duration_ms": 50
+          },
+          {
+            "first_frame": 399,
+            "last_frame": 400,
+            "duration_ms": 17
+          },
+          {
+            "first_frame": 402,
+            "last_frame": 406,
+            "duration_ms": 67
+          },
+          {
+            "first_frame": 500,
+            "last_frame": 500,
+            "duration_ms": 0
+          },
+          {
+            "first_frame": 502,
+            "last_frame": 502,
+            "duration_ms": 0
+          },
+          {
+            "first_frame": 504,
+            "last_frame": 504,
+            "duration_ms": 0
+          },
+          {
+            "first_frame": 506,
+            "last_frame": 506,
+            "duration_ms": 0
+          }
+        ]
+      },
+      "all_current_quiet_gates": {
+        "groups": {
+          "movement": {
+            "accepted": 2,
+            "total": 310,
+            "percent": 0.6451612903225806
+          },
+          "terminal_stable": {
+            "accepted": 0,
+            "total": 181,
+            "percent": 0.0
+          },
+          "initial_hold": {
+            "accepted": 21,
+            "total": 24,
+            "percent": 87.5
+          },
+          "inter_punch_unreviewed_gap": {
+            "accepted": 0,
+            "total": 11,
+            "percent": 0.0
+          },
+          "low_coverage": {
+            "accepted": 0,
+            "total": 377,
+            "percent": 0.0
+          }
+        },
+        "longest_false_quiet_ms": 17,
+        "false_quiet_runs": [
+          {
+            "first_frame": 24,
+            "last_frame": 25,
+            "duration_ms": 17
+          }
+        ]
+      }
+    }
+  ]
+}

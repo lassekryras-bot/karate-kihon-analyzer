@@ -1,0 +1,64 @@
+[
+  {
+    "suite": "android/KarateClipRecorder/app/build/test-results/testDebugUnitTest",
+    "tests": 187,
+    "failures": 2,
+    "errors": 0,
+    "skipped": 0,
+    "failed_tests": [
+      "dk.lasse.karatecliprecorder.architecture.LearningArtworkArchitectureTest.continueCardUsesTheLearningPathsStableEnsoAndResponsiveProgressLayout",
+      "dk.lasse.karatecliprecorder.architecture.SettingsScreenArchitectureTest.settingsUsesReusableSectionsCardsAndRows"
+    ]
+  },
+  {
+    "suite": "android/KarateClipRecorder/app/build/test-results/testReleaseUnitTest",
+    "tests": 187,
+    "failures": 2,
+    "errors": 0,
+    "skipped": 0,
+    "failed_tests": [
+      "dk.lasse.karatecliprecorder.architecture.LearningArtworkArchitectureTest.continueCardUsesTheLearningPathsStableEnsoAndResponsiveProgressLayout",
+      "dk.lasse.karatecliprecorder.architecture.SettingsScreenArchitectureTest.settingsUsesReusableSectionsCardsAndRows"
+    ]
+  },
+  {
+    "suite": "android/KarateClipRecorder/karate-analyzer-core/build/test-results/test",
+    "tests": 155,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "failed_tests": []
+  },
+  {
+    "suite": "android/KarateClipRecorder/mediapipe-hand-adapter/build/test-results/testDebugUnitTest",
+    "tests": 23,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "failed_tests": []
+  },
+  {
+    "suite": "android/KarateClipRecorder/mediapipe-hand-adapter/build/test-results/testReleaseUnitTest",
+    "tests": 23,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "failed_tests": []
+  },
+  {
+    "suite": "android/KarateClipRecorder/mediapipe-pose-adapter/build/test-results/testDebugUnitTest",
+    "tests": 3,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "failed_tests": []
+  },
+  {
+    "suite": "android/KarateClipRecorder/mediapipe-pose-adapter/build/test-results/testReleaseUnitTest",
+    "tests": 3,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "failed_tests": []
+  }
+]

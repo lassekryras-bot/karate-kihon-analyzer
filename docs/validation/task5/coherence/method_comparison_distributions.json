@@ -1,0 +1,3402 @@
+{
+  "windows": [
+    60,
+    80,
+    100,
+    120
+  ],
+  "evaluation_metrics": {
+    "w_60ms": {
+      "elbow_angle": {
+        "raw": {
+          "hold_distribution": {
+            "count": 404,
+            "p50": 16.13357968708178,
+            "p90": 55.70475208886251,
+            "p95": 67.56220267062774,
+            "p99": 101.08016661078982,
+            "max": 168.025540073076
+          },
+          "movement_distribution": {
+            "count": 812,
+            "p50": 84.72936654218108,
+            "p90": 504.8881632038232,
+            "p95": 659.3772579551312,
+            "p99": 884.8091965344385,
+            "max": 1205.0581206921204
+          },
+          "snr_p95": 1.25409420049913,
+          "snr_p99": 0.8382392845515614,
+          "roc_auc": 0.8220809149880506,
+          "pr_auc": 0.9178118801682589,
+          "candidate_threshold": 60.0,
+          "hold_false_positive_rate": 0.07425742574257425,
+          "movement_miss_rate": 0.4014778325123153,
+          "max_contiguous_false_active_ms": 50,
+          "signal_filter_delay_ms": 30.0,
+          "detection_dwell_ms": 100.0,
+          "total_uncompensated_latency_ms": 130.0,
+          "measured_first_trigger_latency_ms": 19.0
+        },
+        "smoothed": {
+          "hold_distribution": {
+            "count": 402,
+            "p50": 7.834886307947117,
+            "p90": 20.055731118217963,
+            "p95": 25.815571525061095,
+            "p99": 38.16863867744883,
+            "max": 50.62509818476394
+          },
+          "movement_distribution": {
+            "count": 812,
+            "p50": 43.2997028306594,
+            "p90": 267.0052663333624,
+            "p95": 335.3377021909066,
+            "p99": 433.6295459541363,
+            "max": 539.8013183308827
+          },
+          "snr_p95": 1.6772707429167375,
+          "snr_p99": 1.134431416236025,
+          "roc_auc": 0.8354042594907237,
+          "pr_auc": 0.9271995676625348,
+          "candidate_threshold": 40.0,
+          "hold_false_positive_rate": 0.007462686567164179,
+          "movement_miss_rate": 0.4753694581280788,
+          "max_contiguous_false_active_ms": 20,
+          "signal_filter_delay_ms": 30.0,
+          "detection_dwell_ms": 100.0,
+          "total_uncompensated_latency_ms": 130.0,
+          "measured_first_trigger_latency_ms": 19.0
+        },
+        "reg_slope": {
+          "hold_distribution": {
+            "count": 402,
+            "p50": 12.537817338306272,
+            "p90": 33.20104105397379,
+            "p95": 43.401260939852676,
+            "p99": 66.68795507333262,
+            "max": 101.26068908864471
+          },
+          "movement_distribution": {
+            "count": 812,
+            "p50": 77.95592674145945,
+            "p90": 448.73108650949996,
+            "p95": 542.6855985142101,
+            "p99": 740.9951880420457,
+            "max": 1026.441289526575
+          },
+          "snr_p95": 1.7961673244815193,
+          "snr_p99": 1.168965619889471,
+          "roc_auc": 0.838535156728672,
+          "pr_auc": 0.9291030717841113,
+          "candidate_threshold": 40.0,
+          "hold_false_positive_rate": 0.06716417910447761,
+          "movement_miss_rate": 0.3497536945812808,
+          "max_contiguous_false_active_ms": 82,
+          "signal_filter_delay_ms": 30.0,
+          "detection_dwell_ms": 100.0,
+          "total_uncompensated_latency_ms": 130.0,
+          "measured_first_trigger_latency_ms": 18.5
+        },
+        "coherence": {
+          "hold_distribution": {
+            "count": 402,
+            "p50": 0.0,
+            "p90": 1.0,
+            "p95": 1.0,
+            "p99": 1.0,
+            "max": 1.0
+          },
+          "movement_distribution": {
+            "count": 812,
+            "p50": 1.0,
+            "p90": 1.0,
+            "p95": 1.0,
+            "p99": 1.0,
+            "max": 1.0
+          },
+          "snr_p95": 1.0,
+          "snr_p99": 1.0,
+          "roc_auc": 0.773647158297184,
+          "pr_auc": 0.8471873772043949,
+          "candidate_threshold": 0.6,
+          "hold_false_positive_rate": 0.26119402985074625,
+          "movement_miss_rate": 0.31157635467980294,
+          "max_contiguous_false_active_ms": 122,
+          "signal_filter_delay_ms": 30.0,
+          "detection_dwell_ms": 100.0,
+          "total_uncompensated_latency_ms": 130.0,
+          "measured_first_trigger_latency_ms": 19.0
+        },
+        "gated_activity": {
+          "hold_distribution": {
+            "count": 402,
+            "p50": 0.0,
+            "p90": 30.19577791279998,
+            "p95": 41.58803953205491,
+            "p99": 66.4961358810481,
+            "max": 101.26068908864471
+          },
+          "movement_distribution": {
+            "count": 812,
+            "p50": 66.8491048179774,
+            "p90": 447.64465305433924,
+            "p95": 542.6855985142101,
+            "p99": 740.9951880420457,
+            "max": 1026.441289526575
+          },
+          "snr_p95": 1.6074117840166995,
+          "snr_p99": 1.0053081120015863,
+          "roc_auc": 0.839907604832978,
+          "pr_auc": 0.9279504698902417,
+          "candidate_threshold": 30.0,
+          "hold_false_positive_rate": 0.10945273631840796,
+          "movement_miss_rate": 0.3485221674876847,
+          "max_contiguous_false_active_ms": 82,
+          "signal_filter_delay_ms": 30.0,
+          "detection_dwell_ms": 100.0,
+          "total_uncompensated_latency_ms": 130.0,
+          "measured_first_trigger_latency_ms": 18.5
+        },
+        "smoothed_coherence": {
+          "hold_distribution": {
+            "count": 402,
+            "p50": 0.0,
+            "p90": 18.87309717652241,
+            "p95": 23.103366597791684,
+            "p99": 35.817793846375785,
+            "max": 50.62509818476394
+          },
+          "movement_distribution": {
+            "count": 812,
+            "p50": 36.919899432904444,
+            "p90": 261.88397199475673,
+            "p95": 335.3377021909066,
+            "p99": 433.6295459541363,
+            "max": 539.8013183308827
+          },
+          "snr_p95": 1.5980311473927529,
+          "snr_p99": 1.0307697785981917,
+          "roc_auc": 0.8375517731539348,
+          "pr_auc": 0.9265492462297021,
+          "candidate_threshold": 30.0,
+          "hold_false_positive_rate": 0.022388059701492536,
+          "movement_miss_rate": 0.44950738916256155,
+          "max_contiguous_false_active_ms": 50,
+          "signal_filter_delay_ms": 30.0,
+          "detection_dwell_ms": 100.0,
+          "total_uncompensated_latency_ms": 130.0,
+          "measured_first_trigger_latency_ms": 19.0
+        }
+      },
+      "forearm_orientation": {
+        "raw": {
+          "hold_distribution": {
+            "count": 404,
+            "p50": 23.527676242727388,
+            "p90": 73.6192277182488,
+            "p95": 96.66231860748823,
+            "p99": 162.69619897652777,
+            "max": 253.40905653499885
+          },
+          "movement_distribution": {
+            "count": 812,
+            "p50": 131.56011930230022,
+            "p90": 590.1146026347001,
+            "p95": 809.3555908367385,
+            "p99": 1338.13233460229,
+            "max": 3066.608595138998
+          },
+          "snr_p95": 1.3610279703357802,
+          "snr_p99": 0.8086244185783372,
+          "roc_auc": 0.8624347656440521,
+          "pr_auc": 0.9356967939536138,
+          "candidate_threshold": 60.0,
+          "hold_false_positive_rate": 0.13861386138613863,
+          "movement_miss_rate": 0.27832512315270935,
+          "max_contiguous_false_active_ms": 101,
+          "signal_filter_delay_ms": 30.0,
+          "detection_dwell_ms": 100.0,
+          "total_uncompensated_latency_ms": 130.0,
+          "measured_first_trigger_latency_ms": 18.5
+        },
+        "smoothed": {
+          "hold_distribution": {
+            "count": 402,
+            "p50": 13.680842596589024,
+            "p90": 31.734006955825222,
+            "p95": 36.76635995911457,
+            "p99": 53.14429217912306,
+            "max": 98.17288015900803
+          },
+          "movement_distribution": {
+            "count": 812,
+            "p50": 71.91761477131443,
+            "p90": 278.58316900992276,
+            "p95": 345.84384000602176,
+            "p99": 521.8840762745791,
+            "max": 867.4382745013042
+          },
+          "snr_p95": 1.9560711164033984,
+          "snr_p99": 1.3532519076350815,
+          "roc_auc": 0.8937884469279219,
+          "pr_auc": 0.9535935939546611,
+          "candidate_threshold": 40.0,
+          "hold_false_positive_rate": 0.03980099502487562,
+          "movement_miss_rate": 0.29433497536945813,
+          "max_contiguous_false_active_ms": 101,
+          "signal_filter_delay_ms": 30.0,
+          "detection_dwell_ms": 100.0,
+          "total_uncompensated_latency_ms": 130.0,
+          "measured_first_trigger_latency_ms": 18.5
+        },
+        "reg_slope": {
+          "hold_distribution": {
+            "count": 402,
+            "p50": 18.411646455637353,
+            "p90": 52.52553283079401,
+            "p95": 70.77391746300636,
+            "p99": 101.01981511220146,
+            "max": 196.21746379879716
+          },
+          "movement_distribution": {
+            "count": 812,
+            "p50": 120.090899082714,
+            "p90": 496.4530870516616,
+            "p95": 674.0028855250387,
+            "p99": 1005.9949177446223,
+            "max": 1500.3886591883609
+          },
+          "snr_p95": 1.6968242452522952,
+          "snr_p99": 1.1887855758727188,
+          "roc_auc": 0.8798127588657697,
+          "pr_auc": 0.945839842372185,
+          "candidate_threshold": 40.0,
+          "hold_false_positive_rate": 0.17164179104477612,
+          "movement_miss_rate": 0.20689655172413793,
+          "max_contiguous_false_active_ms": 142,
+          "signal_filter_delay_ms": 30.0,
+          "detection_dwell_ms": 100.0,
+          "total_uncompensated_latency_ms": 130.0,
+          "measured_first_trigger_latency_ms": 18.5
+        },
+        "coherence": {
+          "hold_distribution": {
+            "count": 402,
+            "p50": 0.5192842433979477,
+            "p90": 0.9718449773887405,
+            "p95": 0.9864146876434655,
+            "p99": 0.9993460560796635,
+            "max": 1.0
+          },
+          "movement_distribution": {
+            "count": 812,
+            "p50": 0.906248740504908,
+            "p90": 0.9940672333637012,
+            "p95": 0.9986315500795007,
+            "p99": 0.9999584452088273,
+            "max": 0.9999988546067937
+          },
+          "snr_p95": 0.9187299741753916,
+          "snr_p99": 0.9068417641632898,
+          "roc_auc": 0.7314351885890743,
+          "pr_auc": 0.8194898938453452,
+          "candidate_threshold": 0.6,
+          "hold_false_positive_rate": 0.4577114427860697,
+          "movement_miss_rate": 0.21921182266009853,
+          "max_contiguous_false_active_ms": 142,
+          "signal_filter_delay_ms": 30.0,
+          "detection_dwell_ms": 100.0,
+          "total_uncompensated_latency_ms": 130.0,
+          "measured_first_trigger_latency_ms": 18.5
+        },
+        "gated_activity": {
+          "hold_distribution": {
+            "count": 402,
+            "p50": 8.442413236677265,
+            "p90": 48.71531662595854,
+            "p95": 67.2094139548982,
+            "p99": 98.33667273690297,
+            "max": 196.08925111126788
+          },
+          "movement_distribution": {
+            "count": 812,
+            "p50": 102.39360850318747,
+            "p90": 454.9883828526949,
+            "p95": 639.2897219748445,
+            "p99": 999.3888072543725,
+            "max": 1356.906867472078
+          },
+          "snr_p95": 1.5235009871072542,
+          "snr_p99": 1.0412555728536668,
+          "roc_auc": 0.8602737543808053,
+          "pr_auc": 0.9363754253207488,
+          "candidate_threshold": 30.0,
+          "hold_false_positive_rate": 0.22139303482587064,
+          "movement_miss_rate": 0.21305418719211822,
+          "max_contiguous_false_active_ms": 142,
+          "signal_filter_delay_ms": 30.0,
+          "detection_dwell_ms": 100.0,
+          "total_uncompensated_latency_ms": 130.0,
+          "measured_first_trigger_latency_ms": 18.5
+        },
+        "smoothed_coherence": {
+          "hold_distribution": {
+            "count": 402,
+            "p50": 8.11288686345711,
+            "p90": 26.262766415397007,
+            "p95": 35.38695873150317,
+            "p99": 50.509907556100735,
+            "max": 98.10873189939856
+          },
+          "movement_distribution": {
+            "count": 812,
+            "p50": 60.045449541357,
+            "p90": 248.22654352583083,
+            "p95": 337.00144276251933,
+            "p99": 502.99745887231114,
+            "max": 750.1943295941803
+          },
+          "snr_p95": 1.6968242452522957,
+          "snr_p99": 1.1887855758727188,
+          "roc_auc": 0.8784495012621621,
+          "pr_auc": 0.9456459053254336,
+          "candidate_threshold": 30.0,
+          "hold_false_positive_rate": 0.07213930348258707,
+          "movement_miss_rate": 0.3041871921182266,
+          "max_contiguous_false_active_ms": 101,
+          "signal_filter_delay_ms": 30.0,
+          "detection_dwell_ms": 100.0,
+          "total_uncompensated_latency_ms": 130.0,
+          "measured_first_trigger_latency_ms": 18.5
+        }
+      },
+      "pelvis_yaw": {
+        "raw": {
+          "hold_distribution": {
+            "count": 404,
+            "p50": 2.9092443126067735,
+            "p90": 12.909959100683709,
+            "p95": 16.669387843826485,
+            "p99": 33.47558106869454,
+            "max": 48.063204580230106
+          },
+          "movement_distribution": {
+            "count": 812,
+            "p50": 26.345335899032563,
+            "p90": 216.6917204664915,
+            "p95": 265.3620664027369,
+            "p99": 365.95454381079753,
+            "max": 571.461782118436
+          },
+          "snr_p95": 1.5804621108980657,
+          "snr_p99": 0.7870016011064856,
+          "roc_auc": 0.8424834170609179,
+          "pr_auc": 0.9271637266282514,
+          "candidate_threshold": 45.0,
+          "hold_false_positive_rate": 0.0024752475247524753,
+          "movement_miss_rate": 0.6317733990147784,
+          "max_contiguous_false_active_ms": 17,
+          "signal_filter_delay_ms": 30.0,
+          "detection_dwell_ms": 100.0,
+          "total_uncompensated_latency_ms": 130.0,
+          "measured_first_trigger_latency_ms": 19.0
+        },
+        "smoothed": {
+          "hold_distribution": {
+            "count": 402,
+            "p50": 1.6783550388396393,
+            "p90": 6.464114473606447,
+            "p95": 9.034719085902667,
+            "p99": 14.25803722950676,
+            "max": 18.94278458872413
+          },
+          "movement_distribution": {
+            "count": 812,
+            "p50": 13.61539888386211,
+            "p90": 103.3556061794556,
+            "p95": 123.6935354920733,
+            "p99": 158.75516617023695,
+            "max": 219.2015523960502
+          },
+          "snr_p95": 1.5070085471840415,
+          "snr_p99": 0.9549279935730058,
+          "roc_auc": 0.8580802882141019,
+          "pr_auc": 0.9370424155173129,
+          "candidate_threshold": 30.0,
+          "hold_false_positive_rate": 0.0,
+          "movement_miss_rate": 0.6724137931034483,
+          "max_contiguous_false_active_ms": 0,
+          "signal_filter_delay_ms": 30.0,
+          "detection_dwell_ms": 100.0,
+          "total_uncompensated_latency_ms": 130.0,
+          "measured_first_trigger_latency_ms": 19.0
+        },
+        "reg_slope": {
+          "hold_distribution": {
+            "count": 402,
+            "p50": 2.562768314558932,
+            "p90": 11.225054290500855,
+            "p95": 17.412416493103343,
+            "p99": 28.516064772067814,
+            "max": 37.88556917744826
+          },
+          "movement_distribution": {
+            "count": 812,
+            "p50": 25.28678672010816,
+            "p90": 206.71121235891164,
+            "p95": 247.3870709841466,
+            "p99": 317.5103323404734,
+            "max": 438.4031047921011
+          },
+          "snr_p95": 1.4522273074575074,
+          "snr_p99": 0.8867558312210453,
+          "roc_auc": 0.852161605764282,
+          "pr_auc": 0.934099981116265,
+          "candidate_threshold": 30.0,
+          "hold_false_positive_rate": 0.007462686567164179,
+          "movement_miss_rate": 0.5443349753694581,
+          "max_contiguous_false_active_ms": 20,
+          "signal_filter_delay_ms": 30.0,
+          "detection_dwell_ms": 100.0,
+          "total_uncompensated_latency_ms": 130.0,
+          "measured_first_trigger_latency_ms": 18.5
+        },
+        "coherence": {
+          "hold_distribution": {
+            "count": 402,
+            "p50": 0.0,
+            "p90": 0.0,
+            "p95": 0.0,
+            "p99": 1.0,
+            "max": 1.0
+          },
+          "movement_distribution": {
+            "count": 812,
+            "p50": 0.9999999999999793,
+            "p90": 1.0,
+            "p95": 1.0,
+            "p99": 1.0,
+            "max": 1.0
+          },
+          "snr_p95": 9999.999999999793,
+          "snr_p99": 0.9999999999999793,
+          "roc_auc": 0.768347302894395,
+          "pr_auc": 0.9118027807306495,
+          "candidate_threshold": 0.5,
+          "hold_false_positive_rate": 0.029850746268656716,
+          "movement_miss_rate": 0.458128078817734,
+          "max_contiguous_false_active_ms": 67,
+          "signal_filter_delay_ms": 30.0,
+          "detection_dwell_ms": 100.0,
+          "total_uncompensated_latency_ms": 130.0,
+          "measured_first_trigger_latency_ms": 18.5
+        },
+        "gated_activity": {
+          "hold_distribution": {
+            "count": 402,
+            "p50": 0.0,
+            "p90": 0.0,
+            "p95": 0.0,
+            "p99": 28.37719320762971,
+            "max": 37.88556917744826
+          },
+          "movement_distribution": {
+            "count": 812,
+            "p50": 24.59121479285185,
+            "p90": 206.71121235891158,
+            "p95": 247.3870709841466,
+            "p99": 317.51033234047287,
+            "max": 438.4031047921011
+          },
+          "snr_p95": 245912.1479285185,
+          "snr_p99": 0.8665837601669523,
+          "roc_auc": 0.7721215351812367,
+          "pr_auc": 0.9197806035326409,
+          "candidate_threshold": 18.0,
+          "hold_false_positive_rate": 0.02736318407960199,
+          "movement_miss_rate": 0.46798029556650245,
+          "max_contiguous_false_active_ms": 50,
+          "signal_filter_delay_ms": 30.0,
+          "detection_dwell_ms": 100.0,
+          "total_uncompensated_latency_ms": 130.0,
+          "measured_first_trigger_latency_ms": 18.5
+        },
+        "smoothed_coherence": {
+          "hold_distribution": {
+            "count": 402,
+            "p50": 0.0,
+            "p90": 0.0,
+            "p95": 0.0,
+            "p99": 14.258032386033562,
+            "max": 18.94278458872413
+          },
+          "movement_distribution": {
+            "count": 812,
+            "p50": 12.64339336005408,
+            "p90": 103.35560617945556,
+            "p95": 123.6935354920733,
+            "p99": 158.7551661702367,
+            "max": 219.2015523960502
+          },
+          "snr_p95": 126433.9336005408,
+          "snr_p99": 0.8867558312210667,
+          "roc_auc": 0.7721705511849619,
+          "pr_auc": 0.9198211627029704,
+          "candidate_threshold": 18.0,
+          "hold_false_positive_rate": 0.0024875621890547263,
+          "movement_miss_rate": 0.5751231527093597,
+          "max_contiguous_false_active_ms": 20,
+          "signal_filter_delay_ms": 30.0,
+          "detection_dwell_ms": 100.0,
+          "total_uncompensated_latency_ms": 130.0,
+          "measured_first_trigger_latency_ms": 18.5
+        }
+      },
+      "wrist_speed": {
+        "raw": {
+          "hold_distribution": {
+            "count": 404,
+            "p50": 0.32336405096046966,
+            "p90": 0.9007784273252859,
+            "p95": 1.21833249476056,
+            "p99": 1.958312971605511,
+            "max": 3.540775820694138
+          },
+          "movement_distribution": {
+            "count": 812,
+            "p50": 1.7186266857154824,
+            "p90": 7.435700784024488,
+            "p95": 9.505351528294062,
+            "p99": 16.060845563466703,
+            "max": 26.437465151591397
+          },
+          "snr_p95": 1.4106384694707217,
+          "snr_p99": 0.8776057303580421,
+          "roc_auc": 0.8736739745403111,
+          "pr_auc": 0.9397803449016418,
+          "candidate_threshold": 0.8,
+          "hold_false_positive_rate": 0.13366336633663367,
+          "movement_miss_rate": 0.2857142857142857,
+          "max_contiguous_false_active_ms": 81,
+          "signal_filter_delay_ms": 30.0,
+          "detection_dwell_ms": 100.0,
+          "total_uncompensated_latency_ms": 130.0,
+          "measured_first_trigger_latency_ms": 18.5
+        },
+        "smoothed": {
+          "hold_distribution": {
+            "count": 402,
+            "p50": 0.17226116316770562,
+            "p90": 0.40899740601764917,
+            "p95": 0.49469705774839046,
+            "p99": 0.730426867972443,
+            "max": 0.9354965490271496
+          },
+          "movement_distribution": {
+            "count": 812,
+            "p50": 0.9161107162669833,
+            "p90": 3.6300804114472163,
+            "p95": 4.4030482010307725,
+            "p99": 6.49884673842656,
+            "max": 7.667751485797928
+          },
+          "snr_p95": 1.8518620677403128,
+          "snr_p99": 1.2542127849294087,
+          "roc_auc": 0.8961718501090606,
+          "pr_auc": 0.9526886317227181,
+          "candidate_threshold": 0.5,
+          "hold_false_positive_rate": 0.04975124378109453,
+          "movement_miss_rate": 0.3312807881773399,
+          "max_contiguous_false_active_ms": 81,
+          "signal_filter_delay_ms": 30.0,
+          "detection_dwell_ms": 100.0,
+          "total_uncompensated_latency_ms": 130.0,
+          "measured_first_trigger_latency_ms": 18.5
+        },
+        "reg_slope": {
+          "hold_distribution": {
+            "count": 402,
+            "p50": 0.2339746019265201,
+            "p90": 0.6540963588060417,
+            "p95": 0.8465034624096522,
+            "p99": 1.3198071171434675,
+            "max": 1.8309405436572486
+          },
+          "movement_distribution": {
+            "count": 812,
+            "p50": 1.614417554239231,
+            "p90": 6.759339695873847,
+            "p95": 8.35073272821569,
+            "p99": 11.637259306565007,
+            "max": 14.439033020276142
+          },
+          "snr_p95": 1.9071600128411035,
+          "snr_p99": 1.2232223430749527,
+          "roc_auc": 0.879647329853197,
+          "pr_auc": 0.9453662587615811,
+          "candidate_threshold": 0.5,
+          "hold_false_positive_rate": 0.14925373134328357,
+          "movement_miss_rate": 0.21551724137931033,
+          "max_contiguous_false_active_ms": 101,
+          "signal_filter_delay_ms": 30.0,
+          "detection_dwell_ms": 100.0,
+          "total_uncompensated_latency_ms": 130.0,
+          "measured_first_trigger_latency_ms": 18.5
+        },
+        "coherence": {
+          "hold_distribution": {
+            "count": 402,
+            "p50": 0.0,
+            "p90": 0.9172095167170785,
+            "p95": 0.9672695666538429,
+            "p99": 0.9981812149405982,
+            "max": 1.0
+          },
+          "movement_distribution": {
+            "count": 812,
+            "p50": 0.9115541009810819,
+            "p90": 0.9933836828258671,
+            "p95": 0.9967268477243919,
+            "p99": 0.9993674689454621,
+            "max": 0.9998966227257273
+          },
+          "snr_p95": 0.9423992363726462,
+          "snr_p99": 0.9132150428570514,
+          "roc_auc": 0.810148763571306,
+          "pr_auc": 0.8731554093051532,
+          "candidate_threshold": 0.6,
+          "hold_false_positive_rate": 0.2835820895522388,
+          "movement_miss_rate": 0.2204433497536946,
+          "max_contiguous_false_active_ms": 116,
+          "signal_filter_delay_ms": 30.0,
+          "detection_dwell_ms": 100.0,
+          "total_uncompensated_latency_ms": 130.0,
+          "measured_first_trigger_latency_ms": 18.5
+        },
+        "gated_activity": {
+          "hold_distribution": {
+            "count": 402,
+            "p50": 0.0,
+            "p90": 0.5427162149811946,
+            "p95": 0.8368749366326831,
+            "p99": 1.2398563962890465,
+            "max": 1.79174539868378
+          },
+          "movement_distribution": {
+            "count": 812,
+            "p50": 1.4561163022185646,
+            "p90": 6.469966872315562,
+            "p95": 7.870162067382098,
+            "p99": 11.307218139434738,
+            "max": 14.395946792370417
+          },
+          "snr_p95": 1.7399449290207096,
+          "snr_p99": 1.1744233498143777,
+          "roc_auc": 0.8644584956988457,
+          "pr_auc": 0.9398720194859097,
+          "candidate_threshold": 0.35,
+          "hold_false_positive_rate": 0.20398009950248755,
+          "movement_miss_rate": 0.2315270935960591,
+          "max_contiguous_false_active_ms": 102,
+          "signal_filter_delay_ms": 30.0,
+          "detection_dwell_ms": 100.0,
+          "total_uncompensated_latency_ms": 130.0,
+          "measured_first_trigger_latency_ms": 18.5
+        },
+        "smoothed_coherence": {
+          "hold_distribution": {
+            "count": 402,
+            "p50": 0.0,
+            "p90": 0.32704817940302083,
+            "p95": 0.4232517312048262,
+            "p99": 0.6599035585717338,
+            "max": 0.9154702718286243
+          },
+          "movement_distribution": {
+            "count": 812,
+            "p50": 0.8072087771196155,
+            "p90": 3.3796698479369236,
+            "p95": 4.175366364107845,
+            "p99": 5.818629653282503,
+            "max": 7.219516510138072
+          },
+          "snr_p95": 1.9071600128411033,
+          "snr_p99": 1.2232223430749527,
+          "roc_auc": 0.8716424037448227,
+          "pr_auc": 0.9438026614163951,
+          "candidate_threshold": 0.35,
+          "hold_false_positive_rate": 0.08208955223880597,
+          "movement_miss_rate": 0.31157635467980294,
+          "max_contiguous_false_active_ms": 101,
+          "signal_filter_delay_ms": 30.0,
+          "detection_dwell_ms": 100.0,
+          "total_uncompensated_latency_ms": 130.0,
+          "measured_first_trigger_latency_ms": 18.5
+        }
+      }
+    },
+    "w_80ms": {
+      "elbow_angle": {
+        "raw": {
+          "hold_distribution": {
+            "count": 404,
+            "p50": 16.13357968708178,
+            "p90": 55.70475208886251,
+            "p95": 67.56220267062774,
+            "p99": 101.08016661078982,
+            "max": 168.025540073076
+          },
+          "movement_distribution": {
+            "count": 812,
+            "p50": 84.72936654218108,
+            "p90": 504.8881632038232,
+            "p95": 659.3772579551312,
+            "p99": 884.8091965344385,
+            "max": 1205.0581206921204
+          },
+          "snr_p95": 1.25409420049913,
+          "snr_p99": 0.8382392845515614,
+          "roc_auc": 0.8220809149880506,
+          "pr_auc": 0.9178118801682589,
+          "candidate_threshold": 60.0,
+          "hold_false_positive_rate": 0.07425742574257425,
+          "movement_miss_rate": 0.4014778325123153,
+          "max_contiguous_false_active_ms": 50,
+          "signal_filter_delay_ms": 40.0,
+          "detection_dwell_ms": 100.0,
+          "total_uncompensated_latency_ms": 140.0,
+          "measured_first_trigger_latency_ms": 19.0
+        },
+        "smoothed": {
+          "hold_distribution": {
+            "count": 400,
+            "p50": 7.785205641075046,
+            "p90": 21.048248790466776,
+            "p95": 26.16274516358715,
+            "p99": 44.79169106212824,
+            "max": 52.89038826417546
+          },
+          "movement_distribution": {
+            "count": 812,
+            "p50": 51.905717846887384,
+            "p90": 308.6655779581887,
+            "p95": 381.65008677338636,
+            "p99": 486.2237647014791,
+            "max": 602.959743989174
+          },
+          "snr_p95": 1.9839553350513406,
+          "snr_p99": 1.1588246975290941,
+          "roc_auc": 0.8450954433497537,
+          "pr_auc": 0.9329797330084093,
+          "candidate_threshold": 40.0,
+          "hold_false_positive_rate": 0.015,
+          "movement_miss_rate": 0.43842364532019706,
+          "max_contiguous_false_active_ms": 41,
+          "signal_filter_delay_ms": 40.0,
+          "detection_dwell_ms": 100.0,
+          "total_uncompensated_latency_ms": 140.0,
+          "measured_first_trigger_latency_ms": 18.5
+        },
+        "reg_slope": {
+          "hold_distribution": {
+            "count": 400,
+            "p50": 10.372231619469424,
+            "p90": 28.781055369255753,
+            "p95": 35.736888362784065,
+            "p99": 58.770815085035046,
+            "max": 83.49348788144901
+          },
+          "movement_distribution": {
+            "count": 812,
+            "p50": 72.97396722918342,
+            "p90": 432.53473801096163,
+            "p95": 526.2998587761703,
+            "p99": 688.7522124849429,
+            "max": 866.5231763481205
+          },
+          "snr_p95": 2.041978766824522,
+          "snr_p99": 1.2416701576045515,
+          "roc_auc": 0.8505141625615763,
+          "pr_auc": 0.9353022869058062,
+          "candidate_threshold": 40.0,
+          "hold_false_positive_rate": 0.0375,
+          "movement_miss_rate": 0.35591133004926107,
+          "max_contiguous_false_active_ms": 61,
+          "signal_filter_delay_ms": 40.0,
+          "detection_dwell_ms": 100.0,
+          "total_uncompensated_latency_ms": 140.0,
+          "measured_first_trigger_latency_ms": 18.5
+        },
+        "coherence": {
+          "hold_distribution": {
+            "count": 400,
+            "p50": 0.2875225834977393,
+            "p90": 1.0,
+            "p95": 1.0,
+            "p99": 1.0,
+            "max": 1.0
+          },
+          "movement_distribution": {
+            "count": 812,
+            "p50": 0.8835869634308966,
+            "p90": 1.0,
+            "p95": 1.0,
+            "p99": 1.0,
+            "max": 1.0
+          },
+          "snr_p95": 0.8835869634308966,
+          "snr_p99": 0.8835869634308966,
+          "roc_auc": 0.7315055418719212,
+          "pr_auc": 0.81496843915341,
+          "candidate_threshold": 0.6,
+          "hold_false_positive_rate": 0.325,
+          "movement_miss_rate": 0.3226600985221675,
+          "max_contiguous_false_active_ms": 162,
+          "signal_filter_delay_ms": 40.0,
+          "detection_dwell_ms": 100.0,
+          "total_uncompensated_latency_ms": 140.0,
+          "measured_first_trigger_latency_ms": 18.5
+        },
+        "gated_activity": {
+          "hold_distribution": {
+            "count": 400,
+            "p50": 2.056345739308203,
+            "p90": 25.619821159911677,
+            "p95": 33.84807885810666,
+            "p99": 54.15871450694155,
+            "max": 83.49348788144901
+          },
+          "movement_distribution": {
+            "count": 812,
+            "p50": 62.65127484773072,
+            "p90": 427.6981674573483,
+            "p95": 526.2998587761703,
+            "p99": 688.7522124849429,
+            "max": 866.5231763481205
+          },
+          "snr_p95": 1.8509551195023186,
+          "snr_p99": 1.1568087503203326,
+          "roc_auc": 0.8346366995073892,
+          "pr_auc": 0.9244743047954475,
+          "candidate_threshold": 30.0,
+          "hold_false_positive_rate": 0.075,
+          "movement_miss_rate": 0.3793103448275862,
+          "max_contiguous_false_active_ms": 102,
+          "signal_filter_delay_ms": 40.0,
+          "detection_dwell_ms": 100.0,
+          "total_uncompensated_latency_ms": 140.0,
+          "measured_first_trigger_latency_ms": 18.5
+        },
+        "smoothed_coherence": {
+          "hold_distribution": {
+            "count": 400,
+            "p50": 1.3858495671829507,
+            "p90": 18.263904396729906,
+            "p95": 24.83608318286806,
+            "p99": 41.005983819636434,
+            "max": 52.89038826417546
+          },
+          "movement_distribution": {
+            "count": 812,
+            "p50": 43.80675361646627,
+            "p90": 306.4747601454809,
+            "p95": 381.46460188456666,
+            "p99": 486.2237647014791,
+            "max": 602.959743989174
+          },
+          "snr_p95": 1.7638350336450872,
+          "snr_p99": 1.0683014900739594,
+          "roc_auc": 0.8316810344827587,
+          "pr_auc": 0.9228130661372177,
+          "candidate_threshold": 30.0,
+          "hold_false_positive_rate": 0.0275,
+          "movement_miss_rate": 0.4445812807881773,
+          "max_contiguous_false_active_ms": 61,
+          "signal_filter_delay_ms": 40.0,
+          "detection_dwell_ms": 100.0,
+          "total_uncompensated_latency_ms": 140.0,
+          "measured_first_trigger_latency_ms": 19.0
+        }
+      },
+      "forearm_orientation": {
+        "raw": {
+          "hold_distribution": {
+            "count": 404,
+            "p50": 23.527676242727388,
+            "p90": 73.6192277182488,
+            "p95": 96.66231860748823,
+            "p99": 162.69619897652777,
+            "max": 253.40905653499885
+          },
+          "movement_distribution": {
+            "count": 812,
+            "p50": 131.56011930230022,
+            "p90": 590.1146026347001,
+            "p95": 809.3555908367385,
+            "p99": 1338.13233460229,
+            "max": 3066.608595138998
+          },
+          "snr_p95": 1.3610279703357802,
+          "snr_p99": 0.8086244185783372,
+          "roc_auc": 0.8624347656440521,
+          "pr_auc": 0.9356967939536138,
+          "candidate_threshold": 60.0,
+          "hold_false_positive_rate": 0.13861386138613863,
+          "movement_miss_rate": 0.27832512315270935,
+          "max_contiguous_false_active_ms": 101,
+          "signal_filter_delay_ms": 40.0,
+          "detection_dwell_ms": 100.0,
+          "total_uncompensated_latency_ms": 140.0,
+          "measured_first_trigger_latency_ms": 18.5
+        },
+        "smoothed": {
+          "hold_distribution": {
+            "count": 400,
+            "p50": 13.851085055692435,
+            "p90": 28.5841427212705,
+            "p95": 35.574265934796514,
+            "p99": 50.350783095599816,
+            "max": 93.63472926676461
+          },
+          "movement_distribution": {
+            "count": 812,
+            "p50": 77.29434771994298,
+            "p90": 277.2074222191791,
+            "p95": 331.45934285592773,
+            "p99": 493.24187337386394,
+            "max": 651.9702561976221
+          },
+          "snr_p95": 2.1727601593133223,
+          "snr_p99": 1.5351170918868544,
+          "roc_auc": 0.9053694581280788,
+          "pr_auc": 0.9596761831420427,
+          "candidate_threshold": 40.0,
+          "hold_false_positive_rate": 0.03,
+          "movement_miss_rate": 0.2881773399014778,
+          "max_contiguous_false_active_ms": 50,
+          "signal_filter_delay_ms": 40.0,
+          "detection_dwell_ms": 100.0,
+          "total_uncompensated_latency_ms": 140.0,
+          "measured_first_trigger_latency_ms": 18.5
+        },
+        "reg_slope": {
+          "hold_distribution": {
+            "count": 400,
+            "p50": 17.0466021403944,
+            "p90": 46.38575861262571,
+            "p95": 56.25055134231392,
+            "p99": 88.59356901008505,
+            "max": 183.60548769042646
+          },
+          "movement_distribution": {
+            "count": 812,
+            "p50": 120.70968741176046,
+            "p90": 497.93125728878823,
+            "p95": 619.7002068119498,
+            "p99": 900.1126975958372,
+            "max": 1145.0645422281232
+          },
+          "snr_p95": 2.14592896480568,
+          "snr_p99": 1.3625107190118897,
+          "roc_auc": 0.8820966748768473,
+          "pr_auc": 0.9486164066500564,
+          "candidate_threshold": 40.0,
+          "hold_false_positive_rate": 0.1275,
+          "movement_miss_rate": 0.21921182266009853,
+          "max_contiguous_false_active_ms": 67,
+          "signal_filter_delay_ms": 40.0,
+          "detection_dwell_ms": 100.0,
+          "total_uncompensated_latency_ms": 140.0,
+          "measured_first_trigger_latency_ms": 18.5
+        },
+        "coherence": {
+          "hold_distribution": {
+            "count": 400,
+            "p50": 0.6088909932211517,
+            "p90": 0.9316464890770709,
+            "p95": 0.9732935067913235,
+            "p99": 0.9871773427157106,
+            "max": 0.9981059679705642
+          },
+          "movement_distribution": {
+            "count": 812,
+            "p50": 0.864683063605145,
+            "p90": 0.9828327417405108,
+            "p95": 0.9892185644484449,
+            "p99": 0.9980289388854461,
+            "max": 0.9998798021947941
+          },
+          "snr_p95": 0.8884093622033534,
+          "snr_p99": 0.8759146165433805,
+          "roc_auc": 0.7022229064039409,
+          "pr_auc": 0.816383567439973,
+          "candidate_threshold": 0.6,
+          "hold_false_positive_rate": 0.5075,
+          "movement_miss_rate": 0.24507389162561577,
+          "max_contiguous_false_active_ms": 203,
+          "signal_filter_delay_ms": 40.0,
+          "detection_dwell_ms": 100.0,
+          "total_uncompensated_latency_ms": 140.0,
+          "measured_first_trigger_latency_ms": 18.5
+        },
+        "gated_activity": {
+          "hold_distribution": {
+            "count": 400,
+            "p50": 11.054412103081553,
+            "p90": 38.971688195391664,
+            "p95": 50.451103779118164,
+            "p99": 84.78162996874599,
+            "max": 180.0132032955264
+          },
+          "movement_distribution": {
+            "count": 812,
+            "p50": 95.07391932719258,
+            "p90": 436.09549275055105,
+            "p95": 571.3858088573432,
+            "p99": 826.1621919779159,
+            "max": 1143.5785122534166
+          },
+          "snr_p95": 1.884476497153347,
+          "snr_p99": 1.1213976348678454,
+          "roc_auc": 0.8564131773399015,
+          "pr_auc": 0.9367776494939182,
+          "candidate_threshold": 30.0,
+          "hold_false_positive_rate": 0.1425,
+          "movement_miss_rate": 0.2413793103448276,
+          "max_contiguous_false_active_ms": 67,
+          "signal_filter_delay_ms": 40.0,
+          "detection_dwell_ms": 100.0,
+          "total_uncompensated_latency_ms": 140.0,
+          "measured_first_trigger_latency_ms": 18.5
+        },
+        "smoothed_coherence": {
+          "hold_distribution": {
+            "count": 400,
+            "p50": 8.5233010701972,
+            "p90": 23.192879306312854,
+            "p95": 28.12527567115696,
+            "p99": 44.296784505042524,
+            "max": 91.80274384521324
+          },
+          "movement_distribution": {
+            "count": 812,
+            "p50": 60.354843705880235,
+            "p90": 248.96562864439412,
+            "p95": 309.8501034059749,
+            "p99": 450.0563487979186,
+            "max": 572.5322711140615
+          },
+          "snr_p95": 2.1459289648056803,
+          "snr_p99": 1.36251071901189,
+          "roc_auc": 0.8814932266009852,
+          "pr_auc": 0.9484903196437532,
+          "candidate_threshold": 30.0,
+          "hold_false_positive_rate": 0.0425,
+          "movement_miss_rate": 0.31896551724137934,
+          "max_contiguous_false_active_ms": 61,
+          "signal_filter_delay_ms": 40.0,
+          "detection_dwell_ms": 100.0,
+          "total_uncompensated_latency_ms": 140.0,
+          "measured_first_trigger_latency_ms": 18.5
+        }
+      },
+      "pelvis_yaw": {
+        "raw": {
+          "hold_distribution": {
+            "count": 404,
+            "p50": 2.9092443126067735,
+            "p90": 12.909959100683709,
+            "p95": 16.669387843826485,
+            "p99": 33.47558106869454,
+            "max": 48.063204580230106
+          },
+          "movement_distribution": {
+            "count": 812,
+            "p50": 26.345335899032563,
+            "p90": 216.6917204664915,
+            "p95": 265.3620664027369,
+            "p99": 365.95454381079753,
+            "max": 571.461782118436
+          },
+          "snr_p95": 1.5804621108980657,
+          "snr_p99": 0.7870016011064856,
+          "roc_auc": 0.8424834170609179,
+          "pr_auc": 0.9271637266282514,
+          "candidate_threshold": 45.0,
+          "hold_false_positive_rate": 0.0024752475247524753,
+          "movement_miss_rate": 0.6317733990147784,
+          "max_contiguous_false_active_ms": 17,
+          "signal_filter_delay_ms": 40.0,
+          "detection_dwell_ms": 100.0,
+          "total_uncompensated_latency_ms": 140.0,
+          "measured_first_trigger_latency_ms": 19.0
+        },
+        "smoothed": {
+          "hold_distribution": {
+            "count": 400,
+            "p50": 1.6618115449885174,
+            "p90": 6.7650331145776015,
+            "p95": 8.399045360911972,
+            "p99": 14.318129445045846,
+            "max": 18.94291951548956
+          },
+          "movement_distribution": {
+            "count": 812,
+            "p50": 14.779108314558844,
+            "p90": 101.61349370563133,
+            "p95": 118.72681424581526,
+            "p99": 152.66425883060032,
+            "max": 193.59851490142498
+          },
+          "snr_p95": 1.759617632658448,
+          "snr_p99": 1.032195467381565,
+          "roc_auc": 0.8648676108374385,
+          "pr_auc": 0.9401384636027309,
+          "candidate_threshold": 30.0,
+          "hold_false_positive_rate": 0.0,
+          "movement_miss_rate": 0.6724137931034483,
+          "max_contiguous_false_active_ms": 0,
+          "signal_filter_delay_ms": 40.0,
+          "detection_dwell_ms": 100.0,
+          "total_uncompensated_latency_ms": 140.0,
+          "measured_first_trigger_latency_ms": 18.5
+        },
+        "reg_slope": {
+          "hold_distribution": {
+            "count": 400,
+            "p50": 2.5452325617949554,
+            "p90": 11.585781976572642,
+            "p95": 15.616239305851032,
+            "p99": 24.744735597201824,
+            "max": 36.57042412159113
+          },
+          "movement_distribution": {
+            "count": 812,
+            "p50": 25.317986510571696,
+            "p90": 203.22698741126266,
+            "p95": 237.45362849163052,
+            "p99": 305.3285176612006,
+            "max": 387.19702980284995
+          },
+          "snr_p95": 1.6212601519935501,
+          "snr_p99": 1.0231665806699788,
+          "roc_auc": 0.8615178571428571,
+          "pr_auc": 0.9384286564182973,
+          "candidate_threshold": 30.0,
+          "hold_false_positive_rate": 0.0075,
+          "movement_miss_rate": 0.5283251231527094,
+          "max_contiguous_false_active_ms": 20,
+          "signal_filter_delay_ms": 40.0,
+          "detection_dwell_ms": 100.0,
+          "total_uncompensated_latency_ms": 140.0,
+          "measured_first_trigger_latency_ms": 18.5
+        },
+        "coherence": {
+          "hold_distribution": {
+            "count": 400,
+            "p50": 0.0,
+            "p90": 0.0,
+            "p95": 0.9093791207248477,
+            "p99": 1.0,
+            "max": 1.0
+          },
+          "movement_distribution": {
+            "count": 812,
+            "p50": 0.9999999999999951,
+            "p90": 1.0,
+            "p95": 1.0,
+            "p99": 1.0,
+            "max": 1.0
+          },
+          "snr_p95": 1.0996513744486627,
+          "snr_p99": 0.9999999999999951,
+          "roc_auc": 0.7983020320197044,
+          "pr_auc": 0.9116814401738771,
+          "candidate_threshold": 0.5,
+          "hold_false_positive_rate": 0.065,
+          "movement_miss_rate": 0.3805418719211823,
+          "max_contiguous_false_active_ms": 81,
+          "signal_filter_delay_ms": 40.0,
+          "detection_dwell_ms": 100.0,
+          "total_uncompensated_latency_ms": 140.0,
+          "measured_first_trigger_latency_ms": 18.5
+        },
+        "gated_activity": {
+          "hold_distribution": {
+            "count": 400,
+            "p50": 0.0,
+            "p90": 0.0,
+            "p95": 14.531387203768244,
+            "p99": 24.11892025582153,
+            "max": 35.30068106290243
+          },
+          "movement_distribution": {
+            "count": 812,
+            "p50": 24.416033741580073,
+            "p90": 203.22698741126266,
+            "p95": 237.45362849163052,
+            "p99": 305.3285176612006,
+            "max": 387.19702980284995
+          },
+          "snr_p95": 1.6802273175439553,
+          "snr_p99": 1.0123186893363036,
+          "roc_auc": 0.8075738916256158,
+          "pr_auc": 0.9284209984924605,
+          "candidate_threshold": 18.0,
+          "hold_false_positive_rate": 0.03,
+          "movement_miss_rate": 0.4248768472906404,
+          "max_contiguous_false_active_ms": 41,
+          "signal_filter_delay_ms": 40.0,
+          "detection_dwell_ms": 100.0,
+          "total_uncompensated_latency_ms": 140.0,
+          "measured_first_trigger_latency_ms": 18.5
+        },
+        "smoothed_coherence": {
+          "hold_distribution": {
+            "count": 400,
+            "p50": 0.0,
+            "p90": 0.0,
+            "p95": 7.6939201637867205,
+            "p99": 12.372367798600909,
+            "max": 18.285212060795562
+          },
+          "movement_distribution": {
+            "count": 812,
+            "p50": 12.658993255285848,
+            "p90": 101.61349370563133,
+            "p95": 118.72681424581526,
+            "p99": 152.6642588306003,
+            "max": 193.59851490142498
+          },
+          "snr_p95": 1.6453242281962366,
+          "snr_p99": 1.023166580669979,
+          "roc_auc": 0.8080572660098522,
+          "pr_auc": 0.9287980499819217,
+          "candidate_threshold": 18.0,
+          "hold_false_positive_rate": 0.0025,
+          "movement_miss_rate": 0.5738916256157636,
+          "max_contiguous_false_active_ms": 17,
+          "signal_filter_delay_ms": 40.0,
+          "detection_dwell_ms": 100.0,
+          "total_uncompensated_latency_ms": 140.0,
+          "measured_first_trigger_latency_ms": 18.5
+        }
+      },
+      "wrist_speed": {
+        "raw": {
+          "hold_distribution": {
+            "count": 404,
+            "p50": 0.32336405096046966,
+            "p90": 0.9007784273252859,
+            "p95": 1.21833249476056,
+            "p99": 1.958312971605511,
+            "max": 3.540775820694138
+          },
+          "movement_distribution": {
+            "count": 812,
+            "p50": 1.7186266857154824,
+            "p90": 7.435700784024488,
+            "p95": 9.505351528294062,
+            "p99": 16.060845563466703,
+            "max": 26.437465151591397
+          },
+          "snr_p95": 1.4106384694707217,
+          "snr_p99": 0.8776057303580421,
+          "roc_auc": 0.8736739745403111,
+          "pr_auc": 0.9397803449016418,
+          "candidate_threshold": 0.8,
+          "hold_false_positive_rate": 0.13366336633663367,
+          "movement_miss_rate": 0.2857142857142857,
+          "max_contiguous_false_active_ms": 81,
+          "signal_filter_delay_ms": 40.0,
+          "detection_dwell_ms": 100.0,
+          "total_uncompensated_latency_ms": 140.0,
+          "measured_first_trigger_latency_ms": 18.5
+        },
+        "smoothed": {
+          "hold_distribution": {
+            "count": 400,
+            "p50": 0.177920337143269,
+            "p90": 0.3837536656110457,
+            "p95": 0.43610852769454234,
+            "p99": 0.6994161425882416,
+            "max": 0.7948404039447744
+          },
+          "movement_distribution": {
+            "count": 812,
+            "p50": 0.9769008442666701,
+            "p90": 3.595214611156471,
+            "p95": 4.412935400286276,
+            "p99": 5.804801558905319,
+            "max": 6.976985212146345
+          },
+          "snr_p95": 2.2400406830634316,
+          "snr_p99": 1.3967376284047086,
+          "roc_auc": 0.9043965517241379,
+          "pr_auc": 0.9574565718006931,
+          "candidate_threshold": 0.5,
+          "hold_false_positive_rate": 0.0275,
+          "movement_miss_rate": 0.32142857142857145,
+          "max_contiguous_false_active_ms": 67,
+          "signal_filter_delay_ms": 40.0,
+          "detection_dwell_ms": 100.0,
+          "total_uncompensated_latency_ms": 140.0,
+          "measured_first_trigger_latency_ms": 18.5
+        },
+        "reg_slope": {
+          "hold_distribution": {
+            "count": 400,
+            "p50": 0.21489171310943755,
+            "p90": 0.5819529468613325,
+            "p95": 0.7050692193881618,
+            "p99": 1.122085140444463,
+            "max": 1.4618893554174348
+          },
+          "movement_distribution": {
+            "count": 812,
+            "p50": 1.6493478368518342,
+            "p90": 6.564852351468652,
+            "p95": 7.924034134060735,
+            "p99": 10.649818647362473,
+            "max": 13.454447373006087
+          },
+          "snr_p95": 2.3392707999408757,
+          "snr_p99": 1.4698954450092085,
+          "roc_auc": 0.877795566502463,
+          "pr_auc": 0.945939857641316,
+          "candidate_threshold": 0.5,
+          "hold_false_positive_rate": 0.145,
+          "movement_miss_rate": 0.23399014778325122,
+          "max_contiguous_false_active_ms": 83,
+          "signal_filter_delay_ms": 40.0,
+          "detection_dwell_ms": 100.0,
+          "total_uncompensated_latency_ms": 140.0,
+          "measured_first_trigger_latency_ms": 18.5
+        },
+        "coherence": {
+          "hold_distribution": {
+            "count": 400,
+            "p50": 0.30069925369850636,
+            "p90": 0.8703628770598137,
+            "p95": 0.9290108777052759,
+            "p99": 0.9772422328718248,
+            "max": 0.9998384899205969
+          },
+          "movement_distribution": {
+            "count": 812,
+            "p50": 0.8636838523521171,
+            "p90": 0.9822552953517679,
+            "p95": 0.9898912488269884,
+            "p99": 0.9966096072033748,
+            "max": 0.9987551671713482
+          },
+          "snr_p95": 0.9296810974759291,
+          "snr_p99": 0.8837971009644218,
+          "roc_auc": 0.8034790640394088,
+          "pr_auc": 0.8776275172836355,
+          "candidate_threshold": 0.6,
+          "hold_false_positive_rate": 0.325,
+          "movement_miss_rate": 0.24014778325123154,
+          "max_contiguous_false_active_ms": 121,
+          "signal_filter_delay_ms": 40.0,
+          "detection_dwell_ms": 100.0,
+          "total_uncompensated_latency_ms": 140.0,
+          "measured_first_trigger_latency_ms": 18.5
+        },
+        "gated_activity": {
+          "hold_distribution": {
+            "count": 400,
+            "p50": 0.05180783707834499,
+            "p90": 0.47535453740118033,
+            "p95": 0.6454841377016768,
+            "p99": 1.063741922869152,
+            "max": 1.4616532455515627
+          },
+          "movement_distribution": {
+            "count": 812,
+            "p50": 1.4799987448798158,
+            "p90": 6.082970330435149,
+            "p95": 7.398839541488454,
+            "p99": 10.041238557150308,
+            "max": 12.97280620559766
+          },
+          "snr_p95": 2.2928506812723977,
+          "snr_p99": 1.3913137322706293,
+          "roc_auc": 0.869402709359606,
+          "pr_auc": 0.9411201365351569,
+          "candidate_threshold": 0.35,
+          "hold_false_positive_rate": 0.1625,
+          "movement_miss_rate": 0.25985221674876846,
+          "max_contiguous_false_active_ms": 100,
+          "signal_filter_delay_ms": 40.0,
+          "detection_dwell_ms": 100.0,
+          "total_uncompensated_latency_ms": 140.0,
+          "measured_first_trigger_latency_ms": 18.5
+        },
+        "smoothed_coherence": {
+          "hold_distribution": {
+            "count": 400,
+            "p50": 0.07518692869921567,
+            "p90": 0.2909764734306662,
+            "p95": 0.3525346096940809,
+            "p99": 0.5610425702222315,
+            "max": 0.7309446777087174
+          },
+          "movement_distribution": {
+            "count": 812,
+            "p50": 0.8246739184259171,
+            "p90": 3.282426175734326,
+            "p95": 3.9620170670303674,
+            "p99": 5.324909323681236,
+            "max": 6.727223686503044
+          },
+          "snr_p95": 2.3392707999408757,
+          "snr_p99": 1.4698954450092085,
+          "roc_auc": 0.88189039408867,
+          "pr_auc": 0.9475008894685537,
+          "candidate_threshold": 0.35,
+          "hold_false_positive_rate": 0.0525,
+          "movement_miss_rate": 0.32142857142857145,
+          "max_contiguous_false_active_ms": 67,
+          "signal_filter_delay_ms": 40.0,
+          "detection_dwell_ms": 100.0,
+          "total_uncompensated_latency_ms": 140.0,
+          "measured_first_trigger_latency_ms": 18.5
+        }
+      }
+    },
+    "w_100ms": {
+      "elbow_angle": {
+        "raw": {
+          "hold_distribution": {
+            "count": 404,
+            "p50": 16.13357968708178,
+            "p90": 55.70475208886251,
+            "p95": 67.56220267062774,
+            "p99": 101.08016661078982,
+            "max": 168.025540073076
+          },
+          "movement_distribution": {
+            "count": 812,
+            "p50": 84.72936654218108,
+            "p90": 504.8881632038232,
+            "p95": 659.3772579551312,
+            "p99": 884.8091965344385,
+            "max": 1205.0581206921204
+          },
+          "snr_p95": 1.25409420049913,
+          "snr_p99": 0.8382392845515614,
+          "roc_auc": 0.8220809149880506,
+          "pr_auc": 0.9178118801682589,
+          "candidate_threshold": 60.0,
+          "hold_false_positive_rate": 0.07425742574257425,
+          "movement_miss_rate": 0.4014778325123153,
+          "max_contiguous_false_active_ms": 50,
+          "signal_filter_delay_ms": 50.0,
+          "detection_dwell_ms": 100.0,
+          "total_uncompensated_latency_ms": 150.0,
+          "measured_first_trigger_latency_ms": 19.0
+        },
+        "smoothed": {
+          "hold_distribution": {
+            "count": 400,
+            "p50": 7.13813402755132,
+            "p90": 19.46973104263631,
+            "p95": 24.846688415423127,
+            "p99": 44.82290836341878,
+            "max": 53.38313075933013
+          },
+          "movement_distribution": {
+            "count": 812,
+            "p50": 54.142046539626804,
+            "p90": 326.56039862825827,
+            "p95": 405.81317768773414,
+            "p99": 507.0616911634721,
+            "max": 611.6391867476112
+          },
+          "snr_p95": 2.1790447738709164,
+          "snr_p99": 1.2079101628267752,
+          "roc_auc": 0.8608497536945813,
+          "pr_auc": 0.9400421666369183,
+          "candidate_threshold": 40.0,
+          "hold_false_positive_rate": 0.0125,
+          "movement_miss_rate": 0.41995073891625617,
+          "max_contiguous_false_active_ms": 41,
+          "signal_filter_delay_ms": 50.0,
+          "detection_dwell_ms": 100.0,
+          "total_uncompensated_latency_ms": 150.0,
+          "measured_first_trigger_latency_ms": 18.5
+        },
+        "reg_slope": {
+          "hold_distribution": {
+            "count": 400,
+            "p50": 8.635512692107476,
+            "p90": 24.99077035270666,
+            "p95": 31.845833171804575,
+            "p99": 52.65739375126676,
+            "max": 72.23428246206252
+          },
+          "movement_distribution": {
+            "count": 812,
+            "p50": 68.42506488325262,
+            "p90": 409.68366005642434,
+            "p95": 505.5245765260727,
+            "p99": 660.5242277785052,
+            "max": 769.0626951782679
+          },
+          "snr_p95": 2.148634784152367,
+          "snr_p99": 1.299438882343214,
+          "roc_auc": 0.8599692118226601,
+          "pr_auc": 0.9399768636762502,
+          "candidate_threshold": 40.0,
+          "hold_false_positive_rate": 0.0325,
+          "movement_miss_rate": 0.3633004926108374,
+          "max_contiguous_false_active_ms": 81,
+          "signal_filter_delay_ms": 50.0,
+          "detection_dwell_ms": 100.0,
+          "total_uncompensated_latency_ms": 150.0,
+          "measured_first_trigger_latency_ms": 18.5
+        },
+        "coherence": {
+          "hold_distribution": {
+            "count": 400,
+            "p50": 0.3817705688285438,
+            "p90": 1.0,
+            "p95": 1.0,
+            "p99": 1.0,
+            "max": 1.0
+          },
+          "movement_distribution": {
+            "count": 812,
+            "p50": 0.8205861807378463,
+            "p90": 1.0,
+            "p95": 1.0,
+            "p99": 1.0,
+            "max": 1.0
+          },
+          "snr_p95": 0.8205861807378463,
+          "snr_p99": 0.8205861807378463,
+          "roc_auc": 0.7079695197044334,
+          "pr_auc": 0.8092080378076721,
+          "candidate_threshold": 0.6,
+          "hold_false_positive_rate": 0.32,
+          "movement_miss_rate": 0.3472906403940887,
+          "max_contiguous_false_active_ms": 264,
+          "signal_filter_delay_ms": 50.0,
+          "detection_dwell_ms": 100.0,
+          "total_uncompensated_latency_ms": 150.0,
+          "measured_first_trigger_latency_ms": 18.5
+        },
+        "gated_activity": {
+          "hold_distribution": {
+            "count": 400,
+            "p50": 3.212316783779111,
+            "p90": 21.316255340475767,
+            "p95": 28.282752619676128,
+            "p99": 44.89219168081287,
+            "max": 72.23428246206252
+          },
+          "movement_distribution": {
+            "count": 812,
+            "p50": 52.95578213861779,
+            "p90": 398.9203178073094,
+            "p95": 502.40308475986336,
+            "p99": 660.5242277785052,
+            "max": 769.0626951782679
+          },
+          "snr_p95": 1.8723701632130672,
+          "snr_p99": 1.179621224892242,
+          "roc_auc": 0.8283928571428572,
+          "pr_auc": 0.9234901927903788,
+          "candidate_threshold": 30.0,
+          "hold_false_positive_rate": 0.0425,
+          "movement_miss_rate": 0.3916256157635468,
+          "max_contiguous_false_active_ms": 82,
+          "signal_filter_delay_ms": 50.0,
+          "detection_dwell_ms": 100.0,
+          "total_uncompensated_latency_ms": 150.0,
+          "measured_first_trigger_latency_ms": 18.5
+        },
+        "smoothed_coherence": {
+          "hold_distribution": {
+            "count": 400,
+            "p50": 2.5046914379989387,
+            "p90": 17.043786881586104,
+            "p95": 22.708140876465798,
+            "p99": 36.57306931256877,
+            "max": 52.72672943211531
+          },
+          "movement_distribution": {
+            "count": 812,
+            "p50": 41.574162659655215,
+            "p90": 315.53491621019293,
+            "p95": 402.310321609814,
+            "p99": 507.0616911634721,
+            "max": 611.6391867476112
+          },
+          "snr_p95": 1.8308043307385737,
+          "snr_p99": 1.1367425113912373,
+          "roc_auc": 0.8274476600985222,
+          "pr_auc": 0.9229443677479445,
+          "candidate_threshold": 30.0,
+          "hold_false_positive_rate": 0.0225,
+          "movement_miss_rate": 0.44950738916256155,
+          "max_contiguous_false_active_ms": 61,
+          "signal_filter_delay_ms": 50.0,
+          "detection_dwell_ms": 100.0,
+          "total_uncompensated_latency_ms": 150.0,
+          "measured_first_trigger_latency_ms": 19.0
+        }
+      },
+      "forearm_orientation": {
+        "raw": {
+          "hold_distribution": {
+            "count": 404,
+            "p50": 23.527676242727388,
+            "p90": 73.6192277182488,
+            "p95": 96.66231860748823,
+            "p99": 162.69619897652777,
+            "max": 253.40905653499885
+          },
+          "movement_distribution": {
+            "count": 812,
+            "p50": 131.56011930230022,
+            "p90": 590.1146026347001,
+            "p95": 809.3555908367385,
+            "p99": 1338.13233460229,
+            "max": 3066.608595138998
+          },
+          "snr_p95": 1.3610279703357802,
+          "snr_p99": 0.8086244185783372,
+          "roc_auc": 0.8624347656440521,
+          "pr_auc": 0.9356967939536138,
+          "candidate_threshold": 60.0,
+          "hold_false_positive_rate": 0.13861386138613863,
+          "movement_miss_rate": 0.27832512315270935,
+          "max_contiguous_false_active_ms": 101,
+          "signal_filter_delay_ms": 50.0,
+          "detection_dwell_ms": 100.0,
+          "total_uncompensated_latency_ms": 150.0,
+          "measured_first_trigger_latency_ms": 18.5
+        },
+        "smoothed": {
+          "hold_distribution": {
+            "count": 400,
+            "p50": 14.01193733663229,
+            "p90": 29.162715865615336,
+            "p95": 36.043220470763686,
+            "p99": 49.141848776823366,
+            "max": 93.63472926676461
+          },
+          "movement_distribution": {
+            "count": 812,
+            "p50": 83.4124392533309,
+            "p90": 262.563292366471,
+            "p95": 313.36224380925955,
+            "p99": 428.40566171990116,
+            "max": 513.3477299959701
+          },
+          "snr_p95": 2.314233804967305,
+          "snr_p99": 1.6973809762865593,
+          "roc_auc": 0.9099445812807881,
+          "pr_auc": 0.9614784477735678,
+          "candidate_threshold": 40.0,
+          "hold_false_positive_rate": 0.0325,
+          "movement_miss_rate": 0.27586206896551724,
+          "max_contiguous_false_active_ms": 102,
+          "signal_filter_delay_ms": 50.0,
+          "detection_dwell_ms": 100.0,
+          "total_uncompensated_latency_ms": 150.0,
+          "measured_first_trigger_latency_ms": 18.5
+        },
+        "reg_slope": {
+          "hold_distribution": {
+            "count": 400,
+            "p50": 15.532519510257472,
+            "p90": 41.52701961724067,
+            "p95": 52.128002674337196,
+            "p99": 88.66409516302922,
+            "max": 183.60548769042646
+          },
+          "movement_distribution": {
+            "count": 812,
+            "p50": 121.92114293683173,
+            "p90": 438.75655032168044,
+            "p95": 558.5614170843593,
+            "p99": 780.8455692070062,
+            "max": 876.0369583234193
+          },
+          "snr_p95": 2.3388800008033677,
+          "snr_p99": 1.3750903645117205,
+          "roc_auc": 0.8870073891625616,
+          "pr_auc": 0.9510091758867781,
+          "candidate_threshold": 40.0,
+          "hold_false_positive_rate": 0.1075,
+          "movement_miss_rate": 0.23029556650246305,
+          "max_contiguous_false_active_ms": 102,
+          "signal_filter_delay_ms": 50.0,
+          "detection_dwell_ms": 100.0,
+          "total_uncompensated_latency_ms": 150.0,
+          "measured_first_trigger_latency_ms": 18.5
+        },
+        "coherence": {
+          "hold_distribution": {
+            "count": 400,
+            "p50": 0.5636334910731539,
+            "p90": 0.8800491477328186,
+            "p95": 0.9336086822395291,
+            "p99": 0.979841092235713,
+            "max": 0.9872942250560015
+          },
+          "movement_distribution": {
+            "count": 812,
+            "p50": 0.8004357124826729,
+            "p90": 0.9611862177404125,
+            "p95": 0.9755116709751429,
+            "p99": 0.9901043662526361,
+            "max": 0.9963432407742612
+          },
+          "snr_p95": 0.8573567573971115,
+          "snr_p99": 0.8169035967417031,
+          "roc_auc": 0.6988685344827587,
+          "pr_auc": 0.8139022098105364,
+          "candidate_threshold": 0.6,
+          "hold_false_positive_rate": 0.4675,
+          "movement_miss_rate": 0.270935960591133,
+          "max_contiguous_false_active_ms": 203,
+          "signal_filter_delay_ms": 50.0,
+          "detection_dwell_ms": 100.0,
+          "total_uncompensated_latency_ms": 150.0,
+          "measured_first_trigger_latency_ms": 18.5
+        },
+        "gated_activity": {
+          "hold_distribution": {
+            "count": 400,
+            "p50": 9.362395176669905,
+            "p90": 33.07275553036089,
+            "p95": 44.122336410027195,
+            "p99": 85.11236818301798,
+            "max": 180.0132032955264
+          },
+          "movement_distribution": {
+            "count": 812,
+            "p50": 97.07724521131345,
+            "p90": 378.2552870476857,
+            "p95": 515.2959739153538,
+            "p99": 682.0072136369895,
+            "max": 869.2262162877236
+          },
+          "snr_p95": 2.2001836962843107,
+          "snr_p99": 1.140577418813765,
+          "roc_auc": 0.8594411945812808,
+          "pr_auc": 0.9378708099707342,
+          "candidate_threshold": 30.0,
+          "hold_false_positive_rate": 0.1125,
+          "movement_miss_rate": 0.2697044334975369,
+          "max_contiguous_false_active_ms": 102,
+          "signal_filter_delay_ms": 50.0,
+          "detection_dwell_ms": 100.0,
+          "total_uncompensated_latency_ms": 150.0,
+          "measured_first_trigger_latency_ms": 18.5
+        },
+        "smoothed_coherence": {
+          "hold_distribution": {
+            "count": 400,
+            "p50": 7.766259755128736,
+            "p90": 20.763509808620334,
+            "p95": 26.064001337168598,
+            "p99": 44.33204758151461,
+            "max": 91.80274384521324
+          },
+          "movement_distribution": {
+            "count": 812,
+            "p50": 60.960571468415864,
+            "p90": 219.37827516084022,
+            "p95": 279.28070854217964,
+            "p99": 390.4227846035031,
+            "max": 438.01847916170965
+          },
+          "snr_p95": 2.3388800008033677,
+          "snr_p99": 1.3750903645117205,
+          "roc_auc": 0.8875785098522168,
+          "pr_auc": 0.9511508058260347,
+          "candidate_threshold": 30.0,
+          "hold_false_positive_rate": 0.03,
+          "movement_miss_rate": 0.32019704433497537,
+          "max_contiguous_false_active_ms": 102,
+          "signal_filter_delay_ms": 50.0,
+          "detection_dwell_ms": 100.0,
+          "total_uncompensated_latency_ms": 150.0,
+          "measured_first_trigger_latency_ms": 18.5
+        }
+      },
+      "pelvis_yaw": {
+        "raw": {
+          "hold_distribution": {
+            "count": 404,
+            "p50": 2.9092443126067735,
+            "p90": 12.909959100683709,
+            "p95": 16.669387843826485,
+            "p99": 33.47558106869454,
+            "max": 48.063204580230106
+          },
+          "movement_distribution": {
+            "count": 812,
+            "p50": 26.345335899032563,
+            "p90": 216.6917204664915,
+            "p95": 265.3620664027369,
+            "p99": 365.95454381079753,
+            "max": 571.461782118436
+          },
+          "snr_p95": 1.5804621108980657,
+          "snr_p99": 0.7870016011064856,
+          "roc_auc": 0.8424834170609179,
+          "pr_auc": 0.9271637266282514,
+          "candidate_threshold": 45.0,
+          "hold_false_positive_rate": 0.0024752475247524753,
+          "movement_miss_rate": 0.6317733990147784,
+          "max_contiguous_false_active_ms": 17,
+          "signal_filter_delay_ms": 50.0,
+          "detection_dwell_ms": 100.0,
+          "total_uncompensated_latency_ms": 150.0,
+          "measured_first_trigger_latency_ms": 19.0
+        },
+        "smoothed": {
+          "hold_distribution": {
+            "count": 400,
+            "p50": 1.869999048737088,
+            "p90": 7.194153784431685,
+            "p95": 9.21973281681165,
+            "p99": 15.301759409316348,
+            "max": 18.213356614072104
+          },
+          "movement_distribution": {
+            "count": 812,
+            "p50": 14.970608858987703,
+            "p90": 99.958328421932,
+            "p95": 115.25428140582765,
+            "p99": 134.18164913236598,
+            "max": 159.36785648049673
+          },
+          "snr_p95": 1.6237573426954046,
+          "snr_p99": 0.9783586618067575,
+          "roc_auc": 0.8618349753694581,
+          "pr_auc": 0.938372114773057,
+          "candidate_threshold": 30.0,
+          "hold_false_positive_rate": 0.0,
+          "movement_miss_rate": 0.6613300492610837,
+          "max_contiguous_false_active_ms": 0,
+          "signal_filter_delay_ms": 50.0,
+          "detection_dwell_ms": 100.0,
+          "total_uncompensated_latency_ms": 150.0,
+          "measured_first_trigger_latency_ms": 18.5
+        },
+        "reg_slope": {
+          "hold_distribution": {
+            "count": 400,
+            "p50": 2.4148827207030203,
+            "p90": 10.897451953889828,
+            "p95": 14.94030829230496,
+            "p99": 26.881790964506507,
+            "max": 35.54538523885425
+          },
+          "movement_distribution": {
+            "count": 812,
+            "p50": 27.35672199418721,
+            "p90": 199.91665684386348,
+            "p95": 230.50856281165517,
+            "p99": 268.36329826473224,
+            "max": 318.73571296099345
+          },
+          "snr_p95": 1.8310681050857132,
+          "snr_p99": 1.0176673879470226,
+          "roc_auc": 0.8626323891625616,
+          "pr_auc": 0.9391127999549084,
+          "candidate_threshold": 30.0,
+          "hold_false_positive_rate": 0.01,
+          "movement_miss_rate": 0.5197044334975369,
+          "max_contiguous_false_active_ms": 33,
+          "signal_filter_delay_ms": 50.0,
+          "detection_dwell_ms": 100.0,
+          "total_uncompensated_latency_ms": 150.0,
+          "measured_first_trigger_latency_ms": 19.0
+        },
+        "coherence": {
+          "hold_distribution": {
+            "count": 400,
+            "p50": 0.0,
+            "p90": 0.7573236195966755,
+            "p95": 1.0,
+            "p99": 1.0,
+            "max": 1.0
+          },
+          "movement_distribution": {
+            "count": 812,
+            "p50": 0.9999999999999947,
+            "p90": 1.0,
+            "p95": 1.0,
+            "p99": 1.0,
+            "max": 1.0
+          },
+          "snr_p95": 0.9999999999999947,
+          "snr_p99": 0.9999999999999947,
+          "roc_auc": 0.8119519704433498,
+          "pr_auc": 0.8974672400642498,
+          "candidate_threshold": 0.5,
+          "hold_false_positive_rate": 0.12,
+          "movement_miss_rate": 0.29310344827586204,
+          "max_contiguous_false_active_ms": 117,
+          "signal_filter_delay_ms": 50.0,
+          "detection_dwell_ms": 100.0,
+          "total_uncompensated_latency_ms": 150.0,
+          "measured_first_trigger_latency_ms": 18.5
+        },
+        "gated_activity": {
+          "hold_distribution": {
+            "count": 400,
+            "p50": 0.0,
+            "p90": 8.094789552071674,
+            "p95": 14.436643568713585,
+            "p99": 26.881790964506507,
+            "max": 34.68538058499236
+          },
+          "movement_distribution": {
+            "count": 812,
+            "p50": 25.136505257528853,
+            "p90": 199.91665684386297,
+            "p95": 230.508562811655,
+            "p99": 268.36329826473224,
+            "max": 318.73571296099345
+          },
+          "snr_p95": 1.7411599266746118,
+          "snr_p99": 0.9350755420543947,
+          "roc_auc": 0.8348029556650246,
+          "pr_auc": 0.9338215951904274,
+          "candidate_threshold": 18.0,
+          "hold_false_positive_rate": 0.0325,
+          "movement_miss_rate": 0.4273399014778325,
+          "max_contiguous_false_active_ms": 81,
+          "signal_filter_delay_ms": 50.0,
+          "detection_dwell_ms": 100.0,
+          "total_uncompensated_latency_ms": 150.0,
+          "measured_first_trigger_latency_ms": 18.5
+        },
+        "smoothed_coherence": {
+          "hold_distribution": {
+            "count": 400,
+            "p50": 0.0,
+            "p90": 5.115731909844394,
+            "p95": 7.47015414615248,
+            "p99": 13.440895482253252,
+            "max": 17.772692619427122
+          },
+          "movement_distribution": {
+            "count": 812,
+            "p50": 13.678360997093518,
+            "p90": 99.95832842193174,
+            "p95": 115.25428140582758,
+            "p99": 134.18164913236598,
+            "max": 159.36785648049673
+          },
+          "snr_p95": 1.8310681050857014,
+          "snr_p99": 1.0176673879470164,
+          "roc_auc": 0.835621921182266,
+          "pr_auc": 0.9343863523341354,
+          "candidate_threshold": 18.0,
+          "hold_false_positive_rate": 0.0,
+          "movement_miss_rate": 0.5566502463054187,
+          "max_contiguous_false_active_ms": 0,
+          "signal_filter_delay_ms": 50.0,
+          "detection_dwell_ms": 100.0,
+          "total_uncompensated_latency_ms": 150.0,
+          "measured_first_trigger_latency_ms": 19.0
+        }
+      },
+      "wrist_speed": {
+        "raw": {
+          "hold_distribution": {
+            "count": 404,
+            "p50": 0.32336405096046966,
+            "p90": 0.9007784273252859,
+            "p95": 1.21833249476056,
+            "p99": 1.958312971605511,
+            "max": 3.540775820694138
+          },
+          "movement_distribution": {
+            "count": 812,
+            "p50": 1.7186266857154824,
+            "p90": 7.435700784024488,
+            "p95": 9.505351528294062,
+            "p99": 16.060845563466703,
+            "max": 26.437465151591397
+          },
+          "snr_p95": 1.4106384694707217,
+          "snr_p99": 0.8776057303580421,
+          "roc_auc": 0.8736739745403111,
+          "pr_auc": 0.9397803449016418,
+          "candidate_threshold": 0.8,
+          "hold_false_positive_rate": 0.13366336633663367,
+          "movement_miss_rate": 0.2857142857142857,
+          "max_contiguous_false_active_ms": 81,
+          "signal_filter_delay_ms": 50.0,
+          "detection_dwell_ms": 100.0,
+          "total_uncompensated_latency_ms": 150.0,
+          "measured_first_trigger_latency_ms": 18.5
+        },
+        "smoothed": {
+          "hold_distribution": {
+            "count": 400,
+            "p50": 0.19164070626485136,
+            "p90": 0.3833342329226999,
+            "p95": 0.4550019240806203,
+            "p99": 0.610414663174968,
+            "max": 0.731062751711795
+          },
+          "movement_distribution": {
+            "count": 812,
+            "p50": 1.0045410612474397,
+            "p90": 3.617818769397002,
+            "p95": 4.183297324877245,
+            "p99": 5.3061287472083265,
+            "max": 6.2877040295999205
+          },
+          "snr_p95": 2.2077732160742434,
+          "snr_p99": 1.6456699385668268,
+          "roc_auc": 0.9095997536945812,
+          "pr_auc": 0.960162272069307,
+          "candidate_threshold": 0.5,
+          "hold_false_positive_rate": 0.03,
+          "movement_miss_rate": 0.3041871921182266,
+          "max_contiguous_false_active_ms": 100,
+          "signal_filter_delay_ms": 50.0,
+          "detection_dwell_ms": 100.0,
+          "total_uncompensated_latency_ms": 150.0,
+          "measured_first_trigger_latency_ms": 18.5
+        },
+        "reg_slope": {
+          "hold_distribution": {
+            "count": 400,
+            "p50": 0.19609891434888232,
+            "p90": 0.5227676788765696,
+            "p95": 0.6710634351053074,
+            "p99": 0.9530998851428746,
+            "max": 1.4618893554174348
+          },
+          "movement_distribution": {
+            "count": 812,
+            "p50": 1.6837389257713151,
+            "p90": 6.2599910494888595,
+            "p95": 7.4392297921072945,
+            "p99": 9.50080183985938,
+            "max": 11.204101071944809
+          },
+          "snr_p95": 2.509060749982738,
+          "snr_p99": 1.7665923079184025,
+          "roc_auc": 0.8821490147783251,
+          "pr_auc": 0.9485753270780634,
+          "candidate_threshold": 0.5,
+          "hold_false_positive_rate": 0.1075,
+          "movement_miss_rate": 0.25,
+          "max_contiguous_false_active_ms": 102,
+          "signal_filter_delay_ms": 50.0,
+          "detection_dwell_ms": 100.0,
+          "total_uncompensated_latency_ms": 150.0,
+          "measured_first_trigger_latency_ms": 18.5
+        },
+        "coherence": {
+          "hold_distribution": {
+            "count": 400,
+            "p50": 0.4504401369451998,
+            "p90": 0.8521062278536338,
+            "p95": 0.9043568967887204,
+            "p99": 0.9698784914110138,
+            "max": 0.9998384899205969
+          },
+          "movement_distribution": {
+            "count": 812,
+            "p50": 0.8254107597931444,
+            "p90": 0.9657083077632589,
+            "p95": 0.9776909623948045,
+            "p99": 0.9904003384725073,
+            "max": 0.9967143872096127
+          },
+          "snr_p95": 0.9127046664033792,
+          "snr_p99": 0.851045535191019,
+          "roc_auc": 0.7805603448275862,
+          "pr_auc": 0.861363548179404,
+          "candidate_threshold": 0.6,
+          "hold_false_positive_rate": 0.32,
+          "movement_miss_rate": 0.2672413793103448,
+          "max_contiguous_false_active_ms": 183,
+          "signal_filter_delay_ms": 50.0,
+          "detection_dwell_ms": 100.0,
+          "total_uncompensated_latency_ms": 150.0,
+          "measured_first_trigger_latency_ms": 18.5
+        },
+        "gated_activity": {
+          "hold_distribution": {
+            "count": 400,
+            "p50": 0.0862941823048485,
+            "p90": 0.3968290896769105,
+            "p95": 0.5974444113269424,
+            "p99": 0.851755617035163,
+            "max": 1.4616532455515627
+          },
+          "movement_distribution": {
+            "count": 812,
+            "p50": 1.4158368083261557,
+            "p90": 5.533230362217876,
+            "p95": 6.698780282543028,
+            "p99": 8.769228656745454,
+            "max": 9.982330612207765
+          },
+          "snr_p95": 2.3698218302545313,
+          "snr_p99": 1.662257084085312,
+          "roc_auc": 0.8680049261083744,
+          "pr_auc": 0.941300462488268,
+          "candidate_threshold": 0.35,
+          "hold_false_positive_rate": 0.125,
+          "movement_miss_rate": 0.270935960591133,
+          "max_contiguous_false_active_ms": 102,
+          "signal_filter_delay_ms": 50.0,
+          "detection_dwell_ms": 100.0,
+          "total_uncompensated_latency_ms": 150.0,
+          "measured_first_trigger_latency_ms": 18.5
+        },
+        "smoothed_coherence": {
+          "hold_distribution": {
+            "count": 400,
+            "p50": 0.09547545579241723,
+            "p90": 0.2613838394382848,
+            "p95": 0.3355317175526537,
+            "p99": 0.47654994257143724,
+            "max": 0.7309446777087174
+          },
+          "movement_distribution": {
+            "count": 812,
+            "p50": 0.8418694628856577,
+            "p90": 3.1299955247444298,
+            "p95": 3.7196148960536473,
+            "p99": 4.750400919929691,
+            "max": 5.602050535972404
+          },
+          "snr_p95": 2.5090607499827384,
+          "snr_p99": 1.766592307918403,
+          "roc_auc": 0.8863454433497537,
+          "pr_auc": 0.9497373710375636,
+          "candidate_threshold": 0.35,
+          "hold_false_positive_rate": 0.04,
+          "movement_miss_rate": 0.33497536945812806,
+          "max_contiguous_false_active_ms": 81,
+          "signal_filter_delay_ms": 50.0,
+          "detection_dwell_ms": 100.0,
+          "total_uncompensated_latency_ms": 150.0,
+          "measured_first_trigger_latency_ms": 18.5
+        }
+      }
+    },
+    "w_120ms": {
+      "elbow_angle": {
+        "raw": {
+          "hold_distribution": {
+            "count": 404,
+            "p50": 16.13357968708178,
+            "p90": 55.70475208886251,
+            "p95": 67.56220267062774,
+            "p99": 101.08016661078982,
+            "max": 168.025540073076
+          },
+          "movement_distribution": {
+            "count": 812,
+            "p50": 84.72936654218108,
+            "p90": 504.8881632038232,
+            "p95": 659.3772579551312,
+            "p99": 884.8091965344385,
+            "max": 1205.0581206921204
+          },
+          "snr_p95": 1.25409420049913,
+          "snr_p99": 0.8382392845515614,
+          "roc_auc": 0.8220809149880506,
+          "pr_auc": 0.9178118801682589,
+          "candidate_threshold": 60.0,
+          "hold_false_positive_rate": 0.07425742574257425,
+          "movement_miss_rate": 0.4014778325123153,
+          "max_contiguous_false_active_ms": 50,
+          "signal_filter_delay_ms": 60.0,
+          "detection_dwell_ms": 100.0,
+          "total_uncompensated_latency_ms": 160.0,
+          "measured_first_trigger_latency_ms": 19.0
+        },
+        "smoothed": {
+          "hold_distribution": {
+            "count": 398,
+            "p50": 6.990709419513568,
+            "p90": 19.622953533081418,
+            "p95": 25.719286471274472,
+            "p99": 38.54569037324139,
+            "max": 58.053427989234976
+          },
+          "movement_distribution": {
+            "count": 812,
+            "p50": 55.91463258710883,
+            "p90": 332.87619655790706,
+            "p95": 403.7806756897862,
+            "p99": 509.4755294985455,
+            "max": 593.8815216684275
+          },
+          "snr_p95": 2.17403514088772,
+          "snr_p99": 1.450606592998657,
+          "roc_auc": 0.8596337599326682,
+          "pr_auc": 0.9406150239858972,
+          "candidate_threshold": 40.0,
+          "hold_false_positive_rate": 0.007537688442211055,
+          "movement_miss_rate": 0.41502463054187194,
+          "max_contiguous_false_active_ms": 41,
+          "signal_filter_delay_ms": 60.0,
+          "detection_dwell_ms": 100.0,
+          "total_uncompensated_latency_ms": 160.0,
+          "measured_first_trigger_latency_ms": 18.5
+        },
+        "reg_slope": {
+          "hold_distribution": {
+            "count": 398,
+            "p50": 8.299994334607499,
+            "p90": 23.3813330173105,
+            "p95": 30.457729787979318,
+            "p99": 48.43510871536896,
+            "max": 64.90805061466688
+          },
+          "movement_distribution": {
+            "count": 812,
+            "p50": 68.36368122706699,
+            "p90": 406.5057532413436,
+            "p95": 484.6954453785007,
+            "p99": 622.4017345409972,
+            "max": 738.6411911746213
+          },
+          "snr_p95": 2.2445429026705703,
+          "snr_p99": 1.4114489063874958,
+          "roc_auc": 0.8604723123004183,
+          "pr_auc": 0.9412870911176854,
+          "candidate_threshold": 40.0,
+          "hold_false_positive_rate": 0.02512562814070352,
+          "movement_miss_rate": 0.3657635467980296,
+          "max_contiguous_false_active_ms": 61,
+          "signal_filter_delay_ms": 60.0,
+          "detection_dwell_ms": 100.0,
+          "total_uncompensated_latency_ms": 160.0,
+          "measured_first_trigger_latency_ms": 18.5
+        },
+        "coherence": {
+          "hold_distribution": {
+            "count": 398,
+            "p50": 0.36414808561634715,
+            "p90": 0.9247371119892797,
+            "p95": 1.0,
+            "p99": 1.0,
+            "max": 1.0
+          },
+          "movement_distribution": {
+            "count": 812,
+            "p50": 0.7687478193568951,
+            "p90": 1.0,
+            "p95": 1.0,
+            "p99": 1.0,
+            "max": 1.0
+          },
+          "snr_p95": 0.7687478193568951,
+          "snr_p99": 0.7687478193568951,
+          "roc_auc": 0.7070110404237938,
+          "pr_auc": 0.8194906497913386,
+          "candidate_threshold": 0.6,
+          "hold_false_positive_rate": 0.3015075376884422,
+          "movement_miss_rate": 0.37561576354679804,
+          "max_contiguous_false_active_ms": 162,
+          "signal_filter_delay_ms": 60.0,
+          "detection_dwell_ms": 100.0,
+          "total_uncompensated_latency_ms": 160.0,
+          "measured_first_trigger_latency_ms": 18.5
+        },
+        "gated_activity": {
+          "hold_distribution": {
+            "count": 398,
+            "p50": 2.894081378587404,
+            "p90": 18.69645452114324,
+            "p95": 26.435473815442386,
+            "p99": 40.67146737521801,
+            "max": 60.44215964363562
+          },
+          "movement_distribution": {
+            "count": 812,
+            "p50": 50.54866381570517,
+            "p90": 391.28996400220956,
+            "p95": 478.8498648924956,
+            "p99": 622.4017345409972,
+            "max": 738.6411911746213
+          },
+          "snr_p95": 1.9121527447780025,
+          "snr_p99": 1.2428532108115073,
+          "roc_auc": 0.8259060078718716,
+          "pr_auc": 0.9238246820726961,
+          "candidate_threshold": 30.0,
+          "hold_false_positive_rate": 0.04020100502512563,
+          "movement_miss_rate": 0.4088669950738916,
+          "max_contiguous_false_active_ms": 81,
+          "signal_filter_delay_ms": 60.0,
+          "detection_dwell_ms": 100.0,
+          "total_uncompensated_latency_ms": 160.0,
+          "measured_first_trigger_latency_ms": 18.5
+        },
+        "smoothed_coherence": {
+          "hold_distribution": {
+            "count": 398,
+            "p50": 2.34226014341247,
+            "p90": 15.435914569161117,
+            "p95": 21.562421368965683,
+            "p99": 33.835789094541795,
+            "max": 47.72092635187277
+          },
+          "movement_distribution": {
+            "count": 812,
+            "p50": 41.14852576362164,
+            "p90": 323.34898558415773,
+            "p95": 396.4798529276164,
+            "p99": 509.4755294985455,
+            "max": 593.8815216684275
+          },
+          "snr_p95": 1.9083443857954565,
+          "snr_p99": 1.2161243128879622,
+          "roc_auc": 0.8249870039854444,
+          "pr_auc": 0.9233495184649279,
+          "candidate_threshold": 30.0,
+          "hold_false_positive_rate": 0.017587939698492462,
+          "movement_miss_rate": 0.44704433497536944,
+          "max_contiguous_false_active_ms": 61,
+          "signal_filter_delay_ms": 60.0,
+          "detection_dwell_ms": 100.0,
+          "total_uncompensated_latency_ms": 160.0,
+          "measured_first_trigger_latency_ms": 18.5
+        }
+      },
+      "forearm_orientation": {
+        "raw": {
+          "hold_distribution": {
+            "count": 404,
+            "p50": 23.527676242727388,
+            "p90": 73.6192277182488,
+            "p95": 96.66231860748823,
+            "p99": 162.69619897652777,
+            "max": 253.40905653499885
+          },
+          "movement_distribution": {
+            "count": 812,
+            "p50": 131.56011930230022,
+            "p90": 590.1146026347001,
+            "p95": 809.3555908367385,
+            "p99": 1338.13233460229,
+            "max": 3066.608595138998
+          },
+          "snr_p95": 1.3610279703357802,
+          "snr_p99": 0.8086244185783372,
+          "roc_auc": 0.8624347656440521,
+          "pr_auc": 0.9356967939536138,
+          "candidate_threshold": 60.0,
+          "hold_false_positive_rate": 0.13861386138613863,
+          "movement_miss_rate": 0.27832512315270935,
+          "max_contiguous_false_active_ms": 101,
+          "signal_filter_delay_ms": 60.0,
+          "detection_dwell_ms": 100.0,
+          "total_uncompensated_latency_ms": 160.0,
+          "measured_first_trigger_latency_ms": 18.5
+        },
+        "smoothed": {
+          "hold_distribution": {
+            "count": 398,
+            "p50": 14.303193426394259,
+            "p90": 29.3779690288381,
+            "p95": 34.72484725337863,
+            "p99": 50.491535931683636,
+            "max": 87.7664355206817
+          },
+          "movement_distribution": {
+            "count": 812,
+            "p50": 84.86674602943165,
+            "p90": 263.35004687246914,
+            "p95": 308.81392784804524,
+            "p99": 379.88735857071384,
+            "max": 450.2052323914614
+          },
+          "snr_p95": 2.4439775187542216,
+          "snr_p99": 1.6808113372557842,
+          "roc_auc": 0.915414510978538,
+          "pr_auc": 0.9641299636284049,
+          "candidate_threshold": 40.0,
+          "hold_false_positive_rate": 0.03015075376884422,
+          "movement_miss_rate": 0.2672413793103448,
+          "max_contiguous_false_active_ms": 102,
+          "signal_filter_delay_ms": 60.0,
+          "detection_dwell_ms": 100.0,
+          "total_uncompensated_latency_ms": 160.0,
+          "measured_first_trigger_latency_ms": 18.5
+        },
+        "reg_slope": {
+          "hold_distribution": {
+            "count": 398,
+            "p50": 14.372181001433677,
+            "p90": 38.682952014452624,
+            "p95": 47.54583417190777,
+            "p99": 75.38169023991587,
+            "max": 171.56471837151793
+          },
+          "movement_distribution": {
+            "count": 812,
+            "p50": 128.46862661157274,
+            "p90": 410.2655551095661,
+            "p95": 499.8803006716864,
+            "p99": 642.9060959782624,
+            "max": 745.9028368903494
+          },
+          "snr_p95": 2.7019954292331634,
+          "snr_p99": 1.7042417887247963,
+          "roc_auc": 0.8866840359432631,
+          "pr_auc": 0.9516912822385111,
+          "candidate_threshold": 40.0,
+          "hold_false_positive_rate": 0.09045226130653267,
+          "movement_miss_rate": 0.23399014778325122,
+          "max_contiguous_false_active_ms": 102,
+          "signal_filter_delay_ms": 60.0,
+          "detection_dwell_ms": 100.0,
+          "total_uncompensated_latency_ms": 160.0,
+          "measured_first_trigger_latency_ms": 18.5
+        },
+        "coherence": {
+          "hold_distribution": {
+            "count": 398,
+            "p50": 0.5257857651506406,
+            "p90": 0.8467568787885235,
+            "p95": 0.9041547295509607,
+            "p99": 0.975236088554674,
+            "max": 0.9851086736353108
+          },
+          "movement_distribution": {
+            "count": 812,
+            "p50": 0.7702808241929617,
+            "p90": 0.9514558066340734,
+            "p95": 0.9680407301081977,
+            "p99": 0.9811730039641103,
+            "max": 0.993830192257003
+          },
+          "snr_p95": 0.8519347397270309,
+          "snr_p99": 0.7898403609474076,
+          "roc_auc": 0.6927123301235241,
+          "pr_auc": 0.8173234910279635,
+          "candidate_threshold": 0.6,
+          "hold_false_positive_rate": 0.4120603015075377,
+          "movement_miss_rate": 0.32019704433497537,
+          "max_contiguous_false_active_ms": 183,
+          "signal_filter_delay_ms": 60.0,
+          "detection_dwell_ms": 100.0,
+          "total_uncompensated_latency_ms": 160.0,
+          "measured_first_trigger_latency_ms": 18.5
+        },
+        "gated_activity": {
+          "hold_distribution": {
+            "count": 398,
+            "p50": 7.894702420198524,
+            "p90": 30.26729099799636,
+            "p95": 36.7684535352207,
+            "p99": 72.2478402978991,
+            "max": 167.68627104015286
+          },
+          "movement_distribution": {
+            "count": 812,
+            "p50": 90.32621569840316,
+            "p90": 335.0905530039966,
+            "p95": 440.45544597589037,
+            "p99": 602.819946578317,
+            "max": 724.6072844133996
+          },
+          "snr_p95": 2.4566226483221327,
+          "snr_p99": 1.2502272085360835,
+          "roc_auc": 0.8566106394039161,
+          "pr_auc": 0.9380275465078513,
+          "candidate_threshold": 30.0,
+          "hold_false_positive_rate": 0.10301507537688442,
+          "movement_miss_rate": 0.28448275862068967,
+          "max_contiguous_false_active_ms": 102,
+          "signal_filter_delay_ms": 60.0,
+          "detection_dwell_ms": 100.0,
+          "total_uncompensated_latency_ms": 160.0,
+          "measured_first_trigger_latency_ms": 18.5
+        },
+        "smoothed_coherence": {
+          "hold_distribution": {
+            "count": 398,
+            "p50": 7.186090500716837,
+            "p90": 19.341476007226312,
+            "p95": 23.772917085953882,
+            "p99": 37.690845119957935,
+            "max": 85.78235918575896
+          },
+          "movement_distribution": {
+            "count": 812,
+            "p50": 64.23431330578637,
+            "p90": 205.13277755478305,
+            "p95": 249.94015033584319,
+            "p99": 321.4530479891313,
+            "max": 372.95141844517474
+          },
+          "snr_p95": 2.701995429233164,
+          "snr_p99": 1.7042417887247963,
+          "roc_auc": 0.8869718048369929,
+          "pr_auc": 0.9517593044071663,
+          "candidate_threshold": 30.0,
+          "hold_false_positive_rate": 0.017587939698492462,
+          "movement_miss_rate": 0.3275862068965517,
+          "max_contiguous_false_active_ms": 82,
+          "signal_filter_delay_ms": 60.0,
+          "detection_dwell_ms": 100.0,
+          "total_uncompensated_latency_ms": 160.0,
+          "measured_first_trigger_latency_ms": 18.5
+        }
+      },
+      "pelvis_yaw": {
+        "raw": {
+          "hold_distribution": {
+            "count": 404,
+            "p50": 2.9092443126067735,
+            "p90": 12.909959100683709,
+            "p95": 16.669387843826485,
+            "p99": 33.47558106869454,
+            "max": 48.063204580230106
+          },
+          "movement_distribution": {
+            "count": 812,
+            "p50": 26.345335899032563,
+            "p90": 216.6917204664915,
+            "p95": 265.3620664027369,
+            "p99": 365.95454381079753,
+            "max": 571.461782118436
+          },
+          "snr_p95": 1.5804621108980657,
+          "snr_p99": 0.7870016011064856,
+          "roc_auc": 0.8424834170609179,
+          "pr_auc": 0.9271637266282514,
+          "candidate_threshold": 45.0,
+          "hold_false_positive_rate": 0.0024752475247524753,
+          "movement_miss_rate": 0.6317733990147784,
+          "max_contiguous_false_active_ms": 17,
+          "signal_filter_delay_ms": 60.0,
+          "detection_dwell_ms": 100.0,
+          "total_uncompensated_latency_ms": 160.0,
+          "measured_first_trigger_latency_ms": 19.0
+        },
+        "smoothed": {
+          "hold_distribution": {
+            "count": 398,
+            "p50": 1.897659811020373,
+            "p90": 7.242095573699595,
+            "p95": 9.522657523856653,
+            "p99": 16.108188606884973,
+            "max": 19.95329917186309
+          },
+          "movement_distribution": {
+            "count": 812,
+            "p50": 15.64381109633476,
+            "p90": 99.61008047837913,
+            "p95": 112.15049506942601,
+            "p99": 129.8166306453906,
+            "max": 141.6923422683028
+          },
+          "snr_p95": 1.6427988780593104,
+          "snr_p99": 0.971171338883397,
+          "roc_auc": 0.8619916082877441,
+          "pr_auc": 0.9382636586867217,
+          "candidate_threshold": 30.0,
+          "hold_false_positive_rate": 0.0,
+          "movement_miss_rate": 0.6527093596059114,
+          "max_contiguous_false_active_ms": 0,
+          "signal_filter_delay_ms": 60.0,
+          "detection_dwell_ms": 100.0,
+          "total_uncompensated_latency_ms": 160.0,
+          "measured_first_trigger_latency_ms": 18.5
+        },
+        "reg_slope": {
+          "hold_distribution": {
+            "count": 398,
+            "p50": 2.3898956804312155,
+            "p90": 10.583048658313219,
+            "p95": 15.929216357568592,
+            "p99": 25.20494424431044,
+            "max": 39.153326558008274
+          },
+          "movement_distribution": {
+            "count": 812,
+            "p50": 28.494320576992173,
+            "p90": 199.22016095675824,
+            "p95": 224.30099013885217,
+            "p99": 259.63326129078126,
+            "max": 283.3846845366059
+          },
+          "snr_p95": 1.7888086857112346,
+          "snr_p99": 1.1305052017095516,
+          "roc_auc": 0.8637615416986409,
+          "pr_auc": 0.9399437141743185,
+          "candidate_threshold": 30.0,
+          "hold_false_positive_rate": 0.007537688442211055,
+          "movement_miss_rate": 0.5147783251231527,
+          "max_contiguous_false_active_ms": 33,
+          "signal_filter_delay_ms": 60.0,
+          "detection_dwell_ms": 100.0,
+          "total_uncompensated_latency_ms": 160.0,
+          "measured_first_trigger_latency_ms": 18.5
+        },
+        "coherence": {
+          "hold_distribution": {
+            "count": 398,
+            "p50": 0.0,
+            "p90": 0.8892104022472824,
+            "p95": 1.0,
+            "p99": 1.0,
+            "max": 1.0
+          },
+          "movement_distribution": {
+            "count": 812,
+            "p50": 0.9999999999999971,
+            "p90": 1.0,
+            "p95": 1.0,
+            "p99": 1.0,
+            "max": 1.0
+          },
+          "snr_p95": 0.9999999999999971,
+          "snr_p99": 0.9999999999999971,
+          "roc_auc": 0.8274144738470679,
+          "pr_auc": 0.8994925659123063,
+          "candidate_threshold": 0.5,
+          "hold_false_positive_rate": 0.1658291457286432,
+          "movement_miss_rate": 0.2376847290640394,
+          "max_contiguous_false_active_ms": 133,
+          "signal_filter_delay_ms": 60.0,
+          "detection_dwell_ms": 100.0,
+          "total_uncompensated_latency_ms": 160.0,
+          "measured_first_trigger_latency_ms": 18.5
+        },
+        "gated_activity": {
+          "hold_distribution": {
+            "count": 398,
+            "p50": 0.0,
+            "p90": 9.922872442253912,
+            "p95": 15.225482873832728,
+            "p99": 25.20494424431044,
+            "max": 38.414273433030914
+          },
+          "movement_distribution": {
+            "count": 812,
+            "p50": 26.599778455333173,
+            "p90": 199.2201609567582,
+            "p95": 224.30099013885217,
+            "p99": 259.63326129078126,
+            "max": 283.3846845366059
+          },
+          "snr_p95": 1.7470564760247358,
+          "snr_p99": 1.0553397062696377,
+          "roc_auc": 0.8542527910488402,
+          "pr_auc": 0.9395614579426966,
+          "candidate_threshold": 18.0,
+          "hold_false_positive_rate": 0.032663316582914576,
+          "movement_miss_rate": 0.41748768472906406,
+          "max_contiguous_false_active_ms": 61,
+          "signal_filter_delay_ms": 60.0,
+          "detection_dwell_ms": 100.0,
+          "total_uncompensated_latency_ms": 160.0,
+          "measured_first_trigger_latency_ms": 18.5
+        },
+        "smoothed_coherence": {
+          "hold_distribution": {
+            "count": 398,
+            "p50": 0.0,
+            "p90": 5.291524329156609,
+            "p95": 7.964608178784278,
+            "p99": 12.602472122155083,
+            "max": 19.576663279004137
+          },
+          "movement_distribution": {
+            "count": 812,
+            "p50": 14.247160288496087,
+            "p90": 99.61008047837912,
+            "p95": 112.15049506942601,
+            "p99": 129.8166306453906,
+            "max": 141.6923422683028
+          },
+          "snr_p95": 1.7888086857112386,
+          "snr_p99": 1.1305052017095638,
+          "roc_auc": 0.8545158056291309,
+          "pr_auc": 0.9397102972240239,
+          "candidate_threshold": 18.0,
+          "hold_false_positive_rate": 0.005025125628140704,
+          "movement_miss_rate": 0.5443349753694581,
+          "max_contiguous_false_active_ms": 17,
+          "signal_filter_delay_ms": 60.0,
+          "detection_dwell_ms": 100.0,
+          "total_uncompensated_latency_ms": 160.0,
+          "measured_first_trigger_latency_ms": 18.5
+        }
+      },
+      "wrist_speed": {
+        "raw": {
+          "hold_distribution": {
+            "count": 404,
+            "p50": 0.32336405096046966,
+            "p90": 0.9007784273252859,
+            "p95": 1.21833249476056,
+            "p99": 1.958312971605511,
+            "max": 3.540775820694138
+          },
+          "movement_distribution": {
+            "count": 812,
+            "p50": 1.7186266857154824,
+            "p90": 7.435700784024488,
+            "p95": 9.505351528294062,
+            "p99": 16.060845563466703,
+            "max": 26.437465151591397
+          },
+          "snr_p95": 1.4106384694707217,
+          "snr_p99": 0.8776057303580421,
+          "roc_auc": 0.8736739745403111,
+          "pr_auc": 0.9397803449016418,
+          "candidate_threshold": 0.8,
+          "hold_false_positive_rate": 0.13366336633663367,
+          "movement_miss_rate": 0.2857142857142857,
+          "max_contiguous_false_active_ms": 81,
+          "signal_filter_delay_ms": 60.0,
+          "detection_dwell_ms": 100.0,
+          "total_uncompensated_latency_ms": 160.0,
+          "measured_first_trigger_latency_ms": 18.5
+        },
+        "smoothed": {
+          "hold_distribution": {
+            "count": 398,
+            "p50": 0.18835683837682424,
+            "p90": 0.386487259104863,
+            "p95": 0.45004593754969774,
+            "p99": 0.550701150821953,
+            "max": 0.7074025918858983
+          },
+          "movement_distribution": {
+            "count": 812,
+            "p50": 1.0699003006578391,
+            "p90": 3.566054632902773,
+            "p95": 3.9931890948095723,
+            "p99": 5.091590843498834,
+            "max": 5.915991394482677
+          },
+          "snr_p95": 2.3773135393310643,
+          "snr_p99": 1.9427965586433797,
+          "roc_auc": 0.9152938337005223,
+          "pr_auc": 0.9631275801531834,
+          "candidate_threshold": 0.5,
+          "hold_false_positive_rate": 0.020100502512562814,
+          "movement_miss_rate": 0.28448275862068967,
+          "max_contiguous_false_active_ms": 84,
+          "signal_filter_delay_ms": 60.0,
+          "detection_dwell_ms": 100.0,
+          "total_uncompensated_latency_ms": 160.0,
+          "measured_first_trigger_latency_ms": 18.5
+        },
+        "reg_slope": {
+          "hold_distribution": {
+            "count": 398,
+            "p50": 0.18305759666748403,
+            "p90": 0.489379124563656,
+            "p95": 0.62578252465831,
+            "p99": 0.8596449352991413,
+            "max": 1.4085715598794326
+          },
+          "movement_distribution": {
+            "count": 812,
+            "p50": 1.7168338287948495,
+            "p90": 6.073593889984032,
+            "p95": 6.886521224373573,
+            "p99": 8.460139967887764,
+            "max": 10.676470177754128
+          },
+          "snr_p95": 2.743499156887252,
+          "snr_p99": 1.9971429578625057,
+          "roc_auc": 0.8799910884471619,
+          "pr_auc": 0.9488342543978743,
+          "candidate_threshold": 0.5,
+          "hold_false_positive_rate": 0.09798994974874371,
+          "movement_miss_rate": 0.2536945812807882,
+          "max_contiguous_false_active_ms": 117,
+          "signal_filter_delay_ms": 60.0,
+          "detection_dwell_ms": 100.0,
+          "total_uncompensated_latency_ms": 160.0,
+          "measured_first_trigger_latency_ms": 18.5
+        },
+        "coherence": {
+          "hold_distribution": {
+            "count": 398,
+            "p50": 0.4755082680168574,
+            "p90": 0.8185455767385081,
+            "p95": 0.8914567245096067,
+            "p99": 0.9533739100713895,
+            "max": 0.995594005475902
+          },
+          "movement_distribution": {
+            "count": 812,
+            "p50": 0.7983283374871417,
+            "p90": 0.9527018094787302,
+            "p95": 0.9718894681647653,
+            "p99": 0.9867599197554294,
+            "max": 0.9954027253993504
+          },
+          "snr_p95": 0.8955323523150323,
+          "snr_p99": 0.8373717059525597,
+          "roc_auc": 0.7602142485828156,
+          "pr_auc": 0.8578857709891717,
+          "candidate_threshold": 0.6,
+          "hold_false_positive_rate": 0.34673366834170855,
+          "movement_miss_rate": 0.2746305418719212,
+          "max_contiguous_false_active_ms": 203,
+          "signal_filter_delay_ms": 60.0,
+          "detection_dwell_ms": 100.0,
+          "total_uncompensated_latency_ms": 160.0,
+          "measured_first_trigger_latency_ms": 18.5
+        },
+        "gated_activity": {
+          "hold_distribution": {
+            "count": 398,
+            "p50": 0.09017252314609399,
+            "p90": 0.35846697028768704,
+            "p95": 0.5420483923179974,
+            "p99": 0.7271601831617587,
+            "max": 1.4023654012998037
+          },
+          "movement_distribution": {
+            "count": 812,
+            "p50": 1.4350420416651781,
+            "p90": 5.241343796800828,
+            "p95": 6.278449898620513,
+            "p99": 7.604761964355527,
+            "max": 9.633805042615418
+          },
+          "snr_p95": 2.6474426674865925,
+          "snr_p99": 1.9734882009428578,
+          "roc_auc": 0.8605032551922173,
+          "pr_auc": 0.9398639229867802,
+          "candidate_threshold": 0.35,
+          "hold_false_positive_rate": 0.10804020100502512,
+          "movement_miss_rate": 0.28078817733990147,
+          "max_contiguous_false_active_ms": 117,
+          "signal_filter_delay_ms": 60.0,
+          "detection_dwell_ms": 100.0,
+          "total_uncompensated_latency_ms": 160.0,
+          "measured_first_trigger_latency_ms": 18.5
+        },
+        "smoothed_coherence": {
+          "hold_distribution": {
+            "count": 398,
+            "p50": 0.09152879833374203,
+            "p90": 0.24468956228182798,
+            "p95": 0.31289126232915493,
+            "p99": 0.42982246764957066,
+            "max": 0.7042857799397163
+          },
+          "movement_distribution": {
+            "count": 812,
+            "p50": 0.8584169143974247,
+            "p90": 3.0367969449920156,
+            "p95": 3.4432606121867866,
+            "p99": 4.230069983943882,
+            "max": 5.338235088877064
+          },
+          "snr_p95": 2.7434991568872524,
+          "snr_p99": 1.9971429578625057,
+          "roc_auc": 0.8839455900190608,
+          "pr_auc": 0.9498314382601428,
+          "candidate_threshold": 0.35,
+          "hold_false_positive_rate": 0.03768844221105527,
+          "movement_miss_rate": 0.3251231527093596,
+          "max_contiguous_false_active_ms": 84,
+          "signal_filter_delay_ms": 60.0,
+          "detection_dwell_ms": 100.0,
+          "total_uncompensated_latency_ms": 160.0,
+          "measured_first_trigger_latency_ms": 18.5
+        }
+      }
+    }
+  },
+  "subsampling_30fps": {
+    "w_60ms": {
+      "elbow_angle": {
+        "raw": {
+          "hold_p95": 44.52580523853534,
+          "hold_p99": 59.2915552425121,
+          "mvt_p50": 114.99544048142504,
+          "snr": 2.582669529846054,
+          "roc_auc": 0.7627571202531646
+        },
+        "reg_slope": {
+          "hold_p95": 0.0,
+          "hold_p99": 0.0,
+          "mvt_p50": 0.0,
+          "snr": 0.0,
+          "roc_auc": 0.5
+        },
+        "gated_activity": {
+          "hold_p95": 0.0,
+          "hold_p99": 0.0,
+          "mvt_p50": 0.0,
+          "snr": 0.0,
+          "roc_auc": 0.5
+        }
+      },
+      "wrist_speed": {
+        "raw": {
+          "hold_p95": 1.03719128637363,
+          "hold_p99": 1.389054040776308,
+          "mvt_p50": 3.462753385030285,
+          "snr": 3.338587038401795,
+          "roc_auc": 0.7795029008438819
+        },
+        "reg_slope": {
+          "hold_p95": 0.0,
+          "hold_p99": 0.0,
+          "mvt_p50": 0.0,
+          "snr": 0.0,
+          "roc_auc": 0.5
+        },
+        "gated_activity": {
+          "hold_p95": 0.0,
+          "hold_p99": 0.0,
+          "mvt_p50": 0.0,
+          "snr": 0.0,
+          "roc_auc": 0.5
+        }
+      }
+    },
+    "w_80ms": {
+      "elbow_angle": {
+        "raw": {
+          "hold_p95": 44.52580523853534,
+          "hold_p99": 59.2915552425121,
+          "mvt_p50": 114.99544048142504,
+          "snr": 2.582669529846054,
+          "roc_auc": 0.7627571202531646
+        },
+        "reg_slope": {
+          "hold_p95": 33.13047594767874,
+          "hold_p99": 46.19242399952841,
+          "mvt_p50": 122.3662619555738,
+          "snr": 3.6934652598658877,
+          "roc_auc": 0.7910398303399828
+        },
+        "gated_activity": {
+          "hold_p95": 33.13047594767874,
+          "hold_p99": 46.19242399952841,
+          "mvt_p50": 98.55848491103129,
+          "snr": 2.9748587091438,
+          "roc_auc": 0.7819272317582344
+        }
+      },
+      "wrist_speed": {
+        "raw": {
+          "hold_p95": 1.03719128637363,
+          "hold_p99": 1.389054040776308,
+          "mvt_p50": 3.462753385030285,
+          "snr": 3.338587038401795,
+          "roc_auc": 0.7795029008438819
+        },
+        "reg_slope": {
+          "hold_p95": 0.7580529103557601,
+          "hold_p99": 0.984496779282398,
+          "mvt_p50": 3.5192220410555954,
+          "snr": 4.642449086309816,
+          "roc_auc": 0.7894161309563258
+        },
+        "gated_activity": {
+          "hold_p95": 0.7454134532548601,
+          "hold_p99": 0.8442432922599095,
+          "mvt_p50": 3.160444152647546,
+          "snr": 4.2398539211325135,
+          "roc_auc": 0.7799887335144807
+        }
+      }
+    },
+    "w_100ms": {
+      "elbow_angle": {
+        "raw": {
+          "hold_p95": 44.52580523853534,
+          "hold_p99": 59.2915552425121,
+          "mvt_p50": 114.99544048142504,
+          "snr": 2.582669529846054,
+          "roc_auc": 0.7627571202531646
+        },
+        "reg_slope": {
+          "hold_p95": 27.604800310390726,
+          "hold_p99": 48.16577398756476,
+          "mvt_p50": 111.66002971458258,
+          "snr": 4.044949735519464,
+          "roc_auc": 0.7962422957121081
+        },
+        "gated_activity": {
+          "hold_p95": 24.28478022224081,
+          "hold_p99": 48.16577398756476,
+          "mvt_p50": 83.14562879837123,
+          "snr": 3.4237752220719586,
+          "roc_auc": 0.7865995095765127
+        }
+      },
+      "wrist_speed": {
+        "raw": {
+          "hold_p95": 1.03719128637363,
+          "hold_p99": 1.389054040776308,
+          "mvt_p50": 3.462753385030285,
+          "snr": 3.338587038401795,
+          "roc_auc": 0.7795029008438819
+        },
+        "reg_slope": {
+          "hold_p95": 0.6530409694462718,
+          "hold_p99": 0.9484126861054608,
+          "mvt_p50": 3.281214515424063,
+          "snr": 5.024515564783445,
+          "roc_auc": 0.7953807409371065
+        },
+        "gated_activity": {
+          "hold_p95": 0.6015290209220607,
+          "hold_p99": 0.8261271556204587,
+          "mvt_p50": 2.835986981306012,
+          "snr": 4.714630354756345,
+          "roc_auc": 0.7840479819736231
+        }
+      }
+    },
+    "w_120ms": {
+      "elbow_angle": {
+        "raw": {
+          "hold_p95": 44.52580523853534,
+          "hold_p99": 59.2915552425121,
+          "mvt_p50": 114.99544048142504,
+          "snr": 2.582669529846054,
+          "roc_auc": 0.7627571202531646
+        },
+        "reg_slope": {
+          "hold_p95": 27.68728174836395,
+          "hold_p99": 48.201723693027866,
+          "mvt_p50": 111.66002971458258,
+          "snr": 4.032899680416644,
+          "roc_auc": 0.7955696202531646
+        },
+        "gated_activity": {
+          "hold_p95": 24.486575326548692,
+          "hold_p99": 48.201723693027866,
+          "mvt_p50": 83.14562879837123,
+          "snr": 3.3955597175005345,
+          "roc_auc": 0.7860093271152565
+        }
+      },
+      "wrist_speed": {
+        "raw": {
+          "hold_p95": 1.03719128637363,
+          "hold_p99": 1.389054040776308,
+          "mvt_p50": 3.462753385030285,
+          "snr": 3.338587038401795,
+          "roc_auc": 0.7795029008438819
+        },
+        "reg_slope": {
+          "hold_p95": 0.6542658952916662,
+          "hold_p99": 0.9484451422426748,
+          "mvt_p50": 3.281214515424063,
+          "snr": 5.015108595812296,
+          "roc_auc": 0.7945702864756828
+        },
+        "gated_activity": {
+          "hold_p95": 0.6054792631001864,
+          "hold_p99": 0.8267977195354393,
+          "mvt_p50": 2.835986981306012,
+          "snr": 4.683871362968135,
+          "roc_auc": 0.7834443704197201
+        }
+      }
+    }
+  },
+  "adversarial_slow_motion": {
+    "angular_rotation": {
+      "w_60ms": {
+        "raw": {
+          "slow_p50": 64.032355170702,
+          "hold_p95_floor": 67.56220267062774,
+          "signal_to_noise_ratio": 0.9477541086525245,
+          "detected": true
+        },
+        "smoothed": {
+          "slow_p50": 32.281479917465134,
+          "hold_p95_floor": 25.815571525061095,
+          "signal_to_noise_ratio": 1.2504654365729266,
+          "detected": false
+        },
+        "reg_slope": {
+          "slow_p50": 47.2605321778474,
+          "hold_p95_floor": 43.401260939852676,
+          "signal_to_noise_ratio": 1.0889207169197934,
+          "detected": true
+        },
+        "coherence": {
+          "slow_p50": 0.7091855581281356,
+          "hold_p95_floor": 1.0,
+          "signal_to_noise_ratio": 0.7091855581281356,
+          "detected": true
+        },
+        "gated_activity": {
+          "slow_p50": 37.26452498256093,
+          "hold_p95_floor": 41.58803953205491,
+          "signal_to_noise_ratio": 0.8960394719697827,
+          "detected": true
+        },
+        "smoothed_coherence": {
+          "slow_p50": 21.4493081299935,
+          "hold_p95_floor": 23.103366597791684,
+          "signal_to_noise_ratio": 0.9284061714210826,
+          "detected": false
+        }
+      },
+      "w_80ms": {
+        "raw": {
+          "slow_p50": 64.032355170702,
+          "hold_p95_floor": 67.56220267062774,
+          "signal_to_noise_ratio": 0.9477541086525245,
+          "detected": true
+        },
+        "smoothed": {
+          "slow_p50": 35.220787640819054,
+          "hold_p95_floor": 26.16274516358715,
+          "signal_to_noise_ratio": 1.3462191150276817,
+          "detected": false
+        },
+        "reg_slope": {
+          "slow_p50": 46.497167759801656,
+          "hold_p95_floor": 35.736888362784065,
+          "signal_to_noise_ratio": 1.3010972664375338,
+          "detected": true
+        },
+        "coherence": {
+          "slow_p50": 0.6900304215647082,
+          "hold_p95_floor": 1.0,
+          "signal_to_noise_ratio": 0.6900304215647082,
+          "detected": true
+        },
+        "gated_activity": {
+          "slow_p50": 31.030847759513865,
+          "hold_p95_floor": 33.84807885810666,
+          "signal_to_noise_ratio": 0.9167683604613777,
+          "detected": true
+        },
+        "smoothed_coherence": {
+          "slow_p50": 22.654775211084274,
+          "hold_p95_floor": 24.83608318286806,
+          "signal_to_noise_ratio": 0.9121718205031439,
+          "detected": false
+        }
+      },
+      "w_100ms": {
+        "raw": {
+          "slow_p50": 64.032355170702,
+          "hold_p95_floor": 67.56220267062774,
+          "signal_to_noise_ratio": 0.9477541086525245,
+          "detected": true
+        },
+        "smoothed": {
+          "slow_p50": 36.4821966430151,
+          "hold_p95_floor": 24.846688415423127,
+          "signal_to_noise_ratio": 1.4682921133413274,
+          "detected": false
+        },
+        "reg_slope": {
+          "slow_p50": 45.59147915555545,
+          "hold_p95_floor": 31.845833171804575,
+          "signal_to_noise_ratio": 1.4316309110078769,
+          "detected": true
+        },
+        "coherence": {
+          "slow_p50": 0.6629830521603779,
+          "hold_p95_floor": 1.0,
+          "signal_to_noise_ratio": 0.6629830521603779,
+          "detected": true
+        },
+        "gated_activity": {
+          "slow_p50": 29.429343414622654,
+          "hold_p95_floor": 28.282752619676128,
+          "signal_to_noise_ratio": 1.0405402829903074,
+          "detected": false
+        },
+        "smoothed_coherence": {
+          "slow_p50": 24.36387775692636,
+          "hold_p95_floor": 22.708140876465798,
+          "signal_to_noise_ratio": 1.0729138016831898,
+          "detected": false
+        }
+      },
+      "w_120ms": {
+        "raw": {
+          "slow_p50": 64.032355170702,
+          "hold_p95_floor": 67.56220267062774,
+          "signal_to_noise_ratio": 0.9477541086525245,
+          "detected": true
+        },
+        "smoothed": {
+          "slow_p50": 38.38790352824396,
+          "hold_p95_floor": 25.719286471274472,
+          "signal_to_noise_ratio": 1.4925726485887896,
+          "detected": false
+        },
+        "reg_slope": {
+          "slow_p50": 47.194733345818015,
+          "hold_p95_floor": 30.457729787979318,
+          "signal_to_noise_ratio": 1.5495157936703559,
+          "detected": true
+        },
+        "coherence": {
+          "slow_p50": 0.6753592170693168,
+          "hold_p95_floor": 1.0,
+          "signal_to_noise_ratio": 0.6753592170693168,
+          "detected": true
+        },
+        "gated_activity": {
+          "slow_p50": 31.473838315977876,
+          "hold_p95_floor": 26.435473815442386,
+          "signal_to_noise_ratio": 1.1905910420108419,
+          "detected": true
+        },
+        "smoothed_coherence": {
+          "slow_p50": 25.74540955536913,
+          "hold_p95_floor": 21.562421368965683,
+          "signal_to_noise_ratio": 1.1939943624524436,
+          "detected": false
+        }
+      }
+    },
+    "translational_movement": {
+      "w_60ms": {
+        "raw": {
+          "wrist_speed_p50": 0.49102001664906025,
+          "hold_wrist_p95_floor": 1.21833249476056,
+          "wrist_signal_to_noise": 0.4030262828584908,
+          "elbow_angle_p50": 49.35210968177941,
+          "wrist_detected": false
+        },
+        "reg_slope": {
+          "wrist_speed_p50": 0.2804666045210964,
+          "hold_wrist_p95_floor": 0.8465034624096522,
+          "wrist_signal_to_noise": 0.33132363537264414,
+          "elbow_angle_p50": 15.042425409727956,
+          "wrist_detected": false
+        },
+        "coherence": {
+          "wrist_speed_p50": 0.4395462818479788,
+          "hold_wrist_p95_floor": 0.9672695666538429,
+          "wrist_signal_to_noise": 0.454419633369153,
+          "elbow_angle_p50": 0.23281609702378883,
+          "wrist_detected": false
+        },
+        "gated_activity": {
+          "wrist_speed_p50": 0.12514162199918985,
+          "hold_wrist_p95_floor": 0.8368749366326831,
+          "wrist_signal_to_noise": 0.14953443641497938,
+          "elbow_angle_p50": 2.6024548298030954,
+          "wrist_detected": false
+        }
+      },
+      "w_80ms": {
+        "raw": {
+          "wrist_speed_p50": 0.49102001664906025,
+          "hold_wrist_p95_floor": 1.21833249476056,
+          "wrist_signal_to_noise": 0.4030262828584908,
+          "elbow_angle_p50": 49.35210968177941,
+          "wrist_detected": false
+        },
+        "reg_slope": {
+          "wrist_speed_p50": 0.3259631039622939,
+          "hold_wrist_p95_floor": 0.7050692193881618,
+          "wrist_signal_to_noise": 0.46231362112950414,
+          "elbow_angle_p50": 11.226173963826643,
+          "wrist_detected": false
+        },
+        "coherence": {
+          "wrist_speed_p50": 0.5761729273495324,
+          "hold_wrist_p95_floor": 0.9290108777052759,
+          "wrist_signal_to_noise": 0.6202004101100745,
+          "elbow_angle_p50": 0.26462889662843125,
+          "wrist_detected": false
+        },
+        "gated_activity": {
+          "wrist_speed_p50": 0.18154420750480696,
+          "hold_wrist_p95_floor": 0.6454841377016768,
+          "wrist_signal_to_noise": 0.2812527789624959,
+          "elbow_angle_p50": 2.6444599310777903,
+          "wrist_detected": false
+        }
+      },
+      "w_100ms": {
+        "raw": {
+          "wrist_speed_p50": 0.49102001664906025,
+          "hold_wrist_p95_floor": 1.21833249476056,
+          "wrist_signal_to_noise": 0.4030262828584908,
+          "elbow_angle_p50": 49.35210968177941,
+          "wrist_detected": false
+        },
+        "reg_slope": {
+          "wrist_speed_p50": 0.3011561593891492,
+          "hold_wrist_p95_floor": 0.6710634351053074,
+          "wrist_signal_to_noise": 0.448774502729224,
+          "elbow_angle_p50": 9.573505786458838,
+          "wrist_detected": false
+        },
+        "coherence": {
+          "wrist_speed_p50": 0.6003528105135203,
+          "hold_wrist_p95_floor": 0.9043568967887204,
+          "wrist_signal_to_noise": 0.6638450070379429,
+          "elbow_angle_p50": 0.19034078188826986,
+          "wrist_detected": true
+        },
+        "gated_activity": {
+          "wrist_speed_p50": 0.18291870363303725,
+          "hold_wrist_p95_floor": 0.5974444113269424,
+          "wrist_signal_to_noise": 0.30616857428922833,
+          "elbow_angle_p50": 1.5772170348074006,
+          "wrist_detected": false
+        }
+      },
+      "w_120ms": {
+        "raw": {
+          "wrist_speed_p50": 0.49102001664906025,
+          "hold_wrist_p95_floor": 1.21833249476056,
+          "wrist_signal_to_noise": 0.4030262828584908,
+          "elbow_angle_p50": 49.35210968177941,
+          "wrist_detected": false
+        },
+        "reg_slope": {
+          "wrist_speed_p50": 0.29521550742697256,
+          "hold_wrist_p95_floor": 0.62578252465831,
+          "wrist_signal_to_noise": 0.4717541570662528,
+          "elbow_angle_p50": 7.354518545723264,
+          "wrist_detected": false
+        },
+        "coherence": {
+          "wrist_speed_p50": 0.5833972947503188,
+          "hold_wrist_p95_floor": 0.8914567245096067,
+          "wrist_signal_to_noise": 0.6544314252284625,
+          "elbow_angle_p50": 0.13984503109706642,
+          "wrist_detected": false
+        },
+        "gated_activity": {
+          "wrist_speed_p50": 0.17647265044755886,
+          "hold_wrist_p95_floor": 0.5420483923179974,
+          "wrist_signal_to_noise": 0.3255662279393491,
+          "elbow_angle_p50": 0.7311798111592379,
+          "wrist_detected": false
+        }
+      }
+    }
+  }
+}

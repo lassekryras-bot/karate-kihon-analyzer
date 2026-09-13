@@ -2,10 +2,14 @@
 
 Status: DONE (offline validation and proposed review completed; **capture validation did not pass**).
 
-The unchanged `conservative-v1` cannot establish a quiet baseline in this
-recording. Both complete-sequence runs remain `BASELINE`, produce no transitions,
-and report `NOT_ARMED`. No parameters or production algorithms were changed.
-CameraX integration has not begun.
+Follow-up reports:
+- [Task 5B calibration report](calibration/README.md) records the narrow noise, dwell, displacement, coverage and reference experiments.
+- [Task 5C terminal validation report](terminal/README.md) records per-repetition boundary diagnostics and required-region contract.
+- [Task 5D blind segmentation report](blind/blind-segmentation.md) records side-neutral evaluation on the blind session recording (`20260911_223447.mp4`).
+- [Task 5E kinematics evaluation report](kinematics/task5e-kinematics-report.md) evaluates limb kinematic chains, velocities, and hip rotation.
+- [Task 5F continuous segmentation report](continuous/task5f-segmentation.md) delivers `ANY_STABLE_POSE_AFTER_MOVEMENT`, seamless rearming, combination preservation, and multi-movement session results.
+- [Task 5I Phase 4 segmentation report](phase4-clips/phase4-segmentation-report.md) evaluates causal Top-2 kinematics across both benchmark sessions with telemetry video clips.
+- [Task 5I Phase 5 displacement variants report](terminal/task5i-phase5-displacement-variants.md) resolves sequence collapse and evaluates terminal slow-displacement policies (`TRAILING_WINDOW`, `DISABLED`, `SETTLING_LOCAL`).
 
 ## Source and preservation
 
@@ -175,3 +179,28 @@ reproducible from committed source. The traces, plots, audit, proposals and visu
 review sheets are committed here. All 149 core JVM tests passed locally; eight Python
 importer/plot tests passed. Plots and source-frame sheets were visually inspected.
 No Android app build, device validation, deployment or CameraX work is claimed.
+
+## Task 5H follow-up
+
+The [filtered-kinematics validation](filtered-kinematics/task5h-filtered-kinematics-report.md)
+records the resumed causal candidate, complete A/B replays, per-channel trigger
+trace, plots, and synthetic latency checks. Default activation is rejected:
+the candidate loses the control's completions and blocks Recording B readiness.
+Kinematic gating remains explicitly opt-in; this result does not change the
+original conservative-v1 validation or promote the proposed review boundaries
+to ground truth.
+
+## Task 5I follow-up
+
+The [causal Top-2 kinematics validation](phase4-clips/phase4-segmentation-report.md)
+and [displacement variants evaluation](terminal/task5i-phase5-displacement-variants.md)
+integrate the noise-resilient causal kinematic decision layer in production Kotlin,
+harmonizing frame-by-frame mathematical parity with Python reference models across
+both recordings.
+
+In Phase 5, the legacy 300 ms sliding window displacement gate was isolated as the
+root cause of sequence collapse in rapid kihon (where inter-punch holds are 200–330 ms).
+Variant 2 (`DISABLED`, pure kinematics) immediately disaggregates Recording A into 6
+completed movements while preserving 100% combination grouping in Recording B (81 ms
+intra-combination hold < 100 ms settling dwell).
+

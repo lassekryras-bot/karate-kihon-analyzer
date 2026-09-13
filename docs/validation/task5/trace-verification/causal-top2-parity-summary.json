@@ -1,0 +1,13 @@
+{
+  "recording": "real-kihon-10-punch.fixture.json",
+  "total_frames": 701,
+  "evaluated_frames_et": 697,
+  "evaluated_frames_ea": 697,
+  "max_difference_translation": 6.9402261715367786e-12,
+  "mean_difference_translation": 3.9697035711212266e-13,
+  "max_difference_angular": 2.469207061039924e-10,
+  "mean_difference_angular": 1.1473992169266966e-11,
+  "channel_matches_translation": 697,
+  "channel_matches_angular": 697,
+  "numerical_parity_status": "EXACT"
+}

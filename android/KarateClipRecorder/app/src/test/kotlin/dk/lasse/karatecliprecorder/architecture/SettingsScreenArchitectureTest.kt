@@ -16,11 +16,10 @@ class SettingsScreenArchitectureTest {
         val components = sources.resolve("SettingsComponents.kt").readText()
 
         listOf(
-            "CAMERA & ANALYSIS",
+            "PERMISSIONS",
             "SOUND & VOICE",
             "TRAINING PREFERENCES",
             "APPEARANCE",
-            "DATA & PRIVACY",
             "DEVELOPER & DEBUG",
             "ABOUT",
         ).forEach { heading -> assertTrue(screen.contains(heading)) }
@@ -29,6 +28,34 @@ class SettingsScreenArchitectureTest {
         assertTrue(components.contains("class SettingsRowView"))
         assertTrue(screen.contains("MainPageHeader"))
         assertTrue(screen.contains("StickyHeaderPageLayout"))
+    }
+
+    @Test fun permissionsUseLivePlatformStateAndOneCheckOrXVocabulary() {
+        val screen = sources.resolve("SettingsScreenView.kt").readText()
+        val components = sources.resolve("SettingsComponents.kt").readText()
+        val activity = sources.resolve("MainActivity.kt").readText()
+
+        assertTrue(screen.contains("AppIcon.CAMERA"))
+        assertTrue(screen.contains("AppIcon.MICROPHONE"))
+        assertFalse(screen.contains("AppIcon.SHIELD_CHECK"))
+        assertTrue(screen.contains("setLeadingPermissionStatus(granted, color)"))
+        assertTrue(screen.contains("R.color.app_success else R.color.app_error"))
+        assertTrue(components.contains("if (granted) AppIcon.CHECK else AppIcon.X"))
+        assertTrue(components.contains("clipChildren = false"))
+        assertTrue(activity.contains("ContextCompat.checkSelfPermission(this, permission)"))
+        assertTrue(activity.contains("override fun onResume()"))
+        assertTrue(activity.contains("settingsScreen.refresh()"))
+    }
+
+    @Test fun permanentlyDeniedSettingsPermissionsRouteToAndroidAppDetails() {
+        val screen = sources.resolve("SettingsScreenView.kt").readText()
+        val activity = sources.resolve("MainActivity.kt").readText()
+
+        assertTrue(screen.contains("PermissionRequestRoute.APP_SETTINGS"))
+        assertTrue(activity.contains("ActivityCompat.shouldShowRequestPermissionRationale"))
+        assertTrue(activity.contains("Settings.ACTION_APPLICATION_DETAILS_SETTINGS"))
+        assertTrue(activity.contains("Uri.fromParts(\"package\", packageName, null)"))
+        assertTrue(activity.contains("settingsPermissionRequestHistory"))
     }
 
     @Test fun requestedGenericIconsRouteThroughSharedTablerAbstraction() {

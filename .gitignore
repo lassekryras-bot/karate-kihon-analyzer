@@ -9,3 +9,4 @@ android/.idea/
 .codex-remote-attachments/
 debug_run_main.py
 temp_*.py
+scratch/

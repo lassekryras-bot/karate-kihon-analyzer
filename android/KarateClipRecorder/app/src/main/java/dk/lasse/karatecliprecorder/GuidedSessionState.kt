@@ -7,6 +7,7 @@ enum class GuidedSessionState {
     PROMPTING_STRIKE,
     RECORDING,
     SAVING,
+    ANALYZING,
     COMPLETE,
     FAILED,
     CANCELLED,

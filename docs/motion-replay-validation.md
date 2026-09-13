@@ -96,3 +96,10 @@ beyond the ten numbered punches; it must not be silently truncated.
 The development-only `:karate-analyzer-core:replayMotion` Gradle task runs the
 same `conservative-v1` values as `MotionReplayValidationTest` without modifying
 the extractor or segmenter. See the result page for reproducible commands.
+
+Task 5B's [baseline/stability calibration](validation/task5/calibration/README.md)
+uses the development-only `:karate-analyzer-core:calibrateMotion` task with small
+explicit parameter manifests. It forms a real reference and arms, but does not
+complete the first real capture. The paired 300 ms / 0.05 displacement experiment
+is retained for further offline safety work; unpaired shortened windows fail
+the synthetic slow-drift check. Production defaults remain unchanged.

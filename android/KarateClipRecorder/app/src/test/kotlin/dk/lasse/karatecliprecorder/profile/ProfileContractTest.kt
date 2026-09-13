@@ -67,6 +67,7 @@ class ProfileContractTest {
         val topLevel = listOf(
             "HomeScreenView.kt",
             "learningpath/LearnScreenView.kt",
+            "skillcoach/SkillCoachScreenView.kt",
             "profile/ProgressScreenView.kt",
             "SettingsScreenView.kt",
         ).map { File(sourceRoot, it).readText() }

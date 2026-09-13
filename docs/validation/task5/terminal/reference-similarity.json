@@ -1,0 +1,191 @@
+{
+  "initial_reference": "frame 9 (150 ms), Left-punch hold",
+  "holds": [
+    {
+      "punch": 1,
+      "side": "RIGHT",
+      "frames": [
+        56,
+        76
+      ],
+      "same_similarity_median": 0.5894396867505963,
+      "same_similarity_range": [
+        0.5879230529512756,
+        0.5917186081616392
+      ],
+      "mirrored_similarity_median": 0.5886680772860958,
+      "mirrored_similarity_range": [
+        0.5861517434191086,
+        0.5901758820276027
+      ]
+    },
+    {
+      "punch": 2,
+      "side": "LEFT",
+      "frames": [
+        110,
+        123
+      ],
+      "same_similarity_median": 0.8527061551402317,
+      "same_similarity_range": [
+        0.850185823826462,
+        0.8548203859998149
+      ],
+      "mirrored_similarity_median": 0.7185055635368528,
+      "mirrored_similarity_range": [
+        0.7159937326867344,
+        0.7208082891764356
+      ]
+    },
+    {
+      "punch": 3,
+      "side": "RIGHT",
+      "frames": [
+        158,
+        175
+      ],
+      "same_similarity_median": 0.5935940187788905,
+      "same_similarity_range": [
+        0.5920102913343213,
+        0.5970051492940871
+      ],
+      "mirrored_similarity_median": 0.5914775754415036,
+      "mirrored_similarity_range": [
+        0.5894146877401666,
+        0.5945936374472864
+      ]
+    },
+    {
+      "punch": 4,
+      "side": "LEFT",
+      "frames": [
+        210,
+        224
+      ],
+      "same_similarity_median": 0.860898964841582,
+      "same_similarity_range": [
+        0.8593530970730452,
+        0.8635961090254257
+      ],
+      "mirrored_similarity_median": 0.7209856317074835,
+      "mirrored_similarity_range": [
+        0.7195357247518219,
+        0.7218016994731097
+      ]
+    },
+    {
+      "punch": 5,
+      "side": "RIGHT",
+      "frames": [
+        257,
+        275
+      ],
+      "same_similarity_median": 0.5912434508019945,
+      "same_similarity_range": [
+        0.5902331485066308,
+        0.5937866597617962
+      ],
+      "mirrored_similarity_median": 0.5892695008082476,
+      "mirrored_similarity_range": [
+        0.5877645787234957,
+        0.59124351426017
+      ]
+    },
+    {
+      "punch": 6,
+      "side": "LEFT",
+      "frames": [
+        307,
+        324
+      ],
+      "same_similarity_median": 0.8662363482942558,
+      "same_similarity_range": [
+        0.8640343703274244,
+        0.8673175213886302
+      ],
+      "mirrored_similarity_median": 0.7172173943222485,
+      "mirrored_similarity_range": [
+        0.7157793128231291,
+        0.719480550652657
+      ]
+    },
+    {
+      "punch": 7,
+      "side": "RIGHT",
+      "frames": [
+        357,
+        375
+      ],
+      "same_similarity_median": 0.5859832907478091,
+      "same_similarity_range": [
+        0.5830360317727312,
+        0.5878295329219199
+      ],
+      "mirrored_similarity_median": 0.5839931242484949,
+      "mirrored_similarity_range": [
+        0.5800655993585494,
+        0.5859334601352435
+      ]
+    },
+    {
+      "punch": 8,
+      "side": "LEFT",
+      "frames": [
+        407,
+        425
+      ],
+      "same_similarity_median": 0.8680311627552272,
+      "same_similarity_range": [
+        0.8623566964030842,
+        0.8707483634410014
+      ],
+      "mirrored_similarity_median": 0.7180601095910201,
+      "mirrored_similarity_range": [
+        0.7152348595257767,
+        0.7195163212157799
+      ]
+    },
+    {
+      "punch": 9,
+      "side": "RIGHT",
+      "frames": [
+        457,
+        475
+      ],
+      "same_similarity_median": 0.5879296378630362,
+      "same_similarity_range": [
+        0.5861966178915919,
+        0.5888748719173142
+      ],
+      "mirrored_similarity_median": 0.5851706462367576,
+      "mirrored_similarity_range": [
+        0.5835163269442747,
+        0.5864145833600733
+      ]
+    },
+    {
+      "punch": 10,
+      "side": "LEFT",
+      "frames": [
+        507,
+        525
+      ],
+      "same_similarity_median": 0.8553877643259413,
+      "same_similarity_range": [
+        0.8540423811083468,
+        0.8573432051022662
+      ],
+      "mirrored_similarity_median": 0.7214608423087573,
+      "mirrored_similarity_range": [
+        0.7168344865036467,
+        0.727139253415233
+      ]
+    }
+  ],
+  "conclusions": [
+    "Right-punch holds have same-pose similarity ~0.59 to the initial Left-punch hold, and mirrored similarity ~0.59.",
+    "Left-punch holds have same-pose similarity ~0.85-0.87 to the initial Left-punch hold, and mirrored similarity ~0.72.",
+    "Mirrored similarity never exceeds ~0.72 in real side-view data because sagittal reflection does not account for camera perspective, depth foreshortening, or human bilateral asymmetry.",
+    "Therefore, mirrored similarity cannot be trusted as a universal generic completion rule in side view. Similarity belongs in optional activity-specific evidence, not mandatory universal evidence."
+  ]
+}

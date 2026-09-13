@@ -98,4 +98,36 @@ class KarateTerminologyActivityArchitectureTest {
         assertTrue(activity.contains("playRandomOsuSample("))
         assertTrue(player.contains("fun playRecording("))
     }
+
+    @Test fun osuPictureLessonUsesSemanticReplaceablePlaceholderSlots() {
+        val presentation = sources.resolve("learningactivity/KarateTerminologyPresentations.kt").readText()
+        val views = sources.resolve("learningactivity/KarateTerminologyViews.kt").readText()
+        val illustrations = sources.resolve("learningactivity/OsuMeaningIllustrations.kt").readText()
+        val strings = root.resolve("app/src/main/res/values/strings.xml").readText()
+        val backlog = root.resolve("../../docs/backlog/osu-meaning-illustrations.md").canonicalFile.readText()
+
+        listOf(
+            "SENSEI_SPEAKING",
+            "HEARD_YOU",
+            "PIZZA_DISTRACTION",
+            "READY_GUARD",
+            "SLEEP_DISTRACTION",
+            "ONE_MORE",
+            "HOME_DISTRACTION",
+        ).forEach { slot -> assertTrue(presentation.contains(slot), slot) }
+        assertTrue(illustrations.contains("object OsuIllustrationAssets"))
+        assertTrue(illustrations.contains("class OsuIllustrationView"))
+        assertTrue(illustrations.contains("isPlaceholder: Boolean = true"))
+        assertTrue(illustrations.contains("minimumHeight = 220.dp()"))
+        assertTrue(illustrations.contains("ViewCompat.setStateDescription"))
+        assertTrue(illustrations.contains("AccessibilityNodeInfoCompat"))
+        assertTrue(views.contains("OsuMeaningQuestionView"))
+        assertTrue(views.contains("onSelect = onSelect"))
+        assertTrue(strings.contains("name=\"osu_heard_question\""))
+        assertTrue(strings.contains("name=\"osu_trying_wrong_feedback\""))
+        assertTrue(backlog.contains("sensei_speaking"))
+        assertTrue(backlog.contains("boy_one_more"))
+        assertFalse(views.contains("boy_thinking_pizza.svg"))
+        assertFalse(presentation.contains("R.drawable"))
+    }
 }

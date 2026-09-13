@@ -21,6 +21,6 @@ kotlin { compilerOptions { jvmTarget.set(JvmTarget.JVM_17) } }
 
 dependencies {
     api(project(":karate-analyzer-core"))
-    implementation("com.google.mediapipe:tasks-vision:0.10.26")
+    api("com.google.mediapipe:tasks-vision:0.10.26")
     testImplementation(kotlin("test"))
 }

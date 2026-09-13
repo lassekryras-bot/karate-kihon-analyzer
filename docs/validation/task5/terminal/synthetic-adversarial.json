@@ -1,0 +1,78 @@
+{
+  "title": "Phase 8: Synthetic Adversarial Safety Test Suite",
+  "rule": "UNKNOWN must never silently become stable; omitted regions moving must prevent completion.",
+  "cases": [
+    {
+      "name": "one_arm_moving_while_other_stops",
+      "setup": "Left arm stops, right arm moving at 1.2 normalized speed.",
+      "expected": "quietEvidence == FALSE, state stays MOVING",
+      "result": "PASS (tested in MotionCalibrationSafetyTest)"
+    },
+    {
+      "name": "torso_stopped_while_leg_continues_moving",
+      "setup": "Torso stops, leg moving at 1.5 normalized speed.",
+      "expected": "quietEvidence == FALSE, state stays MOVING",
+      "result": "PASS (tested in MotionCalibrationSafetyTest)"
+    },
+    {
+      "name": "required_region_stable_optional_region_moving",
+      "setup": "TORSO and RIGHT_ARM required and still; optional LEFT_ARM moving at 1.2.",
+      "expected": "quietEvidence == FALSE, completion blocked",
+      "result": "PASS (tested in MotionCalibrationSafetyTest)"
+    },
+    {
+      "name": "optional_region_missing_entirely",
+      "setup": "TORSO and RIGHT_ARM required and quiet; optional LEFT_ARM has 0 landmarks.",
+      "expected": "quietEvidence == TRUE, completion succeeds safely",
+      "result": "PASS (tested in MotionCalibrationSafetyTest)"
+    },
+    {
+      "name": "low_confidence_required_limb",
+      "setup": "Required LEFT_ARM has confidence 0.3 (< 0.70) with apparent zero motion.",
+      "expected": "quietEvidence == UNKNOWN, completion blocked",
+      "result": "PASS (tested in MotionCalibrationSafetyTest)"
+    },
+    {
+      "name": "brief_plateau_followed_by_resumed_motion",
+      "setup": "Quiet dwell begins, but motion resumes before settling dwell completes.",
+      "expected": "Transitions back to MOVING, zero premature completion",
+      "result": "PASS (tested in MotionCalibrationSafetyTest & GenericMotionSegmenterTest)"
+    },
+    {
+      "name": "slow_continuous_drift",
+      "setup": "Continuous 0.3 joint drift through 2000 ms.",
+      "expected": "Terminal boundary >= 2000 ms, slow displacement blocks premature completion",
+      "result": "PASS (tested in MotionCalibrationSafetyTest)"
+    },
+    {
+      "name": "return_to_initial_pose",
+      "setup": "DIFFERENT_STABLE_POSE expected, terminal pose similarity 0.92 >= 0.80.",
+      "expected": "completionEvidence == FALSE, completion blocked",
+      "result": "PASS (tested in MotionCalibrationSafetyTest)"
+    },
+    {
+      "name": "different_stable_pose",
+      "setup": "DIFFERENT_STABLE_POSE expected, terminal pose similarity 0.50 < 0.80.",
+      "expected": "completionEvidence == TRUE, completes safely",
+      "result": "PASS (tested in MotionCalibrationSafetyTest)"
+    },
+    {
+      "name": "exact_mirrored_pose",
+      "setup": "MIRRORED_START expected, mirrored similarity 0.95 >= 0.80.",
+      "expected": "completionEvidence == TRUE, completes",
+      "result": "PASS (tested in MotionCalibrationSafetyTest)"
+    },
+    {
+      "name": "approximate_mirrored_pose",
+      "setup": "MIRRORED_START expected, mirrored similarity 0.70 < 0.80.",
+      "expected": "completionEvidence == FALSE, completion blocked",
+      "result": "PASS (tested in MotionCalibrationSafetyTest)"
+    },
+    {
+      "name": "temporary_coverage_recovery_during_ongoing_movement",
+      "setup": "Coverage recovers to 0.95 while motion is 1.5.",
+      "expected": "movementEvidence == TRUE, quietEvidence == FALSE, stays MOVING",
+      "result": "PASS (tested in MotionCalibrationSafetyTest)"
+    }
+  ]
+}

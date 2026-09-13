@@ -20,5 +20,9 @@ When starting work on a task, first verify the current implementation. Do not as
 
 ## Open tasks
 
-- [Permission status UI verification and fix](permission-status-ui.md) — verify Android camera/microphone permission state, status visuals, settings flow, and lifecycle refresh.
+- [Osu meaning illustration assets](osu-meaning-illustrations.md) — replace the completed lesson’s semantic icon placeholders with approved recurring-character artwork.
 - [Body conditioning / knuckle push-up learning path](body-conditioning-knuckle-pushup-learning-path.md) — later progression that separates knuckle conditioning from the basic strength learning path.
+
+## Completed tasks
+
+- [Permission status UI verification and fix](permission-status-ui.md) — completed 2026-09-13; Android-backed status, consistent check/X visuals, settings fallback, and lifecycle refresh are implemented and verified.

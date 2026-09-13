@@ -1,0 +1,25 @@
+{
+  "title": "Phase 5: Evaluation of Coverage Semantics Alternatives",
+  "policies": {
+    "Policy_A_Whole_Body_Minimum": {
+      "description": "Every one of the 6 anatomical regions must individually meet minimumCoverage (0.70).",
+      "finding": "In this side-view recording, the far-side arm (LEFT_ARM) during Right-punch holds has its wrist hidden behind the torso (confidence ~0.17), dropping LEFT_ARM coverage to ~0.61. Consequently, 100% of Right-punch holds fail coverage, preventing baseline formation in Right holds and blocking terminal completion on all odd punches.",
+      "verdict": "Too rigid for side-view observation where an occluded limb cannot reach 0.70."
+    },
+    "Policy_B_Balanced_Coverage": {
+      "description": "Weighted average of regional coverages must meet 0.70.",
+      "finding": "In Task 5B, balanced coverage allowed terminal hold frames to pass (balanced coverage ~0.88-0.96). However, averaging coverage allows dense, well-tracked regions (e.g. torso and legs) to completely hide the loss or unobserved state of a sparse limb.",
+      "verdict": "Unsafe as a primary gating policy because it violates the rule that missing evidence must not be treated as stillness."
+    },
+    "Policy_C_Quorum_Partial_Body": {
+      "description": "Any k out of N regions must meet coverage.",
+      "finding": "If arbitrary unobserved regions are permitted to drop out, an unobserved limb could be moving without detection unless explicit regional activity semantics declare which regions matter.",
+      "verdict": "Underspecified without declared semantic roles."
+    },
+    "Policy_D_Stable_Observed_Subset_Plus_Unresolved_Region_Policy": {
+      "description": "The activity contract explicitly declares required regions for terminal stillness (e.g. TORSO, RIGHT_ARM for this side-view capture). Only declared required regions must satisfy minimumCoverage (0.70). All observed regions (required and optional) contribute positive motion evidence. If an optional region is moving, completion is blocked. If an optional region is genuinely unobserved, the activity's explicit declaration permits completion without it.",
+      "finding": "Safely completes real movements where occluded limbs settle, while strictly rejecting completion in adversarial tests where an omitted limb is moving.",
+      "verdict": "Recommended Task 5C policy."
+    }
+  }
+}

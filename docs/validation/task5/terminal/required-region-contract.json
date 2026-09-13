@@ -1,0 +1,59 @@
+{
+  "title": "Phase 6: Required-Region Contract Design",
+  "schema": {
+    "GenericMotionSegmenterConfig": {
+      "requiredRegionsForTerminalStillness": "Set<AnatomicalRegion> (default: AnatomicalRegion.entries.toSet())"
+    },
+    "PoseMotionExtractorConfig": {
+      "requiredRegions": "Set<AnatomicalRegion> (default: AnatomicalRegion.entries.toSet())"
+    },
+    "MotionReplayParameterSet": {
+      "requiredRegions": "Set<AnatomicalRegion> (default: AnatomicalRegion.entries.toSet())"
+    }
+  },
+  "single_source_of_truth": "MotionReplayParameterSet.requiredRegions flows into both PoseMotionExtractorConfig.requiredRegions and GenericMotionSegmenterConfig.requiredRegionsForTerminalStillness, ensuring zero divergence.",
+  "future_exercise_support": [
+    {
+      "exercise": "Punch (side view)",
+      "required_regions": [
+        "TORSO",
+        "RIGHT_ARM"
+      ]
+    },
+    {
+      "exercise": "Kick drill",
+      "required_regions": [
+        "TORSO",
+        "LEFT_LEG",
+        "RIGHT_LEG"
+      ]
+    },
+    {
+      "exercise": "Stance transition",
+      "required_regions": [
+        "TORSO",
+        "LEFT_LEG",
+        "RIGHT_LEG"
+      ]
+    },
+    {
+      "exercise": "Upper-body drill",
+      "required_regions": [
+        "TORSO",
+        "LEFT_ARM",
+        "RIGHT_ARM"
+      ]
+    },
+    {
+      "exercise": "Full-body form (kata)",
+      "required_regions": [
+        "HEAD",
+        "TORSO",
+        "LEFT_ARM",
+        "RIGHT_ARM",
+        "LEFT_LEG",
+        "RIGHT_LEG"
+      ]
+    }
+  ]
+}

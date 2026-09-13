@@ -1,0 +1,885 @@
+[
+  {
+    "name": "conservative-v1",
+    "final_state": "BASELINE",
+    "frame_count": 701,
+    "reference_first_frame": null,
+    "transitions": [],
+    "false_settling_transitions": [],
+    "false_quiet_dwell_frames": [],
+    "quiet_evidence": {
+      "groups": {
+        "movement": {
+          "accepted": 0,
+          "total": 310,
+          "percent": 0.0
+        },
+        "terminal_stable": {
+          "accepted": 0,
+          "total": 181,
+          "percent": 0.0
+        },
+        "initial_hold": {
+          "accepted": 0,
+          "total": 24,
+          "percent": 0.0
+        },
+        "inter_punch_unreviewed_gap": {
+          "accepted": 0,
+          "total": 11,
+          "percent": 0.0
+        },
+        "low_coverage": {
+          "accepted": 0,
+          "total": 377,
+          "percent": 0.0
+        }
+      },
+      "longest_false_quiet_ms": 0,
+      "false_quiet_runs": []
+    },
+    "completions_during_low_coverage": []
+  },
+  {
+    "name": "noise-calibration-only-v1",
+    "final_state": "MOVING",
+    "frame_count": 701,
+    "reference_first_frame": 9,
+    "transitions": [
+      {
+        "from": "BASELINE",
+        "to": "ARMED",
+        "decision_timestamp_ms": 183,
+        "boundary_timestamp_ms": null,
+        "trigger": "armed"
+      },
+      {
+        "from": "ARMED",
+        "to": "MOVING",
+        "decision_timestamp_ms": 500,
+        "boundary_timestamp_ms": 400,
+        "trigger": "sustained_motion"
+      }
+    ],
+    "false_settling_transitions": [],
+    "false_quiet_dwell_frames": [],
+    "quiet_evidence": {
+      "groups": {
+        "movement": {
+          "accepted": 0,
+          "total": 310,
+          "percent": 0.0
+        },
+        "terminal_stable": {
+          "accepted": 0,
+          "total": 181,
+          "percent": 0.0
+        },
+        "initial_hold": {
+          "accepted": 19,
+          "total": 24,
+          "percent": 79.16666666666667
+        },
+        "inter_punch_unreviewed_gap": {
+          "accepted": 0,
+          "total": 11,
+          "percent": 0.0
+        },
+        "low_coverage": {
+          "accepted": 0,
+          "total": 377,
+          "percent": 0.0
+        }
+      },
+      "longest_false_quiet_ms": 0,
+      "false_quiet_runs": []
+    },
+    "completions_during_low_coverage": []
+  },
+  {
+    "name": "real-sideview-calibration-v1",
+    "final_state": "MOVING",
+    "frame_count": 701,
+    "reference_first_frame": 9,
+    "transitions": [
+      {
+        "from": "BASELINE",
+        "to": "ARMED",
+        "decision_timestamp_ms": 183,
+        "boundary_timestamp_ms": null,
+        "trigger": "armed"
+      },
+      {
+        "from": "ARMED",
+        "to": "MOVING",
+        "decision_timestamp_ms": 500,
+        "boundary_timestamp_ms": 400,
+        "trigger": "sustained_motion"
+      },
+      {
+        "from": "MOVING",
+        "to": "SETTLING",
+        "decision_timestamp_ms": 1917,
+        "boundary_timestamp_ms": 1917,
+        "trigger": "quiet_candidate"
+      },
+      {
+        "from": "SETTLING",
+        "to": "MOVING",
+        "decision_timestamp_ms": 1983,
+        "boundary_timestamp_ms": 1983,
+        "trigger": "movement_resumed"
+      },
+      {
+        "from": "MOVING",
+        "to": "SETTLING",
+        "decision_timestamp_ms": 2000,
+        "boundary_timestamp_ms": 2000,
+        "trigger": "quiet_candidate"
+      },
+      {
+        "from": "SETTLING",
+        "to": "MOVING",
+        "decision_timestamp_ms": 2067,
+        "boundary_timestamp_ms": 2067,
+        "trigger": "movement_resumed"
+      },
+      {
+        "from": "MOVING",
+        "to": "SETTLING",
+        "decision_timestamp_ms": 3567,
+        "boundary_timestamp_ms": 3567,
+        "trigger": "quiet_candidate"
+      },
+      {
+        "from": "SETTLING",
+        "to": "MOVING",
+        "decision_timestamp_ms": 3733,
+        "boundary_timestamp_ms": 3733,
+        "trigger": "movement_resumed"
+      },
+      {
+        "from": "MOVING",
+        "to": "SETTLING",
+        "decision_timestamp_ms": 5200,
+        "boundary_timestamp_ms": 5200,
+        "trigger": "quiet_candidate"
+      },
+      {
+        "from": "SETTLING",
+        "to": "MOVING",
+        "decision_timestamp_ms": 5383,
+        "boundary_timestamp_ms": 5383,
+        "trigger": "movement_resumed"
+      },
+      {
+        "from": "MOVING",
+        "to": "SETTLING",
+        "decision_timestamp_ms": 6867,
+        "boundary_timestamp_ms": 6867,
+        "trigger": "quiet_candidate"
+      },
+      {
+        "from": "SETTLING",
+        "to": "MOVING",
+        "decision_timestamp_ms": 6900,
+        "boundary_timestamp_ms": 6900,
+        "trigger": "movement_resumed"
+      },
+      {
+        "from": "MOVING",
+        "to": "SETTLING",
+        "decision_timestamp_ms": 6917,
+        "boundary_timestamp_ms": 6917,
+        "trigger": "quiet_candidate"
+      },
+      {
+        "from": "SETTLING",
+        "to": "MOVING",
+        "decision_timestamp_ms": 7033,
+        "boundary_timestamp_ms": 7033,
+        "trigger": "movement_resumed"
+      },
+      {
+        "from": "MOVING",
+        "to": "SETTLING",
+        "decision_timestamp_ms": 8533,
+        "boundary_timestamp_ms": 8533,
+        "trigger": "quiet_candidate"
+      },
+      {
+        "from": "SETTLING",
+        "to": "MOVING",
+        "decision_timestamp_ms": 8667,
+        "boundary_timestamp_ms": 8667,
+        "trigger": "movement_resumed"
+      },
+      {
+        "from": "MOVING",
+        "to": "SETTLING",
+        "decision_timestamp_ms": 8683,
+        "boundary_timestamp_ms": 8683,
+        "trigger": "quiet_candidate"
+      },
+      {
+        "from": "SETTLING",
+        "to": "MOVING",
+        "decision_timestamp_ms": 8767,
+        "boundary_timestamp_ms": 8767,
+        "trigger": "movement_resumed"
+      },
+      {
+        "from": "MOVING",
+        "to": "SETTLING",
+        "decision_timestamp_ms": 10233,
+        "boundary_timestamp_ms": 10233,
+        "trigger": "quiet_candidate"
+      },
+      {
+        "from": "SETTLING",
+        "to": "MOVING",
+        "decision_timestamp_ms": 10433,
+        "boundary_timestamp_ms": 10433,
+        "trigger": "movement_resumed"
+      }
+    ],
+    "false_settling_transitions": [],
+    "false_quiet_dwell_frames": [],
+    "quiet_evidence": {
+      "groups": {
+        "movement": {
+          "accepted": 0,
+          "total": 310,
+          "percent": 0.0
+        },
+        "terminal_stable": {
+          "accepted": 51,
+          "total": 181,
+          "percent": 28.176795580110497
+        },
+        "initial_hold": {
+          "accepted": 19,
+          "total": 24,
+          "percent": 79.16666666666667
+        },
+        "inter_punch_unreviewed_gap": {
+          "accepted": 0,
+          "total": 11,
+          "percent": 0.0
+        },
+        "low_coverage": {
+          "accepted": 0,
+          "total": 377,
+          "percent": 0.0
+        }
+      },
+      "longest_false_quiet_ms": 0,
+      "false_quiet_runs": []
+    },
+    "completions_during_low_coverage": []
+  },
+  {
+    "name": "short-window-diagnostic-v1",
+    "final_state": "MOVING",
+    "frame_count": 701,
+    "reference_first_frame": 9,
+    "transitions": [
+      {
+        "from": "BASELINE",
+        "to": "ARMED",
+        "decision_timestamp_ms": 183,
+        "boundary_timestamp_ms": null,
+        "trigger": "armed"
+      },
+      {
+        "from": "ARMED",
+        "to": "MOVING",
+        "decision_timestamp_ms": 500,
+        "boundary_timestamp_ms": 400,
+        "trigger": "sustained_motion"
+      },
+      {
+        "from": "MOVING",
+        "to": "SETTLING",
+        "decision_timestamp_ms": 1767,
+        "boundary_timestamp_ms": 1767,
+        "trigger": "quiet_candidate"
+      },
+      {
+        "from": "SETTLING",
+        "to": "MOVING",
+        "decision_timestamp_ms": 1783,
+        "boundary_timestamp_ms": 1783,
+        "trigger": "movement_resumed"
+      },
+      {
+        "from": "MOVING",
+        "to": "SETTLING",
+        "decision_timestamp_ms": 1800,
+        "boundary_timestamp_ms": 1800,
+        "trigger": "quiet_candidate"
+      },
+      {
+        "from": "SETTLING",
+        "to": "MOVING",
+        "decision_timestamp_ms": 1817,
+        "boundary_timestamp_ms": 1817,
+        "trigger": "movement_resumed"
+      },
+      {
+        "from": "MOVING",
+        "to": "SETTLING",
+        "decision_timestamp_ms": 1833,
+        "boundary_timestamp_ms": 1833,
+        "trigger": "quiet_candidate"
+      },
+      {
+        "from": "SETTLING",
+        "to": "MOVING",
+        "decision_timestamp_ms": 1900,
+        "boundary_timestamp_ms": 1900,
+        "trigger": "movement_resumed"
+      },
+      {
+        "from": "MOVING",
+        "to": "SETTLING",
+        "decision_timestamp_ms": 1917,
+        "boundary_timestamp_ms": 1917,
+        "trigger": "quiet_candidate"
+      },
+      {
+        "from": "SETTLING",
+        "to": "MOVING",
+        "decision_timestamp_ms": 1983,
+        "boundary_timestamp_ms": 1983,
+        "trigger": "movement_resumed"
+      },
+      {
+        "from": "MOVING",
+        "to": "SETTLING",
+        "decision_timestamp_ms": 2000,
+        "boundary_timestamp_ms": 2000,
+        "trigger": "quiet_candidate"
+      },
+      {
+        "from": "SETTLING",
+        "to": "MOVING",
+        "decision_timestamp_ms": 2067,
+        "boundary_timestamp_ms": 2067,
+        "trigger": "movement_resumed"
+      },
+      {
+        "from": "MOVING",
+        "to": "SETTLING",
+        "decision_timestamp_ms": 3417,
+        "boundary_timestamp_ms": 3417,
+        "trigger": "quiet_candidate"
+      },
+      {
+        "from": "SETTLING",
+        "to": "MOVING",
+        "decision_timestamp_ms": 3433,
+        "boundary_timestamp_ms": 3433,
+        "trigger": "movement_resumed"
+      },
+      {
+        "from": "MOVING",
+        "to": "SETTLING",
+        "decision_timestamp_ms": 3450,
+        "boundary_timestamp_ms": 3450,
+        "trigger": "quiet_candidate"
+      },
+      {
+        "from": "SETTLING",
+        "to": "MOVING",
+        "decision_timestamp_ms": 3483,
+        "boundary_timestamp_ms": 3483,
+        "trigger": "movement_resumed"
+      },
+      {
+        "from": "MOVING",
+        "to": "SETTLING",
+        "decision_timestamp_ms": 3500,
+        "boundary_timestamp_ms": 3500,
+        "trigger": "quiet_candidate"
+      },
+      {
+        "from": "SETTLING",
+        "to": "MOVING",
+        "decision_timestamp_ms": 3533,
+        "boundary_timestamp_ms": 3533,
+        "trigger": "movement_resumed"
+      },
+      {
+        "from": "MOVING",
+        "to": "SETTLING",
+        "decision_timestamp_ms": 3550,
+        "boundary_timestamp_ms": 3550,
+        "trigger": "quiet_candidate"
+      },
+      {
+        "from": "SETTLING",
+        "to": "MOVING",
+        "decision_timestamp_ms": 3733,
+        "boundary_timestamp_ms": 3733,
+        "trigger": "movement_resumed"
+      },
+      {
+        "from": "MOVING",
+        "to": "SETTLING",
+        "decision_timestamp_ms": 5067,
+        "boundary_timestamp_ms": 5067,
+        "trigger": "quiet_candidate"
+      },
+      {
+        "from": "SETTLING",
+        "to": "MOVING",
+        "decision_timestamp_ms": 5117,
+        "boundary_timestamp_ms": 5117,
+        "trigger": "movement_resumed"
+      },
+      {
+        "from": "MOVING",
+        "to": "SETTLING",
+        "decision_timestamp_ms": 5133,
+        "boundary_timestamp_ms": 5133,
+        "trigger": "quiet_candidate"
+      },
+      {
+        "from": "SETTLING",
+        "to": "MOVING",
+        "decision_timestamp_ms": 5383,
+        "boundary_timestamp_ms": 5383,
+        "trigger": "movement_resumed"
+      },
+      {
+        "from": "MOVING",
+        "to": "SETTLING",
+        "decision_timestamp_ms": 6750,
+        "boundary_timestamp_ms": 6750,
+        "trigger": "quiet_candidate"
+      },
+      {
+        "from": "SETTLING",
+        "to": "MOVING",
+        "decision_timestamp_ms": 6800,
+        "boundary_timestamp_ms": 6800,
+        "trigger": "movement_resumed"
+      },
+      {
+        "from": "MOVING",
+        "to": "SETTLING",
+        "decision_timestamp_ms": 6817,
+        "boundary_timestamp_ms": 6817,
+        "trigger": "quiet_candidate"
+      },
+      {
+        "from": "SETTLING",
+        "to": "MOVING",
+        "decision_timestamp_ms": 6900,
+        "boundary_timestamp_ms": 6900,
+        "trigger": "movement_resumed"
+      },
+      {
+        "from": "MOVING",
+        "to": "SETTLING",
+        "decision_timestamp_ms": 6917,
+        "boundary_timestamp_ms": 6917,
+        "trigger": "quiet_candidate"
+      },
+      {
+        "from": "SETTLING",
+        "to": "MOVING",
+        "decision_timestamp_ms": 7033,
+        "boundary_timestamp_ms": 7033,
+        "trigger": "movement_resumed"
+      },
+      {
+        "from": "MOVING",
+        "to": "SETTLING",
+        "decision_timestamp_ms": 8400,
+        "boundary_timestamp_ms": 8400,
+        "trigger": "quiet_candidate"
+      },
+      {
+        "from": "SETTLING",
+        "to": "MOVING",
+        "decision_timestamp_ms": 8417,
+        "boundary_timestamp_ms": 8417,
+        "trigger": "movement_resumed"
+      },
+      {
+        "from": "MOVING",
+        "to": "SETTLING",
+        "decision_timestamp_ms": 8450,
+        "boundary_timestamp_ms": 8450,
+        "trigger": "quiet_candidate"
+      },
+      {
+        "from": "SETTLING",
+        "to": "MOVING",
+        "decision_timestamp_ms": 8500,
+        "boundary_timestamp_ms": 8500,
+        "trigger": "movement_resumed"
+      },
+      {
+        "from": "MOVING",
+        "to": "SETTLING",
+        "decision_timestamp_ms": 8517,
+        "boundary_timestamp_ms": 8517,
+        "trigger": "quiet_candidate"
+      },
+      {
+        "from": "SETTLING",
+        "to": "MOVING",
+        "decision_timestamp_ms": 8667,
+        "boundary_timestamp_ms": 8667,
+        "trigger": "movement_resumed"
+      },
+      {
+        "from": "MOVING",
+        "to": "SETTLING",
+        "decision_timestamp_ms": 8683,
+        "boundary_timestamp_ms": 8683,
+        "trigger": "quiet_candidate"
+      },
+      {
+        "from": "SETTLING",
+        "to": "MOVING",
+        "decision_timestamp_ms": 8767,
+        "boundary_timestamp_ms": 8767,
+        "trigger": "movement_resumed"
+      },
+      {
+        "from": "MOVING",
+        "to": "SETTLING",
+        "decision_timestamp_ms": 10117,
+        "boundary_timestamp_ms": 10117,
+        "trigger": "quiet_candidate"
+      },
+      {
+        "from": "SETTLING",
+        "to": "MOVING",
+        "decision_timestamp_ms": 10150,
+        "boundary_timestamp_ms": 10150,
+        "trigger": "movement_resumed"
+      },
+      {
+        "from": "MOVING",
+        "to": "SETTLING",
+        "decision_timestamp_ms": 10167,
+        "boundary_timestamp_ms": 10167,
+        "trigger": "quiet_candidate"
+      },
+      {
+        "from": "SETTLING",
+        "to": "MOVING",
+        "decision_timestamp_ms": 10183,
+        "boundary_timestamp_ms": 10183,
+        "trigger": "movement_resumed"
+      },
+      {
+        "from": "MOVING",
+        "to": "SETTLING",
+        "decision_timestamp_ms": 10200,
+        "boundary_timestamp_ms": 10200,
+        "trigger": "quiet_candidate"
+      },
+      {
+        "from": "SETTLING",
+        "to": "MOVING",
+        "decision_timestamp_ms": 10433,
+        "boundary_timestamp_ms": 10433,
+        "trigger": "movement_resumed"
+      }
+    ],
+    "false_settling_transitions": [
+      {
+        "from": "MOVING",
+        "to": "SETTLING",
+        "decision_timestamp_ms": 1767,
+        "boundary_timestamp_ms": 1767,
+        "trigger": "quiet_candidate"
+      },
+      {
+        "from": "MOVING",
+        "to": "SETTLING",
+        "decision_timestamp_ms": 1800,
+        "boundary_timestamp_ms": 1800,
+        "trigger": "quiet_candidate"
+      },
+      {
+        "from": "MOVING",
+        "to": "SETTLING",
+        "decision_timestamp_ms": 3417,
+        "boundary_timestamp_ms": 3417,
+        "trigger": "quiet_candidate"
+      },
+      {
+        "from": "MOVING",
+        "to": "SETTLING",
+        "decision_timestamp_ms": 3450,
+        "boundary_timestamp_ms": 3450,
+        "trigger": "quiet_candidate"
+      },
+      {
+        "from": "MOVING",
+        "to": "SETTLING",
+        "decision_timestamp_ms": 5067,
+        "boundary_timestamp_ms": 5067,
+        "trigger": "quiet_candidate"
+      },
+      {
+        "from": "MOVING",
+        "to": "SETTLING",
+        "decision_timestamp_ms": 6750,
+        "boundary_timestamp_ms": 6750,
+        "trigger": "quiet_candidate"
+      },
+      {
+        "from": "MOVING",
+        "to": "SETTLING",
+        "decision_timestamp_ms": 8400,
+        "boundary_timestamp_ms": 8400,
+        "trigger": "quiet_candidate"
+      }
+    ],
+    "false_quiet_dwell_frames": [],
+    "quiet_evidence": {
+      "groups": {
+        "movement": {
+          "accepted": 11,
+          "total": 310,
+          "percent": 3.5483870967741935
+        },
+        "terminal_stable": {
+          "accepted": 70,
+          "total": 181,
+          "percent": 38.67403314917127
+        },
+        "initial_hold": {
+          "accepted": 19,
+          "total": 24,
+          "percent": 79.16666666666667
+        },
+        "inter_punch_unreviewed_gap": {
+          "accepted": 0,
+          "total": 11,
+          "percent": 0.0
+        },
+        "low_coverage": {
+          "accepted": 0,
+          "total": 377,
+          "percent": 0.0
+        }
+      },
+      "longest_false_quiet_ms": 33,
+      "false_quiet_runs": [
+        {
+          "first_frame": 106,
+          "last_frame": 106,
+          "duration_ms": 0
+        },
+        {
+          "first_frame": 108,
+          "last_frame": 108,
+          "duration_ms": 0
+        },
+        {
+          "first_frame": 205,
+          "last_frame": 205,
+          "duration_ms": 0
+        },
+        {
+          "first_frame": 207,
+          "last_frame": 208,
+          "duration_ms": 17
+        },
+        {
+          "first_frame": 304,
+          "last_frame": 306,
+          "duration_ms": 33
+        },
+        {
+          "first_frame": 405,
+          "last_frame": 406,
+          "duration_ms": 17
+        },
+        {
+          "first_frame": 504,
+          "last_frame": 504,
+          "duration_ms": 0
+        }
+      ]
+    },
+    "completions_during_low_coverage": []
+  },
+  {
+    "name": "real-sideview-rate-preserving-v1",
+    "final_state": "MOVING",
+    "frame_count": 701,
+    "reference_first_frame": 9,
+    "transitions": [
+      {
+        "from": "BASELINE",
+        "to": "ARMED",
+        "decision_timestamp_ms": 183,
+        "boundary_timestamp_ms": null,
+        "trigger": "armed"
+      },
+      {
+        "from": "ARMED",
+        "to": "MOVING",
+        "decision_timestamp_ms": 500,
+        "boundary_timestamp_ms": 400,
+        "trigger": "sustained_motion"
+      },
+      {
+        "from": "MOVING",
+        "to": "SETTLING",
+        "decision_timestamp_ms": 1950,
+        "boundary_timestamp_ms": 1950,
+        "trigger": "quiet_candidate"
+      },
+      {
+        "from": "SETTLING",
+        "to": "MOVING",
+        "decision_timestamp_ms": 1983,
+        "boundary_timestamp_ms": 1983,
+        "trigger": "movement_resumed"
+      },
+      {
+        "from": "MOVING",
+        "to": "SETTLING",
+        "decision_timestamp_ms": 2000,
+        "boundary_timestamp_ms": 2000,
+        "trigger": "quiet_candidate"
+      },
+      {
+        "from": "SETTLING",
+        "to": "MOVING",
+        "decision_timestamp_ms": 2067,
+        "boundary_timestamp_ms": 2067,
+        "trigger": "movement_resumed"
+      },
+      {
+        "from": "MOVING",
+        "to": "SETTLING",
+        "decision_timestamp_ms": 3650,
+        "boundary_timestamp_ms": 3650,
+        "trigger": "quiet_candidate"
+      },
+      {
+        "from": "SETTLING",
+        "to": "MOVING",
+        "decision_timestamp_ms": 3733,
+        "boundary_timestamp_ms": 3733,
+        "trigger": "movement_resumed"
+      },
+      {
+        "from": "MOVING",
+        "to": "SETTLING",
+        "decision_timestamp_ms": 5300,
+        "boundary_timestamp_ms": 5300,
+        "trigger": "quiet_candidate"
+      },
+      {
+        "from": "SETTLING",
+        "to": "MOVING",
+        "decision_timestamp_ms": 5383,
+        "boundary_timestamp_ms": 5383,
+        "trigger": "movement_resumed"
+      },
+      {
+        "from": "MOVING",
+        "to": "SETTLING",
+        "decision_timestamp_ms": 6917,
+        "boundary_timestamp_ms": 6917,
+        "trigger": "quiet_candidate"
+      },
+      {
+        "from": "SETTLING",
+        "to": "MOVING",
+        "decision_timestamp_ms": 7033,
+        "boundary_timestamp_ms": 7033,
+        "trigger": "movement_resumed"
+      },
+      {
+        "from": "MOVING",
+        "to": "SETTLING",
+        "decision_timestamp_ms": 8600,
+        "boundary_timestamp_ms": 8600,
+        "trigger": "quiet_candidate"
+      },
+      {
+        "from": "SETTLING",
+        "to": "MOVING",
+        "decision_timestamp_ms": 8667,
+        "boundary_timestamp_ms": 8667,
+        "trigger": "movement_resumed"
+      },
+      {
+        "from": "MOVING",
+        "to": "SETTLING",
+        "decision_timestamp_ms": 8683,
+        "boundary_timestamp_ms": 8683,
+        "trigger": "quiet_candidate"
+      },
+      {
+        "from": "SETTLING",
+        "to": "MOVING",
+        "decision_timestamp_ms": 8767,
+        "boundary_timestamp_ms": 8767,
+        "trigger": "movement_resumed"
+      },
+      {
+        "from": "MOVING",
+        "to": "SETTLING",
+        "decision_timestamp_ms": 10283,
+        "boundary_timestamp_ms": 10283,
+        "trigger": "quiet_candidate"
+      },
+      {
+        "from": "SETTLING",
+        "to": "MOVING",
+        "decision_timestamp_ms": 10433,
+        "boundary_timestamp_ms": 10433,
+        "trigger": "movement_resumed"
+      }
+    ],
+    "false_settling_transitions": [],
+    "false_quiet_dwell_frames": [],
+    "quiet_evidence": {
+      "groups": {
+        "movement": {
+          "accepted": 0,
+          "total": 310,
+          "percent": 0.0
+        },
+        "terminal_stable": {
+          "accepted": 32,
+          "total": 181,
+          "percent": 17.679558011049725
+        },
+        "initial_hold": {
+          "accepted": 19,
+          "total": 24,
+          "percent": 79.16666666666667
+        },
+        "inter_punch_unreviewed_gap": {
+          "accepted": 0,
+          "total": 11,
+          "percent": 0.0
+        },
+        "low_coverage": {
+          "accepted": 0,
+          "total": 377,
+          "percent": 0.0
+        }
+      },
+      "longest_false_quiet_ms": 0,
+      "false_quiet_runs": []
+    },
+    "completions_during_low_coverage": []
+  }
+]

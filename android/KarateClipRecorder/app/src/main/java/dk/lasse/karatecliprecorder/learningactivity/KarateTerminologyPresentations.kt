@@ -1,27 +1,94 @@
 package dk.lasse.karatecliprecorder.learningactivity
 
+import androidx.annotation.StringRes
+import dk.lasse.karatecliprecorder.R
 import dk.lasse.karatecliprecorder.learning.ShortVoiceCommand
 import dk.lasse.karatecliprecorder.learning.ShortVoiceCommandMatcher
 import dk.lasse.karatecliprecorder.learning.SpeechRecognitionError
 
-enum class OsuMeaningUseStage { READY, MEANING, DOJO_USE, APP_USE, COMPLETE }
+enum class OsuMeaningUseStage { READY, HEARD_YOU, READY_RESPONSE, KEEP_TRYING, COMPLETE }
+
+enum class OsuIllustration {
+    SENSEI_SPEAKING,
+    HEARD_YOU,
+    PIZZA_DISTRACTION,
+    READY_GUARD,
+    SLEEP_DISTRACTION,
+    ONE_MORE,
+    HOME_DISTRACTION,
+}
+
+data class OsuMeaningQuestion(
+    val stage: OsuMeaningUseStage,
+    @StringRes val senseiSpeechRes: Int,
+    @StringRes val questionRes: Int,
+    val correctIllustration: OsuIllustration,
+    @StringRes val correctLabelRes: Int,
+    val distractionIllustration: OsuIllustration,
+    @StringRes val distractionLabelRes: Int,
+    @StringRes val correctFeedbackRes: Int,
+    @StringRes val wrongFeedbackRes: Int,
+)
+
+object OsuMeaningLesson {
+    val questions = listOf(
+        OsuMeaningQuestion(
+            stage = OsuMeaningUseStage.HEARD_YOU,
+            senseiSpeechRes = R.string.osu_heard_sensei_speech,
+            questionRes = R.string.osu_heard_question,
+            correctIllustration = OsuIllustration.HEARD_YOU,
+            correctLabelRes = R.string.osu_heard_answer,
+            distractionIllustration = OsuIllustration.PIZZA_DISTRACTION,
+            distractionLabelRes = R.string.osu_pizza_answer,
+            correctFeedbackRes = R.string.osu_heard_correct_feedback,
+            wrongFeedbackRes = R.string.osu_heard_wrong_feedback,
+        ),
+        OsuMeaningQuestion(
+            stage = OsuMeaningUseStage.READY_RESPONSE,
+            senseiSpeechRes = R.string.osu_ready_sensei_speech,
+            questionRes = R.string.osu_ready_question,
+            correctIllustration = OsuIllustration.READY_GUARD,
+            correctLabelRes = R.string.osu_ready_answer,
+            distractionIllustration = OsuIllustration.SLEEP_DISTRACTION,
+            distractionLabelRes = R.string.osu_sleep_answer,
+            correctFeedbackRes = R.string.osu_ready_correct_feedback,
+            wrongFeedbackRes = R.string.osu_ready_wrong_feedback,
+        ),
+        OsuMeaningQuestion(
+            stage = OsuMeaningUseStage.KEEP_TRYING,
+            senseiSpeechRes = R.string.osu_trying_sensei_speech,
+            questionRes = R.string.osu_trying_question,
+            correctIllustration = OsuIllustration.ONE_MORE,
+            correctLabelRes = R.string.osu_trying_answer,
+            distractionIllustration = OsuIllustration.HOME_DISTRACTION,
+            distractionLabelRes = R.string.osu_home_answer,
+            correctFeedbackRes = R.string.osu_trying_correct_feedback,
+            wrongFeedbackRes = R.string.osu_trying_wrong_feedback,
+        ),
+    )
+
+    fun questionFor(stage: OsuMeaningUseStage): OsuMeaningQuestion? =
+        questions.firstOrNull { it.stage == stage }
+}
 
 data class OsuMeaningUsePresentation(
     val stage: OsuMeaningUseStage = OsuMeaningUseStage.READY,
+    val selections: Map<OsuMeaningUseStage, OsuIllustration> = emptyMap(),
 ) {
     val shellState: ActivityShellState = when (stage) {
         OsuMeaningUseStage.READY -> ActivityShellState.READY
         OsuMeaningUseStage.COMPLETE -> ActivityShellState.COMPLETE
         else -> ActivityShellState.ACTIVE
     }
-    val stepIndex: Int? = when (stage) {
-        OsuMeaningUseStage.MEANING -> 0
-        OsuMeaningUseStage.DOJO_USE -> 1
-        OsuMeaningUseStage.APP_USE -> 2
-        else -> null
-    }
+    val question: OsuMeaningQuestion? = OsuMeaningLesson.questionFor(stage)
+    val stepIndex: Int? = OsuMeaningLesson.questions.indexOfFirst { it.stage == stage }
+        .takeIf { it >= 0 }
+    val selectedIllustration: OsuIllustration? = selections[stage]
+    val answerIsCorrect: Boolean = question != null && question.correctIllustration == selectedIllustration
+    val hasSelection: Boolean = selectedIllustration != null
     val previousEnabled: Boolean = (stepIndex ?: 0) > 0
-    val nextLabel: String = if (stage == OsuMeaningUseStage.APP_USE) "Finish lesson  →" else "Continue  →"
+    val nextEnabled: Boolean = answerIsCorrect
+    val isLastQuestion: Boolean = stepIndex == OsuMeaningLesson.questions.lastIndex
     val cameraRequired = false
     val microphoneRequired = false
 }
@@ -32,22 +99,34 @@ class OsuMeaningUseController(
     var presentation = OsuMeaningUsePresentation()
         private set
 
-    fun start() = update(OsuMeaningUsePresentation(OsuMeaningUseStage.MEANING))
+    fun start() = update(OsuMeaningUsePresentation(OsuMeaningLesson.questions.first().stage))
 
-    fun next() = update(when (presentation.stage) {
-        OsuMeaningUseStage.MEANING -> OsuMeaningUsePresentation(OsuMeaningUseStage.DOJO_USE)
-        OsuMeaningUseStage.DOJO_USE -> OsuMeaningUsePresentation(OsuMeaningUseStage.APP_USE)
-        OsuMeaningUseStage.APP_USE -> OsuMeaningUsePresentation(OsuMeaningUseStage.COMPLETE)
-        else -> presentation
-    })
+    fun selectAnswer(illustration: OsuIllustration) {
+        val question = presentation.question ?: return
+        if (illustration !in setOf(question.correctIllustration, question.distractionIllustration)) return
+        update(presentation.copy(
+            selections = presentation.selections + (presentation.stage to illustration),
+        ))
+    }
 
-    fun previous() = update(when (presentation.stage) {
-        OsuMeaningUseStage.DOJO_USE -> OsuMeaningUsePresentation(OsuMeaningUseStage.MEANING)
-        OsuMeaningUseStage.APP_USE -> OsuMeaningUsePresentation(OsuMeaningUseStage.DOJO_USE)
-        else -> presentation
-    })
+    fun next() {
+        if (!presentation.nextEnabled) return
+        val currentIndex = requireNotNull(presentation.stepIndex)
+        val nextStage = OsuMeaningLesson.questions.getOrNull(currentIndex + 1)?.stage
+            ?: OsuMeaningUseStage.COMPLETE
+        update(presentation.copy(stage = nextStage))
+    }
 
-    fun restart() = start()
+    fun previous() {
+        val previousStage = presentation.stepIndex
+            ?.minus(1)
+            ?.let(OsuMeaningLesson.questions::getOrNull)
+            ?.stage
+            ?: return
+        update(presentation.copy(stage = previousStage))
+    }
+
+    fun restart() = update(OsuMeaningUsePresentation(OsuMeaningLesson.questions.first().stage))
 
     fun reset() = update(OsuMeaningUsePresentation())
 

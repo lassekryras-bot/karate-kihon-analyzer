@@ -1,6 +1,6 @@
 # Permission Status UI Verification and Fix
 
-**Status:** OPEN  
+**Status:** DONE
 **Source:** Short design chat, 2026-09-10  
 **Area:** Android app / Settings / Permissions
 
@@ -76,3 +76,12 @@ Test camera and microphone independently for:
 ## Visual reference
 
 The source chat included a screenshot of the current Permissions card. The important visual requirement is captured above: camera/microphone + check/X, with `Allowed`/`Not allowed` using matching green/red state colors. If the original screenshot is committed later, place it under `docs/backlog/assets/permission-status-ui/` and link it here.
+
+## Implementation verification — 2026-09-13
+
+- The existing screen already read both permission states from Android and refreshed them from `MainActivity.onResume()`; those behaviors were preserved.
+- Camera and microphone now remain the primary row icons, with an associated green check or red X. The redundant right-side shield/check was removed.
+- Denied rows now use the semantic error color and `Not allowed`; granted rows use the semantic success color and `Allowed`.
+- Permission actions use the normal runtime dialog while Android can still present it, then route to the app's Android settings after a permanent denial. Request history is persisted only to choose that route; displayed permission state still comes exclusively from Android.
+- Focused permission policy and Settings architecture tests pass, and the debug APK builds successfully.
+- The granted state was visually checked on the connected phone. Automated tests cover denied and permanently-denied mappings; a second live denied-state screenshot was prevented by the phone's secure lock screen. The phone's original camera and microphone grants were restored and confirmed afterward.

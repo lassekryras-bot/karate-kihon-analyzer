@@ -1,0 +1,255 @@
+{
+  "recording_b_normal_whole": {
+    "title": "Recording B (NORMAL + WHOLE_BODY)",
+    "detected_count": 6,
+    "timeline_image": "docs/validation/task5/decoupled-clips/recording-b-normal-whole/recording_b_normal_whole-timeline.png",
+    "clips": [
+      {
+        "movement_number": 1,
+        "description": "Move 1: Chudan Oi-Zuki (Right punch)",
+        "start_boundary_ms": 60,
+        "terminal_boundary_ms": 649,
+        "duration_ms": 589,
+        "clip_path": "docs/validation/task5/decoupled-clips/recording-b-normal-whole/movement-01.mp4"
+      },
+      {
+        "movement_number": 2,
+        "description": "Move 2: Gedan Barai (Left low block)",
+        "start_boundary_ms": 2051,
+        "terminal_boundary_ms": 3371,
+        "duration_ms": 1320,
+        "clip_path": "docs/validation/task5/decoupled-clips/recording-b-normal-whole/movement-02.mp4"
+      },
+      {
+        "movement_number": 3,
+        "description": "Move 3: Jodan Age-Uke (Right rising block)",
+        "start_boundary_ms": 3919,
+        "terminal_boundary_ms": 5117,
+        "duration_ms": 1198,
+        "clip_path": "docs/validation/task5/decoupled-clips/recording-b-normal-whole/movement-03.mp4"
+      },
+      {
+        "movement_number": 4,
+        "description": "Move 4: 1-2 Combination (Rapid Chudan Zuki, 81ms hold)",
+        "start_boundary_ms": 5666,
+        "terminal_boundary_ms": 8285,
+        "duration_ms": 2619,
+        "clip_path": "docs/validation/task5/decoupled-clips/recording-b-normal-whole/movement-04.mp4"
+      },
+      {
+        "movement_number": 5,
+        "description": "Move 5: Mae Geri (Front kick & recovery)",
+        "start_boundary_ms": 8956,
+        "terminal_boundary_ms": 12611,
+        "duration_ms": 3655,
+        "clip_path": "docs/validation/task5/decoupled-clips/recording-b-normal-whole/movement-05.mp4"
+      },
+      {
+        "movement_number": 6,
+        "description": "Move 6: Yoko Geri Kekomi (Side thrust kick)",
+        "start_boundary_ms": 13769,
+        "terminal_boundary_ms": 15394,
+        "duration_ms": 1625,
+        "clip_path": "docs/validation/task5/decoupled-clips/recording-b-normal-whole/movement-06.mp4"
+      }
+    ]
+  },
+  "recording_a_normal_upper": {
+    "title": "Recording A (NORMAL + UPPER_BODY)",
+    "detected_count": 11,
+    "timeline_image": "docs/validation/task5/decoupled-clips/recording-a-normal-upper/recording_a_normal_upper-timeline.png",
+    "clips": [
+      {
+        "movement_number": 1,
+        "description": "Punch 1 (Right straight punch, camera near)",
+        "start_boundary_ms": 400,
+        "terminal_boundary_ms": 950,
+        "duration_ms": 550,
+        "clip_path": "docs/validation/task5/decoupled-clips/recording-a-normal-upper/movement-01.mp4"
+      },
+      {
+        "movement_number": 2,
+        "description": "Punch 2 (Left straight punch, camera far)",
+        "start_boundary_ms": 1267,
+        "terminal_boundary_ms": 1917,
+        "duration_ms": 650,
+        "clip_path": "docs/validation/task5/decoupled-clips/recording-a-normal-upper/movement-02.mp4"
+      },
+      {
+        "movement_number": 3,
+        "description": "Punch 3 (Right straight punch, camera near)",
+        "start_boundary_ms": 2067,
+        "terminal_boundary_ms": 2700,
+        "duration_ms": 633,
+        "clip_path": "docs/validation/task5/decoupled-clips/recording-a-normal-upper/movement-03.mp4"
+      },
+      {
+        "movement_number": 4,
+        "description": "Punches 4 & 5 (Merged: Hold 4 lacked 100ms quiet)",
+        "start_boundary_ms": 2883,
+        "terminal_boundary_ms": 4300,
+        "duration_ms": 1417,
+        "clip_path": "docs/validation/task5/decoupled-clips/recording-a-normal-upper/movement-04.mp4"
+      },
+      {
+        "movement_number": 5,
+        "description": "Punch 6 (Left straight punch, camera far)",
+        "start_boundary_ms": 4617,
+        "terminal_boundary_ms": 5200,
+        "duration_ms": 583,
+        "clip_path": "docs/validation/task5/decoupled-clips/recording-a-normal-upper/movement-05.mp4"
+      },
+      {
+        "movement_number": 6,
+        "description": "Punch 7 (Right straight punch, camera near)",
+        "start_boundary_ms": 5350,
+        "terminal_boundary_ms": 5917,
+        "duration_ms": 567,
+        "clip_path": "docs/validation/task5/decoupled-clips/recording-a-normal-upper/movement-06.mp4"
+      },
+      {
+        "movement_number": 7,
+        "description": "Punch 8 (Left straight punch, camera far)",
+        "start_boundary_ms": 6283,
+        "terminal_boundary_ms": 6850,
+        "duration_ms": 567,
+        "clip_path": "docs/validation/task5/decoupled-clips/recording-a-normal-upper/movement-07.mp4"
+      },
+      {
+        "movement_number": 8,
+        "description": "Punch 9 (Right straight punch, camera near)",
+        "start_boundary_ms": 6967,
+        "terminal_boundary_ms": 7667,
+        "duration_ms": 700,
+        "clip_path": "docs/validation/task5/decoupled-clips/recording-a-normal-upper/movement-08.mp4"
+      },
+      {
+        "movement_number": 9,
+        "description": "Punch 10 (Left straight punch + Kamae transition)",
+        "start_boundary_ms": 7950,
+        "terminal_boundary_ms": 9317,
+        "duration_ms": 1367,
+        "clip_path": "docs/validation/task5/decoupled-clips/recording-a-normal-upper/movement-09.mp4"
+      },
+      {
+        "movement_number": 10,
+        "description": "Move 11 (Post-sequence posture reset)",
+        "start_boundary_ms": 9517,
+        "terminal_boundary_ms": 10250,
+        "duration_ms": 733,
+        "clip_path": "docs/validation/task5/decoupled-clips/recording-a-normal-upper/movement-10.mp4"
+      },
+      {
+        "movement_number": 11,
+        "description": "Move 12 (Final Yame posture settling)",
+        "start_boundary_ms": 10467,
+        "terminal_boundary_ms": 11067,
+        "duration_ms": 600,
+        "clip_path": "docs/validation/task5/decoupled-clips/recording-a-normal-upper/movement-11.mp4"
+      }
+    ]
+  },
+  "recording_a_repetitions_upper": {
+    "title": "Recording A (REPETITIONS + UPPER_BODY)",
+    "detected_count": 12,
+    "timeline_image": "docs/validation/task5/decoupled-clips/recording-a-repetitions-upper/recording_a_repetitions_upper-timeline.png",
+    "clips": [
+      {
+        "movement_number": 1,
+        "description": "Punch 1 (Right straight punch, camera near)",
+        "start_boundary_ms": 400,
+        "terminal_boundary_ms": 933,
+        "duration_ms": 533,
+        "clip_path": "docs/validation/task5/decoupled-clips/recording-a-repetitions-upper/movement-01.mp4"
+      },
+      {
+        "movement_number": 2,
+        "description": "Punch 2 (Left straight punch, camera far)",
+        "start_boundary_ms": 1267,
+        "terminal_boundary_ms": 1883,
+        "duration_ms": 616,
+        "clip_path": "docs/validation/task5/decoupled-clips/recording-a-repetitions-upper/movement-02.mp4"
+      },
+      {
+        "movement_number": 3,
+        "description": "Punch 3 (Right straight punch, camera near)",
+        "start_boundary_ms": 2067,
+        "terminal_boundary_ms": 2567,
+        "duration_ms": 500,
+        "clip_path": "docs/validation/task5/decoupled-clips/recording-a-repetitions-upper/movement-03.mp4"
+      },
+      {
+        "movement_number": 4,
+        "description": "Punch 4 (Left straight punch, camera far)",
+        "start_boundary_ms": 2883,
+        "terminal_boundary_ms": 3550,
+        "duration_ms": 667,
+        "clip_path": "docs/validation/task5/decoupled-clips/recording-a-repetitions-upper/movement-04.mp4"
+      },
+      {
+        "movement_number": 5,
+        "description": "Punch 5 (Right straight punch, camera near)",
+        "start_boundary_ms": 3700,
+        "terminal_boundary_ms": 4300,
+        "duration_ms": 600,
+        "clip_path": "docs/validation/task5/decoupled-clips/recording-a-repetitions-upper/movement-05.mp4"
+      },
+      {
+        "movement_number": 6,
+        "description": "Punch 6 (Left straight punch, camera far)",
+        "start_boundary_ms": 4617,
+        "terminal_boundary_ms": 5200,
+        "duration_ms": 583,
+        "clip_path": "docs/validation/task5/decoupled-clips/recording-a-repetitions-upper/movement-06.mp4"
+      },
+      {
+        "movement_number": 7,
+        "description": "Punch 7 (Right straight punch, camera near)",
+        "start_boundary_ms": 5350,
+        "terminal_boundary_ms": 5900,
+        "duration_ms": 550,
+        "clip_path": "docs/validation/task5/decoupled-clips/recording-a-repetitions-upper/movement-07.mp4"
+      },
+      {
+        "movement_number": 8,
+        "description": "Punch 8 (Left straight punch, camera far)",
+        "start_boundary_ms": 6283,
+        "terminal_boundary_ms": 6833,
+        "duration_ms": 550,
+        "clip_path": "docs/validation/task5/decoupled-clips/recording-a-repetitions-upper/movement-08.mp4"
+      },
+      {
+        "movement_number": 9,
+        "description": "Punch 9 (Right straight punch, camera near)",
+        "start_boundary_ms": 6967,
+        "terminal_boundary_ms": 7667,
+        "duration_ms": 700,
+        "clip_path": "docs/validation/task5/decoupled-clips/recording-a-repetitions-upper/movement-09.mp4"
+      },
+      {
+        "movement_number": 10,
+        "description": "Punch 10 (Left straight punch + Kamae transition)",
+        "start_boundary_ms": 7950,
+        "terminal_boundary_ms": 9317,
+        "duration_ms": 1367,
+        "clip_path": "docs/validation/task5/decoupled-clips/recording-a-repetitions-upper/movement-10.mp4"
+      },
+      {
+        "movement_number": 11,
+        "description": "Move 11 (Post-sequence posture reset)",
+        "start_boundary_ms": 9517,
+        "terminal_boundary_ms": 10183,
+        "duration_ms": 666,
+        "clip_path": "docs/validation/task5/decoupled-clips/recording-a-repetitions-upper/movement-11.mp4"
+      },
+      {
+        "movement_number": 12,
+        "description": "Move 12 (Final Yame posture settling)",
+        "start_boundary_ms": 10467,
+        "terminal_boundary_ms": 11067,
+        "duration_ms": 600,
+        "clip_path": "docs/validation/task5/decoupled-clips/recording-a-repetitions-upper/movement-12.mp4"
+      }
+    ]
+  }
+}

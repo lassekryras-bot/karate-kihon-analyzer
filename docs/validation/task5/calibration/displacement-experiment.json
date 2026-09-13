@@ -1,0 +1,4382 @@
+[
+  {
+    "window_ms": 600,
+    "displacement_limit": 0.1,
+    "punch": 1,
+    "onset_displacement": 0.6954524894488884,
+    "stable_end_displacement": 0.3061300339049832,
+    "first_crossing_frame": null,
+    "delay_ms": null,
+    "crosses_within_proposed_stable": false,
+    "crosses_before_next_movement": false,
+    "curve": [
+      {
+        "frame": 56,
+        "elapsed_ms": 0,
+        "displacement": 0.6954524894488884
+      },
+      {
+        "frame": 57,
+        "elapsed_ms": 17,
+        "displacement": 0.6899726736210319
+      },
+      {
+        "frame": 58,
+        "elapsed_ms": 34,
+        "displacement": 0.6929478867947626
+      },
+      {
+        "frame": 59,
+        "elapsed_ms": 50,
+        "displacement": 0.6824059225043696
+      },
+      {
+        "frame": 60,
+        "elapsed_ms": 67,
+        "displacement": 0.6770650647207913
+      },
+      {
+        "frame": 61,
+        "elapsed_ms": 84,
+        "displacement": 0.6678599505740712
+      },
+      {
+        "frame": 62,
+        "elapsed_ms": 100,
+        "displacement": 0.6612241230236906
+      },
+      {
+        "frame": 63,
+        "elapsed_ms": 117,
+        "displacement": 0.6475020830610754
+      },
+      {
+        "frame": 64,
+        "elapsed_ms": 134,
+        "displacement": 0.6389233403656215
+      },
+      {
+        "frame": 65,
+        "elapsed_ms": 150,
+        "displacement": 0.6295859394609922
+      },
+      {
+        "frame": 66,
+        "elapsed_ms": 167,
+        "displacement": 0.6126608178948789
+      },
+      {
+        "frame": 67,
+        "elapsed_ms": 184,
+        "displacement": 0.591631734447925
+      },
+      {
+        "frame": 68,
+        "elapsed_ms": 200,
+        "displacement": 0.5596902157633487
+      },
+      {
+        "frame": 69,
+        "elapsed_ms": 217,
+        "displacement": 0.5191778114919653
+      },
+      {
+        "frame": 70,
+        "elapsed_ms": 234,
+        "displacement": 0.48732862194400506
+      },
+      {
+        "frame": 71,
+        "elapsed_ms": 250,
+        "displacement": 0.453833568356255
+      },
+      {
+        "frame": 72,
+        "elapsed_ms": 267,
+        "displacement": 0.41293907303612865
+      },
+      {
+        "frame": 73,
+        "elapsed_ms": 284,
+        "displacement": 0.3789930616876954
+      },
+      {
+        "frame": 74,
+        "elapsed_ms": 300,
+        "displacement": 0.3552743100435496
+      },
+      {
+        "frame": 75,
+        "elapsed_ms": 317,
+        "displacement": 0.3232365955636492
+      },
+      {
+        "frame": 76,
+        "elapsed_ms": 334,
+        "displacement": 0.3061300339049832
+      },
+      {
+        "frame": 77,
+        "elapsed_ms": 350,
+        "displacement": 0.274450222827874
+      },
+      {
+        "frame": 78,
+        "elapsed_ms": 367,
+        "displacement": 0.18908090772674582
+      },
+      {
+        "frame": 79,
+        "elapsed_ms": 384,
+        "displacement": 0.159615969275864
+      }
+    ]
+  },
+  {
+    "window_ms": 600,
+    "displacement_limit": 0.1,
+    "punch": 2,
+    "onset_displacement": 0.6925638358328253,
+    "stable_end_displacement": 0.4706802213993031,
+    "first_crossing_frame": null,
+    "delay_ms": null,
+    "crosses_within_proposed_stable": false,
+    "crosses_before_next_movement": false,
+    "curve": [
+      {
+        "frame": 110,
+        "elapsed_ms": 0,
+        "displacement": 0.6925638358328253
+      },
+      {
+        "frame": 111,
+        "elapsed_ms": 17,
+        "displacement": 0.6942890754082595
+      },
+      {
+        "frame": 112,
+        "elapsed_ms": 34,
+        "displacement": 0.6987207660337565
+      },
+      {
+        "frame": 113,
+        "elapsed_ms": 50,
+        "displacement": 0.6955141835670078
+      },
+      {
+        "frame": 114,
+        "elapsed_ms": 67,
+        "displacement": 0.6992409312218452
+      },
+      {
+        "frame": 115,
+        "elapsed_ms": 84,
+        "displacement": 0.6962592387175844
+      },
+      {
+        "frame": 116,
+        "elapsed_ms": 100,
+        "displacement": 0.7133381948748138
+      },
+      {
+        "frame": 117,
+        "elapsed_ms": 117,
+        "displacement": 0.7012331997560287
+      },
+      {
+        "frame": 118,
+        "elapsed_ms": 134,
+        "displacement": 0.693220056784486
+      },
+      {
+        "frame": 119,
+        "elapsed_ms": 150,
+        "displacement": 0.681525281871873
+      },
+      {
+        "frame": 120,
+        "elapsed_ms": 167,
+        "displacement": 0.6013062900642119
+      },
+      {
+        "frame": 121,
+        "elapsed_ms": 184,
+        "displacement": 0.538053995261812
+      },
+      {
+        "frame": 122,
+        "elapsed_ms": 200,
+        "displacement": 0.5026039379482465
+      },
+      {
+        "frame": 123,
+        "elapsed_ms": 217,
+        "displacement": 0.4706802213993031
+      },
+      {
+        "frame": 124,
+        "elapsed_ms": 234,
+        "displacement": 0.4424105310198047
+      }
+    ]
+  },
+  {
+    "window_ms": 600,
+    "displacement_limit": 0.1,
+    "punch": 3,
+    "onset_displacement": 0.6647349840850895,
+    "stable_end_displacement": 0.28711730484550585,
+    "first_crossing_frame": null,
+    "delay_ms": null,
+    "crosses_within_proposed_stable": false,
+    "crosses_before_next_movement": false,
+    "curve": [
+      {
+        "frame": 158,
+        "elapsed_ms": 0,
+        "displacement": 0.6647349840850895
+      },
+      {
+        "frame": 159,
+        "elapsed_ms": 17,
+        "displacement": 0.6659414022362979
+      },
+      {
+        "frame": 160,
+        "elapsed_ms": 34,
+        "displacement": 0.6642944693058358
+      },
+      {
+        "frame": 161,
+        "elapsed_ms": 50,
+        "displacement": 0.6688251785039311
+      },
+      {
+        "frame": 162,
+        "elapsed_ms": 67,
+        "displacement": 0.6608835214875688
+      },
+      {
+        "frame": 163,
+        "elapsed_ms": 84,
+        "displacement": 0.6509296126238451
+      },
+      {
+        "frame": 164,
+        "elapsed_ms": 100,
+        "displacement": 0.6346899059923203
+      },
+      {
+        "frame": 165,
+        "elapsed_ms": 117,
+        "displacement": 0.614281624275776
+      },
+      {
+        "frame": 166,
+        "elapsed_ms": 134,
+        "displacement": 0.5913607113978563
+      },
+      {
+        "frame": 167,
+        "elapsed_ms": 150,
+        "displacement": 0.5601788927329524
+      },
+      {
+        "frame": 168,
+        "elapsed_ms": 167,
+        "displacement": 0.5320969283640831
+      },
+      {
+        "frame": 169,
+        "elapsed_ms": 184,
+        "displacement": 0.487050331520016
+      },
+      {
+        "frame": 170,
+        "elapsed_ms": 200,
+        "displacement": 0.4483555141327144
+      },
+      {
+        "frame": 171,
+        "elapsed_ms": 217,
+        "displacement": 0.38908136223404877
+      },
+      {
+        "frame": 172,
+        "elapsed_ms": 234,
+        "displacement": 0.3516574020197851
+      },
+      {
+        "frame": 173,
+        "elapsed_ms": 250,
+        "displacement": 0.33347128199179754
+      },
+      {
+        "frame": 174,
+        "elapsed_ms": 267,
+        "displacement": 0.3097166918023607
+      },
+      {
+        "frame": 175,
+        "elapsed_ms": 284,
+        "displacement": 0.28711730484550585
+      },
+      {
+        "frame": 176,
+        "elapsed_ms": 300,
+        "displacement": 0.2663388577833781
+      },
+      {
+        "frame": 177,
+        "elapsed_ms": 317,
+        "displacement": 0.23033195610007257
+      },
+      {
+        "frame": 178,
+        "elapsed_ms": 334,
+        "displacement": 0.14352259174656998
+      }
+    ]
+  },
+  {
+    "window_ms": 600,
+    "displacement_limit": 0.1,
+    "punch": 4,
+    "onset_displacement": 0.667374650679705,
+    "stable_end_displacement": 0.42266199949628974,
+    "first_crossing_frame": null,
+    "delay_ms": null,
+    "crosses_within_proposed_stable": false,
+    "crosses_before_next_movement": false,
+    "curve": [
+      {
+        "frame": 210,
+        "elapsed_ms": 0,
+        "displacement": 0.667374650679705
+      },
+      {
+        "frame": 211,
+        "elapsed_ms": 17,
+        "displacement": 0.669237965803401
+      },
+      {
+        "frame": 212,
+        "elapsed_ms": 33,
+        "displacement": 0.6699730327047357
+      },
+      {
+        "frame": 213,
+        "elapsed_ms": 50,
+        "displacement": 0.6693717094629811
+      },
+      {
+        "frame": 214,
+        "elapsed_ms": 67,
+        "displacement": 0.665026731422049
+      },
+      {
+        "frame": 215,
+        "elapsed_ms": 83,
+        "displacement": 0.6624515102298472
+      },
+      {
+        "frame": 216,
+        "elapsed_ms": 100,
+        "displacement": 0.6577411614994221
+      },
+      {
+        "frame": 217,
+        "elapsed_ms": 117,
+        "displacement": 0.6565181724443135
+      },
+      {
+        "frame": 218,
+        "elapsed_ms": 133,
+        "displacement": 0.6415728265490334
+      },
+      {
+        "frame": 219,
+        "elapsed_ms": 150,
+        "displacement": 0.5965719565596274
+      },
+      {
+        "frame": 220,
+        "elapsed_ms": 167,
+        "displacement": 0.5741483296830854
+      },
+      {
+        "frame": 221,
+        "elapsed_ms": 183,
+        "displacement": 0.5284350344805392
+      },
+      {
+        "frame": 222,
+        "elapsed_ms": 200,
+        "displacement": 0.4892927995446928
+      },
+      {
+        "frame": 223,
+        "elapsed_ms": 217,
+        "displacement": 0.45944863239569955
+      },
+      {
+        "frame": 224,
+        "elapsed_ms": 233,
+        "displacement": 0.42266199949628974
+      }
+    ]
+  },
+  {
+    "window_ms": 600,
+    "displacement_limit": 0.1,
+    "punch": 5,
+    "onset_displacement": 0.6725517912925894,
+    "stable_end_displacement": 0.29944952327640056,
+    "first_crossing_frame": null,
+    "delay_ms": null,
+    "crosses_within_proposed_stable": false,
+    "crosses_before_next_movement": false,
+    "curve": [
+      {
+        "frame": 257,
+        "elapsed_ms": 0,
+        "displacement": 0.6725517912925894
+      },
+      {
+        "frame": 258,
+        "elapsed_ms": 17,
+        "displacement": 0.6672274845749934
+      },
+      {
+        "frame": 259,
+        "elapsed_ms": 34,
+        "displacement": 0.6658204415709508
+      },
+      {
+        "frame": 260,
+        "elapsed_ms": 50,
+        "displacement": 0.6646240714448381
+      },
+      {
+        "frame": 261,
+        "elapsed_ms": 67,
+        "displacement": 0.6620436604656604
+      },
+      {
+        "frame": 262,
+        "elapsed_ms": 84,
+        "displacement": 0.6539425529983376
+      },
+      {
+        "frame": 263,
+        "elapsed_ms": 100,
+        "displacement": 0.6412691043114512
+      },
+      {
+        "frame": 264,
+        "elapsed_ms": 117,
+        "displacement": 0.6318152662032437
+      },
+      {
+        "frame": 265,
+        "elapsed_ms": 134,
+        "displacement": 0.6179304386506236
+      },
+      {
+        "frame": 266,
+        "elapsed_ms": 150,
+        "displacement": 0.598032620374183
+      },
+      {
+        "frame": 267,
+        "elapsed_ms": 167,
+        "displacement": 0.5640911781264968
+      },
+      {
+        "frame": 268,
+        "elapsed_ms": 184,
+        "displacement": 0.5333329303724582
+      },
+      {
+        "frame": 269,
+        "elapsed_ms": 200,
+        "displacement": 0.49915769937317295
+      },
+      {
+        "frame": 270,
+        "elapsed_ms": 217,
+        "displacement": 0.4585643216646533
+      },
+      {
+        "frame": 271,
+        "elapsed_ms": 234,
+        "displacement": 0.39036329868150527
+      },
+      {
+        "frame": 272,
+        "elapsed_ms": 250,
+        "displacement": 0.35591991581253063
+      },
+      {
+        "frame": 273,
+        "elapsed_ms": 267,
+        "displacement": 0.330493134907739
+      },
+      {
+        "frame": 274,
+        "elapsed_ms": 284,
+        "displacement": 0.3187405387520779
+      },
+      {
+        "frame": 275,
+        "elapsed_ms": 300,
+        "displacement": 0.29944952327640056
+      },
+      {
+        "frame": 276,
+        "elapsed_ms": 317,
+        "displacement": 0.2766409171525134
+      }
+    ]
+  },
+  {
+    "window_ms": 600,
+    "displacement_limit": 0.1,
+    "punch": 6,
+    "onset_displacement": 0.6750435413342183,
+    "stable_end_displacement": 0.3533106386201691,
+    "first_crossing_frame": null,
+    "delay_ms": null,
+    "crosses_within_proposed_stable": false,
+    "crosses_before_next_movement": false,
+    "curve": [
+      {
+        "frame": 307,
+        "elapsed_ms": 0,
+        "displacement": 0.6750435413342183
+      },
+      {
+        "frame": 308,
+        "elapsed_ms": 16,
+        "displacement": 0.6749285250162768
+      },
+      {
+        "frame": 309,
+        "elapsed_ms": 33,
+        "displacement": 0.674990082533716
+      },
+      {
+        "frame": 310,
+        "elapsed_ms": 50,
+        "displacement": 0.6782214243009366
+      },
+      {
+        "frame": 311,
+        "elapsed_ms": 66,
+        "displacement": 0.67953464385498
+      },
+      {
+        "frame": 312,
+        "elapsed_ms": 83,
+        "displacement": 0.6799795139142731
+      },
+      {
+        "frame": 313,
+        "elapsed_ms": 100,
+        "displacement": 0.6772416866829732
+      },
+      {
+        "frame": 314,
+        "elapsed_ms": 116,
+        "displacement": 0.6737292549737101
+      },
+      {
+        "frame": 315,
+        "elapsed_ms": 133,
+        "displacement": 0.6689088886608926
+      },
+      {
+        "frame": 316,
+        "elapsed_ms": 150,
+        "displacement": 0.6643383894770803
+      },
+      {
+        "frame": 317,
+        "elapsed_ms": 166,
+        "displacement": 0.6092914332121231
+      },
+      {
+        "frame": 318,
+        "elapsed_ms": 183,
+        "displacement": 0.575189381975837
+      },
+      {
+        "frame": 319,
+        "elapsed_ms": 200,
+        "displacement": 0.5214006688586087
+      },
+      {
+        "frame": 320,
+        "elapsed_ms": 216,
+        "displacement": 0.492763992535539
+      },
+      {
+        "frame": 321,
+        "elapsed_ms": 233,
+        "displacement": 0.4719053827644688
+      },
+      {
+        "frame": 322,
+        "elapsed_ms": 250,
+        "displacement": 0.43899947708102605
+      },
+      {
+        "frame": 323,
+        "elapsed_ms": 266,
+        "displacement": 0.39605517928320194
+      },
+      {
+        "frame": 324,
+        "elapsed_ms": 283,
+        "displacement": 0.3533106386201691
+      }
+    ]
+  },
+  {
+    "window_ms": 600,
+    "displacement_limit": 0.1,
+    "punch": 7,
+    "onset_displacement": 0.6745848092968854,
+    "stable_end_displacement": 0.28659608083402777,
+    "first_crossing_frame": null,
+    "delay_ms": null,
+    "crosses_within_proposed_stable": false,
+    "crosses_before_next_movement": false,
+    "curve": [
+      {
+        "frame": 357,
+        "elapsed_ms": 0,
+        "displacement": 0.6745848092968854
+      },
+      {
+        "frame": 358,
+        "elapsed_ms": 17,
+        "displacement": 0.671792514930129
+      },
+      {
+        "frame": 359,
+        "elapsed_ms": 33,
+        "displacement": 0.6712848332480726
+      },
+      {
+        "frame": 360,
+        "elapsed_ms": 50,
+        "displacement": 0.6661743958603339
+      },
+      {
+        "frame": 361,
+        "elapsed_ms": 67,
+        "displacement": 0.6551482844418342
+      },
+      {
+        "frame": 362,
+        "elapsed_ms": 83,
+        "displacement": 0.6463409880165891
+      },
+      {
+        "frame": 363,
+        "elapsed_ms": 100,
+        "displacement": 0.6343258072603517
+      },
+      {
+        "frame": 364,
+        "elapsed_ms": 117,
+        "displacement": 0.6197799546561285
+      },
+      {
+        "frame": 365,
+        "elapsed_ms": 133,
+        "displacement": 0.5944236026536455
+      },
+      {
+        "frame": 366,
+        "elapsed_ms": 150,
+        "displacement": 0.5690200319174699
+      },
+      {
+        "frame": 367,
+        "elapsed_ms": 167,
+        "displacement": 0.5349177782217023
+      },
+      {
+        "frame": 368,
+        "elapsed_ms": 183,
+        "displacement": 0.5025837031410078
+      },
+      {
+        "frame": 369,
+        "elapsed_ms": 200,
+        "displacement": 0.4611170692825999
+      },
+      {
+        "frame": 370,
+        "elapsed_ms": 217,
+        "displacement": 0.3961389144851663
+      },
+      {
+        "frame": 371,
+        "elapsed_ms": 233,
+        "displacement": 0.36456407379742184
+      },
+      {
+        "frame": 372,
+        "elapsed_ms": 250,
+        "displacement": 0.3578840302985825
+      },
+      {
+        "frame": 373,
+        "elapsed_ms": 267,
+        "displacement": 0.34324647890283333
+      },
+      {
+        "frame": 374,
+        "elapsed_ms": 283,
+        "displacement": 0.3176264885410568
+      },
+      {
+        "frame": 375,
+        "elapsed_ms": 300,
+        "displacement": 0.28659608083402777
+      },
+      {
+        "frame": 376,
+        "elapsed_ms": 317,
+        "displacement": 0.18920006758162605
+      }
+    ]
+  },
+  {
+    "window_ms": 600,
+    "displacement_limit": 0.1,
+    "punch": 8,
+    "onset_displacement": 0.6806339915970591,
+    "stable_end_displacement": 0.30460686371307505,
+    "first_crossing_frame": null,
+    "delay_ms": null,
+    "crosses_within_proposed_stable": false,
+    "crosses_before_next_movement": false,
+    "curve": [
+      {
+        "frame": 407,
+        "elapsed_ms": 0,
+        "displacement": 0.6806339915970591
+      },
+      {
+        "frame": 408,
+        "elapsed_ms": 17,
+        "displacement": 0.6882850985826005
+      },
+      {
+        "frame": 409,
+        "elapsed_ms": 34,
+        "displacement": 0.6861271232908561
+      },
+      {
+        "frame": 410,
+        "elapsed_ms": 50,
+        "displacement": 0.6866927363397386
+      },
+      {
+        "frame": 411,
+        "elapsed_ms": 67,
+        "displacement": 0.6896410159093491
+      },
+      {
+        "frame": 412,
+        "elapsed_ms": 84,
+        "displacement": 0.6848060647100669
+      },
+      {
+        "frame": 413,
+        "elapsed_ms": 100,
+        "displacement": 0.6855072781836598
+      },
+      {
+        "frame": 414,
+        "elapsed_ms": 117,
+        "displacement": 0.6765668822264668
+      },
+      {
+        "frame": 415,
+        "elapsed_ms": 134,
+        "displacement": 0.6677502572045917
+      },
+      {
+        "frame": 416,
+        "elapsed_ms": 150,
+        "displacement": 0.658315403278029
+      },
+      {
+        "frame": 417,
+        "elapsed_ms": 167,
+        "displacement": 0.6181782472174866
+      },
+      {
+        "frame": 418,
+        "elapsed_ms": 184,
+        "displacement": 0.5804219868871667
+      },
+      {
+        "frame": 419,
+        "elapsed_ms": 200,
+        "displacement": 0.5304970060292181
+      },
+      {
+        "frame": 420,
+        "elapsed_ms": 217,
+        "displacement": 0.48352228366188643
+      },
+      {
+        "frame": 421,
+        "elapsed_ms": 234,
+        "displacement": 0.4543477519356492
+      },
+      {
+        "frame": 422,
+        "elapsed_ms": 250,
+        "displacement": 0.43270321263964245
+      },
+      {
+        "frame": 423,
+        "elapsed_ms": 267,
+        "displacement": 0.3891622456368545
+      },
+      {
+        "frame": 424,
+        "elapsed_ms": 284,
+        "displacement": 0.3553497037229971
+      },
+      {
+        "frame": 425,
+        "elapsed_ms": 300,
+        "displacement": 0.30460686371307505
+      },
+      {
+        "frame": 426,
+        "elapsed_ms": 317,
+        "displacement": 0.23450977040579882
+      }
+    ]
+  },
+  {
+    "window_ms": 600,
+    "displacement_limit": 0.1,
+    "punch": 9,
+    "onset_displacement": 0.6766816339459544,
+    "stable_end_displacement": 0.2986689298474564,
+    "first_crossing_frame": null,
+    "delay_ms": null,
+    "crosses_within_proposed_stable": false,
+    "crosses_before_next_movement": false,
+    "curve": [
+      {
+        "frame": 457,
+        "elapsed_ms": 0,
+        "displacement": 0.6766816339459544
+      },
+      {
+        "frame": 458,
+        "elapsed_ms": 16,
+        "displacement": 0.677921913803547
+      },
+      {
+        "frame": 459,
+        "elapsed_ms": 33,
+        "displacement": 0.6698413060872557
+      },
+      {
+        "frame": 460,
+        "elapsed_ms": 50,
+        "displacement": 0.6652707704936763
+      },
+      {
+        "frame": 461,
+        "elapsed_ms": 66,
+        "displacement": 0.6578297325702963
+      },
+      {
+        "frame": 462,
+        "elapsed_ms": 83,
+        "displacement": 0.6469505494956224
+      },
+      {
+        "frame": 463,
+        "elapsed_ms": 100,
+        "displacement": 0.6374606737172247
+      },
+      {
+        "frame": 464,
+        "elapsed_ms": 116,
+        "displacement": 0.6174722158145706
+      },
+      {
+        "frame": 465,
+        "elapsed_ms": 133,
+        "displacement": 0.5944375148592215
+      },
+      {
+        "frame": 466,
+        "elapsed_ms": 150,
+        "displacement": 0.5639243937325681
+      },
+      {
+        "frame": 467,
+        "elapsed_ms": 166,
+        "displacement": 0.5292714964237839
+      },
+      {
+        "frame": 468,
+        "elapsed_ms": 183,
+        "displacement": 0.4938013676818369
+      },
+      {
+        "frame": 469,
+        "elapsed_ms": 200,
+        "displacement": 0.43020279790857574
+      },
+      {
+        "frame": 470,
+        "elapsed_ms": 216,
+        "displacement": 0.3801517133635289
+      },
+      {
+        "frame": 471,
+        "elapsed_ms": 233,
+        "displacement": 0.3565648883128717
+      },
+      {
+        "frame": 472,
+        "elapsed_ms": 250,
+        "displacement": 0.3458014001641173
+      },
+      {
+        "frame": 473,
+        "elapsed_ms": 266,
+        "displacement": 0.3296614458120719
+      },
+      {
+        "frame": 474,
+        "elapsed_ms": 283,
+        "displacement": 0.30928550936647803
+      },
+      {
+        "frame": 475,
+        "elapsed_ms": 300,
+        "displacement": 0.2986689298474564
+      },
+      {
+        "frame": 476,
+        "elapsed_ms": 316,
+        "displacement": 0.16972546519185727
+      }
+    ]
+  },
+  {
+    "window_ms": 600,
+    "displacement_limit": 0.1,
+    "punch": 10,
+    "onset_displacement": 0.6513050882278676,
+    "stable_end_displacement": 0.33143863774679694,
+    "first_crossing_frame": null,
+    "delay_ms": null,
+    "crosses_within_proposed_stable": false,
+    "crosses_before_next_movement": false,
+    "curve": [
+      {
+        "frame": 507,
+        "elapsed_ms": 0,
+        "displacement": 0.6513050882278676
+      },
+      {
+        "frame": 508,
+        "elapsed_ms": 17,
+        "displacement": 0.6477982208870693
+      },
+      {
+        "frame": 509,
+        "elapsed_ms": 33,
+        "displacement": 0.6462964115105451
+      },
+      {
+        "frame": 510,
+        "elapsed_ms": 50,
+        "displacement": 0.6435810710118084
+      },
+      {
+        "frame": 511,
+        "elapsed_ms": 67,
+        "displacement": 0.6422584056820032
+      },
+      {
+        "frame": 512,
+        "elapsed_ms": 83,
+        "displacement": 0.640731311262407
+      },
+      {
+        "frame": 513,
+        "elapsed_ms": 100,
+        "displacement": 0.6352373272590939
+      },
+      {
+        "frame": 514,
+        "elapsed_ms": 117,
+        "displacement": 0.6249749446107294
+      },
+      {
+        "frame": 515,
+        "elapsed_ms": 133,
+        "displacement": 0.6223854903539003
+      },
+      {
+        "frame": 516,
+        "elapsed_ms": 150,
+        "displacement": 0.6113393243368779
+      },
+      {
+        "frame": 517,
+        "elapsed_ms": 167,
+        "displacement": 0.6242198202581919
+      },
+      {
+        "frame": 518,
+        "elapsed_ms": 183,
+        "displacement": 0.5819287949217031
+      },
+      {
+        "frame": 519,
+        "elapsed_ms": 200,
+        "displacement": 0.5038237587073111
+      },
+      {
+        "frame": 520,
+        "elapsed_ms": 217,
+        "displacement": 0.46359213535934074
+      },
+      {
+        "frame": 521,
+        "elapsed_ms": 233,
+        "displacement": 0.4464186047944866
+      },
+      {
+        "frame": 522,
+        "elapsed_ms": 250,
+        "displacement": 0.43374333892789513
+      },
+      {
+        "frame": 523,
+        "elapsed_ms": 267,
+        "displacement": 0.39468005978191506
+      },
+      {
+        "frame": 524,
+        "elapsed_ms": 283,
+        "displacement": 0.35779220800238865
+      },
+      {
+        "frame": 525,
+        "elapsed_ms": 300,
+        "displacement": 0.33143863774679694
+      },
+      {
+        "frame": 526,
+        "elapsed_ms": 317,
+        "displacement": 0.2909809032323639
+      }
+    ]
+  },
+  {
+    "window_ms": 300,
+    "displacement_limit": 0.1,
+    "punch": 1,
+    "onset_displacement": 0.35584899385918206,
+    "stable_end_displacement": 0.03930461600256304,
+    "first_crossing_frame": 65,
+    "delay_ms": 150,
+    "crosses_within_proposed_stable": true,
+    "crosses_before_next_movement": true,
+    "curve": [
+      {
+        "frame": 56,
+        "elapsed_ms": 0,
+        "displacement": 0.35584899385918206
+      },
+      {
+        "frame": 57,
+        "elapsed_ms": 17,
+        "displacement": 0.3190992990872077
+      },
+      {
+        "frame": 58,
+        "elapsed_ms": 34,
+        "displacement": 0.3086122054800887
+      },
+      {
+        "frame": 59,
+        "elapsed_ms": 50,
+        "displacement": 0.27758831422153935
+      },
+      {
+        "frame": 60,
+        "elapsed_ms": 67,
+        "displacement": 0.19023689500772167
+      },
+      {
+        "frame": 61,
+        "elapsed_ms": 84,
+        "displacement": 0.16478764907615573
+      },
+      {
+        "frame": 62,
+        "elapsed_ms": 100,
+        "displacement": 0.12049442467976662
+      },
+      {
+        "frame": 63,
+        "elapsed_ms": 117,
+        "displacement": 0.10471633046800348
+      },
+      {
+        "frame": 64,
+        "elapsed_ms": 134,
+        "displacement": 0.10699938989181888
+      },
+      {
+        "frame": 65,
+        "elapsed_ms": 150,
+        "displacement": 0.09782201516018421
+      },
+      {
+        "frame": 66,
+        "elapsed_ms": 167,
+        "displacement": 0.08370405223449806
+      },
+      {
+        "frame": 67,
+        "elapsed_ms": 184,
+        "displacement": 0.06948274486008904
+      },
+      {
+        "frame": 68,
+        "elapsed_ms": 200,
+        "displacement": 0.05645504498606337
+      },
+      {
+        "frame": 69,
+        "elapsed_ms": 217,
+        "displacement": 0.0518421344385549
+      },
+      {
+        "frame": 70,
+        "elapsed_ms": 234,
+        "displacement": 0.045907054504389366
+      },
+      {
+        "frame": 71,
+        "elapsed_ms": 250,
+        "displacement": 0.04088297369085266
+      },
+      {
+        "frame": 72,
+        "elapsed_ms": 267,
+        "displacement": 0.04010166034565258
+      },
+      {
+        "frame": 73,
+        "elapsed_ms": 284,
+        "displacement": 0.027932352621172718
+      },
+      {
+        "frame": 74,
+        "elapsed_ms": 300,
+        "displacement": 0.029549381328365307
+      },
+      {
+        "frame": 75,
+        "elapsed_ms": 317,
+        "displacement": 0.03535119472555338
+      },
+      {
+        "frame": 76,
+        "elapsed_ms": 334,
+        "displacement": 0.03930461600256304
+      },
+      {
+        "frame": 77,
+        "elapsed_ms": 350,
+        "displacement": 0.03618109540130485
+      },
+      {
+        "frame": 78,
+        "elapsed_ms": 367,
+        "displacement": 0.05355531206362066
+      },
+      {
+        "frame": 79,
+        "elapsed_ms": 384,
+        "displacement": 0.053569411053449215
+      }
+    ]
+  },
+  {
+    "window_ms": 300,
+    "displacement_limit": 0.1,
+    "punch": 2,
+    "onset_displacement": 0.27893963500417257,
+    "stable_end_displacement": 0.032124204114209604,
+    "first_crossing_frame": 115,
+    "delay_ms": 84,
+    "crosses_within_proposed_stable": true,
+    "crosses_before_next_movement": true,
+    "curve": [
+      {
+        "frame": 110,
+        "elapsed_ms": 0,
+        "displacement": 0.27893963500417257
+      },
+      {
+        "frame": 111,
+        "elapsed_ms": 17,
+        "displacement": 0.2104861889376569
+      },
+      {
+        "frame": 112,
+        "elapsed_ms": 34,
+        "displacement": 0.16479811748228462
+      },
+      {
+        "frame": 113,
+        "elapsed_ms": 50,
+        "displacement": 0.12383864947724793
+      },
+      {
+        "frame": 114,
+        "elapsed_ms": 67,
+        "displacement": 0.104716067245913
+      },
+      {
+        "frame": 115,
+        "elapsed_ms": 84,
+        "displacement": 0.07975643182223524
+      },
+      {
+        "frame": 116,
+        "elapsed_ms": 100,
+        "displacement": 0.056132759118589955
+      },
+      {
+        "frame": 117,
+        "elapsed_ms": 117,
+        "displacement": 0.04521483834673818
+      },
+      {
+        "frame": 118,
+        "elapsed_ms": 134,
+        "displacement": 0.04198400180915345
+      },
+      {
+        "frame": 119,
+        "elapsed_ms": 150,
+        "displacement": 0.04507012305751749
+      },
+      {
+        "frame": 120,
+        "elapsed_ms": 167,
+        "displacement": 0.041061143438567954
+      },
+      {
+        "frame": 121,
+        "elapsed_ms": 184,
+        "displacement": 0.03657131543227058
+      },
+      {
+        "frame": 122,
+        "elapsed_ms": 200,
+        "displacement": 0.03523774077919501
+      },
+      {
+        "frame": 123,
+        "elapsed_ms": 217,
+        "displacement": 0.032124204114209604
+      },
+      {
+        "frame": 124,
+        "elapsed_ms": 234,
+        "displacement": 0.03524111749742281
+      }
+    ]
+  },
+  {
+    "window_ms": 300,
+    "displacement_limit": 0.1,
+    "punch": 3,
+    "onset_displacement": 0.26213128951676956,
+    "stable_end_displacement": 0.04294290656658691,
+    "first_crossing_frame": 162,
+    "delay_ms": 67,
+    "crosses_within_proposed_stable": true,
+    "crosses_before_next_movement": true,
+    "curve": [
+      {
+        "frame": 158,
+        "elapsed_ms": 0,
+        "displacement": 0.26213128951676956
+      },
+      {
+        "frame": 159,
+        "elapsed_ms": 17,
+        "displacement": 0.2336808348825065
+      },
+      {
+        "frame": 160,
+        "elapsed_ms": 34,
+        "displacement": 0.1362977611785411
+      },
+      {
+        "frame": 161,
+        "elapsed_ms": 50,
+        "displacement": 0.10226337846628154
+      },
+      {
+        "frame": 162,
+        "elapsed_ms": 67,
+        "displacement": 0.0858088336797741
+      },
+      {
+        "frame": 163,
+        "elapsed_ms": 84,
+        "displacement": 0.06580963315517649
+      },
+      {
+        "frame": 164,
+        "elapsed_ms": 100,
+        "displacement": 0.04686080199801465
+      },
+      {
+        "frame": 165,
+        "elapsed_ms": 117,
+        "displacement": 0.05279181556116794
+      },
+      {
+        "frame": 166,
+        "elapsed_ms": 134,
+        "displacement": 0.04557731426665603
+      },
+      {
+        "frame": 167,
+        "elapsed_ms": 150,
+        "displacement": 0.037512458031306886
+      },
+      {
+        "frame": 168,
+        "elapsed_ms": 167,
+        "displacement": 0.03608129865154351
+      },
+      {
+        "frame": 169,
+        "elapsed_ms": 184,
+        "displacement": 0.03058136884482793
+      },
+      {
+        "frame": 170,
+        "elapsed_ms": 200,
+        "displacement": 0.03460819517928986
+      },
+      {
+        "frame": 171,
+        "elapsed_ms": 217,
+        "displacement": 0.029495736701811878
+      },
+      {
+        "frame": 172,
+        "elapsed_ms": 234,
+        "displacement": 0.03529380249828156
+      },
+      {
+        "frame": 173,
+        "elapsed_ms": 250,
+        "displacement": 0.04249991972685607
+      },
+      {
+        "frame": 174,
+        "elapsed_ms": 267,
+        "displacement": 0.044551500682948414
+      },
+      {
+        "frame": 175,
+        "elapsed_ms": 284,
+        "displacement": 0.04294290656658691
+      },
+      {
+        "frame": 176,
+        "elapsed_ms": 300,
+        "displacement": 0.046073013158541155
+      },
+      {
+        "frame": 177,
+        "elapsed_ms": 317,
+        "displacement": 0.046378771359367056
+      },
+      {
+        "frame": 178,
+        "elapsed_ms": 334,
+        "displacement": 0.04916283418805249
+      }
+    ]
+  },
+  {
+    "window_ms": 300,
+    "displacement_limit": 0.1,
+    "punch": 4,
+    "onset_displacement": 0.23849986631022912,
+    "stable_end_displacement": 0.03715203993479142,
+    "first_crossing_frame": 214,
+    "delay_ms": 67,
+    "crosses_within_proposed_stable": true,
+    "crosses_before_next_movement": true,
+    "curve": [
+      {
+        "frame": 210,
+        "elapsed_ms": 0,
+        "displacement": 0.23849986631022912
+      },
+      {
+        "frame": 211,
+        "elapsed_ms": 17,
+        "displacement": 0.18538570069184684
+      },
+      {
+        "frame": 212,
+        "elapsed_ms": 33,
+        "displacement": 0.1304732527815831
+      },
+      {
+        "frame": 213,
+        "elapsed_ms": 50,
+        "displacement": 0.10451403576976571
+      },
+      {
+        "frame": 214,
+        "elapsed_ms": 67,
+        "displacement": 0.06673978863837098
+      },
+      {
+        "frame": 215,
+        "elapsed_ms": 83,
+        "displacement": 0.05541042751644513
+      },
+      {
+        "frame": 216,
+        "elapsed_ms": 100,
+        "displacement": 0.054611169362003574
+      },
+      {
+        "frame": 217,
+        "elapsed_ms": 117,
+        "displacement": 0.05476133573300688
+      },
+      {
+        "frame": 218,
+        "elapsed_ms": 133,
+        "displacement": 0.05004424201683088
+      },
+      {
+        "frame": 219,
+        "elapsed_ms": 150,
+        "displacement": 0.04342431328375452
+      },
+      {
+        "frame": 220,
+        "elapsed_ms": 167,
+        "displacement": 0.038464111016119226
+      },
+      {
+        "frame": 221,
+        "elapsed_ms": 183,
+        "displacement": 0.041619328840413986
+      },
+      {
+        "frame": 222,
+        "elapsed_ms": 200,
+        "displacement": 0.042021360402204215
+      },
+      {
+        "frame": 223,
+        "elapsed_ms": 217,
+        "displacement": 0.04037082547456314
+      },
+      {
+        "frame": 224,
+        "elapsed_ms": 233,
+        "displacement": 0.03715203993479142
+      }
+    ]
+  },
+  {
+    "window_ms": 300,
+    "displacement_limit": 0.1,
+    "punch": 5,
+    "onset_displacement": 0.3083595570097513,
+    "stable_end_displacement": 0.03157799615711488,
+    "first_crossing_frame": 264,
+    "delay_ms": 117,
+    "crosses_within_proposed_stable": true,
+    "crosses_before_next_movement": true,
+    "curve": [
+      {
+        "frame": 257,
+        "elapsed_ms": 0,
+        "displacement": 0.3083595570097513
+      },
+      {
+        "frame": 258,
+        "elapsed_ms": 17,
+        "displacement": 0.2885086251341961
+      },
+      {
+        "frame": 259,
+        "elapsed_ms": 34,
+        "displacement": 0.25534837887577344
+      },
+      {
+        "frame": 260,
+        "elapsed_ms": 50,
+        "displacement": 0.24627191362506934
+      },
+      {
+        "frame": 261,
+        "elapsed_ms": 67,
+        "displacement": 0.14190103098260712
+      },
+      {
+        "frame": 262,
+        "elapsed_ms": 84,
+        "displacement": 0.11509790202266977
+      },
+      {
+        "frame": 263,
+        "elapsed_ms": 100,
+        "displacement": 0.10347617455209471
+      },
+      {
+        "frame": 264,
+        "elapsed_ms": 117,
+        "displacement": 0.08501017270992085
+      },
+      {
+        "frame": 265,
+        "elapsed_ms": 134,
+        "displacement": 0.08097451246694659
+      },
+      {
+        "frame": 266,
+        "elapsed_ms": 150,
+        "displacement": 0.06055122882043692
+      },
+      {
+        "frame": 267,
+        "elapsed_ms": 167,
+        "displacement": 0.04872901322215666
+      },
+      {
+        "frame": 268,
+        "elapsed_ms": 184,
+        "displacement": 0.04375873976063026
+      },
+      {
+        "frame": 269,
+        "elapsed_ms": 200,
+        "displacement": 0.04055969782469704
+      },
+      {
+        "frame": 270,
+        "elapsed_ms": 217,
+        "displacement": 0.02886189071129104
+      },
+      {
+        "frame": 271,
+        "elapsed_ms": 234,
+        "displacement": 0.024355586888497493
+      },
+      {
+        "frame": 272,
+        "elapsed_ms": 250,
+        "displacement": 0.02557574587406445
+      },
+      {
+        "frame": 273,
+        "elapsed_ms": 267,
+        "displacement": 0.02326016402808546
+      },
+      {
+        "frame": 274,
+        "elapsed_ms": 284,
+        "displacement": 0.0236363817264934
+      },
+      {
+        "frame": 275,
+        "elapsed_ms": 300,
+        "displacement": 0.03157799615711488
+      },
+      {
+        "frame": 276,
+        "elapsed_ms": 317,
+        "displacement": 0.03321314686950943
+      }
+    ]
+  },
+  {
+    "window_ms": 300,
+    "displacement_limit": 0.1,
+    "punch": 6,
+    "onset_displacement": 0.31137347053332853,
+    "stable_end_displacement": 0.03518850803584868,
+    "first_crossing_frame": 312,
+    "delay_ms": 83,
+    "crosses_within_proposed_stable": true,
+    "crosses_before_next_movement": true,
+    "curve": [
+      {
+        "frame": 307,
+        "elapsed_ms": 0,
+        "displacement": 0.31137347053332853
+      },
+      {
+        "frame": 308,
+        "elapsed_ms": 16,
+        "displacement": 0.2281345382196025
+      },
+      {
+        "frame": 309,
+        "elapsed_ms": 33,
+        "displacement": 0.16809264370165472
+      },
+      {
+        "frame": 310,
+        "elapsed_ms": 50,
+        "displacement": 0.1240006450489522
+      },
+      {
+        "frame": 311,
+        "elapsed_ms": 66,
+        "displacement": 0.1030557969984017
+      },
+      {
+        "frame": 312,
+        "elapsed_ms": 83,
+        "displacement": 0.077056570973267
+      },
+      {
+        "frame": 313,
+        "elapsed_ms": 100,
+        "displacement": 0.06058122641188987
+      },
+      {
+        "frame": 314,
+        "elapsed_ms": 116,
+        "displacement": 0.0571267705700723
+      },
+      {
+        "frame": 315,
+        "elapsed_ms": 133,
+        "displacement": 0.055652590434269365
+      },
+      {
+        "frame": 316,
+        "elapsed_ms": 150,
+        "displacement": 0.050866646986247585
+      },
+      {
+        "frame": 317,
+        "elapsed_ms": 166,
+        "displacement": 0.05162548668311341
+      },
+      {
+        "frame": 318,
+        "elapsed_ms": 183,
+        "displacement": 0.046023160142445486
+      },
+      {
+        "frame": 319,
+        "elapsed_ms": 200,
+        "displacement": 0.038869433148853945
+      },
+      {
+        "frame": 320,
+        "elapsed_ms": 216,
+        "displacement": 0.03836746237394108
+      },
+      {
+        "frame": 321,
+        "elapsed_ms": 233,
+        "displacement": 0.03717031038086826
+      },
+      {
+        "frame": 322,
+        "elapsed_ms": 250,
+        "displacement": 0.03636557570910742
+      },
+      {
+        "frame": 323,
+        "elapsed_ms": 266,
+        "displacement": 0.03546784952081332
+      },
+      {
+        "frame": 324,
+        "elapsed_ms": 283,
+        "displacement": 0.03518850803584868
+      }
+    ]
+  },
+  {
+    "window_ms": 300,
+    "displacement_limit": 0.1,
+    "punch": 7,
+    "onset_displacement": 0.2978183231603599,
+    "stable_end_displacement": 0.05801966747624879,
+    "first_crossing_frame": 362,
+    "delay_ms": 83,
+    "crosses_within_proposed_stable": true,
+    "crosses_before_next_movement": true,
+    "curve": [
+      {
+        "frame": 357,
+        "elapsed_ms": 0,
+        "displacement": 0.2978183231603599
+      },
+      {
+        "frame": 358,
+        "elapsed_ms": 17,
+        "displacement": 0.18941974377153242
+      },
+      {
+        "frame": 359,
+        "elapsed_ms": 33,
+        "displacement": 0.1662988378904522
+      },
+      {
+        "frame": 360,
+        "elapsed_ms": 50,
+        "displacement": 0.14566370699915274
+      },
+      {
+        "frame": 361,
+        "elapsed_ms": 67,
+        "displacement": 0.12279033764625073
+      },
+      {
+        "frame": 362,
+        "elapsed_ms": 83,
+        "displacement": 0.09971072781495591
+      },
+      {
+        "frame": 363,
+        "elapsed_ms": 100,
+        "displacement": 0.06011454654735011
+      },
+      {
+        "frame": 364,
+        "elapsed_ms": 117,
+        "displacement": 0.06214010876969751
+      },
+      {
+        "frame": 365,
+        "elapsed_ms": 133,
+        "displacement": 0.052470907459831226
+      },
+      {
+        "frame": 366,
+        "elapsed_ms": 150,
+        "displacement": 0.04545901496969312
+      },
+      {
+        "frame": 367,
+        "elapsed_ms": 167,
+        "displacement": 0.038588481630122934
+      },
+      {
+        "frame": 368,
+        "elapsed_ms": 183,
+        "displacement": 0.03578768174520334
+      },
+      {
+        "frame": 369,
+        "elapsed_ms": 200,
+        "displacement": 0.03257744226382796
+      },
+      {
+        "frame": 370,
+        "elapsed_ms": 217,
+        "displacement": 0.03357000922393408
+      },
+      {
+        "frame": 371,
+        "elapsed_ms": 233,
+        "displacement": 0.03597978188413289
+      },
+      {
+        "frame": 372,
+        "elapsed_ms": 250,
+        "displacement": 0.04570066744964825
+      },
+      {
+        "frame": 373,
+        "elapsed_ms": 267,
+        "displacement": 0.04628192052119906
+      },
+      {
+        "frame": 374,
+        "elapsed_ms": 283,
+        "displacement": 0.05236180931470137
+      },
+      {
+        "frame": 375,
+        "elapsed_ms": 300,
+        "displacement": 0.05801966747624879
+      },
+      {
+        "frame": 376,
+        "elapsed_ms": 317,
+        "displacement": 0.06118462008312012
+      }
+    ]
+  },
+  {
+    "window_ms": 300,
+    "displacement_limit": 0.1,
+    "punch": 8,
+    "onset_displacement": 0.32058906689652233,
+    "stable_end_displacement": 0.04612722886462423,
+    "first_crossing_frame": 412,
+    "delay_ms": 84,
+    "crosses_within_proposed_stable": true,
+    "crosses_before_next_movement": true,
+    "curve": [
+      {
+        "frame": 407,
+        "elapsed_ms": 0,
+        "displacement": 0.32058906689652233
+      },
+      {
+        "frame": 408,
+        "elapsed_ms": 17,
+        "displacement": 0.2667316039286936
+      },
+      {
+        "frame": 409,
+        "elapsed_ms": 34,
+        "displacement": 0.21309437654197175
+      },
+      {
+        "frame": 410,
+        "elapsed_ms": 50,
+        "displacement": 0.15616746183751404
+      },
+      {
+        "frame": 411,
+        "elapsed_ms": 67,
+        "displacement": 0.11888949156694496
+      },
+      {
+        "frame": 412,
+        "elapsed_ms": 84,
+        "displacement": 0.08952298027458977
+      },
+      {
+        "frame": 413,
+        "elapsed_ms": 100,
+        "displacement": 0.06297299949254034
+      },
+      {
+        "frame": 414,
+        "elapsed_ms": 117,
+        "displacement": 0.048022531955438895
+      },
+      {
+        "frame": 415,
+        "elapsed_ms": 134,
+        "displacement": 0.04794450737912902
+      },
+      {
+        "frame": 416,
+        "elapsed_ms": 150,
+        "displacement": 0.035231262102549565
+      },
+      {
+        "frame": 417,
+        "elapsed_ms": 167,
+        "displacement": 0.03426611274562734
+      },
+      {
+        "frame": 418,
+        "elapsed_ms": 184,
+        "displacement": 0.037865882772388934
+      },
+      {
+        "frame": 419,
+        "elapsed_ms": 200,
+        "displacement": 0.035870020997809934
+      },
+      {
+        "frame": 420,
+        "elapsed_ms": 217,
+        "displacement": 0.04016530857310856
+      },
+      {
+        "frame": 421,
+        "elapsed_ms": 234,
+        "displacement": 0.03737896835223431
+      },
+      {
+        "frame": 422,
+        "elapsed_ms": 250,
+        "displacement": 0.043787142032593325
+      },
+      {
+        "frame": 423,
+        "elapsed_ms": 267,
+        "displacement": 0.050800169543607936
+      },
+      {
+        "frame": 424,
+        "elapsed_ms": 284,
+        "displacement": 0.054642633750763656
+      },
+      {
+        "frame": 425,
+        "elapsed_ms": 300,
+        "displacement": 0.04612722886462423
+      },
+      {
+        "frame": 426,
+        "elapsed_ms": 317,
+        "displacement": 0.054096939931122565
+      }
+    ]
+  },
+  {
+    "window_ms": 300,
+    "displacement_limit": 0.1,
+    "punch": 9,
+    "onset_displacement": 0.32149627483344206,
+    "stable_end_displacement": 0.039042603552706674,
+    "first_crossing_frame": 461,
+    "delay_ms": 66,
+    "crosses_within_proposed_stable": true,
+    "crosses_before_next_movement": true,
+    "curve": [
+      {
+        "frame": 457,
+        "elapsed_ms": 0,
+        "displacement": 0.32149627483344206
+      },
+      {
+        "frame": 458,
+        "elapsed_ms": 16,
+        "displacement": 0.1953861052479826
+      },
+      {
+        "frame": 459,
+        "elapsed_ms": 33,
+        "displacement": 0.16702614136392277
+      },
+      {
+        "frame": 460,
+        "elapsed_ms": 50,
+        "displacement": 0.13288391301861358
+      },
+      {
+        "frame": 461,
+        "elapsed_ms": 66,
+        "displacement": 0.09958663720866738
+      },
+      {
+        "frame": 462,
+        "elapsed_ms": 83,
+        "displacement": 0.06929627236100432
+      },
+      {
+        "frame": 463,
+        "elapsed_ms": 100,
+        "displacement": 0.06537275948866197
+      },
+      {
+        "frame": 464,
+        "elapsed_ms": 116,
+        "displacement": 0.07685855339037241
+      },
+      {
+        "frame": 465,
+        "elapsed_ms": 133,
+        "displacement": 0.0694607824600942
+      },
+      {
+        "frame": 466,
+        "elapsed_ms": 150,
+        "displacement": 0.059980910014657426
+      },
+      {
+        "frame": 467,
+        "elapsed_ms": 166,
+        "displacement": 0.052728404860184076
+      },
+      {
+        "frame": 468,
+        "elapsed_ms": 183,
+        "displacement": 0.04646512116609671
+      },
+      {
+        "frame": 469,
+        "elapsed_ms": 200,
+        "displacement": 0.04097026645943867
+      },
+      {
+        "frame": 470,
+        "elapsed_ms": 216,
+        "displacement": 0.0402569103201613
+      },
+      {
+        "frame": 471,
+        "elapsed_ms": 233,
+        "displacement": 0.03909109019875794
+      },
+      {
+        "frame": 472,
+        "elapsed_ms": 250,
+        "displacement": 0.03928035354366431
+      },
+      {
+        "frame": 473,
+        "elapsed_ms": 266,
+        "displacement": 0.036493726263796884
+      },
+      {
+        "frame": 474,
+        "elapsed_ms": 283,
+        "displacement": 0.03809039703007666
+      },
+      {
+        "frame": 475,
+        "elapsed_ms": 300,
+        "displacement": 0.039042603552706674
+      },
+      {
+        "frame": 476,
+        "elapsed_ms": 316,
+        "displacement": 0.0409577145075366
+      }
+    ]
+  },
+  {
+    "window_ms": 300,
+    "displacement_limit": 0.1,
+    "punch": 10,
+    "onset_displacement": 0.3431283120479297,
+    "stable_end_displacement": 0.03452177626662756,
+    "first_crossing_frame": 512,
+    "delay_ms": 83,
+    "crosses_within_proposed_stable": true,
+    "crosses_before_next_movement": true,
+    "curve": [
+      {
+        "frame": 507,
+        "elapsed_ms": 0,
+        "displacement": 0.3431283120479297
+      },
+      {
+        "frame": 508,
+        "elapsed_ms": 17,
+        "displacement": 0.30393999920782044
+      },
+      {
+        "frame": 509,
+        "elapsed_ms": 33,
+        "displacement": 0.22812161693823746
+      },
+      {
+        "frame": 510,
+        "elapsed_ms": 50,
+        "displacement": 0.17724474827118186
+      },
+      {
+        "frame": 511,
+        "elapsed_ms": 67,
+        "displacement": 0.12126201646039701
+      },
+      {
+        "frame": 512,
+        "elapsed_ms": 83,
+        "displacement": 0.09368261271126
+      },
+      {
+        "frame": 513,
+        "elapsed_ms": 100,
+        "displacement": 0.07515086764924352
+      },
+      {
+        "frame": 514,
+        "elapsed_ms": 117,
+        "displacement": 0.056427412374080985
+      },
+      {
+        "frame": 515,
+        "elapsed_ms": 133,
+        "displacement": 0.05491641708318405
+      },
+      {
+        "frame": 516,
+        "elapsed_ms": 150,
+        "displacement": 0.044396779638335195
+      },
+      {
+        "frame": 517,
+        "elapsed_ms": 167,
+        "displacement": 0.04679881903424335
+      },
+      {
+        "frame": 518,
+        "elapsed_ms": 183,
+        "displacement": 0.04571201888030698
+      },
+      {
+        "frame": 519,
+        "elapsed_ms": 200,
+        "displacement": 0.04637705492884845
+      },
+      {
+        "frame": 520,
+        "elapsed_ms": 217,
+        "displacement": 0.052213296476331
+      },
+      {
+        "frame": 521,
+        "elapsed_ms": 233,
+        "displacement": 0.043630327571237325
+      },
+      {
+        "frame": 522,
+        "elapsed_ms": 250,
+        "displacement": 0.04229354856523622
+      },
+      {
+        "frame": 523,
+        "elapsed_ms": 267,
+        "displacement": 0.03507362308479246
+      },
+      {
+        "frame": 524,
+        "elapsed_ms": 283,
+        "displacement": 0.03584850845997499
+      },
+      {
+        "frame": 525,
+        "elapsed_ms": 300,
+        "displacement": 0.03452177626662756
+      },
+      {
+        "frame": 526,
+        "elapsed_ms": 317,
+        "displacement": 0.03151544683687853
+      }
+    ]
+  },
+  {
+    "window_ms": 150,
+    "displacement_limit": 0.1,
+    "punch": 1,
+    "onset_displacement": 0.08180907006176383,
+    "stable_end_displacement": 0.03485320206253459,
+    "first_crossing_frame": 56,
+    "delay_ms": 0,
+    "crosses_within_proposed_stable": true,
+    "crosses_before_next_movement": true,
+    "curve": [
+      {
+        "frame": 56,
+        "elapsed_ms": 0,
+        "displacement": 0.08180907006176383
+      },
+      {
+        "frame": 57,
+        "elapsed_ms": 17,
+        "displacement": 0.07902553855967072
+      },
+      {
+        "frame": 58,
+        "elapsed_ms": 34,
+        "displacement": 0.07141409086286486
+      },
+      {
+        "frame": 59,
+        "elapsed_ms": 50,
+        "displacement": 0.05853426261380229
+      },
+      {
+        "frame": 60,
+        "elapsed_ms": 67,
+        "displacement": 0.056864533193227894
+      },
+      {
+        "frame": 61,
+        "elapsed_ms": 84,
+        "displacement": 0.05290810428993729
+      },
+      {
+        "frame": 62,
+        "elapsed_ms": 100,
+        "displacement": 0.05214247469406735
+      },
+      {
+        "frame": 63,
+        "elapsed_ms": 117,
+        "displacement": 0.0515873506198306
+      },
+      {
+        "frame": 64,
+        "elapsed_ms": 134,
+        "displacement": 0.037746808676297004
+      },
+      {
+        "frame": 65,
+        "elapsed_ms": 150,
+        "displacement": 0.029891859768263317
+      },
+      {
+        "frame": 66,
+        "elapsed_ms": 167,
+        "displacement": 0.016208796229482462
+      },
+      {
+        "frame": 67,
+        "elapsed_ms": 184,
+        "displacement": 0.015303845677468243
+      },
+      {
+        "frame": 68,
+        "elapsed_ms": 200,
+        "displacement": 0.017114843423603192
+      },
+      {
+        "frame": 69,
+        "elapsed_ms": 217,
+        "displacement": 0.017998350386300162
+      },
+      {
+        "frame": 70,
+        "elapsed_ms": 234,
+        "displacement": 0.02072969521964093
+      },
+      {
+        "frame": 71,
+        "elapsed_ms": 250,
+        "displacement": 0.024949516376562106
+      },
+      {
+        "frame": 72,
+        "elapsed_ms": 267,
+        "displacement": 0.021745876054036908
+      },
+      {
+        "frame": 73,
+        "elapsed_ms": 284,
+        "displacement": 0.025819103910486953
+      },
+      {
+        "frame": 74,
+        "elapsed_ms": 300,
+        "displacement": 0.033463458058258344
+      },
+      {
+        "frame": 75,
+        "elapsed_ms": 317,
+        "displacement": 0.03854578918433033
+      },
+      {
+        "frame": 76,
+        "elapsed_ms": 334,
+        "displacement": 0.03485320206253459
+      },
+      {
+        "frame": 77,
+        "elapsed_ms": 350,
+        "displacement": 0.03100134679540618
+      },
+      {
+        "frame": 78,
+        "elapsed_ms": 367,
+        "displacement": 0.043118061694982994
+      },
+      {
+        "frame": 79,
+        "elapsed_ms": 384,
+        "displacement": 0.04113922807207703
+      }
+    ]
+  },
+  {
+    "window_ms": 150,
+    "displacement_limit": 0.1,
+    "punch": 2,
+    "onset_displacement": 0.034509072843180603,
+    "stable_end_displacement": 0.03506680376947653,
+    "first_crossing_frame": 110,
+    "delay_ms": 0,
+    "crosses_within_proposed_stable": true,
+    "crosses_before_next_movement": true,
+    "curve": [
+      {
+        "frame": 110,
+        "elapsed_ms": 0,
+        "displacement": 0.034509072843180603
+      },
+      {
+        "frame": 111,
+        "elapsed_ms": 17,
+        "displacement": 0.0338849726325986
+      },
+      {
+        "frame": 112,
+        "elapsed_ms": 34,
+        "displacement": 0.03553948160887085
+      },
+      {
+        "frame": 113,
+        "elapsed_ms": 50,
+        "displacement": 0.034787865701087405
+      },
+      {
+        "frame": 114,
+        "elapsed_ms": 67,
+        "displacement": 0.032702107278127196
+      },
+      {
+        "frame": 115,
+        "elapsed_ms": 84,
+        "displacement": 0.028091716409182208
+      },
+      {
+        "frame": 116,
+        "elapsed_ms": 100,
+        "displacement": 0.024427947821424382
+      },
+      {
+        "frame": 117,
+        "elapsed_ms": 117,
+        "displacement": 0.023343991849753977
+      },
+      {
+        "frame": 118,
+        "elapsed_ms": 134,
+        "displacement": 0.03329588594697489
+      },
+      {
+        "frame": 119,
+        "elapsed_ms": 150,
+        "displacement": 0.04925410191486251
+      },
+      {
+        "frame": 120,
+        "elapsed_ms": 167,
+        "displacement": 0.04354389657514505
+      },
+      {
+        "frame": 121,
+        "elapsed_ms": 184,
+        "displacement": 0.040037157009262095
+      },
+      {
+        "frame": 122,
+        "elapsed_ms": 200,
+        "displacement": 0.04073375743794011
+      },
+      {
+        "frame": 123,
+        "elapsed_ms": 217,
+        "displacement": 0.03506680376947653
+      },
+      {
+        "frame": 124,
+        "elapsed_ms": 234,
+        "displacement": 0.03990296003303886
+      }
+    ]
+  },
+  {
+    "window_ms": 150,
+    "displacement_limit": 0.1,
+    "punch": 3,
+    "onset_displacement": 0.04165105003804815,
+    "stable_end_displacement": 0.035317519884127346,
+    "first_crossing_frame": 158,
+    "delay_ms": 0,
+    "crosses_within_proposed_stable": true,
+    "crosses_before_next_movement": true,
+    "curve": [
+      {
+        "frame": 158,
+        "elapsed_ms": 0,
+        "displacement": 0.04165105003804815
+      },
+      {
+        "frame": 159,
+        "elapsed_ms": 17,
+        "displacement": 0.04076937208836992
+      },
+      {
+        "frame": 160,
+        "elapsed_ms": 34,
+        "displacement": 0.03113125275911846
+      },
+      {
+        "frame": 161,
+        "elapsed_ms": 50,
+        "displacement": 0.03130421027627396
+      },
+      {
+        "frame": 162,
+        "elapsed_ms": 67,
+        "displacement": 0.022722141736757788
+      },
+      {
+        "frame": 163,
+        "elapsed_ms": 84,
+        "displacement": 0.03419745783407903
+      },
+      {
+        "frame": 164,
+        "elapsed_ms": 100,
+        "displacement": 0.03288419776478746
+      },
+      {
+        "frame": 165,
+        "elapsed_ms": 117,
+        "displacement": 0.0264594614119777
+      },
+      {
+        "frame": 166,
+        "elapsed_ms": 134,
+        "displacement": 0.02627274695969048
+      },
+      {
+        "frame": 167,
+        "elapsed_ms": 150,
+        "displacement": 0.022447839267636174
+      },
+      {
+        "frame": 168,
+        "elapsed_ms": 167,
+        "displacement": 0.02024671512226206
+      },
+      {
+        "frame": 169,
+        "elapsed_ms": 184,
+        "displacement": 0.02190507070437787
+      },
+      {
+        "frame": 170,
+        "elapsed_ms": 200,
+        "displacement": 0.023959241044857704
+      },
+      {
+        "frame": 171,
+        "elapsed_ms": 217,
+        "displacement": 0.022712153913429338
+      },
+      {
+        "frame": 172,
+        "elapsed_ms": 234,
+        "displacement": 0.024204917860654887
+      },
+      {
+        "frame": 173,
+        "elapsed_ms": 250,
+        "displacement": 0.03427738447702631
+      },
+      {
+        "frame": 174,
+        "elapsed_ms": 267,
+        "displacement": 0.03685104906502406
+      },
+      {
+        "frame": 175,
+        "elapsed_ms": 284,
+        "displacement": 0.035317519884127346
+      },
+      {
+        "frame": 176,
+        "elapsed_ms": 300,
+        "displacement": 0.03715031679393867
+      },
+      {
+        "frame": 177,
+        "elapsed_ms": 317,
+        "displacement": 0.04263044696476973
+      },
+      {
+        "frame": 178,
+        "elapsed_ms": 334,
+        "displacement": 0.04554211656087914
+      }
+    ]
+  },
+  {
+    "window_ms": 150,
+    "displacement_limit": 0.1,
+    "punch": 4,
+    "onset_displacement": 0.039055087655867245,
+    "stable_end_displacement": 0.02929290524389326,
+    "first_crossing_frame": 210,
+    "delay_ms": 0,
+    "crosses_within_proposed_stable": true,
+    "crosses_before_next_movement": true,
+    "curve": [
+      {
+        "frame": 210,
+        "elapsed_ms": 0,
+        "displacement": 0.039055087655867245
+      },
+      {
+        "frame": 211,
+        "elapsed_ms": 17,
+        "displacement": 0.034825749898576265
+      },
+      {
+        "frame": 212,
+        "elapsed_ms": 33,
+        "displacement": 0.030054506691687643
+      },
+      {
+        "frame": 213,
+        "elapsed_ms": 50,
+        "displacement": 0.028432955307583732
+      },
+      {
+        "frame": 214,
+        "elapsed_ms": 67,
+        "displacement": 0.024018091939902435
+      },
+      {
+        "frame": 215,
+        "elapsed_ms": 83,
+        "displacement": 0.01934744413371891
+      },
+      {
+        "frame": 216,
+        "elapsed_ms": 100,
+        "displacement": 0.019010684837421216
+      },
+      {
+        "frame": 217,
+        "elapsed_ms": 117,
+        "displacement": 0.020950811630726013
+      },
+      {
+        "frame": 218,
+        "elapsed_ms": 133,
+        "displacement": 0.021339622256069172
+      },
+      {
+        "frame": 219,
+        "elapsed_ms": 150,
+        "displacement": 0.023843326927325176
+      },
+      {
+        "frame": 220,
+        "elapsed_ms": 167,
+        "displacement": 0.026196833946554424
+      },
+      {
+        "frame": 221,
+        "elapsed_ms": 183,
+        "displacement": 0.025017494000412647
+      },
+      {
+        "frame": 222,
+        "elapsed_ms": 200,
+        "displacement": 0.022247972782390175
+      },
+      {
+        "frame": 223,
+        "elapsed_ms": 217,
+        "displacement": 0.023107296963222543
+      },
+      {
+        "frame": 224,
+        "elapsed_ms": 233,
+        "displacement": 0.02929290524389326
+      }
+    ]
+  },
+  {
+    "window_ms": 150,
+    "displacement_limit": 0.1,
+    "punch": 5,
+    "onset_displacement": 0.06349002258400614,
+    "stable_end_displacement": 0.030676014817890077,
+    "first_crossing_frame": 257,
+    "delay_ms": 0,
+    "crosses_within_proposed_stable": true,
+    "crosses_before_next_movement": true,
+    "curve": [
+      {
+        "frame": 257,
+        "elapsed_ms": 0,
+        "displacement": 0.06349002258400614
+      },
+      {
+        "frame": 258,
+        "elapsed_ms": 17,
+        "displacement": 0.050755870097087985
+      },
+      {
+        "frame": 259,
+        "elapsed_ms": 34,
+        "displacement": 0.040544742896273994
+      },
+      {
+        "frame": 260,
+        "elapsed_ms": 50,
+        "displacement": 0.03602140062804365
+      },
+      {
+        "frame": 261,
+        "elapsed_ms": 67,
+        "displacement": 0.027944099461642842
+      },
+      {
+        "frame": 262,
+        "elapsed_ms": 84,
+        "displacement": 0.02125024538260193
+      },
+      {
+        "frame": 263,
+        "elapsed_ms": 100,
+        "displacement": 0.018163357000985234
+      },
+      {
+        "frame": 264,
+        "elapsed_ms": 117,
+        "displacement": 0.014039859352100566
+      },
+      {
+        "frame": 265,
+        "elapsed_ms": 134,
+        "displacement": 0.014129432544057173
+      },
+      {
+        "frame": 266,
+        "elapsed_ms": 150,
+        "displacement": 0.013990968519205465
+      },
+      {
+        "frame": 267,
+        "elapsed_ms": 167,
+        "displacement": 0.015422576135198353
+      },
+      {
+        "frame": 268,
+        "elapsed_ms": 184,
+        "displacement": 0.017802424812404637
+      },
+      {
+        "frame": 269,
+        "elapsed_ms": 200,
+        "displacement": 0.018273541160262054
+      },
+      {
+        "frame": 270,
+        "elapsed_ms": 217,
+        "displacement": 0.01692633370557494
+      },
+      {
+        "frame": 271,
+        "elapsed_ms": 234,
+        "displacement": 0.019075731039433212
+      },
+      {
+        "frame": 272,
+        "elapsed_ms": 250,
+        "displacement": 0.01892044044788105
+      },
+      {
+        "frame": 273,
+        "elapsed_ms": 267,
+        "displacement": 0.02097292022185666
+      },
+      {
+        "frame": 274,
+        "elapsed_ms": 284,
+        "displacement": 0.023794774621955207
+      },
+      {
+        "frame": 275,
+        "elapsed_ms": 300,
+        "displacement": 0.030676014817890077
+      },
+      {
+        "frame": 276,
+        "elapsed_ms": 317,
+        "displacement": 0.029837420793899238
+      }
+    ]
+  },
+  {
+    "window_ms": 150,
+    "displacement_limit": 0.1,
+    "punch": 6,
+    "onset_displacement": 0.04618250385707255,
+    "stable_end_displacement": 0.0347552554176999,
+    "first_crossing_frame": 307,
+    "delay_ms": 0,
+    "crosses_within_proposed_stable": true,
+    "crosses_before_next_movement": true,
+    "curve": [
+      {
+        "frame": 307,
+        "elapsed_ms": 0,
+        "displacement": 0.04618250385707255
+      },
+      {
+        "frame": 308,
+        "elapsed_ms": 16,
+        "displacement": 0.04562647598474578
+      },
+      {
+        "frame": 309,
+        "elapsed_ms": 33,
+        "displacement": 0.03973975682022662
+      },
+      {
+        "frame": 310,
+        "elapsed_ms": 50,
+        "displacement": 0.03241963448827664
+      },
+      {
+        "frame": 311,
+        "elapsed_ms": 66,
+        "displacement": 0.03127908022091217
+      },
+      {
+        "frame": 312,
+        "elapsed_ms": 83,
+        "displacement": 0.032537350528074736
+      },
+      {
+        "frame": 313,
+        "elapsed_ms": 100,
+        "displacement": 0.03440233251230581
+      },
+      {
+        "frame": 314,
+        "elapsed_ms": 116,
+        "displacement": 0.03449277361447082
+      },
+      {
+        "frame": 315,
+        "elapsed_ms": 133,
+        "displacement": 0.031422033430251996
+      },
+      {
+        "frame": 316,
+        "elapsed_ms": 150,
+        "displacement": 0.02539482815916705
+      },
+      {
+        "frame": 317,
+        "elapsed_ms": 166,
+        "displacement": 0.02283441819939258
+      },
+      {
+        "frame": 318,
+        "elapsed_ms": 183,
+        "displacement": 0.02186227129618743
+      },
+      {
+        "frame": 319,
+        "elapsed_ms": 200,
+        "displacement": 0.01598147782721377
+      },
+      {
+        "frame": 320,
+        "elapsed_ms": 216,
+        "displacement": 0.016291851974269224
+      },
+      {
+        "frame": 321,
+        "elapsed_ms": 233,
+        "displacement": 0.017919264489623644
+      },
+      {
+        "frame": 322,
+        "elapsed_ms": 250,
+        "displacement": 0.021669913272945332
+      },
+      {
+        "frame": 323,
+        "elapsed_ms": 266,
+        "displacement": 0.025345639751724748
+      },
+      {
+        "frame": 324,
+        "elapsed_ms": 283,
+        "displacement": 0.0347552554176999
+      }
+    ]
+  },
+  {
+    "window_ms": 150,
+    "displacement_limit": 0.1,
+    "punch": 7,
+    "onset_displacement": 0.05992692507872889,
+    "stable_end_displacement": 0.038145986606107095,
+    "first_crossing_frame": 357,
+    "delay_ms": 0,
+    "crosses_within_proposed_stable": true,
+    "crosses_before_next_movement": true,
+    "curve": [
+      {
+        "frame": 357,
+        "elapsed_ms": 0,
+        "displacement": 0.05992692507872889
+      },
+      {
+        "frame": 358,
+        "elapsed_ms": 17,
+        "displacement": 0.05439318914171735
+      },
+      {
+        "frame": 359,
+        "elapsed_ms": 33,
+        "displacement": 0.05316982576643674
+      },
+      {
+        "frame": 360,
+        "elapsed_ms": 50,
+        "displacement": 0.04131876717007425
+      },
+      {
+        "frame": 361,
+        "elapsed_ms": 67,
+        "displacement": 0.03125368075449804
+      },
+      {
+        "frame": 362,
+        "elapsed_ms": 83,
+        "displacement": 0.024153961419238645
+      },
+      {
+        "frame": 363,
+        "elapsed_ms": 100,
+        "displacement": 0.019047197591215613
+      },
+      {
+        "frame": 364,
+        "elapsed_ms": 117,
+        "displacement": 0.021031170585518406
+      },
+      {
+        "frame": 365,
+        "elapsed_ms": 133,
+        "displacement": 0.022452939248297468
+      },
+      {
+        "frame": 366,
+        "elapsed_ms": 150,
+        "displacement": 0.026450900909474967
+      },
+      {
+        "frame": 367,
+        "elapsed_ms": 167,
+        "displacement": 0.028752211229052884
+      },
+      {
+        "frame": 368,
+        "elapsed_ms": 183,
+        "displacement": 0.03392525779740464
+      },
+      {
+        "frame": 369,
+        "elapsed_ms": 200,
+        "displacement": 0.04043714313505172
+      },
+      {
+        "frame": 370,
+        "elapsed_ms": 217,
+        "displacement": 0.03718295269784784
+      },
+      {
+        "frame": 371,
+        "elapsed_ms": 233,
+        "displacement": 0.03716560915075541
+      },
+      {
+        "frame": 372,
+        "elapsed_ms": 250,
+        "displacement": 0.0395506746193926
+      },
+      {
+        "frame": 373,
+        "elapsed_ms": 267,
+        "displacement": 0.034198217160184445
+      },
+      {
+        "frame": 374,
+        "elapsed_ms": 283,
+        "displacement": 0.03744080259348049
+      },
+      {
+        "frame": 375,
+        "elapsed_ms": 300,
+        "displacement": 0.038145986606107095
+      },
+      {
+        "frame": 376,
+        "elapsed_ms": 317,
+        "displacement": 0.03774304710484858
+      }
+    ]
+  },
+  {
+    "window_ms": 150,
+    "displacement_limit": 0.1,
+    "punch": 8,
+    "onset_displacement": 0.026378412016335565,
+    "stable_end_displacement": 0.04215674832239169,
+    "first_crossing_frame": 407,
+    "delay_ms": 0,
+    "crosses_within_proposed_stable": true,
+    "crosses_before_next_movement": true,
+    "curve": [
+      {
+        "frame": 407,
+        "elapsed_ms": 0,
+        "displacement": 0.026378412016335565
+      },
+      {
+        "frame": 408,
+        "elapsed_ms": 17,
+        "displacement": 0.02659616060449784
+      },
+      {
+        "frame": 409,
+        "elapsed_ms": 34,
+        "displacement": 0.031712484464156664
+      },
+      {
+        "frame": 410,
+        "elapsed_ms": 50,
+        "displacement": 0.023602593363777333
+      },
+      {
+        "frame": 411,
+        "elapsed_ms": 67,
+        "displacement": 0.025386619115276225
+      },
+      {
+        "frame": 412,
+        "elapsed_ms": 84,
+        "displacement": 0.023619608364586347
+      },
+      {
+        "frame": 413,
+        "elapsed_ms": 100,
+        "displacement": 0.02473405850007881
+      },
+      {
+        "frame": 414,
+        "elapsed_ms": 117,
+        "displacement": 0.02078592844628257
+      },
+      {
+        "frame": 415,
+        "elapsed_ms": 134,
+        "displacement": 0.02475805436291923
+      },
+      {
+        "frame": 416,
+        "elapsed_ms": 150,
+        "displacement": 0.021618917620192288
+      },
+      {
+        "frame": 417,
+        "elapsed_ms": 167,
+        "displacement": 0.01733890434877796
+      },
+      {
+        "frame": 418,
+        "elapsed_ms": 184,
+        "displacement": 0.018166251254007282
+      },
+      {
+        "frame": 419,
+        "elapsed_ms": 200,
+        "displacement": 0.021930327232324857
+      },
+      {
+        "frame": 420,
+        "elapsed_ms": 217,
+        "displacement": 0.027388552176024126
+      },
+      {
+        "frame": 421,
+        "elapsed_ms": 234,
+        "displacement": 0.023312026781082722
+      },
+      {
+        "frame": 422,
+        "elapsed_ms": 250,
+        "displacement": 0.03860023707894638
+      },
+      {
+        "frame": 423,
+        "elapsed_ms": 267,
+        "displacement": 0.04086705723475264
+      },
+      {
+        "frame": 424,
+        "elapsed_ms": 284,
+        "displacement": 0.04729550944246648
+      },
+      {
+        "frame": 425,
+        "elapsed_ms": 300,
+        "displacement": 0.04215674832239169
+      },
+      {
+        "frame": 426,
+        "elapsed_ms": 317,
+        "displacement": 0.04990433519438731
+      }
+    ]
+  },
+  {
+    "window_ms": 150,
+    "displacement_limit": 0.1,
+    "punch": 9,
+    "onset_displacement": 0.05928655468340312,
+    "stable_end_displacement": 0.0333093479911126,
+    "first_crossing_frame": 457,
+    "delay_ms": 0,
+    "crosses_within_proposed_stable": true,
+    "crosses_before_next_movement": true,
+    "curve": [
+      {
+        "frame": 457,
+        "elapsed_ms": 0,
+        "displacement": 0.05928655468340312
+      },
+      {
+        "frame": 458,
+        "elapsed_ms": 16,
+        "displacement": 0.051338239102068604
+      },
+      {
+        "frame": 459,
+        "elapsed_ms": 33,
+        "displacement": 0.04088612655483691
+      },
+      {
+        "frame": 460,
+        "elapsed_ms": 50,
+        "displacement": 0.02990120751759002
+      },
+      {
+        "frame": 461,
+        "elapsed_ms": 66,
+        "displacement": 0.030614925556493162
+      },
+      {
+        "frame": 462,
+        "elapsed_ms": 83,
+        "displacement": 0.023296612374303447
+      },
+      {
+        "frame": 463,
+        "elapsed_ms": 100,
+        "displacement": 0.025509545526249282
+      },
+      {
+        "frame": 464,
+        "elapsed_ms": 116,
+        "displacement": 0.02369685515514793
+      },
+      {
+        "frame": 465,
+        "elapsed_ms": 133,
+        "displacement": 0.018346202510981128
+      },
+      {
+        "frame": 466,
+        "elapsed_ms": 150,
+        "displacement": 0.012576469468890739
+      },
+      {
+        "frame": 467,
+        "elapsed_ms": 166,
+        "displacement": 0.01439248823155796
+      },
+      {
+        "frame": 468,
+        "elapsed_ms": 183,
+        "displacement": 0.01481231068125831
+      },
+      {
+        "frame": 469,
+        "elapsed_ms": 200,
+        "displacement": 0.015227246173717329
+      },
+      {
+        "frame": 470,
+        "elapsed_ms": 216,
+        "displacement": 0.018286081660317546
+      },
+      {
+        "frame": 471,
+        "elapsed_ms": 233,
+        "displacement": 0.025466113590626244
+      },
+      {
+        "frame": 472,
+        "elapsed_ms": 250,
+        "displacement": 0.02748562978111758
+      },
+      {
+        "frame": 473,
+        "elapsed_ms": 266,
+        "displacement": 0.031261485408943045
+      },
+      {
+        "frame": 474,
+        "elapsed_ms": 283,
+        "displacement": 0.034696009001743446
+      },
+      {
+        "frame": 475,
+        "elapsed_ms": 300,
+        "displacement": 0.0333093479911126
+      },
+      {
+        "frame": 476,
+        "elapsed_ms": 316,
+        "displacement": 0.03193084584437882
+      }
+    ]
+  },
+  {
+    "window_ms": 150,
+    "displacement_limit": 0.1,
+    "punch": 10,
+    "onset_displacement": 0.046224382416860214,
+    "stable_end_displacement": 0.019452574521994035,
+    "first_crossing_frame": 507,
+    "delay_ms": 0,
+    "crosses_within_proposed_stable": true,
+    "crosses_before_next_movement": true,
+    "curve": [
+      {
+        "frame": 507,
+        "elapsed_ms": 0,
+        "displacement": 0.046224382416860214
+      },
+      {
+        "frame": 508,
+        "elapsed_ms": 17,
+        "displacement": 0.04624153281925916
+      },
+      {
+        "frame": 509,
+        "elapsed_ms": 33,
+        "displacement": 0.042754047305642445
+      },
+      {
+        "frame": 510,
+        "elapsed_ms": 50,
+        "displacement": 0.039222621361025986
+      },
+      {
+        "frame": 511,
+        "elapsed_ms": 67,
+        "displacement": 0.03886693004902279
+      },
+      {
+        "frame": 512,
+        "elapsed_ms": 83,
+        "displacement": 0.03708974910069272
+      },
+      {
+        "frame": 513,
+        "elapsed_ms": 100,
+        "displacement": 0.03506756486982706
+      },
+      {
+        "frame": 514,
+        "elapsed_ms": 117,
+        "displacement": 0.029821696978997326
+      },
+      {
+        "frame": 515,
+        "elapsed_ms": 133,
+        "displacement": 0.030376092908475923
+      },
+      {
+        "frame": 516,
+        "elapsed_ms": 150,
+        "displacement": 0.03231668746404895
+      },
+      {
+        "frame": 517,
+        "elapsed_ms": 167,
+        "displacement": 0.03191598734527939
+      },
+      {
+        "frame": 518,
+        "elapsed_ms": 183,
+        "displacement": 0.03313585404999964
+      },
+      {
+        "frame": 519,
+        "elapsed_ms": 200,
+        "displacement": 0.02730755477441435
+      },
+      {
+        "frame": 520,
+        "elapsed_ms": 217,
+        "displacement": 0.029206154485436054
+      },
+      {
+        "frame": 521,
+        "elapsed_ms": 233,
+        "displacement": 0.024971642075272582
+      },
+      {
+        "frame": 522,
+        "elapsed_ms": 250,
+        "displacement": 0.02142976437379026
+      },
+      {
+        "frame": 523,
+        "elapsed_ms": 267,
+        "displacement": 0.020607346009548687
+      },
+      {
+        "frame": 524,
+        "elapsed_ms": 283,
+        "displacement": 0.01880085900129156
+      },
+      {
+        "frame": 525,
+        "elapsed_ms": 300,
+        "displacement": 0.019452574521994035
+      },
+      {
+        "frame": 526,
+        "elapsed_ms": 317,
+        "displacement": 0.034557877625678426
+      }
+    ]
+  },
+  {
+    "window_ms": 300,
+    "displacement_limit": 0.05,
+    "punch": 1,
+    "onset_displacement": 0.35584899385918206,
+    "stable_end_displacement": 0.03930461600256304,
+    "first_crossing_frame": 70,
+    "delay_ms": 234,
+    "crosses_within_proposed_stable": true,
+    "crosses_before_next_movement": true,
+    "curve": [
+      {
+        "frame": 56,
+        "elapsed_ms": 0,
+        "displacement": 0.35584899385918206
+      },
+      {
+        "frame": 57,
+        "elapsed_ms": 17,
+        "displacement": 0.3190992990872077
+      },
+      {
+        "frame": 58,
+        "elapsed_ms": 34,
+        "displacement": 0.3086122054800887
+      },
+      {
+        "frame": 59,
+        "elapsed_ms": 50,
+        "displacement": 0.27758831422153935
+      },
+      {
+        "frame": 60,
+        "elapsed_ms": 67,
+        "displacement": 0.19023689500772167
+      },
+      {
+        "frame": 61,
+        "elapsed_ms": 84,
+        "displacement": 0.16478764907615573
+      },
+      {
+        "frame": 62,
+        "elapsed_ms": 100,
+        "displacement": 0.12049442467976662
+      },
+      {
+        "frame": 63,
+        "elapsed_ms": 117,
+        "displacement": 0.10471633046800348
+      },
+      {
+        "frame": 64,
+        "elapsed_ms": 134,
+        "displacement": 0.10699938989181888
+      },
+      {
+        "frame": 65,
+        "elapsed_ms": 150,
+        "displacement": 0.09782201516018421
+      },
+      {
+        "frame": 66,
+        "elapsed_ms": 167,
+        "displacement": 0.08370405223449806
+      },
+      {
+        "frame": 67,
+        "elapsed_ms": 184,
+        "displacement": 0.06948274486008904
+      },
+      {
+        "frame": 68,
+        "elapsed_ms": 200,
+        "displacement": 0.05645504498606337
+      },
+      {
+        "frame": 69,
+        "elapsed_ms": 217,
+        "displacement": 0.0518421344385549
+      },
+      {
+        "frame": 70,
+        "elapsed_ms": 234,
+        "displacement": 0.045907054504389366
+      },
+      {
+        "frame": 71,
+        "elapsed_ms": 250,
+        "displacement": 0.04088297369085266
+      },
+      {
+        "frame": 72,
+        "elapsed_ms": 267,
+        "displacement": 0.04010166034565258
+      },
+      {
+        "frame": 73,
+        "elapsed_ms": 284,
+        "displacement": 0.027932352621172718
+      },
+      {
+        "frame": 74,
+        "elapsed_ms": 300,
+        "displacement": 0.029549381328365307
+      },
+      {
+        "frame": 75,
+        "elapsed_ms": 317,
+        "displacement": 0.03535119472555338
+      },
+      {
+        "frame": 76,
+        "elapsed_ms": 334,
+        "displacement": 0.03930461600256304
+      },
+      {
+        "frame": 77,
+        "elapsed_ms": 350,
+        "displacement": 0.03618109540130485
+      },
+      {
+        "frame": 78,
+        "elapsed_ms": 367,
+        "displacement": 0.05355531206362066
+      },
+      {
+        "frame": 79,
+        "elapsed_ms": 384,
+        "displacement": 0.053569411053449215
+      }
+    ]
+  },
+  {
+    "window_ms": 300,
+    "displacement_limit": 0.05,
+    "punch": 2,
+    "onset_displacement": 0.27893963500417257,
+    "stable_end_displacement": 0.032124204114209604,
+    "first_crossing_frame": 117,
+    "delay_ms": 117,
+    "crosses_within_proposed_stable": true,
+    "crosses_before_next_movement": true,
+    "curve": [
+      {
+        "frame": 110,
+        "elapsed_ms": 0,
+        "displacement": 0.27893963500417257
+      },
+      {
+        "frame": 111,
+        "elapsed_ms": 17,
+        "displacement": 0.2104861889376569
+      },
+      {
+        "frame": 112,
+        "elapsed_ms": 34,
+        "displacement": 0.16479811748228462
+      },
+      {
+        "frame": 113,
+        "elapsed_ms": 50,
+        "displacement": 0.12383864947724793
+      },
+      {
+        "frame": 114,
+        "elapsed_ms": 67,
+        "displacement": 0.104716067245913
+      },
+      {
+        "frame": 115,
+        "elapsed_ms": 84,
+        "displacement": 0.07975643182223524
+      },
+      {
+        "frame": 116,
+        "elapsed_ms": 100,
+        "displacement": 0.056132759118589955
+      },
+      {
+        "frame": 117,
+        "elapsed_ms": 117,
+        "displacement": 0.04521483834673818
+      },
+      {
+        "frame": 118,
+        "elapsed_ms": 134,
+        "displacement": 0.04198400180915345
+      },
+      {
+        "frame": 119,
+        "elapsed_ms": 150,
+        "displacement": 0.04507012305751749
+      },
+      {
+        "frame": 120,
+        "elapsed_ms": 167,
+        "displacement": 0.041061143438567954
+      },
+      {
+        "frame": 121,
+        "elapsed_ms": 184,
+        "displacement": 0.03657131543227058
+      },
+      {
+        "frame": 122,
+        "elapsed_ms": 200,
+        "displacement": 0.03523774077919501
+      },
+      {
+        "frame": 123,
+        "elapsed_ms": 217,
+        "displacement": 0.032124204114209604
+      },
+      {
+        "frame": 124,
+        "elapsed_ms": 234,
+        "displacement": 0.03524111749742281
+      }
+    ]
+  },
+  {
+    "window_ms": 300,
+    "displacement_limit": 0.05,
+    "punch": 3,
+    "onset_displacement": 0.26213128951676956,
+    "stable_end_displacement": 0.04294290656658691,
+    "first_crossing_frame": 164,
+    "delay_ms": 100,
+    "crosses_within_proposed_stable": true,
+    "crosses_before_next_movement": true,
+    "curve": [
+      {
+        "frame": 158,
+        "elapsed_ms": 0,
+        "displacement": 0.26213128951676956
+      },
+      {
+        "frame": 159,
+        "elapsed_ms": 17,
+        "displacement": 0.2336808348825065
+      },
+      {
+        "frame": 160,
+        "elapsed_ms": 34,
+        "displacement": 0.1362977611785411
+      },
+      {
+        "frame": 161,
+        "elapsed_ms": 50,
+        "displacement": 0.10226337846628154
+      },
+      {
+        "frame": 162,
+        "elapsed_ms": 67,
+        "displacement": 0.0858088336797741
+      },
+      {
+        "frame": 163,
+        "elapsed_ms": 84,
+        "displacement": 0.06580963315517649
+      },
+      {
+        "frame": 164,
+        "elapsed_ms": 100,
+        "displacement": 0.04686080199801465
+      },
+      {
+        "frame": 165,
+        "elapsed_ms": 117,
+        "displacement": 0.05279181556116794
+      },
+      {
+        "frame": 166,
+        "elapsed_ms": 134,
+        "displacement": 0.04557731426665603
+      },
+      {
+        "frame": 167,
+        "elapsed_ms": 150,
+        "displacement": 0.037512458031306886
+      },
+      {
+        "frame": 168,
+        "elapsed_ms": 167,
+        "displacement": 0.03608129865154351
+      },
+      {
+        "frame": 169,
+        "elapsed_ms": 184,
+        "displacement": 0.03058136884482793
+      },
+      {
+        "frame": 170,
+        "elapsed_ms": 200,
+        "displacement": 0.03460819517928986
+      },
+      {
+        "frame": 171,
+        "elapsed_ms": 217,
+        "displacement": 0.029495736701811878
+      },
+      {
+        "frame": 172,
+        "elapsed_ms": 234,
+        "displacement": 0.03529380249828156
+      },
+      {
+        "frame": 173,
+        "elapsed_ms": 250,
+        "displacement": 0.04249991972685607
+      },
+      {
+        "frame": 174,
+        "elapsed_ms": 267,
+        "displacement": 0.044551500682948414
+      },
+      {
+        "frame": 175,
+        "elapsed_ms": 284,
+        "displacement": 0.04294290656658691
+      },
+      {
+        "frame": 176,
+        "elapsed_ms": 300,
+        "displacement": 0.046073013158541155
+      },
+      {
+        "frame": 177,
+        "elapsed_ms": 317,
+        "displacement": 0.046378771359367056
+      },
+      {
+        "frame": 178,
+        "elapsed_ms": 334,
+        "displacement": 0.04916283418805249
+      }
+    ]
+  },
+  {
+    "window_ms": 300,
+    "displacement_limit": 0.05,
+    "punch": 4,
+    "onset_displacement": 0.23849986631022912,
+    "stable_end_displacement": 0.03715203993479142,
+    "first_crossing_frame": 219,
+    "delay_ms": 150,
+    "crosses_within_proposed_stable": true,
+    "crosses_before_next_movement": true,
+    "curve": [
+      {
+        "frame": 210,
+        "elapsed_ms": 0,
+        "displacement": 0.23849986631022912
+      },
+      {
+        "frame": 211,
+        "elapsed_ms": 17,
+        "displacement": 0.18538570069184684
+      },
+      {
+        "frame": 212,
+        "elapsed_ms": 33,
+        "displacement": 0.1304732527815831
+      },
+      {
+        "frame": 213,
+        "elapsed_ms": 50,
+        "displacement": 0.10451403576976571
+      },
+      {
+        "frame": 214,
+        "elapsed_ms": 67,
+        "displacement": 0.06673978863837098
+      },
+      {
+        "frame": 215,
+        "elapsed_ms": 83,
+        "displacement": 0.05541042751644513
+      },
+      {
+        "frame": 216,
+        "elapsed_ms": 100,
+        "displacement": 0.054611169362003574
+      },
+      {
+        "frame": 217,
+        "elapsed_ms": 117,
+        "displacement": 0.05476133573300688
+      },
+      {
+        "frame": 218,
+        "elapsed_ms": 133,
+        "displacement": 0.05004424201683088
+      },
+      {
+        "frame": 219,
+        "elapsed_ms": 150,
+        "displacement": 0.04342431328375452
+      },
+      {
+        "frame": 220,
+        "elapsed_ms": 167,
+        "displacement": 0.038464111016119226
+      },
+      {
+        "frame": 221,
+        "elapsed_ms": 183,
+        "displacement": 0.041619328840413986
+      },
+      {
+        "frame": 222,
+        "elapsed_ms": 200,
+        "displacement": 0.042021360402204215
+      },
+      {
+        "frame": 223,
+        "elapsed_ms": 217,
+        "displacement": 0.04037082547456314
+      },
+      {
+        "frame": 224,
+        "elapsed_ms": 233,
+        "displacement": 0.03715203993479142
+      }
+    ]
+  },
+  {
+    "window_ms": 300,
+    "displacement_limit": 0.05,
+    "punch": 5,
+    "onset_displacement": 0.3083595570097513,
+    "stable_end_displacement": 0.03157799615711488,
+    "first_crossing_frame": 267,
+    "delay_ms": 167,
+    "crosses_within_proposed_stable": true,
+    "crosses_before_next_movement": true,
+    "curve": [
+      {
+        "frame": 257,
+        "elapsed_ms": 0,
+        "displacement": 0.3083595570097513
+      },
+      {
+        "frame": 258,
+        "elapsed_ms": 17,
+        "displacement": 0.2885086251341961
+      },
+      {
+        "frame": 259,
+        "elapsed_ms": 34,
+        "displacement": 0.25534837887577344
+      },
+      {
+        "frame": 260,
+        "elapsed_ms": 50,
+        "displacement": 0.24627191362506934
+      },
+      {
+        "frame": 261,
+        "elapsed_ms": 67,
+        "displacement": 0.14190103098260712
+      },
+      {
+        "frame": 262,
+        "elapsed_ms": 84,
+        "displacement": 0.11509790202266977
+      },
+      {
+        "frame": 263,
+        "elapsed_ms": 100,
+        "displacement": 0.10347617455209471
+      },
+      {
+        "frame": 264,
+        "elapsed_ms": 117,
+        "displacement": 0.08501017270992085
+      },
+      {
+        "frame": 265,
+        "elapsed_ms": 134,
+        "displacement": 0.08097451246694659
+      },
+      {
+        "frame": 266,
+        "elapsed_ms": 150,
+        "displacement": 0.06055122882043692
+      },
+      {
+        "frame": 267,
+        "elapsed_ms": 167,
+        "displacement": 0.04872901322215666
+      },
+      {
+        "frame": 268,
+        "elapsed_ms": 184,
+        "displacement": 0.04375873976063026
+      },
+      {
+        "frame": 269,
+        "elapsed_ms": 200,
+        "displacement": 0.04055969782469704
+      },
+      {
+        "frame": 270,
+        "elapsed_ms": 217,
+        "displacement": 0.02886189071129104
+      },
+      {
+        "frame": 271,
+        "elapsed_ms": 234,
+        "displacement": 0.024355586888497493
+      },
+      {
+        "frame": 272,
+        "elapsed_ms": 250,
+        "displacement": 0.02557574587406445
+      },
+      {
+        "frame": 273,
+        "elapsed_ms": 267,
+        "displacement": 0.02326016402808546
+      },
+      {
+        "frame": 274,
+        "elapsed_ms": 284,
+        "displacement": 0.0236363817264934
+      },
+      {
+        "frame": 275,
+        "elapsed_ms": 300,
+        "displacement": 0.03157799615711488
+      },
+      {
+        "frame": 276,
+        "elapsed_ms": 317,
+        "displacement": 0.03321314686950943
+      }
+    ]
+  },
+  {
+    "window_ms": 300,
+    "displacement_limit": 0.05,
+    "punch": 6,
+    "onset_displacement": 0.31137347053332853,
+    "stable_end_displacement": 0.03518850803584868,
+    "first_crossing_frame": 318,
+    "delay_ms": 183,
+    "crosses_within_proposed_stable": true,
+    "crosses_before_next_movement": true,
+    "curve": [
+      {
+        "frame": 307,
+        "elapsed_ms": 0,
+        "displacement": 0.31137347053332853
+      },
+      {
+        "frame": 308,
+        "elapsed_ms": 16,
+        "displacement": 0.2281345382196025
+      },
+      {
+        "frame": 309,
+        "elapsed_ms": 33,
+        "displacement": 0.16809264370165472
+      },
+      {
+        "frame": 310,
+        "elapsed_ms": 50,
+        "displacement": 0.1240006450489522
+      },
+      {
+        "frame": 311,
+        "elapsed_ms": 66,
+        "displacement": 0.1030557969984017
+      },
+      {
+        "frame": 312,
+        "elapsed_ms": 83,
+        "displacement": 0.077056570973267
+      },
+      {
+        "frame": 313,
+        "elapsed_ms": 100,
+        "displacement": 0.06058122641188987
+      },
+      {
+        "frame": 314,
+        "elapsed_ms": 116,
+        "displacement": 0.0571267705700723
+      },
+      {
+        "frame": 315,
+        "elapsed_ms": 133,
+        "displacement": 0.055652590434269365
+      },
+      {
+        "frame": 316,
+        "elapsed_ms": 150,
+        "displacement": 0.050866646986247585
+      },
+      {
+        "frame": 317,
+        "elapsed_ms": 166,
+        "displacement": 0.05162548668311341
+      },
+      {
+        "frame": 318,
+        "elapsed_ms": 183,
+        "displacement": 0.046023160142445486
+      },
+      {
+        "frame": 319,
+        "elapsed_ms": 200,
+        "displacement": 0.038869433148853945
+      },
+      {
+        "frame": 320,
+        "elapsed_ms": 216,
+        "displacement": 0.03836746237394108
+      },
+      {
+        "frame": 321,
+        "elapsed_ms": 233,
+        "displacement": 0.03717031038086826
+      },
+      {
+        "frame": 322,
+        "elapsed_ms": 250,
+        "displacement": 0.03636557570910742
+      },
+      {
+        "frame": 323,
+        "elapsed_ms": 266,
+        "displacement": 0.03546784952081332
+      },
+      {
+        "frame": 324,
+        "elapsed_ms": 283,
+        "displacement": 0.03518850803584868
+      }
+    ]
+  },
+  {
+    "window_ms": 300,
+    "displacement_limit": 0.05,
+    "punch": 7,
+    "onset_displacement": 0.2978183231603599,
+    "stable_end_displacement": 0.05801966747624879,
+    "first_crossing_frame": 366,
+    "delay_ms": 150,
+    "crosses_within_proposed_stable": true,
+    "crosses_before_next_movement": true,
+    "curve": [
+      {
+        "frame": 357,
+        "elapsed_ms": 0,
+        "displacement": 0.2978183231603599
+      },
+      {
+        "frame": 358,
+        "elapsed_ms": 17,
+        "displacement": 0.18941974377153242
+      },
+      {
+        "frame": 359,
+        "elapsed_ms": 33,
+        "displacement": 0.1662988378904522
+      },
+      {
+        "frame": 360,
+        "elapsed_ms": 50,
+        "displacement": 0.14566370699915274
+      },
+      {
+        "frame": 361,
+        "elapsed_ms": 67,
+        "displacement": 0.12279033764625073
+      },
+      {
+        "frame": 362,
+        "elapsed_ms": 83,
+        "displacement": 0.09971072781495591
+      },
+      {
+        "frame": 363,
+        "elapsed_ms": 100,
+        "displacement": 0.06011454654735011
+      },
+      {
+        "frame": 364,
+        "elapsed_ms": 117,
+        "displacement": 0.06214010876969751
+      },
+      {
+        "frame": 365,
+        "elapsed_ms": 133,
+        "displacement": 0.052470907459831226
+      },
+      {
+        "frame": 366,
+        "elapsed_ms": 150,
+        "displacement": 0.04545901496969312
+      },
+      {
+        "frame": 367,
+        "elapsed_ms": 167,
+        "displacement": 0.038588481630122934
+      },
+      {
+        "frame": 368,
+        "elapsed_ms": 183,
+        "displacement": 0.03578768174520334
+      },
+      {
+        "frame": 369,
+        "elapsed_ms": 200,
+        "displacement": 0.03257744226382796
+      },
+      {
+        "frame": 370,
+        "elapsed_ms": 217,
+        "displacement": 0.03357000922393408
+      },
+      {
+        "frame": 371,
+        "elapsed_ms": 233,
+        "displacement": 0.03597978188413289
+      },
+      {
+        "frame": 372,
+        "elapsed_ms": 250,
+        "displacement": 0.04570066744964825
+      },
+      {
+        "frame": 373,
+        "elapsed_ms": 267,
+        "displacement": 0.04628192052119906
+      },
+      {
+        "frame": 374,
+        "elapsed_ms": 283,
+        "displacement": 0.05236180931470137
+      },
+      {
+        "frame": 375,
+        "elapsed_ms": 300,
+        "displacement": 0.05801966747624879
+      },
+      {
+        "frame": 376,
+        "elapsed_ms": 317,
+        "displacement": 0.06118462008312012
+      }
+    ]
+  },
+  {
+    "window_ms": 300,
+    "displacement_limit": 0.05,
+    "punch": 8,
+    "onset_displacement": 0.32058906689652233,
+    "stable_end_displacement": 0.04612722886462423,
+    "first_crossing_frame": 414,
+    "delay_ms": 117,
+    "crosses_within_proposed_stable": true,
+    "crosses_before_next_movement": true,
+    "curve": [
+      {
+        "frame": 407,
+        "elapsed_ms": 0,
+        "displacement": 0.32058906689652233
+      },
+      {
+        "frame": 408,
+        "elapsed_ms": 17,
+        "displacement": 0.2667316039286936
+      },
+      {
+        "frame": 409,
+        "elapsed_ms": 34,
+        "displacement": 0.21309437654197175
+      },
+      {
+        "frame": 410,
+        "elapsed_ms": 50,
+        "displacement": 0.15616746183751404
+      },
+      {
+        "frame": 411,
+        "elapsed_ms": 67,
+        "displacement": 0.11888949156694496
+      },
+      {
+        "frame": 412,
+        "elapsed_ms": 84,
+        "displacement": 0.08952298027458977
+      },
+      {
+        "frame": 413,
+        "elapsed_ms": 100,
+        "displacement": 0.06297299949254034
+      },
+      {
+        "frame": 414,
+        "elapsed_ms": 117,
+        "displacement": 0.048022531955438895
+      },
+      {
+        "frame": 415,
+        "elapsed_ms": 134,
+        "displacement": 0.04794450737912902
+      },
+      {
+        "frame": 416,
+        "elapsed_ms": 150,
+        "displacement": 0.035231262102549565
+      },
+      {
+        "frame": 417,
+        "elapsed_ms": 167,
+        "displacement": 0.03426611274562734
+      },
+      {
+        "frame": 418,
+        "elapsed_ms": 184,
+        "displacement": 0.037865882772388934
+      },
+      {
+        "frame": 419,
+        "elapsed_ms": 200,
+        "displacement": 0.035870020997809934
+      },
+      {
+        "frame": 420,
+        "elapsed_ms": 217,
+        "displacement": 0.04016530857310856
+      },
+      {
+        "frame": 421,
+        "elapsed_ms": 234,
+        "displacement": 0.03737896835223431
+      },
+      {
+        "frame": 422,
+        "elapsed_ms": 250,
+        "displacement": 0.043787142032593325
+      },
+      {
+        "frame": 423,
+        "elapsed_ms": 267,
+        "displacement": 0.050800169543607936
+      },
+      {
+        "frame": 424,
+        "elapsed_ms": 284,
+        "displacement": 0.054642633750763656
+      },
+      {
+        "frame": 425,
+        "elapsed_ms": 300,
+        "displacement": 0.04612722886462423
+      },
+      {
+        "frame": 426,
+        "elapsed_ms": 317,
+        "displacement": 0.054096939931122565
+      }
+    ]
+  },
+  {
+    "window_ms": 300,
+    "displacement_limit": 0.05,
+    "punch": 9,
+    "onset_displacement": 0.32149627483344206,
+    "stable_end_displacement": 0.039042603552706674,
+    "first_crossing_frame": 468,
+    "delay_ms": 183,
+    "crosses_within_proposed_stable": true,
+    "crosses_before_next_movement": true,
+    "curve": [
+      {
+        "frame": 457,
+        "elapsed_ms": 0,
+        "displacement": 0.32149627483344206
+      },
+      {
+        "frame": 458,
+        "elapsed_ms": 16,
+        "displacement": 0.1953861052479826
+      },
+      {
+        "frame": 459,
+        "elapsed_ms": 33,
+        "displacement": 0.16702614136392277
+      },
+      {
+        "frame": 460,
+        "elapsed_ms": 50,
+        "displacement": 0.13288391301861358
+      },
+      {
+        "frame": 461,
+        "elapsed_ms": 66,
+        "displacement": 0.09958663720866738
+      },
+      {
+        "frame": 462,
+        "elapsed_ms": 83,
+        "displacement": 0.06929627236100432
+      },
+      {
+        "frame": 463,
+        "elapsed_ms": 100,
+        "displacement": 0.06537275948866197
+      },
+      {
+        "frame": 464,
+        "elapsed_ms": 116,
+        "displacement": 0.07685855339037241
+      },
+      {
+        "frame": 465,
+        "elapsed_ms": 133,
+        "displacement": 0.0694607824600942
+      },
+      {
+        "frame": 466,
+        "elapsed_ms": 150,
+        "displacement": 0.059980910014657426
+      },
+      {
+        "frame": 467,
+        "elapsed_ms": 166,
+        "displacement": 0.052728404860184076
+      },
+      {
+        "frame": 468,
+        "elapsed_ms": 183,
+        "displacement": 0.04646512116609671
+      },
+      {
+        "frame": 469,
+        "elapsed_ms": 200,
+        "displacement": 0.04097026645943867
+      },
+      {
+        "frame": 470,
+        "elapsed_ms": 216,
+        "displacement": 0.0402569103201613
+      },
+      {
+        "frame": 471,
+        "elapsed_ms": 233,
+        "displacement": 0.03909109019875794
+      },
+      {
+        "frame": 472,
+        "elapsed_ms": 250,
+        "displacement": 0.03928035354366431
+      },
+      {
+        "frame": 473,
+        "elapsed_ms": 266,
+        "displacement": 0.036493726263796884
+      },
+      {
+        "frame": 474,
+        "elapsed_ms": 283,
+        "displacement": 0.03809039703007666
+      },
+      {
+        "frame": 475,
+        "elapsed_ms": 300,
+        "displacement": 0.039042603552706674
+      },
+      {
+        "frame": 476,
+        "elapsed_ms": 316,
+        "displacement": 0.0409577145075366
+      }
+    ]
+  },
+  {
+    "window_ms": 300,
+    "displacement_limit": 0.05,
+    "punch": 10,
+    "onset_displacement": 0.3431283120479297,
+    "stable_end_displacement": 0.03452177626662756,
+    "first_crossing_frame": 516,
+    "delay_ms": 150,
+    "crosses_within_proposed_stable": true,
+    "crosses_before_next_movement": true,
+    "curve": [
+      {
+        "frame": 507,
+        "elapsed_ms": 0,
+        "displacement": 0.3431283120479297
+      },
+      {
+        "frame": 508,
+        "elapsed_ms": 17,
+        "displacement": 0.30393999920782044
+      },
+      {
+        "frame": 509,
+        "elapsed_ms": 33,
+        "displacement": 0.22812161693823746
+      },
+      {
+        "frame": 510,
+        "elapsed_ms": 50,
+        "displacement": 0.17724474827118186
+      },
+      {
+        "frame": 511,
+        "elapsed_ms": 67,
+        "displacement": 0.12126201646039701
+      },
+      {
+        "frame": 512,
+        "elapsed_ms": 83,
+        "displacement": 0.09368261271126
+      },
+      {
+        "frame": 513,
+        "elapsed_ms": 100,
+        "displacement": 0.07515086764924352
+      },
+      {
+        "frame": 514,
+        "elapsed_ms": 117,
+        "displacement": 0.056427412374080985
+      },
+      {
+        "frame": 515,
+        "elapsed_ms": 133,
+        "displacement": 0.05491641708318405
+      },
+      {
+        "frame": 516,
+        "elapsed_ms": 150,
+        "displacement": 0.044396779638335195
+      },
+      {
+        "frame": 517,
+        "elapsed_ms": 167,
+        "displacement": 0.04679881903424335
+      },
+      {
+        "frame": 518,
+        "elapsed_ms": 183,
+        "displacement": 0.04571201888030698
+      },
+      {
+        "frame": 519,
+        "elapsed_ms": 200,
+        "displacement": 0.04637705492884845
+      },
+      {
+        "frame": 520,
+        "elapsed_ms": 217,
+        "displacement": 0.052213296476331
+      },
+      {
+        "frame": 521,
+        "elapsed_ms": 233,
+        "displacement": 0.043630327571237325
+      },
+      {
+        "frame": 522,
+        "elapsed_ms": 250,
+        "displacement": 0.04229354856523622
+      },
+      {
+        "frame": 523,
+        "elapsed_ms": 267,
+        "displacement": 0.03507362308479246
+      },
+      {
+        "frame": 524,
+        "elapsed_ms": 283,
+        "displacement": 0.03584850845997499
+      },
+      {
+        "frame": 525,
+        "elapsed_ms": 300,
+        "displacement": 0.03452177626662756
+      },
+      {
+        "frame": 526,
+        "elapsed_ms": 317,
+        "displacement": 0.03151544683687853
+      }
+    ]
+  }
+]

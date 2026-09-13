@@ -1,0 +1,34 @@
+[
+  {
+    "name": "noise-calibration-only-v1",
+    "known_synthetic_movement_end_ms": 2000,
+    "boundary_ms": 2250,
+    "decision_ms": 2350,
+    "end_offset_ms": 250,
+    "premature_completion": false
+  },
+  {
+    "name": "real-sideview-calibration-v1",
+    "known_synthetic_movement_end_ms": 2000,
+    "boundary_ms": 900,
+    "decision_ms": 1000,
+    "end_offset_ms": -1100,
+    "premature_completion": true
+  },
+  {
+    "name": "short-window-diagnostic-v1",
+    "known_synthetic_movement_end_ms": 2000,
+    "boundary_ms": 750,
+    "decision_ms": 850,
+    "end_offset_ms": -1250,
+    "premature_completion": true
+  },
+  {
+    "name": "real-sideview-rate-preserving-v1",
+    "known_synthetic_movement_end_ms": 2000,
+    "boundary_ms": 2150,
+    "decision_ms": 2250,
+    "end_offset_ms": 150,
+    "premature_completion": false
+  }
+]

@@ -8,6 +8,7 @@ import android.text.TextUtils
 import android.view.Gravity
 import android.view.View
 import android.widget.Button
+import android.widget.FrameLayout
 import android.widget.LinearLayout
 import android.widget.TextView
 import androidx.appcompat.widget.SwitchCompat
@@ -79,6 +80,12 @@ class SettingsRowView(
     private val title: String,
     private val description: String,
 ) : LinearLayout(context) {
+    private val leadingIcon = AppIconView(context, icon)
+    private val leadingIconContainer = FrameLayout(context).apply {
+        clipChildren = false
+        clipToPadding = false
+        addView(leadingIcon, FrameLayout.LayoutParams(24.dp(), 24.dp()))
+    }
     private val endContainer = LinearLayout(context).apply {
         orientation = HORIZONTAL
         gravity = Gravity.CENTER_VERTICAL or Gravity.END
@@ -90,7 +97,7 @@ class SettingsRowView(
         minimumHeight = 82.dp()
         setPadding(16.dp(), 12.dp(), 12.dp(), 12.dp())
 
-        addView(AppIconView(context, icon), LayoutParams(24.dp(), 24.dp()).apply {
+        addView(leadingIconContainer, LayoutParams(24.dp(), 24.dp()).apply {
             marginEnd = 16.dp()
         })
         addView(LinearLayout(context).apply {
@@ -172,6 +179,23 @@ class SettingsRowView(
                 tint = ColorStateList.valueOf(color),
             ), LayoutParams(18.dp(), 18.dp()).apply { marginStart = 5.dp() })
         }
+    }
+
+    /** Colors the permission identifier and associates it with a check/X badge. */
+    fun setLeadingPermissionStatus(granted: Boolean, color: Int) {
+        leadingIcon.setIconColor(color)
+        while (leadingIconContainer.childCount > 1) {
+            leadingIconContainer.removeViewAt(leadingIconContainer.childCount - 1)
+        }
+        leadingIconContainer.addView(AppIconView(
+            context = context,
+            icon = if (granted) AppIcon.CHECK else AppIcon.X,
+            sizeDp = 14,
+            tint = ColorStateList.valueOf(color),
+        ), FrameLayout.LayoutParams(14.dp(), 14.dp()).apply {
+            leftMargin = 16.dp()
+            topMargin = 16.dp()
+        })
     }
 
     fun setAction(onClick: () -> Unit, value: String? = null) {

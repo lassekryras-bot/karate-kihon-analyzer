@@ -31,6 +31,7 @@ class OsuMeaningUseView(
     private val onStart: () -> Unit,
     private val onPrevious: () -> Unit,
     private val onNext: () -> Unit,
+    private val onSelect: (OsuIllustration) -> Unit,
     private val onReplayOsu: () -> Unit,
     private val onRestart: () -> Unit,
     private val onContinue: () -> Unit,
@@ -46,25 +47,39 @@ class OsuMeaningUseView(
     }
 
     fun render(next: OsuMeaningUsePresentation) {
+        val previousStage = presentation.stage
+        val previousSelection = presentation.selectedIllustration
         presentation = next
         shell.setHeader(GROUP_TITLE, pathPosition)
         shell.setContext("KARATE BASICS", "LEARN")
         when (next.stage) {
             OsuMeaningUseStage.READY -> renderReady()
-            OsuMeaningUseStage.MEANING -> renderMeaning()
-            OsuMeaningUseStage.DOJO_USE -> renderDojoUse()
-            OsuMeaningUseStage.APP_USE -> renderAppUse()
+            OsuMeaningUseStage.HEARD_YOU,
+            OsuMeaningUseStage.READY_RESPONSE,
+            OsuMeaningUseStage.KEEP_TRYING,
+            -> renderQuestion()
             OsuMeaningUseStage.COMPLETE -> renderComplete()
+        }
+        if (
+            previousStage == next.stage &&
+            previousSelection != next.selectedIllustration &&
+            next.selectedIllustration != null
+        ) {
+            val question = requireNotNull(next.question)
+            announceForAccessibility(context.getString(
+                if (next.answerIsCorrect) question.correctFeedbackRes else question.wrongFeedbackRes,
+            ))
         }
     }
 
     private fun renderReady() {
         shell.setHeading("Osu — Meaning & Use", "Learn what Osu communicates and how this app uses it.")
         shell.setRunnerContent(ui.card(
-            title = "A short word with context",
+            title = "Three simple ideas",
             paragraphs = listOf(
                 "Osu is used as a brief acknowledgement in some karate dojos.",
-                "Its meaning and use vary between styles and dojos. This lesson explains the specific way it is used in this app.",
+                "Its use varies between styles and dojos, so follow your instructor’s convention.",
+                "In this app, picture choices will help you connect Osu with: “I heard you,” “I’m ready,” and “I’ll keep trying.”",
             ),
             footer = "No microphone or camera",
         ))
@@ -72,56 +87,30 @@ class OsuMeaningUseView(
         shell.setActions(null, ActivityShellAction("Start lesson  →", onClick = onStart))
     }
 
-    private fun renderMeaning() {
-        renderLessonStep(
-            subtitle = "First, learn what the word communicates.",
-            title = "What does Osu mean?",
-            paragraphs = listOf(
-                "Osu does not have one exact English translation for every situation.",
-                "In a dojo it may communicate acknowledgement, attention, or readiness.",
-            ),
-            showReplay = true,
+    private fun renderQuestion() {
+        val question = requireNotNull(presentation.question)
+        shell.setHeading(
+            "Osu — Meaning & Use",
+            context.getString(R.string.osu_choose_picture_hint),
         )
-    }
-
-    private fun renderDojoUse() {
-        renderLessonStep(
-            subtitle = "Usage depends on the dojo and situation.",
-            title = "Follow your dojo",
-            paragraphs = listOf(
-                "Some karate styles use Osu often, while others use it differently or not at all.",
-                "When training with an instructor, follow the conventions they teach.",
-            ),
-        )
-    }
-
-    private fun renderAppUse() {
-        renderLessonStep(
-            subtitle = "In this app, Osu confirms that you are ready.",
-            title = "Ready? — Osu",
-            paragraphs = listOf(
-                "When the app asks “Ready?”, answer “Osu” to mean:",
-                "“I heard the instruction, and I am ready to begin.”",
-                "You will practise that exchange in the next activity.",
-            ),
-            showReplay = true,
-        )
-    }
-
-    private fun renderLessonStep(
-        subtitle: String,
-        title: String,
-        paragraphs: List<String>,
-        showReplay: Boolean = false,
-    ) {
-        shell.setHeading("Osu — Meaning & Use", subtitle)
-        shell.setRunnerContent(ui.card(title, paragraphs).apply {
-            if (showReplay) addView(ui.inlineAction("Hear Osu", AppIcon.VOLUME, onReplayOsu))
-        })
+        shell.setRunnerContent(OsuMeaningQuestionView(
+            context = context,
+            question = question,
+            selectedIllustration = presentation.selectedIllustration,
+            answerIsCorrect = presentation.answerIsCorrect,
+            onReplayOsu = onReplayOsu,
+            onSelect = onSelect,
+        ))
         shell.setProgressContent(ui.stepProgress(requireNotNull(presentation.stepIndex), 3, "Lesson step"))
+        val primaryLabel = when {
+            presentation.nextEnabled && presentation.isLastQuestion -> context.getString(R.string.osu_finish_lesson_action)
+            presentation.nextEnabled -> context.getString(R.string.osu_next_meaning_action)
+            presentation.hasSelection -> context.getString(R.string.osu_try_another_action)
+            else -> context.getString(R.string.osu_choose_picture_action)
+        }
         shell.setActions(
             secondary = if (presentation.previousEnabled) ActivityShellAction("Previous", onClick = onPrevious) else null,
-            primary = ActivityShellAction(presentation.nextLabel, onClick = onNext),
+            primary = ActivityShellAction(primaryLabel, enabled = presentation.nextEnabled, onClick = onNext),
         )
     }
 
@@ -130,8 +119,9 @@ class OsuMeaningUseView(
         shell.setRunnerContent(ui.card(
             title = "What comes next",
             paragraphs = listOf(
+                "You connected Osu with hearing an instruction, being ready, and choosing to keep trying.",
                 "Next, practise responding after the app asks “Ready?”.",
-                "Completing this lesson records learning progress, not pronunciation or voice verification.",
+                "This records completion of a guided picture lesson, not cultural expertise, pronunciation, or voice verification.",
             ),
         ))
         shell.setProgressContent(null)

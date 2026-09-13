@@ -1,5 +1,7 @@
 package dk.lasse.karatecliprecorder
 
+import dk.lasse.karateanalyzer.capture.retrospective.RetrospectiveSessionResult
+
 data class GuidedClipResult(
     val plan: GuidedStrikePlan,
     val recordingResult: RecordingResult?,
@@ -12,4 +14,6 @@ data class GuidedSessionResult(
     val savedClipCount: Int,
     val metadataPath: String,
     val completed: Boolean,
+    val masterVideoPath: String? = null,
+    val retrospectiveResult: RetrospectiveSessionResult? = null,
 )

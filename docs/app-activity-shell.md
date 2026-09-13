@@ -17,9 +17,11 @@ Paths are relative to `android/KarateClipRecorder/app/src` unless stated otherwi
 | Counting test View/presentation | `main/java/dk/lasse/karatecliprecorder/learningactivity/JapaneseCountingTestView.kt` and `JapaneseCountingTestPresentation.kt` |
 | Counting controllers/audio/recognition | `main/java/dk/lasse/karatecliprecorder/learning/` and `MainActivity.kt` |
 | Terminology presentations and Views | `main/java/dk/lasse/karatecliprecorder/learningactivity/KarateTerminologyPresentations.kt` and `KarateTerminologyViews.kt` |
+| Osu picture-choice illustration slots | `main/java/dk/lasse/karatecliprecorder/learningactivity/OsuMeaningIllustrations.kt` |
 | Generic live speech and terminology prompts | `main/java/dk/lasse/karatecliprecorder/learning/LiveSpeechRecognizer.kt`, `ShortVoiceCommand.kt`, and `TerminologySpeechPlayer.kt` |
 | Ready? — Osu front-camera capture | `main/java/dk/lasse/karatecliprecorder/learning/ReadyOsuSelfieCamera.kt` |
 | Karate Basics catalogue | `main/res/raw/karate_basics_path.json` |
+| Skill Coach landing state, view and Sensei renderer | `main/java/dk/lasse/karatecliprecorder/skillcoach/` |
 | Draft pathway parsing/resolution | `main/java/dk/lasse/karatecliprecorder/learningpath/DraftLearningPathModels.kt` |
 | Routing and host lifecycle | `main/java/dk/lasse/karatecliprecorder/MainActivity.kt` |
 | Profile/activity status | `main/java/dk/lasse/karatecliprecorder/profile/ProfileRepository.kt` |
@@ -176,11 +178,19 @@ chooser with three equally sized cards: Learn, Practice, and Skill Coach.
 Home's Learn shortcut opens the learning catalogue directly; Train's Learn card
 opens that same catalogue. Back from the catalogue returns to Train. The
 measurement wiki and pathways remain in the catalogue, while Continue Learning
-appears only on Home. Practice and Skill Coach show a short Coming soon message
-from both Home and Train; they no longer open the legacy training destination.
-Their card descriptions express the planned direction, not implemented exercise
-planning or coaching flows. These entry points start no camera, microphone, or
-permission flow.
+appears only on Home. Practice still shows a short Coming soon message from both
+Home and Train; it does not open the legacy training destination.
+
+Skill Coach now opens a passive coaching workspace from both Home and Train. It
+uses the shared main-page header, active-profile shortcut and bottom navigation,
+with Training selected. Its personalized-guidance state, self-directed tool rows
+and recent-analysis rows are presentation models only: the actions are safe
+placeholders and entry starts no camera, microphone, permission, MediaPipe,
+recording or analysis flow. Debuggable builds show one explicitly demo-backed
+recent row for layout review; non-debuggable builds show an empty Recent state.
+The Sensei artwork is a reusable full-color SVG with a blank bubble; the localized
+speech is rendered separately by Android UI. The supplied scene is mirrored and
+cropped so the Sensei appears on the right, facing the guidance content.
 
 Implemented host behavior includes:
 
@@ -264,6 +274,17 @@ Implemented behavior:
 
 - all three use `ActivityShellView`; only Ready? — Osu uses a camera, while none
   uses MediaPipe or video recording;
+- Osu — Meaning & Use now has three guided image-choice steps for “I heard you,”
+  “I’m ready,” and “I’ll keep trying”; each pairs a positive learner state with
+  a relatable distraction and keeps wrong choices recoverable on the same step;
+- those seven teaching-character roles are semantic `OsuIllustration` slots with
+  deliberately neutral icon placeholders. Learner copy and accessibility labels
+  live in Android string resources, and final art can be introduced solely through
+  the resource mapping. The exact outstanding assets are tracked in
+  `docs/backlog/osu-meaning-illustrations.md`;
+- the picture lesson requires a correct choice on all three steps before Complete,
+  preserves answered steps across Previous/Next, and saves only activity
+  completion. It has no Result page, score or mastery claim;
 - Ready pages and the passive model start no camera or recognition; front-camera
   and microphone permissions follow the labelled `Start hands-free selfie`
   action;

@@ -23,6 +23,9 @@ data class PoseMotionExtractorConfig(
     val baselineMaximumArticulatedMotion: Double = 0.12,
     val minimumRegionCoverageForReliableMotion: Double = 0.65,
     val regionWeights: Map<AnatomicalRegion, Double> = AnatomicalRegion.entries.associateWith { 1.0 },
+    val requiredRegions: Set<AnatomicalRegion> = AnatomicalRegion.entries.toSet(),
+    val kinematics: KinematicsConfig = KinematicsConfig(),
+    val cameraNearArmSide: LateralSide? = LateralSide.RIGHT,
 ) {
     init {
         require(minimumLandmarkConfidence in 0.0..1.0)
@@ -75,11 +78,13 @@ data class PoseReplayFixture(
     companion object { const val SCHEMA_VERSION = "pose-motion-replay-v1" }
 }
 
-private data class RelativePose(
+data class RelativePose(
     val timestampMs: Long,
     val points: Map<PoseLandmarkId, Point3>,
     val confidences: Map<PoseLandmarkId, Double>,
     val worldScale: Double,
+    val imagePoints: Map<PoseLandmarkId, Point3> = emptyMap(),
+    val referenceScale: Double? = null,
 )
 
 private data class PoseReference(
@@ -101,6 +106,8 @@ class PoseMotionObservationExtractor(
     private val relativeHistory = TimestampedHistory<RelativePose>(120, config.slowDisplacementWindowMs)
     private val baselineCandidates = mutableListOf<RelativePose>()
     private var baselineReference: PoseReference? = null
+    private var upperArmReferenceScale: Double? = null
+    private val kinematicExtractor = KinematicChainExtractor(config.kinematics)
 
     fun accept(frame: PoseFrame): MotionObservation {
         val previous = previousFrame
@@ -139,6 +146,9 @@ class PoseMotionObservationExtractor(
         val reference = baselineReference
         val sameSimilarity = if (relative != null && reference != null) poseSimilarity(relative, reference, mirrored = false) else null
         val mirroredSimilarity = if (relative != null && reference != null) poseSimilarity(relative, reference, mirrored = true) else null
+        val kinematics = if (relative != null) {
+            kinematicExtractor.extract(previousRelativePose, relative, elapsedMs ?: 0L, config.maximumNormalizedSpeed)
+        } else null
 
         previousFrame = frame
         previousRelativePose = relative
@@ -164,6 +174,8 @@ class PoseMotionObservationExtractor(
                 baselineReady = baselineReference != null,
                 regions = regionDiagnostics,
             ),
+            kinematics = kinematics,
+            relativePose = relative,
         )
     }
 
@@ -178,6 +190,57 @@ class PoseMotionObservationExtractor(
         relativeHistory.reset()
         baselineCandidates.clear()
         baselineReference = null
+        upperArmReferenceScale = null
+        kinematicExtractor.reset()
+    }
+
+    fun rebaselineFromConfirmedStableWindow(
+        stableStartTimestampMs: Long,
+        stableEndTimestampMs: Long,
+    ) {
+        val windowCandidates = relativeHistory.values()
+            .filter { it.timestampMs in stableStartTimestampMs..stableEndTimestampMs }
+            .map { it.value }
+        val candidatesToUse = if (windowCandidates.size >= config.baselineRequiredSamples) {
+            windowCandidates
+        } else {
+            val allHistory = relativeHistory.values().map { it.value }
+            if (allHistory.size >= config.baselineRequiredSamples) {
+                allHistory.takeLast(config.baselineRequiredSamples)
+            } else {
+                allHistory
+            }
+        }
+        if (candidatesToUse.isNotEmpty()) {
+            val points = selectedLandmarks.mapNotNull { id ->
+                val samples = candidatesToUse.mapNotNull { it.points[id] }
+                if (samples.size == candidatesToUse.size) id to average(samples) else null
+            }.toMap()
+            val leftHip = points[PoseLandmarkId.LEFT_HIP]
+            val rightHip = points[PoseLandmarkId.RIGHT_HIP]
+            if (leftHip != null && rightHip != null) {
+                baselineReference = PoseReference(points, unit(leftHip - rightHip))
+                baselineCandidates.clear()
+                baselineCandidates.addAll(candidatesToUse)
+                val side = config.cameraNearArmSide ?: config.kinematics.cameraNearArmSide
+                if (side != null) {
+                    val sId = if (side == LateralSide.LEFT) PoseLandmarkId.LEFT_SHOULDER else PoseLandmarkId.RIGHT_SHOULDER
+                    val eId = if (side == LateralSide.LEFT) PoseLandmarkId.LEFT_ELBOW else PoseLandmarkId.RIGHT_ELBOW
+                    val armLengths = candidatesToUse.mapNotNull { c ->
+                        val s = c.imagePoints[sId] ?: c.points[sId] ?: return@mapNotNull null
+                        val e = c.imagePoints[eId] ?: c.points[eId] ?: return@mapNotNull null
+                        val dx = (e.x - s.x).toDouble()
+                        val dy = (e.y - s.y).toDouble()
+                        val len = sqrt(dx * dx + dy * dy)
+                        if (len.isFinite() && len > 1e-4) len else null
+                    }
+                    if (armLengths.isNotEmpty()) {
+                        upperArmReferenceScale = armLengths.sorted()[armLengths.size / 2]
+                    }
+                }
+                kinematicExtractor.preserveConfirmedWindow(stableStartTimestampMs, stableEndTimestampMs)
+            }
+        }
     }
 
     private fun relativePose(frame: PoseFrame): RelativePose? {
@@ -192,13 +255,17 @@ class PoseMotionObservationExtractor(
 
         val points = mutableMapOf<PoseLandmarkId, Point3>()
         val confidences = mutableMapOf<PoseLandmarkId, Double>()
+        val imagePoints = mutableMapOf<PoseLandmarkId, Point3>()
         selectedLandmarks.forEach { id ->
             frame.usable(id, world = true)?.let { (point, confidence) ->
                 points[id] = (point - hipCenter) * (1f / scale.toFloat())
                 confidences[id] = confidence
             }
+            frame.usable(id, world = false)?.let { (point, _) ->
+                imagePoints[id] = point
+            }
         }
-        return RelativePose(frame.timestampMs, points, confidences, scale)
+        return RelativePose(frame.timestampMs, points, confidences, scale, imagePoints, upperArmReferenceScale)
     }
 
     private fun articulatedMotion(
@@ -226,7 +293,7 @@ class PoseMotionObservationExtractor(
             val coverage = rawSpeeds.sumOf { it.second } / ids.size
             val clamped = rawSpeeds.count { it.first > config.maximumNormalizedSpeed }
             output[region] = RegionMotionDiagnostics(ids.size, rawSpeeds.size, coverage.coerceIn(0.0, 1.0), raw, robust, clamped)
-            if (coverage < config.minimumRegionCoverageForReliableMotion) allRegionsReliable = false
+            if (region in config.requiredRegions && coverage < config.minimumRegionCoverageForReliableMotion) allRegionsReliable = false
             if (robust != null) validRegions += robust to checkNotNull(config.regionWeights[region])
         }
         val aggregate = weightedRms(validRegions)
@@ -277,12 +344,14 @@ class PoseMotionObservationExtractor(
         // coverage prevents the segmenter from treating the frame as proof of stillness.
         val regions = anatomicalLandmarks.map { (region, ids) ->
             val value = ids.sumOf { frame.usable(it, world = false)?.second ?: 0.0 } / ids.size
-            value to config.regionWeights.getValue(region)
+            region to value
         }
-        val totalWeight = regions.sumOf { it.second }
+        val required = regions.filter { it.first in config.requiredRegions }
+        val minimum = required.minOfOrNull { it.second } ?: 0.0
+        val totalWeight = regions.sumOf { config.regionWeights.getValue(it.first) }
         return CoverageSummary(
-            minimum = regions.minOfOrNull { it.first } ?: 0.0,
-            balanced = if (totalWeight > 0.0) regions.sumOf { it.first * it.second } / totalWeight else 0.0,
+            minimum = minimum,
+            balanced = if (totalWeight > 0.0) regions.sumOf { it.second * config.regionWeights.getValue(it.first) } / totalWeight else 0.0,
         )
     }
 
@@ -305,6 +374,22 @@ class PoseMotionObservationExtractor(
             if (leftHip != null && rightHip != null) {
                 baselineReference = PoseReference(points, unit(leftHip - rightHip))
             }
+            val side = config.cameraNearArmSide ?: config.kinematics.cameraNearArmSide
+            if (side != null) {
+                val sId = if (side == LateralSide.LEFT) PoseLandmarkId.LEFT_SHOULDER else PoseLandmarkId.RIGHT_SHOULDER
+                val eId = if (side == LateralSide.LEFT) PoseLandmarkId.LEFT_ELBOW else PoseLandmarkId.RIGHT_ELBOW
+                val armLengths = baselineCandidates.mapNotNull { c ->
+                    val s = c.imagePoints[sId] ?: c.points[sId] ?: return@mapNotNull null
+                    val e = c.imagePoints[eId] ?: c.points[eId] ?: return@mapNotNull null
+                    val dx = (e.x - s.x).toDouble()
+                    val dy = (e.y - s.y).toDouble()
+                    val len = sqrt(dx * dx + dy * dy)
+                    if (len.isFinite() && len > 1e-4) len else null
+                }
+                if (armLengths.isNotEmpty()) {
+                    upperArmReferenceScale = armLengths.sorted()[armLengths.size / 2]
+                }
+            }
         }
     }
 
@@ -325,17 +410,7 @@ class PoseMotionObservationExtractor(
         val oldest = relativeHistory.values()
             .firstOrNull { current.timestampMs - it.timestampMs <= config.slowDisplacementWindowMs }
             ?.value ?: return null
-        return poseDistance(oldest, current)
-    }
-
-    private fun poseDistance(first: RelativePose, second: RelativePose): Double? {
-        val values = selectedLandmarks.mapNotNull { id ->
-            val a = first.points[id]
-            val b = second.points[id]
-            if (a != null && b != null) distance(a, b) else null
-        }
-        if (values.size < selectedLandmarks.size * config.baselineMinimumCoverage) return null
-        return sqrt(values.sumOf { it * it } / values.size)
+        return relativePoseDistance(oldest, current, config.baselineMinimumCoverage)
     }
 
     private fun PoseFrame.usable(id: PoseLandmarkId, world: Boolean): Pair<Point3, Double>? {
@@ -361,6 +436,16 @@ class PoseMotionObservationExtractor(
         val status: MotionChannelStatus,
     )
     private data class CoverageSummary(val minimum: Double, val balanced: Double)
+}
+
+fun relativePoseDistance(first: RelativePose, second: RelativePose, minimumCoverage: Double = 0.70): Double? {
+    val values = selectedLandmarks.mapNotNull { id ->
+        val a = first.points[id]
+        val b = second.points[id]
+        if (a != null && b != null) distance(a, b) else null
+    }
+    if (values.size < selectedLandmarks.size * minimumCoverage) return null
+    return sqrt(values.sumOf { it * it } / values.size)
 }
 
 private fun weightedRms(values: List<Pair<Double, Double>>): Double? {

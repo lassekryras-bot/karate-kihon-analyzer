@@ -45,7 +45,7 @@ class CameraXRecordingAdapter(
     private val onAnalysisPermitRelease: (Any) -> Unit = {},
     private val onAnalysisFrame: (Bitmap, Long, Any?, FloatArray?) -> Boolean = { _, _, _, _ -> false },
     private val bodyMeasurements: () -> dk.lasse.karatecliprecorder.profile.BodyMeasurementSnapshot? = { null },
-) : AutoCloseable {
+) : SessionRecordingAdapter, AutoCloseable {
     private var videoCapture: VideoCapture<Recorder>? = null
     private var imageAnalysis: ImageAnalysis? = null
     private var activeRecording: Recording? = null
@@ -53,12 +53,12 @@ class CameraXRecordingAdapter(
     private var measurementSessionActive = false
     private var sessionMeasurements: dk.lasse.karatecliprecorder.profile.BodyMeasurementSnapshot? = null
 
-    fun beginMeasurementSession() {
+    override fun beginMeasurementSession() {
         sessionMeasurements = bodyMeasurements()
         measurementSessionActive = true
     }
 
-    fun endMeasurementSession() {
+    override fun endMeasurementSession() {
         measurementSessionActive = false
         sessionMeasurements = null
     }
@@ -161,7 +161,7 @@ class CameraXRecordingAdapter(
         )
     }
 
-    fun startRecording(fileName: String? = null) {
+    override fun startRecording(fileName: String?) {
         val capture = videoCapture
         if (capture == null) {
             onStateChanged(RecordingState.FAILED)
@@ -213,11 +213,11 @@ class CameraXRecordingAdapter(
         }
     }
 
-    fun stopRecording() {
+    override fun stopRecording() {
         activeRecording?.stop()
     }
 
-    fun createGuidedSessionFile(fileName: String): File {
+    override fun createGuidedSessionFile(fileName: String): File {
         val sessionDir = File(getMoviesDir(), GUIDED_SESSION_DIR_NAME)
         if (!sessionDir.exists()) {
             sessionDir.mkdirs()

@@ -1,0 +1,1305 @@
+{
+  "schema_version": "task5h-comparison-v1",
+  "review_labels_are_ground_truth": false,
+  "parameters_changed_during_validation": false,
+  "control": "Matched Task 5F configuration, kinematics disabled; corrected shared rearm bookkeeping",
+  "candidate": "100 ms causal endpoint-pair rate multiplied by directional coherence; corrected midpoint time denominator",
+  "thresholds": {
+    "endpoint_torso_per_s": 0.35,
+    "radial_torso_per_s": 0.25,
+    "joint_deg_per_s": 35,
+    "orientation_deg_per_s": 35,
+    "pelvis_yaw_deg_per_s": 18,
+    "pelvis_3d_gating": false
+  },
+  "required_regions": [
+    "TORSO",
+    "LEFT_ARM",
+    "RIGHT_ARM"
+  ],
+  "recordings": {
+    "a": {
+      "fixture_sha256": "1d3c07eda57ad8398440abed4abfa80d1385d0f553f195778f71e51ba44f95ec",
+      "frames": 701,
+      "f": {
+        "sequence_id": "real-kihon-10-punch-1000002073-v1",
+        "total_frames": 701,
+        "total_duration_ms": 11667,
+        "detected_movement_count": 2,
+        "segments": [
+          {
+            "movement_number": 1,
+            "completed": true,
+            "final_state": "COMPLETE",
+            "arm_timestamp_ms": 183,
+            "arm_frame_index": 11,
+            "start_boundary_timestamp_ms": 400,
+            "start_decision_timestamp_ms": 500,
+            "terminal_boundary_timestamp_ms": 6917,
+            "completion_decision_timestamp_ms": 7017,
+            "start_boundary_frame_index": 24,
+            "start_decision_frame_index": 30,
+            "terminal_boundary_frame_index": 415,
+            "completion_decision_frame_index": 421,
+            "duration_ms": 6517,
+            "settling_resumptions": 4,
+            "coverage_unknown_frames": 218,
+            "start_reason": "sustained_motion",
+            "terminal_reason": "terminal_stability_confirmed",
+            "failure_reason": null,
+            "transitions": [
+              {
+                "from": "BASELINE",
+                "to": "ARMED",
+                "decision_timestamp_ms": 183,
+                "boundary_timestamp_ms": null,
+                "trigger": "armed"
+              },
+              {
+                "from": "ARMED",
+                "to": "MOVING",
+                "decision_timestamp_ms": 500,
+                "boundary_timestamp_ms": 400,
+                "trigger": "sustained_motion"
+              },
+              {
+                "from": "MOVING",
+                "to": "SETTLING",
+                "decision_timestamp_ms": 1950,
+                "boundary_timestamp_ms": 1950,
+                "trigger": "quiet_candidate"
+              },
+              {
+                "from": "SETTLING",
+                "to": "MOVING",
+                "decision_timestamp_ms": 1983,
+                "boundary_timestamp_ms": 1983,
+                "trigger": "movement_resumed"
+              },
+              {
+                "from": "MOVING",
+                "to": "SETTLING",
+                "decision_timestamp_ms": 2000,
+                "boundary_timestamp_ms": 2000,
+                "trigger": "quiet_candidate"
+              },
+              {
+                "from": "SETTLING",
+                "to": "MOVING",
+                "decision_timestamp_ms": 2067,
+                "boundary_timestamp_ms": 2067,
+                "trigger": "movement_resumed"
+              },
+              {
+                "from": "MOVING",
+                "to": "SETTLING",
+                "decision_timestamp_ms": 3650,
+                "boundary_timestamp_ms": 3650,
+                "trigger": "quiet_candidate"
+              },
+              {
+                "from": "SETTLING",
+                "to": "MOVING",
+                "decision_timestamp_ms": 3733,
+                "boundary_timestamp_ms": 3733,
+                "trigger": "movement_resumed"
+              },
+              {
+                "from": "MOVING",
+                "to": "SETTLING",
+                "decision_timestamp_ms": 5300,
+                "boundary_timestamp_ms": 5300,
+                "trigger": "quiet_candidate"
+              },
+              {
+                "from": "SETTLING",
+                "to": "MOVING",
+                "decision_timestamp_ms": 5383,
+                "boundary_timestamp_ms": 5383,
+                "trigger": "movement_resumed"
+              },
+              {
+                "from": "MOVING",
+                "to": "SETTLING",
+                "decision_timestamp_ms": 6917,
+                "boundary_timestamp_ms": 6917,
+                "trigger": "quiet_candidate"
+              },
+              {
+                "from": "SETTLING",
+                "to": "COMPLETE",
+                "decision_timestamp_ms": 7017,
+                "boundary_timestamp_ms": 6917,
+                "trigger": "terminal_stability_confirmed"
+              }
+            ]
+          },
+          {
+            "movement_number": 2,
+            "completed": true,
+            "final_state": "COMPLETE",
+            "arm_timestamp_ms": 7017,
+            "arm_frame_index": 421,
+            "start_boundary_timestamp_ms": 7033,
+            "start_decision_timestamp_ms": 7133,
+            "terminal_boundary_timestamp_ms": 10283,
+            "completion_decision_timestamp_ms": 10383,
+            "start_boundary_frame_index": 422,
+            "start_decision_frame_index": 428,
+            "terminal_boundary_frame_index": 617,
+            "completion_decision_frame_index": 623,
+            "duration_ms": 3250,
+            "settling_resumptions": 2,
+            "coverage_unknown_frames": 111,
+            "start_reason": "sustained_motion",
+            "terminal_reason": "terminal_stability_confirmed",
+            "failure_reason": null,
+            "transitions": [
+              {
+                "from": "COMPLETE",
+                "to": "ARMED",
+                "decision_timestamp_ms": 7017,
+                "boundary_timestamp_ms": null,
+                "trigger": "rearmed_from_stable_terminal_pose"
+              },
+              {
+                "from": "ARMED",
+                "to": "MOVING",
+                "decision_timestamp_ms": 7133,
+                "boundary_timestamp_ms": 7033,
+                "trigger": "sustained_motion"
+              },
+              {
+                "from": "MOVING",
+                "to": "SETTLING",
+                "decision_timestamp_ms": 8600,
+                "boundary_timestamp_ms": 8600,
+                "trigger": "quiet_candidate"
+              },
+              {
+                "from": "SETTLING",
+                "to": "MOVING",
+                "decision_timestamp_ms": 8667,
+                "boundary_timestamp_ms": 8667,
+                "trigger": "movement_resumed"
+              },
+              {
+                "from": "MOVING",
+                "to": "SETTLING",
+                "decision_timestamp_ms": 8683,
+                "boundary_timestamp_ms": 8683,
+                "trigger": "quiet_candidate"
+              },
+              {
+                "from": "SETTLING",
+                "to": "MOVING",
+                "decision_timestamp_ms": 8767,
+                "boundary_timestamp_ms": 8767,
+                "trigger": "movement_resumed"
+              },
+              {
+                "from": "MOVING",
+                "to": "SETTLING",
+                "decision_timestamp_ms": 10283,
+                "boundary_timestamp_ms": 10283,
+                "trigger": "quiet_candidate"
+              },
+              {
+                "from": "SETTLING",
+                "to": "COMPLETE",
+                "decision_timestamp_ms": 10383,
+                "boundary_timestamp_ms": 10283,
+                "trigger": "terminal_stability_confirmed"
+              }
+            ]
+          },
+          {
+            "movement_number": 3,
+            "completed": false,
+            "final_state": "MOVING",
+            "arm_timestamp_ms": 10383,
+            "arm_frame_index": 623,
+            "start_boundary_timestamp_ms": 10433,
+            "start_decision_timestamp_ms": 10533,
+            "terminal_boundary_timestamp_ms": null,
+            "completion_decision_timestamp_ms": null,
+            "start_boundary_frame_index": 626,
+            "start_decision_frame_index": 632,
+            "terminal_boundary_frame_index": null,
+            "completion_decision_frame_index": null,
+            "duration_ms": null,
+            "settling_resumptions": 0,
+            "coverage_unknown_frames": 55,
+            "start_reason": "sustained_motion",
+            "terminal_reason": null,
+            "failure_reason": "INCOMPLETE_AT_EOF (final state was MOVING)",
+            "transitions": [
+              {
+                "from": "COMPLETE",
+                "to": "ARMED",
+                "decision_timestamp_ms": 10383,
+                "boundary_timestamp_ms": null,
+                "trigger": "rearmed_from_stable_terminal_pose"
+              },
+              {
+                "from": "ARMED",
+                "to": "MOVING",
+                "decision_timestamp_ms": 10533,
+                "boundary_timestamp_ms": 10433,
+                "trigger": "sustained_motion"
+              }
+            ]
+          }
+        ],
+        "state_frame_counts": {
+          "BASELINE": 12,
+          "ARMED": 32,
+          "MOVING": 618,
+          "SETTLING": 37,
+          "COMPLETE": 2
+        },
+        "first_armed_frame": 12,
+        "hold_frame_count": 171,
+        "hold_positive_frames": 0,
+        "maximum_hold_positive_burst_ms": 0,
+        "kinematic_evidence_counts": {
+          "UNKNOWN": 701
+        },
+        "kinematic_altered_evidence_or_dwell_frames": 0,
+        "quiet_unknown_frames": 384,
+        "trigger_counts": {},
+        "review_associations_not_ground_truth": [
+          {
+            "review_movement": 1,
+            "review_interval_ms": [
+              400,
+              933
+            ],
+            "overlapping_segments": [
+              1
+            ],
+            "start_error_ms": 0,
+            "end_error_ms": 5984
+          },
+          {
+            "review_movement": 2,
+            "review_interval_ms": [
+              1333,
+              1833
+            ],
+            "overlapping_segments": [
+              1
+            ],
+            "start_error_ms": -933,
+            "end_error_ms": 5084
+          },
+          {
+            "review_movement": 3,
+            "review_interval_ms": [
+              2083,
+              2633
+            ],
+            "overlapping_segments": [
+              1
+            ],
+            "start_error_ms": -1683,
+            "end_error_ms": 4284
+          },
+          {
+            "review_movement": 4,
+            "review_interval_ms": [
+              2983,
+              3500
+            ],
+            "overlapping_segments": [
+              1
+            ],
+            "start_error_ms": -2583,
+            "end_error_ms": 3417
+          },
+          {
+            "review_movement": 5,
+            "review_interval_ms": [
+              3750,
+              4283
+            ],
+            "overlapping_segments": [
+              1
+            ],
+            "start_error_ms": -3350,
+            "end_error_ms": 2634
+          },
+          {
+            "review_movement": 6,
+            "review_interval_ms": [
+              4617,
+              5117
+            ],
+            "overlapping_segments": [
+              1
+            ],
+            "start_error_ms": -4217,
+            "end_error_ms": 1800
+          },
+          {
+            "review_movement": 7,
+            "review_interval_ms": [
+              5417,
+              5950
+            ],
+            "overlapping_segments": [
+              1
+            ],
+            "start_error_ms": -5017,
+            "end_error_ms": 967
+          },
+          {
+            "review_movement": 8,
+            "review_interval_ms": [
+              6283,
+              6783
+            ],
+            "overlapping_segments": [
+              1
+            ],
+            "start_error_ms": -5883,
+            "end_error_ms": 134
+          },
+          {
+            "review_movement": 9,
+            "review_interval_ms": [
+              7117,
+              7617
+            ],
+            "overlapping_segments": [
+              2
+            ],
+            "start_error_ms": -84,
+            "end_error_ms": 2666
+          },
+          {
+            "review_movement": 10,
+            "review_interval_ms": [
+              7950,
+              8450
+            ],
+            "overlapping_segments": [
+              2
+            ],
+            "start_error_ms": -917,
+            "end_error_ms": 1833
+          }
+        ],
+        "world_scale": {
+          "count": 701,
+          "p50": 0.5031415158363134,
+          "p95": 0.5089274163481542,
+          "p99": 0.5114405857152333,
+          "max": 0.5122185645258617
+        },
+        "image_scale": {
+          "count": 700,
+          "p50": 0.2824752643870576,
+          "p95": 0.28843137433361027,
+          "p99": 0.290615282453188,
+          "max": 0.29102457671595733
+        },
+        "mirrored_similarity": {
+          "count": 692,
+          "p50": 0.6557482609553247,
+          "p95": 0.7326770759025883,
+          "p99": 0.75174076521736,
+          "max": 0.7589640280910916
+        }
+      },
+      "h": {
+        "sequence_id": "real-kihon-10-punch-1000002073-v1",
+        "total_frames": 701,
+        "total_duration_ms": 11667,
+        "detected_movement_count": 0,
+        "segments": [
+          {
+            "movement_number": 1,
+            "completed": false,
+            "final_state": "MOVING",
+            "arm_timestamp_ms": 333,
+            "arm_frame_index": 20,
+            "start_boundary_timestamp_ms": 333,
+            "start_decision_timestamp_ms": 500,
+            "terminal_boundary_timestamp_ms": null,
+            "completion_decision_timestamp_ms": null,
+            "start_boundary_frame_index": 20,
+            "start_decision_frame_index": 30,
+            "terminal_boundary_frame_index": null,
+            "completion_decision_frame_index": null,
+            "duration_ms": null,
+            "settling_resumptions": 7,
+            "coverage_unknown_frames": 384,
+            "start_reason": "sustained_motion",
+            "terminal_reason": null,
+            "failure_reason": "INCOMPLETE_AT_EOF (final state was MOVING)",
+            "transitions": [
+              {
+                "from": "BASELINE",
+                "to": "ARMED",
+                "decision_timestamp_ms": 333,
+                "boundary_timestamp_ms": null,
+                "trigger": "armed"
+              },
+              {
+                "from": "ARMED",
+                "to": "MOVING",
+                "decision_timestamp_ms": 500,
+                "boundary_timestamp_ms": 333,
+                "trigger": "sustained_motion"
+              },
+              {
+                "from": "MOVING",
+                "to": "SETTLING",
+                "decision_timestamp_ms": 3650,
+                "boundary_timestamp_ms": 3650,
+                "trigger": "quiet_candidate"
+              },
+              {
+                "from": "SETTLING",
+                "to": "MOVING",
+                "decision_timestamp_ms": 3700,
+                "boundary_timestamp_ms": 3700,
+                "trigger": "movement_resumed"
+              },
+              {
+                "from": "MOVING",
+                "to": "SETTLING",
+                "decision_timestamp_ms": 5300,
+                "boundary_timestamp_ms": 5300,
+                "trigger": "quiet_candidate"
+              },
+              {
+                "from": "SETTLING",
+                "to": "MOVING",
+                "decision_timestamp_ms": 5350,
+                "boundary_timestamp_ms": 5350,
+                "trigger": "movement_resumed"
+              },
+              {
+                "from": "MOVING",
+                "to": "SETTLING",
+                "decision_timestamp_ms": 6917,
+                "boundary_timestamp_ms": 6917,
+                "trigger": "quiet_candidate"
+              },
+              {
+                "from": "SETTLING",
+                "to": "MOVING",
+                "decision_timestamp_ms": 7000,
+                "boundary_timestamp_ms": 7000,
+                "trigger": "movement_resumed"
+              },
+              {
+                "from": "MOVING",
+                "to": "SETTLING",
+                "decision_timestamp_ms": 8600,
+                "boundary_timestamp_ms": 8600,
+                "trigger": "quiet_candidate"
+              },
+              {
+                "from": "SETTLING",
+                "to": "MOVING",
+                "decision_timestamp_ms": 8617,
+                "boundary_timestamp_ms": 8617,
+                "trigger": "movement_resumed"
+              },
+              {
+                "from": "MOVING",
+                "to": "SETTLING",
+                "decision_timestamp_ms": 8717,
+                "boundary_timestamp_ms": 8717,
+                "trigger": "quiet_candidate"
+              },
+              {
+                "from": "SETTLING",
+                "to": "MOVING",
+                "decision_timestamp_ms": 8767,
+                "boundary_timestamp_ms": 8767,
+                "trigger": "movement_resumed"
+              },
+              {
+                "from": "MOVING",
+                "to": "SETTLING",
+                "decision_timestamp_ms": 10283,
+                "boundary_timestamp_ms": 10283,
+                "trigger": "quiet_candidate"
+              },
+              {
+                "from": "SETTLING",
+                "to": "MOVING",
+                "decision_timestamp_ms": 10350,
+                "boundary_timestamp_ms": 10350,
+                "trigger": "movement_resumed"
+              },
+              {
+                "from": "MOVING",
+                "to": "SETTLING",
+                "decision_timestamp_ms": 10367,
+                "boundary_timestamp_ms": 10367,
+                "trigger": "quiet_candidate"
+              },
+              {
+                "from": "SETTLING",
+                "to": "MOVING",
+                "decision_timestamp_ms": 10433,
+                "boundary_timestamp_ms": 10433,
+                "trigger": "movement_resumed"
+              }
+            ]
+          }
+        ],
+        "state_frame_counts": {
+          "BASELINE": 21,
+          "ARMED": 9,
+          "MOVING": 648,
+          "SETTLING": 23
+        },
+        "first_armed_frame": 21,
+        "hold_frame_count": 171,
+        "hold_positive_frames": 100,
+        "maximum_hold_positive_burst_ms": 183,
+        "kinematic_evidence_counts": {
+          "UNKNOWN": 67,
+          "TRUE": 577,
+          "FALSE": 57
+        },
+        "kinematic_altered_evidence_or_dwell_frames": 132,
+        "quiet_unknown_frames": 384,
+        "trigger_counts": {
+          "LEFT_ARM_WRIST_RADIAL": 120,
+          "LEFT_ARM_ELBOW_VELOCITY": 72,
+          "LEFT_ARM_FOREARM_ORIENTATION": 71,
+          "RIGHT_ARM_WRIST_SPEED": 423,
+          "RIGHT_ARM_UPPER_ORIENTATION": 386,
+          "RIGHT_ARM_FOREARM_ORIENTATION": 398,
+          "RIGHT_LEG_ANKLE_SPEED": 241,
+          "LEFT_ARM_WRIST_SPEED": 156,
+          "LEFT_LEG_KNEE_SPEED": 161,
+          "LEFT_LEG_KNEE_VELOCITY": 130,
+          "LEFT_ARM_UPPER_ORIENTATION": 191,
+          "LEFT_LEG_ANKLE_SPEED": 351,
+          "PELVIS_ROTATION_YAW": 390,
+          "RIGHT_ARM_ELBOW_VELOCITY": 279,
+          "RIGHT_ARM_WRIST_RADIAL": 313,
+          "LEFT_LEG_SHIN_ORIENTATION": 149,
+          "LEFT_LEG_THIGH_ORIENTATION": 96,
+          "RIGHT_LEG_KNEE_SPEED": 167,
+          "RIGHT_LEG_THIGH_ORIENTATION": 138,
+          "RIGHT_LEG_ANKLE_RADIAL": 81,
+          "RIGHT_LEG_KNEE_VELOCITY": 128,
+          "RIGHT_LEG_SHIN_ORIENTATION": 151,
+          "LEFT_LEG_ANKLE_RADIAL": 244,
+          "LEFT_LEG_KNEE_RADIAL": 46,
+          "RIGHT_LEG_KNEE_RADIAL": 3
+        },
+        "review_associations_not_ground_truth": [
+          {
+            "review_movement": 1,
+            "review_interval_ms": [
+              400,
+              933
+            ],
+            "overlapping_segments": [
+              1
+            ],
+            "start_error_ms": -67,
+            "end_error_ms": null
+          },
+          {
+            "review_movement": 2,
+            "review_interval_ms": [
+              1333,
+              1833
+            ],
+            "overlapping_segments": [
+              1
+            ],
+            "start_error_ms": -1000,
+            "end_error_ms": null
+          },
+          {
+            "review_movement": 3,
+            "review_interval_ms": [
+              2083,
+              2633
+            ],
+            "overlapping_segments": [
+              1
+            ],
+            "start_error_ms": -1750,
+            "end_error_ms": null
+          },
+          {
+            "review_movement": 4,
+            "review_interval_ms": [
+              2983,
+              3500
+            ],
+            "overlapping_segments": [
+              1
+            ],
+            "start_error_ms": -2650,
+            "end_error_ms": null
+          },
+          {
+            "review_movement": 5,
+            "review_interval_ms": [
+              3750,
+              4283
+            ],
+            "overlapping_segments": [
+              1
+            ],
+            "start_error_ms": -3417,
+            "end_error_ms": null
+          },
+          {
+            "review_movement": 6,
+            "review_interval_ms": [
+              4617,
+              5117
+            ],
+            "overlapping_segments": [
+              1
+            ],
+            "start_error_ms": -4284,
+            "end_error_ms": null
+          },
+          {
+            "review_movement": 7,
+            "review_interval_ms": [
+              5417,
+              5950
+            ],
+            "overlapping_segments": [
+              1
+            ],
+            "start_error_ms": -5084,
+            "end_error_ms": null
+          },
+          {
+            "review_movement": 8,
+            "review_interval_ms": [
+              6283,
+              6783
+            ],
+            "overlapping_segments": [
+              1
+            ],
+            "start_error_ms": -5950,
+            "end_error_ms": null
+          },
+          {
+            "review_movement": 9,
+            "review_interval_ms": [
+              7117,
+              7617
+            ],
+            "overlapping_segments": [
+              1
+            ],
+            "start_error_ms": -6784,
+            "end_error_ms": null
+          },
+          {
+            "review_movement": 10,
+            "review_interval_ms": [
+              7950,
+              8450
+            ],
+            "overlapping_segments": [
+              1
+            ],
+            "start_error_ms": -7617,
+            "end_error_ms": null
+          }
+        ],
+        "world_scale": {
+          "count": 701,
+          "p50": 0.5031415158363134,
+          "p95": 0.5089274163481542,
+          "p99": 0.5114405857152333,
+          "max": 0.5122185645258617
+        },
+        "image_scale": {
+          "count": 700,
+          "p50": 0.2824752643870576,
+          "p95": 0.28843137433361027,
+          "p99": 0.290615282453188,
+          "max": 0.29102457671595733
+        },
+        "mirrored_similarity": {
+          "count": 692,
+          "p50": 0.6558824407563366,
+          "p95": 0.7359397843019204,
+          "p99": 0.75174076521736,
+          "max": 0.7589640280910916
+        }
+      }
+    },
+    "b": {
+      "fixture_sha256": "bf3e75188f90849ec4f189bda97a7243516a4428d2ae14983c00658b6d3053be",
+      "frames": 763,
+      "f": {
+        "sequence_id": "blind-20260911_223447",
+        "total_frames": 763,
+        "total_duration_ms": 15495,
+        "detected_movement_count": 2,
+        "segments": [
+          {
+            "movement_number": 1,
+            "completed": true,
+            "final_state": "COMPLETE",
+            "arm_timestamp_ms": 1015,
+            "arm_frame_index": 49,
+            "start_boundary_timestamp_ms": 2030,
+            "start_decision_timestamp_ms": 2132,
+            "terminal_boundary_timestamp_ms": 3635,
+            "completion_decision_timestamp_ms": 3736,
+            "start_boundary_frame_index": 99,
+            "start_decision_frame_index": 104,
+            "terminal_boundary_frame_index": 178,
+            "completion_decision_frame_index": 183,
+            "duration_ms": 1605,
+            "settling_resumptions": 3,
+            "coverage_unknown_frames": 37,
+            "start_reason": "sustained_motion",
+            "terminal_reason": "terminal_stability_confirmed",
+            "failure_reason": null,
+            "transitions": [
+              {
+                "from": "BASELINE",
+                "to": "ARMED",
+                "decision_timestamp_ms": 1015,
+                "boundary_timestamp_ms": null,
+                "trigger": "armed"
+              },
+              {
+                "from": "ARMED",
+                "to": "MOVING",
+                "decision_timestamp_ms": 2132,
+                "boundary_timestamp_ms": 2030,
+                "trigger": "sustained_motion"
+              },
+              {
+                "from": "MOVING",
+                "to": "SETTLING",
+                "decision_timestamp_ms": 3493,
+                "boundary_timestamp_ms": 3493,
+                "trigger": "quiet_candidate"
+              },
+              {
+                "from": "SETTLING",
+                "to": "MOVING",
+                "decision_timestamp_ms": 3513,
+                "boundary_timestamp_ms": 3513,
+                "trigger": "movement_resumed"
+              },
+              {
+                "from": "MOVING",
+                "to": "SETTLING",
+                "decision_timestamp_ms": 3533,
+                "boundary_timestamp_ms": 3533,
+                "trigger": "quiet_candidate"
+              },
+              {
+                "from": "SETTLING",
+                "to": "MOVING",
+                "decision_timestamp_ms": 3574,
+                "boundary_timestamp_ms": 3574,
+                "trigger": "movement_resumed"
+              },
+              {
+                "from": "MOVING",
+                "to": "SETTLING",
+                "decision_timestamp_ms": 3594,
+                "boundary_timestamp_ms": 3594,
+                "trigger": "quiet_candidate"
+              },
+              {
+                "from": "SETTLING",
+                "to": "MOVING",
+                "decision_timestamp_ms": 3614,
+                "boundary_timestamp_ms": 3614,
+                "trigger": "movement_resumed"
+              },
+              {
+                "from": "MOVING",
+                "to": "SETTLING",
+                "decision_timestamp_ms": 3635,
+                "boundary_timestamp_ms": 3635,
+                "trigger": "quiet_candidate"
+              },
+              {
+                "from": "SETTLING",
+                "to": "COMPLETE",
+                "decision_timestamp_ms": 3736,
+                "boundary_timestamp_ms": 3635,
+                "trigger": "terminal_stability_confirmed"
+              }
+            ]
+          },
+          {
+            "movement_number": 2,
+            "completed": true,
+            "final_state": "COMPLETE",
+            "arm_timestamp_ms": 3736,
+            "arm_frame_index": 183,
+            "start_boundary_timestamp_ms": 3939,
+            "start_decision_timestamp_ms": 4041,
+            "terminal_boundary_timestamp_ms": 7128,
+            "completion_decision_timestamp_ms": 7229,
+            "start_boundary_frame_index": 193,
+            "start_decision_frame_index": 198,
+            "terminal_boundary_frame_index": 350,
+            "completion_decision_frame_index": 355,
+            "duration_ms": 3189,
+            "settling_resumptions": 5,
+            "coverage_unknown_frames": 62,
+            "start_reason": "sustained_motion",
+            "terminal_reason": "terminal_stability_confirmed",
+            "failure_reason": null,
+            "transitions": [
+              {
+                "from": "COMPLETE",
+                "to": "ARMED",
+                "decision_timestamp_ms": 3736,
+                "boundary_timestamp_ms": null,
+                "trigger": "rearmed_from_stable_terminal_pose"
+              },
+              {
+                "from": "ARMED",
+                "to": "MOVING",
+                "decision_timestamp_ms": 4041,
+                "boundary_timestamp_ms": 3939,
+                "trigger": "sustained_motion"
+              },
+              {
+                "from": "MOVING",
+                "to": "SETTLING",
+                "decision_timestamp_ms": 5259,
+                "boundary_timestamp_ms": 5259,
+                "trigger": "quiet_candidate"
+              },
+              {
+                "from": "SETTLING",
+                "to": "MOVING",
+                "decision_timestamp_ms": 5320,
+                "boundary_timestamp_ms": 5320,
+                "trigger": "movement_resumed"
+              },
+              {
+                "from": "MOVING",
+                "to": "SETTLING",
+                "decision_timestamp_ms": 5341,
+                "boundary_timestamp_ms": 5341,
+                "trigger": "quiet_candidate"
+              },
+              {
+                "from": "SETTLING",
+                "to": "MOVING",
+                "decision_timestamp_ms": 5442,
+                "boundary_timestamp_ms": 5442,
+                "trigger": "movement_resumed"
+              },
+              {
+                "from": "MOVING",
+                "to": "SETTLING",
+                "decision_timestamp_ms": 5483,
+                "boundary_timestamp_ms": 5483,
+                "trigger": "quiet_candidate"
+              },
+              {
+                "from": "SETTLING",
+                "to": "MOVING",
+                "decision_timestamp_ms": 5584,
+                "boundary_timestamp_ms": 5584,
+                "trigger": "movement_resumed"
+              },
+              {
+                "from": "MOVING",
+                "to": "SETTLING",
+                "decision_timestamp_ms": 5605,
+                "boundary_timestamp_ms": 5605,
+                "trigger": "quiet_candidate"
+              },
+              {
+                "from": "SETTLING",
+                "to": "MOVING",
+                "decision_timestamp_ms": 5666,
+                "boundary_timestamp_ms": 5666,
+                "trigger": "movement_resumed"
+              },
+              {
+                "from": "MOVING",
+                "to": "SETTLING",
+                "decision_timestamp_ms": 7087,
+                "boundary_timestamp_ms": 7087,
+                "trigger": "quiet_candidate"
+              },
+              {
+                "from": "SETTLING",
+                "to": "MOVING",
+                "decision_timestamp_ms": 7108,
+                "boundary_timestamp_ms": 7108,
+                "trigger": "movement_resumed"
+              },
+              {
+                "from": "MOVING",
+                "to": "SETTLING",
+                "decision_timestamp_ms": 7128,
+                "boundary_timestamp_ms": 7128,
+                "trigger": "quiet_candidate"
+              },
+              {
+                "from": "SETTLING",
+                "to": "COMPLETE",
+                "decision_timestamp_ms": 7229,
+                "boundary_timestamp_ms": 7128,
+                "trigger": "terminal_stability_confirmed"
+              }
+            ]
+          },
+          {
+            "movement_number": 3,
+            "completed": false,
+            "final_state": "MOVING",
+            "arm_timestamp_ms": 7229,
+            "arm_frame_index": 355,
+            "start_boundary_timestamp_ms": 7351,
+            "start_decision_timestamp_ms": 7453,
+            "terminal_boundary_timestamp_ms": null,
+            "completion_decision_timestamp_ms": null,
+            "start_boundary_frame_index": 361,
+            "start_decision_frame_index": 366,
+            "terminal_boundary_frame_index": null,
+            "completion_decision_frame_index": null,
+            "duration_ms": null,
+            "settling_resumptions": 0,
+            "coverage_unknown_frames": 358,
+            "start_reason": "sustained_motion",
+            "terminal_reason": null,
+            "failure_reason": "INCOMPLETE_AT_EOF (final state was MOVING)",
+            "transitions": [
+              {
+                "from": "COMPLETE",
+                "to": "ARMED",
+                "decision_timestamp_ms": 7229,
+                "boundary_timestamp_ms": null,
+                "trigger": "rearmed_from_stable_terminal_pose"
+              },
+              {
+                "from": "ARMED",
+                "to": "MOVING",
+                "decision_timestamp_ms": 7453,
+                "boundary_timestamp_ms": 7351,
+                "trigger": "sustained_motion"
+              }
+            ]
+          }
+        ],
+        "state_frame_counts": {
+          "BASELINE": 50,
+          "ARMED": 78,
+          "MOVING": 602,
+          "SETTLING": 31,
+          "COMPLETE": 2
+        },
+        "first_armed_frame": 50,
+        "hold_frame_count": 216,
+        "hold_positive_frames": 0,
+        "maximum_hold_positive_burst_ms": 0,
+        "kinematic_evidence_counts": {
+          "UNKNOWN": 763
+        },
+        "kinematic_altered_evidence_or_dwell_frames": 0,
+        "quiet_unknown_frames": 457,
+        "trigger_counts": {},
+        "review_associations_not_ground_truth": [
+          {
+            "review_movement": 1,
+            "review_interval_ms": [
+              2030,
+              2680
+            ],
+            "overlapping_segments": [
+              1
+            ],
+            "start_error_ms": 0,
+            "end_error_ms": 955
+          },
+          {
+            "review_movement": 2,
+            "review_interval_ms": [
+              3800,
+              7128
+            ],
+            "overlapping_segments": [
+              2
+            ],
+            "start_error_ms": 139,
+            "end_error_ms": 0
+          },
+          {
+            "review_movement": 3,
+            "review_interval_ms": [
+              7300,
+              8468
+            ],
+            "overlapping_segments": [
+              3
+            ],
+            "start_error_ms": 51,
+            "end_error_ms": null
+          },
+          {
+            "review_movement": 4,
+            "review_interval_ms": [
+              8850,
+              11230
+            ],
+            "overlapping_segments": [
+              3
+            ],
+            "start_error_ms": -1499,
+            "end_error_ms": null
+          },
+          {
+            "review_movement": 5,
+            "review_interval_ms": [
+              11555,
+              12652
+            ],
+            "overlapping_segments": [
+              3
+            ],
+            "start_error_ms": -4204,
+            "end_error_ms": null
+          },
+          {
+            "review_movement": 6,
+            "review_interval_ms": [
+              13769,
+              15048
+            ],
+            "overlapping_segments": [
+              3
+            ],
+            "start_error_ms": -6418,
+            "end_error_ms": null
+          }
+        ],
+        "world_scale": {
+          "count": 763,
+          "p50": 0.5054915811620567,
+          "p95": 0.518701543681508,
+          "p99": 0.5232952889179088,
+          "max": 0.5302844897473764
+        },
+        "image_scale": {
+          "count": 762,
+          "p50": 0.19508689391444525,
+          "p95": 0.20076880980754566,
+          "p99": 0.20123657233522999,
+          "max": 0.20260381760408075
+        },
+        "mirrored_similarity": {
+          "count": 714,
+          "p50": 0.6726310217085953,
+          "p95": 0.79569184392377,
+          "p99": 0.7988242597835362,
+          "max": 0.8042821143489651
+        }
+      },
+      "h": {
+        "sequence_id": "blind-20260911_223447",
+        "total_frames": 763,
+        "total_duration_ms": 15495,
+        "detected_movement_count": 0,
+        "segments": [],
+        "state_frame_counts": {
+          "BASELINE": 763
+        },
+        "first_armed_frame": null,
+        "hold_frame_count": 216,
+        "hold_positive_frames": 104,
+        "maximum_hold_positive_burst_ms": 224,
+        "kinematic_evidence_counts": {
+          "UNKNOWN": 123,
+          "TRUE": 548,
+          "FALSE": 92
+        },
+        "kinematic_altered_evidence_or_dwell_frames": 174,
+        "quiet_unknown_frames": 457,
+        "trigger_counts": {
+          "LEFT_ARM_WRIST_SPEED": 163,
+          "LEFT_ARM_ELBOW_VELOCITY": 79,
+          "LEFT_ARM_UPPER_ORIENTATION": 141,
+          "LEFT_ARM_FOREARM_ORIENTATION": 95,
+          "RIGHT_ARM_WRIST_SPEED": 367,
+          "RIGHT_ARM_WRIST_RADIAL": 294,
+          "RIGHT_ARM_UPPER_ORIENTATION": 293,
+          "RIGHT_ARM_FOREARM_ORIENTATION": 336,
+          "LEFT_LEG_ANKLE_SPEED": 249,
+          "LEFT_LEG_ANKLE_RADIAL": 89,
+          "LEFT_LEG_KNEE_SPEED": 171,
+          "LEFT_LEG_THIGH_ORIENTATION": 128,
+          "LEFT_LEG_SHIN_ORIENTATION": 128,
+          "RIGHT_LEG_ANKLE_SPEED": 308,
+          "RIGHT_LEG_ANKLE_RADIAL": 64,
+          "RIGHT_LEG_KNEE_SPEED": 174,
+          "RIGHT_LEG_KNEE_RADIAL": 38,
+          "RIGHT_LEG_THIGH_ORIENTATION": 128,
+          "RIGHT_LEG_SHIN_ORIENTATION": 168,
+          "LEFT_ARM_WRIST_RADIAL": 118,
+          "LEFT_LEG_KNEE_VELOCITY": 154,
+          "RIGHT_ARM_ELBOW_VELOCITY": 291,
+          "PELVIS_ROTATION_YAW": 223,
+          "LEFT_LEG_KNEE_RADIAL": 56,
+          "RIGHT_LEG_KNEE_VELOCITY": 98
+        },
+        "review_associations_not_ground_truth": [
+          {
+            "review_movement": 1,
+            "review_interval_ms": [
+              2030,
+              2680
+            ],
+            "overlapping_segments": [],
+            "start_error_ms": null,
+            "end_error_ms": null
+          },
+          {
+            "review_movement": 2,
+            "review_interval_ms": [
+              3800,
+              7128
+            ],
+            "overlapping_segments": [],
+            "start_error_ms": null,
+            "end_error_ms": null
+          },
+          {
+            "review_movement": 3,
+            "review_interval_ms": [
+              7300,
+              8468
+            ],
+            "overlapping_segments": [],
+            "start_error_ms": null,
+            "end_error_ms": null
+          },
+          {
+            "review_movement": 4,
+            "review_interval_ms": [
+              8850,
+              11230
+            ],
+            "overlapping_segments": [],
+            "start_error_ms": null,
+            "end_error_ms": null
+          },
+          {
+            "review_movement": 5,
+            "review_interval_ms": [
+              11555,
+              12652
+            ],
+            "overlapping_segments": [],
+            "start_error_ms": null,
+            "end_error_ms": null
+          },
+          {
+            "review_movement": 6,
+            "review_interval_ms": [
+              13769,
+              15048
+            ],
+            "overlapping_segments": [],
+            "start_error_ms": null,
+            "end_error_ms": null
+          }
+        ],
+        "world_scale": {
+          "count": 763,
+          "p50": 0.5054915811620567,
+          "p95": 0.518701543681508,
+          "p99": 0.5232952889179088,
+          "max": 0.5302844897473764
+        },
+        "image_scale": {
+          "count": 762,
+          "p50": 0.19508689391444525,
+          "p95": 0.20076880980754566,
+          "p99": 0.20123657233522999,
+          "max": 0.20260381760408075
+        },
+        "mirrored_similarity": {
+          "count": 714,
+          "p50": 0.6646466212468798,
+          "p95": 0.7960327443180587,
+          "p99": 0.7982569805265763,
+          "max": 0.8036217225443791
+        }
+      }
+    }
+  },
+  "validation": {
+    "tests": 217,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "latency": [
+      {
+        "speed_torso_per_s": 0.4,
+        "fps": 60,
+        "threshold_ms": 83,
+        "boundary_error_ms": 0
+      },
+      {
+        "speed_torso_per_s": 0.4,
+        "fps": 49,
+        "threshold_ms": 82,
+        "boundary_error_ms": 0
+      },
+      {
+        "speed_torso_per_s": 0.4,
+        "fps": 30,
+        "threshold_ms": 100,
+        "boundary_error_ms": 0
+      },
+      {
+        "speed_torso_per_s": 1.0,
+        "fps": 60,
+        "threshold_ms": 50,
+        "boundary_error_ms": 0
+      },
+      {
+        "speed_torso_per_s": 1.0,
+        "fps": 49,
+        "threshold_ms": 41,
+        "boundary_error_ms": 0
+      },
+      {
+        "speed_torso_per_s": 1.0,
+        "fps": 30,
+        "threshold_ms": 67,
+        "boundary_error_ms": 0
+      }
+    ],
+    "threshold_latency_target_met": false,
+    "boundary_target_met_in_synthetic_cases": true,
+    "production_acceptance": "REJECTED",
+    "rejection_reasons": [
+      "A loses both control completions",
+      "B never establishes readiness",
+      "Slow translation exceeds the <80 ms crossing target"
+    ]
+  }
+}

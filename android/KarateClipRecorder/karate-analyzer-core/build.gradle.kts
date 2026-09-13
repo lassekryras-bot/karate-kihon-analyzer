@@ -30,3 +30,33 @@ tasks.register<JavaExec>("replayMotion") {
         args(providers.gradleProperty("replayInput").get(), providers.gradleProperty("replayOutput").get())
     }
 }
+
+tasks.register<JavaExec>("calibrateMotion") {
+    group = "verification"
+    description = "Run a small explicit offline motion calibration plan"
+    dependsOn(tasks.testClasses)
+    classpath = sourceSets["test"].runtimeClasspath
+    mainClass.set("dk.lasse.karateanalyzer.capture.MotionCalibrationCli")
+    doFirst {
+        args(providers.gradleProperty("replayInput").get(), providers.gradleProperty("calibrationPlan").get(),
+            providers.gradleProperty("replayOutput").get())
+    }
+}
+
+tasks.register<JavaExec>("continuousMotion") {
+    group = "verification"
+    description = "Run a continuous multi-movement session replay"
+    dependsOn(tasks.testClasses)
+    classpath = sourceSets["test"].runtimeClasspath
+    mainClass.set("dk.lasse.karateanalyzer.capture.ContinuousSessionCli")
+    doFirst {
+        val input = providers.gradleProperty("replayInput").get()
+        val output = providers.gradleProperty("replayOutput").get()
+        val side = providers.gradleProperty("cameraNearArmSide").orNull ?: "RIGHT"
+        val cadence = providers.gradleProperty("cadence").orNull ?: "NORMAL"
+        val scope = providers.gradleProperty("settlingEvidenceScope").orNull
+            ?: providers.gradleProperty("scope").orNull ?: "WHOLE_BODY"
+
+        args(listOf(input, output, side, cadence, scope))
+    }
+}

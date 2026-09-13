@@ -1,0 +1,14 @@
+{
+  "title": "Phase 2: Formal Definition of DIFFERENT_STABLE_POSE",
+  "definition": "The movement may finish in any sufficiently stable terminal pose, as long as it is not accidentally the original pose when the activity says a different pose is expected.",
+  "operational_rules": [
+    "1. Movement must have occurred (ARMED -> MOVING).",
+    "2. Instantaneous motion must be quiet (both articulated and image-space <= quietMotionThreshold).",
+    "3. Slow displacement must have decayed (accumulatedDisplacement <= maximumStableDisplacement).",
+    "4. Required tracking coverage must be present (all required regions >= minimumCoverage).",
+    "5. Final pose must not match the starting reference (sameAsStartSimilarity < terminalPoseSimilarity).",
+    "6. Missing evidence must remain UNKNOWN (null similarity -> UNKNOWN, never TRUE)."
+  ],
+  "why_no_new_enum": "Existing DIFFERENT_STABLE_POSE already checks `sameAsStartSimilarity < terminalPoseSimilarity` and returns UNKNOWN when null. Adding a new enum (such as ANY_STABLE_POSE) would remove the protection against accidental immediate returns to start. The existing threshold (0.80) cleanly separates different terminal holds (~0.59) from return-to-start holds (~0.85).",
+  "guardrail_preserved": "Required regions control whether there is enough evidence to prove terminal stillness; they do not determine which observed regions can provide positive motion evidence."
+}

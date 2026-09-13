@@ -1,0 +1,44 @@
+{
+  "title": "Phase 1: Audit of Existing Terminal Relationship Evidence Model",
+  "relationships": {
+    "SAME_AS_START": {
+      "evidence_required": [
+        "quietEvidence(observation) == Evidence.TRUE",
+        "similarityEvidence(observation.sameAsStartSimilarity, greaterThan = true) == Evidence.TRUE"
+      ],
+      "similarity_metrics_consulted": "sameAsStartSimilarity (against initial reference)",
+      "missing_similarity_handling": "Evidence.UNKNOWN (blocks completion)",
+      "coverage_interaction": "observation.coverage < minimumCoverage directly forces quietEvidence to UNKNOWN before similarity is checked",
+      "relates_to_fixed_initial_reference": true,
+      "meaning": "Terminal pose is quiet, slow displacement <= limit, coverage sufficient, and pose is similar to initial starting reference (>= terminalPoseSimilarity)."
+    },
+    "MIRRORED_START": {
+      "evidence_required": [
+        "quietEvidence(observation) == Evidence.TRUE",
+        "similarityEvidence(observation.mirroredStartSimilarity, greaterThan = true) == Evidence.TRUE"
+      ],
+      "similarity_metrics_consulted": "mirroredStartSimilarity (against sagittal reflection of initial reference)",
+      "missing_similarity_handling": "Evidence.UNKNOWN (blocks completion)",
+      "coverage_interaction": "observation.coverage < minimumCoverage directly forces quietEvidence to UNKNOWN",
+      "relates_to_fixed_initial_reference": true,
+      "meaning": "Terminal pose is quiet, slow displacement <= limit, coverage sufficient, and pose matches sagittal reflection of initial starting reference (>= terminalPoseSimilarity)."
+    },
+    "DIFFERENT_STABLE_POSE": {
+      "evidence_required": [
+        "quietEvidence(observation) == Evidence.TRUE",
+        "similarityEvidence(observation.sameAsStartSimilarity, greaterThan = false) == Evidence.TRUE"
+      ],
+      "similarity_metrics_consulted": "sameAsStartSimilarity (against initial reference)",
+      "missing_similarity_handling": "Evidence.UNKNOWN (blocks completion)",
+      "coverage_interaction": "observation.coverage < minimumCoverage directly forces quietEvidence to UNKNOWN",
+      "relates_to_fixed_initial_reference": true,
+      "meaning": "Terminal pose is quiet, slow displacement <= limit, coverage sufficient, and pose is sufficiently dissimilar from initial starting reference (< terminalPoseSimilarity)."
+    }
+  },
+  "ambiguity_found": [
+    "In continuous single-capture replays without per-repetition reset, DIFFERENT_STABLE_POSE compares against the initial capture's reference. When a later repetition (e.g., Punch 2) returns to that initial pose, it is conservatively rejected because similarity >= 0.80.",
+    "In side view, the far-side limb frequently drops below whole-body minimum coverage (0.70), causing quietEvidence to return UNKNOWN even when the limb has settled into a quiet hold.",
+    "DIFFERENT_STABLE_POSE requires non-null sameAsStartSimilarity; missing similarity evaluates to UNKNOWN, preventing unobserved poses from being accepted."
+  ],
+  "conclusion": "The current contract correctly implements 'stable and dissimilar from start' with safe UNKNOWN handling. No new enum is needed; the ambiguity arose from applying a fixed initial reference across multiple alternating movements without per-repetition reset and from requiring equal coverage across occluded far-side limbs."
+}
