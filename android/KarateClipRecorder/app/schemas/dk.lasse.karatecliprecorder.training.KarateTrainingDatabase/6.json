@@ -2,7 +2,7 @@
   "formatVersion": 1,
   "database": {
     "version": 6,
-    "identityHash": "4a72c298d867c16be9cdde4fccd47504",
+    "identityHash": "4ae72aa9336dde59b1627fa4cacb2bde",
     "entities": [
       {
         "tableName": "TrainingUser",
@@ -1556,7 +1556,7 @@
     ],
     "setupQueries": [
       "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
-      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '4a72c298d867c16be9cdde4fccd47504')"
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '4ae72aa9336dde59b1627fa4cacb2bde')"
     ]
   }
 }

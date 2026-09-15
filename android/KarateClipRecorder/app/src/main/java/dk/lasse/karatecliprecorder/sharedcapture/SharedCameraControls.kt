@@ -554,6 +554,134 @@ class SharedCameraPreviewView @JvmOverloads constructor(
 }
 
 /**
+ * Shared dark bottom sheet dialog with swipe-down-to-dismiss support, rounded top corners,
+ * and dim background conforming to the app's visual language.
+ */
+open class DarkBottomSheetDialog(context: Context) : Dialog(context) {
+
+    protected val sheetBody: LinearLayout = LinearLayout(context).apply {
+        orientation = LinearLayout.VERTICAL
+        background = GradientDrawable().apply {
+            setColor(0xFF1A222C.toInt())
+            cornerRadii = floatArrayOf(20.dp().toFloat(), 20.dp().toFloat(), 20.dp().toFloat(), 20.dp().toFloat(), 0f, 0f, 0f, 0f)
+            setStroke(1.dp(), 0xFF283545.toInt())
+        }
+        setPadding(20.dp(), 12.dp(), 20.dp(), 24.dp())
+    }
+
+    protected val dragHandle: View = View(context).apply {
+        background = GradientDrawable().apply {
+            setColor(0x44FFFFFF.toInt())
+            cornerRadius = 3.dp().toFloat()
+        }
+    }
+
+    protected val dragContainer: FrameLayout = FrameLayout(context).apply {
+        addView(dragHandle, FrameLayout.LayoutParams(36.dp(), 4.dp(), Gravity.CENTER))
+    }
+
+    private var initialY = 0f
+    private var isDragging = false
+
+    init {
+        requestWindowFeature(android.view.Window.FEATURE_NO_TITLE)
+        setCanceledOnTouchOutside(true)
+        setupDragToDismiss()
+    }
+
+    private fun setupDragToDismiss() {
+        sheetBody.addView(dragContainer, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 28.dp()).apply {
+            bottomMargin = 4.dp()
+        })
+        attachDragToDismiss(dragContainer)
+    }
+
+    protected fun attachDragToDismiss(view: View) {
+        view.setOnTouchListener { _, event ->
+            when (event.actionMasked) {
+                MotionEvent.ACTION_DOWN -> {
+                    initialY = event.rawY
+                    isDragging = true
+                    true
+                }
+                MotionEvent.ACTION_MOVE -> {
+                    if (isDragging) {
+                        val deltaY = (event.rawY - initialY).coerceAtLeast(0f)
+                        sheetBody.translationY = deltaY
+                    }
+                    true
+                }
+                MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                    if (isDragging) {
+                        isDragging = false
+                        if (sheetBody.translationY > 60.dp()) {
+                            dismiss()
+                        } else {
+                            sheetBody.animate().translationY(0f).setDuration(150).start()
+                        }
+                    }
+                    true
+                }
+                else -> false
+            }
+        }
+    }
+
+    protected fun buildTitleRow(titleText: String, onClose: () -> Unit = { dismiss() }): LinearLayout {
+        return LinearLayout(context).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            val title = TextView(context).apply {
+                text = titleText
+                textSize = 18f
+                setTextColor(Color.WHITE)
+                typeface = Typeface.create("sans-serif", Typeface.BOLD)
+            }
+            addView(title, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+            val close = TextView(context).apply {
+                text = "Done"
+                textSize = 15f
+                setTextColor(0xFFEF4444.toInt()) // Coral/red accent
+                typeface = Typeface.create("sans-serif-medium", Typeface.NORMAL)
+                setPadding(8.dp(), 4.dp(), 8.dp(), 4.dp())
+                setOnClickListener { onClose() }
+            }
+            addView(close)
+        }
+    }
+
+    protected fun createSectionHeading(text: String): TextView = TextView(context).apply {
+        this.text = text
+        textSize = 11.5f
+        typeface = Typeface.create("sans-serif", Typeface.BOLD)
+        letterSpacing = 0.08f
+        setTextColor(0xFF94A3B8.toInt())
+        setPadding(0, 10.dp(), 0, 8.dp())
+    }
+
+    protected fun createSectionDivider(): View = View(context).apply {
+        setBackgroundColor(0xFF283545.toInt())
+        layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 1.dp()).apply {
+            topMargin = 12.dp()
+            bottomMargin = 4.dp()
+        }
+    }
+
+    override fun onStart() {
+        super.onStart()
+        window?.let { win ->
+            win.setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
+            win.setLayout(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
+            win.setGravity(Gravity.BOTTOM)
+            win.addFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND)
+            win.setDimAmount(0.6f)
+        }
+    }
+
+    protected fun Int.dp() = (this * context.resources.displayMetrics.density).toInt()
+}
+
+/**
  * Camera settings sheet/overlay conforming to Section 8.
  * Exposes rear lens / zoom, resolution + FPS, and focus behavior.
  */
@@ -569,61 +697,21 @@ class CameraSettingsSheet(
     private val onLensSelected: (String) -> Unit,
     private val onZoomSelected: (Float) -> Unit,
     private val onQualitySelected: (CaptureQuality?, Boolean) -> Unit,
-) : Dialog(context) {
+) : DarkBottomSheetDialog(context) {
 
     init {
-        requestWindowFeature(android.view.Window.FEATURE_NO_TITLE)
-        val body = LinearLayout(context).apply {
-            orientation = LinearLayout.VERTICAL
-            background = GradientDrawable().apply {
-                setColor(0xFF1A222C.toInt())
-                cornerRadii = floatArrayOf(20.dp().toFloat(), 20.dp().toFloat(), 20.dp().toFloat(), 20.dp().toFloat(), 0f, 0f, 0f, 0f)
-                setStroke(1.dp(), 0xFF2A3747.toInt())
-            }
-            setPadding(20.dp(), 16.dp(), 20.dp(), 24.dp())
-        }
-
-        // Drag handle bar
-        val handle = View(context).apply {
-            background = GradientDrawable().apply {
-                setColor(0x44FFFFFF.toInt())
-                cornerRadius = 3.dp().toFloat()
-            }
-        }
-        body.addView(handle, LinearLayout.LayoutParams(36.dp(), 4.dp()).apply {
-            gravity = Gravity.CENTER_HORIZONTAL
-            bottomMargin = 14.dp()
-        })
-
         // Title row
-        val titleRow = LinearLayout(context).apply {
-            orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER_VERTICAL
-            val title = TextView(context).apply {
-                text = "Camera settings"
-                textSize = 18f
-                setTextColor(Color.WHITE)
-                typeface = Typeface.create("sans-serif", Typeface.BOLD)
-            }
-            addView(title, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
-            val close = TextView(context).apply {
-                text = "Done"
-                textSize = 15f
-                setTextColor(0xFF60A5FA.toInt())
-                typeface = Typeface.create("sans-serif-medium", Typeface.NORMAL)
-                setPadding(8.dp(), 4.dp(), 8.dp(), 4.dp())
-                setOnClickListener { dismiss() }
-            }
-            addView(close)
-        }
-        body.addView(titleRow, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
+        sheetBody.addView(
+            buildTitleRow("Camera settings") { dismiss() },
+            LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
+        )
 
         // Divider
-        body.addView(createSectionDivider())
+        sheetBody.addView(createSectionDivider())
 
         // Section: Rear lens (if multiple available)
         if (lenses.size > 1) {
-            body.addView(createSectionHeading("LENS"))
+            sheetBody.addView(createSectionHeading("LENS"))
             val lensGroup = RadioGroup(context).apply {
                 orientation = RadioGroup.VERTICAL
             }
@@ -640,13 +728,13 @@ class CameraSettingsSheet(
                 }
                 lensGroup.addView(radio)
             }
-            body.addView(lensGroup, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
-            body.addView(createSectionDivider())
+            sheetBody.addView(lensGroup, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
+            sheetBody.addView(createSectionDivider())
         }
 
         // Section: Zoom
         if (zoomRatios.isNotEmpty()) {
-            body.addView(createSectionHeading("REAR CAMERA ZOOM"))
+            sheetBody.addView(createSectionHeading("REAR CAMERA ZOOM"))
             val zoomRow = LinearLayout(context).apply {
                 orientation = LinearLayout.HORIZONTAL
             }
@@ -660,7 +748,7 @@ class CameraSettingsSheet(
                     background = GradientDrawable().apply {
                         setColor(if (isSelected) 0xFF242E3C.toInt() else 0xFF151C24.toInt())
                         cornerRadius = 8.dp().toFloat()
-                        setStroke(1.dp(), if (isSelected) 0xFF60A5FA.toInt() else 0xFF283545.toInt())
+                        setStroke(1.dp(), if (isSelected) 0xFFEF4444.toInt() else 0xFF283545.toInt())
                     }
                     setPadding(16.dp(), 8.dp(), 16.dp(), 8.dp())
                     setOnClickListener {
@@ -672,12 +760,12 @@ class CameraSettingsSheet(
                     marginEnd = 8.dp()
                 })
             }
-            body.addView(zoomRow, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
-            body.addView(createSectionDivider())
+            sheetBody.addView(zoomRow, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
+            sheetBody.addView(createSectionDivider())
         }
 
         // Section: Resolution + FPS
-        body.addView(createSectionHeading("RECORDING QUALITY"))
+        sheetBody.addView(createSectionHeading("RECORDING QUALITY"))
         val qualityGroup = RadioGroup(context).apply {
             orientation = RadioGroup.VERTICAL
         }
@@ -706,51 +794,21 @@ class CameraSettingsSheet(
             }
             qualityGroup.addView(radio)
         }
-        body.addView(qualityGroup, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
-        body.addView(createSectionDivider())
+        sheetBody.addView(qualityGroup, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
+        sheetBody.addView(createSectionDivider())
 
         // Section: Focus & exposure note
-        body.addView(createSectionHeading("FOCUS & EXPOSURE"))
+        sheetBody.addView(createSectionHeading("FOCUS & EXPOSURE"))
         val focusNote = TextView(context).apply {
             text = "Tap anywhere on the camera preview to lock focus and exposure on the athlete."
             textSize = 13f
             setTextColor(0xFF94A3B8.toInt())
             setLineSpacing(0f, 1.2f)
         }
-        body.addView(focusNote, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
+        sheetBody.addView(focusNote, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
 
-        setContentView(body)
+        setContentView(sheetBody)
     }
-
-    private fun createSectionHeading(text: String): TextView = TextView(context).apply {
-        this.text = text
-        textSize = 11.5f
-        typeface = Typeface.create("sans-serif", Typeface.BOLD)
-        letterSpacing = 0.08f
-        setTextColor(0xFF94A3B8.toInt())
-        setPadding(0, 10.dp(), 0, 8.dp())
-    }
-
-    private fun createSectionDivider(): View = View(context).apply {
-        setBackgroundColor(0xFF283545.toInt())
-        layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 1.dp()).apply {
-            topMargin = 12.dp()
-            bottomMargin = 4.dp()
-        }
-    }
-
-    override fun onStart() {
-        super.onStart()
-        window?.let { win ->
-            win.setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
-            win.setLayout(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
-            win.setGravity(Gravity.BOTTOM)
-            win.addFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND)
-            win.setDimAmount(0.6f)
-        }
-    }
-
-    private fun Int.dp() = (this * context.resources.displayMetrics.density).toInt()
 }
 
 /**
@@ -760,57 +818,17 @@ class CameraSettingsSheet(
 class AudioOutputChooserDialog(
     context: Context,
     private val onConnectDevice: () -> Unit,
-) : Dialog(context) {
+) : DarkBottomSheetDialog(context) {
 
     init {
-        requestWindowFeature(android.view.Window.FEATURE_NO_TITLE)
-        val body = LinearLayout(context).apply {
-            orientation = LinearLayout.VERTICAL
-            background = GradientDrawable().apply {
-                setColor(0xFF1A222C.toInt())
-                cornerRadii = floatArrayOf(20.dp().toFloat(), 20.dp().toFloat(), 20.dp().toFloat(), 20.dp().toFloat(), 0f, 0f, 0f, 0f)
-                setStroke(1.dp(), 0xFF2A3747.toInt())
-            }
-            setPadding(20.dp(), 16.dp(), 20.dp(), 24.dp())
-        }
-
-        // Handle
-        val handle = View(context).apply {
-            background = GradientDrawable().apply {
-                setColor(0x44FFFFFF.toInt())
-                cornerRadius = 3.dp().toFloat()
-            }
-        }
-        body.addView(handle, LinearLayout.LayoutParams(36.dp(), 4.dp()).apply {
-            gravity = Gravity.CENTER_HORIZONTAL
-            bottomMargin = 14.dp()
-        })
-
         // Title row
-        val titleRow = LinearLayout(context).apply {
-            orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER_VERTICAL
-            val title = TextView(context).apply {
-                text = "Audio output"
-                textSize = 18f
-                setTextColor(Color.WHITE)
-                typeface = Typeface.create("sans-serif", Typeface.BOLD)
-            }
-            addView(title, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
-            val close = TextView(context).apply {
-                text = "Done"
-                textSize = 15f
-                setTextColor(0xFF60A5FA.toInt())
-                typeface = Typeface.create("sans-serif-medium", Typeface.NORMAL)
-                setPadding(8.dp(), 4.dp(), 8.dp(), 4.dp())
-                setOnClickListener { dismiss() }
-            }
-            addView(close)
-        }
-        body.addView(titleRow, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
+        sheetBody.addView(
+            buildTitleRow("Audio output") { dismiss() },
+            LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
+        )
 
         // Divider
-        body.addView(View(context).apply {
+        sheetBody.addView(View(context).apply {
             setBackgroundColor(0xFF283545.toInt())
             layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 1.dp()).apply {
                 topMargin = 12.dp()
@@ -832,7 +850,7 @@ class AudioOutputChooserDialog(
                 cornerRadius = 10.dp().toFloat()
             }
             val icon = AppIconView(context, AppIcon.VOLUME, sizeDp = 22).apply {
-                setIconColor(0xFF10B981.toInt())
+                setIconColor(0xFFEF4444.toInt()) // Coral/red active accent
             }
             addView(icon, LinearLayout.LayoutParams(22.dp(), 22.dp()).apply { marginEnd = 12.dp() })
             val label = TextView(context).apply {
@@ -843,11 +861,11 @@ class AudioOutputChooserDialog(
             }
             addView(label, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
             val check = AppIconView(context, AppIcon.CHECK, sizeDp = 20).apply {
-                setIconColor(0xFF10B981.toInt())
+                setIconColor(0xFFEF4444.toInt()) // Coral/red accent
             }
             addView(check, LinearLayout.LayoutParams(20.dp(), 20.dp()))
         }
-        body.addView(activeRow, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
+        sheetBody.addView(activeRow, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
 
         // Connect device button
         val connectRow = LinearLayout(context).apply {
@@ -862,11 +880,11 @@ class AudioOutputChooserDialog(
             val label = TextView(context).apply {
                 text = "Connect device…"
                 textSize = 15f
-                setTextColor(0xFF60A5FA.toInt())
+                setTextColor(0xFFEF4444.toInt()) // Coral/red accent
             }
             addView(label, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
             val chevron = AppIconView(context, AppIcon.CHEVRON_RIGHT, sizeDp = 18).apply {
-                setIconColor(0xFF60A5FA.toInt())
+                setIconColor(0xFFEF4444.toInt()) // Coral/red accent
             }
             addView(chevron, LinearLayout.LayoutParams(18.dp(), 18.dp()))
             setOnClickListener {
@@ -874,7 +892,7 @@ class AudioOutputChooserDialog(
                 onConnectDevice()
             }
         }
-        body.addView(connectRow, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
+        sheetBody.addView(connectRow, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
             topMargin = 10.dp()
         })
 
@@ -886,21 +904,257 @@ class AudioOutputChooserDialog(
             setPadding(4.dp(), 14.dp(), 4.dp(), 0)
             setLineSpacing(0f, 1.2f)
         }
-        body.addView(note)
+        sheetBody.addView(note)
 
-        setContentView(body)
+        setContentView(sheetBody)
+    }
+}
+
+/**
+ * Bottom selection sheet for expected activity conforming to Section 5.
+ */
+class ActivitySelectionSheet(
+    context: Context,
+    private val selectedActivity: String,
+    private val onActivitySelected: (name: String, category: String) -> Unit,
+) : DarkBottomSheetDialog(context) {
+
+    data class ActivityOption(val name: String, val category: String, val subtitle: String)
+
+    init {
+        // Title row
+        sheetBody.addView(
+            buildTitleRow("Expected activity") { dismiss() },
+            LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
+        )
+
+        // Subtitle note
+        val note = TextView(context).apply {
+            text = "Select the movement being recorded and analyzed."
+            textSize = 13f
+            setTextColor(0xFF94A3B8.toInt())
+            setPadding(0, 4.dp(), 0, 10.dp())
+        }
+        sheetBody.addView(note)
+
+        // Divider
+        sheetBody.addView(View(context).apply {
+            setBackgroundColor(0xFF283545.toInt())
+            layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 1.dp()).apply {
+                bottomMargin = 10.dp()
+            }
+        })
+
+        val options = listOf(
+            ActivityOption("Alternating straight punches", "Punches", "Kihon choku-zuki from heiko-dachi"),
+            ActivityOption("Front kicks", "Kicks", "Mae-geri repetitions from kamae"),
+            ActivityOption("Other karate movements", "Other", "General kihon or kata technique"),
+        )
+
+        options.forEach { opt ->
+            val isSelected = opt.name == selectedActivity
+            val row = LinearLayout(context).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = Gravity.CENTER_VERTICAL
+                setPadding(14.dp(), 12.dp(), 14.dp(), 12.dp())
+                background = GradientDrawable().apply {
+                    setColor(if (isSelected) 0xFF242E3C.toInt() else 0xFF171F2A.toInt())
+                    cornerRadius = 10.dp().toFloat()
+                    setStroke(1.dp(), if (isSelected) 0xFFEF4444.toInt() else 0xFF283545.toInt())
+                }
+                val icon = AppIconView(context, AppIcon.KARATE, sizeDp = 20).apply {
+                    setIconColor(if (isSelected) 0xFFEF4444.toInt() else 0xFF94A3B8.toInt())
+                }
+                addView(icon, LinearLayout.LayoutParams(20.dp(), 20.dp()).apply { marginEnd = 12.dp() })
+
+                val textCol = LinearLayout(context).apply {
+                    orientation = LinearLayout.VERTICAL
+                    val title = TextView(context).apply {
+                        text = opt.name
+                        textSize = 15f
+                        typeface = Typeface.create("sans-serif-medium", Typeface.NORMAL)
+                        setTextColor(Color.WHITE)
+                    }
+                    addView(title)
+                    val sub = TextView(context).apply {
+                        text = opt.subtitle
+                        textSize = 12.5f
+                        setTextColor(0xFF94A3B8.toInt())
+                    }
+                    addView(sub)
+                }
+                addView(textCol, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+
+                if (isSelected) {
+                    val check = AppIconView(context, AppIcon.CHECK, sizeDp = 20).apply {
+                        setIconColor(0xFFEF4444.toInt())
+                    }
+                    addView(check, LinearLayout.LayoutParams(20.dp(), 20.dp()))
+                }
+
+                setOnClickListener {
+                    onActivitySelected(opt.name, opt.category)
+                    dismiss()
+                }
+            }
+
+            sheetBody.addView(row, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
+                bottomMargin = 8.dp()
+            })
+        }
+
+        setContentView(sheetBody)
+    }
+}
+
+/**
+ * Bottom selection sheet for cue mode conforming to Section 5.
+ */
+class CueModeSelectionSheet(
+    context: Context,
+    private val onUnavailableSelected: (CaptureStartBlock) -> Unit,
+) : DarkBottomSheetDialog(context) {
+
+    init {
+        // Title row
+        sheetBody.addView(
+            buildTitleRow("Cue mode") { dismiss() },
+            LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
+        )
+
+        // Subtitle note
+        val note = TextView(context).apply {
+            text = "Choose how repetitions are signaled and counted."
+            textSize = 13f
+            setTextColor(0xFF94A3B8.toInt())
+            setPadding(0, 4.dp(), 0, 10.dp())
+        }
+        sheetBody.addView(note)
+
+        // Divider
+        sheetBody.addView(View(context).apply {
+            setBackgroundColor(0xFF283545.toInt())
+            layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 1.dp()).apply {
+                bottomMargin = 10.dp()
+            }
+        })
+
+        // Option 1: App cues (Available and selected)
+        val appCuedRow = LinearLayout(context).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(14.dp(), 12.dp(), 14.dp(), 12.dp())
+            background = GradientDrawable().apply {
+                setColor(0xFF242E3C.toInt())
+                cornerRadius = 10.dp().toFloat()
+                setStroke(1.dp(), 0xFFEF4444.toInt())
+            }
+            val icon = AppIconView(context, AppIcon.VOLUME, sizeDp = 20).apply {
+                setIconColor(0xFFEF4444.toInt())
+            }
+            addView(icon, LinearLayout.LayoutParams(20.dp(), 20.dp()).apply { marginEnd = 12.dp() })
+
+            val textCol = LinearLayout(context).apply {
+                orientation = LinearLayout.VERTICAL
+                val title = TextView(context).apply {
+                    text = "App cues"
+                    textSize = 15f
+                    typeface = Typeface.create("sans-serif-medium", Typeface.NORMAL)
+                    setTextColor(Color.WHITE)
+                }
+                addView(title)
+                val sub = TextView(context).apply {
+                    text = "Spoken movement cues and cadence"
+                    textSize = 12.5f
+                    setTextColor(0xFF94A3B8.toInt())
+                }
+                addView(sub)
+            }
+            addView(textCol, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+
+            val check = AppIconView(context, AppIcon.CHECK, sizeDp = 20).apply {
+                setIconColor(0xFFEF4444.toInt())
+            }
+            addView(check, LinearLayout.LayoutParams(20.dp(), 20.dp()))
+
+            setOnClickListener {
+                dismiss()
+            }
+        }
+        sheetBody.addView(appCuedRow, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
+            bottomMargin = 8.dp()
+        })
+
+        // Option 2: Self-cued (Not available yet)
+        val selfCuedRow = buildUnavailableRow(
+            titleText = "Self-cued",
+            subtitleText = "Athlete chooses their own tempo (not available yet)",
+            block = CaptureStartBlock.UNSUPPORTED_SELF_CUED,
+        )
+        sheetBody.addView(selfCuedRow, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
+            bottomMargin = 8.dp()
+        })
+
+        // Option 3: Automatic movement count (Not available yet)
+        val autoCountRow = buildUnavailableRow(
+            titleText = "Automatic movement count",
+            subtitleText = "Real-time rep detection (not available yet)",
+            block = CaptureStartBlock.UNSUPPORTED_FREE_AUTO_COUNT,
+        )
+        sheetBody.addView(autoCountRow, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
+
+        setContentView(sheetBody)
     }
 
-    override fun onStart() {
-        super.onStart()
-        window?.let { win ->
-            win.setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
-            win.setLayout(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
-            win.setGravity(Gravity.BOTTOM)
-            win.addFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND)
-            win.setDimAmount(0.6f)
+    private fun buildUnavailableRow(titleText: String, subtitleText: String, block: CaptureStartBlock): View {
+        return LinearLayout(context).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(14.dp(), 12.dp(), 14.dp(), 12.dp())
+            background = GradientDrawable().apply {
+                setColor(0xFF171F2A.toInt())
+                cornerRadius = 10.dp().toFloat()
+                setStroke(1.dp(), 0xFF283545.toInt())
+            }
+            val icon = AppIconView(context, AppIcon.CLOCK, sizeDp = 20).apply {
+                setIconColor(0xFF64748B.toInt())
+            }
+            addView(icon, LinearLayout.LayoutParams(20.dp(), 20.dp()).apply { marginEnd = 12.dp() })
+
+            val textCol = LinearLayout(context).apply {
+                orientation = LinearLayout.VERTICAL
+                val title = TextView(context).apply {
+                    text = titleText
+                    textSize = 15f
+                    typeface = Typeface.create("sans-serif-medium", Typeface.NORMAL)
+                    setTextColor(0xFFCBD5E1.toInt())
+                }
+                addView(title)
+                val sub = TextView(context).apply {
+                    text = subtitleText
+                    textSize = 12.5f
+                    setTextColor(0xFF64748B.toInt())
+                }
+                addView(sub)
+            }
+            addView(textCol, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+
+            val badge = TextView(context).apply {
+                text = "Soon"
+                textSize = 11f
+                typeface = Typeface.create("sans-serif-bold", Typeface.BOLD)
+                setTextColor(0xFF94A3B8.toInt())
+                background = GradientDrawable().apply {
+                    setColor(0xFF242E3C.toInt())
+                    cornerRadius = 6.dp().toFloat()
+                }
+                setPadding(6.dp(), 2.dp(), 6.dp(), 2.dp())
+            }
+            addView(badge)
+
+            setOnClickListener {
+                onUnavailableSelected(block)
+            }
         }
     }
-
-    private fun Int.dp() = (this * context.resources.displayMetrics.density).toInt()
 }

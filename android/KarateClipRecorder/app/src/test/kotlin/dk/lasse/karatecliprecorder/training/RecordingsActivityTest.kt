@@ -55,7 +55,7 @@ class RecordingsActivityTest {
             repo.beginSession(session, MasterRecording(id, session.sessionId, reference, 1000))
             repo.finishRecording(session.sessionId, 2_000_000)
             repo.recoverJobs()
-            repo.updateJob(repo.job(session.sessionId)!!.copy(state = QueueState.FAILED, error = "fixture extraction failure"))
+            repo.updateJob(repo.job(session.sessionId)!!.copy(state = QueueState.FAILED, phase = ProcessingPhase.FAILED, error = "fixture extraction failure"))
         }) { it.getOrThrow(); seeded = true }
         drainUntil { seeded }
         val intent = Intent(context, RecordingsActivity::class.java).putExtra(RecordingsActivity.EXTRA_SESSION_ID, session.sessionId)
@@ -65,7 +65,7 @@ class RecordingsActivityTest {
             fun texts() = views(root).filterIsInstance<TextView>().map { it.text.toString() }
             fun click(label: String) { views(root).filterIsInstance<Button>().single { it.text.toString() == label }.performClick() }
             drainUntil { "Front kicks" in texts() }
-            assertTrue(texts().any { "Planned 12" in it && "Failed" in it })
+            assertTrue(texts().any { "Planned 12" in it && ("Failed" in it || "failed" in it) })
             assertTrue("Watch full recording" in texts()); assertTrue("Retry" in texts())
             click("Watch full recording")
             val watch = ShadowDialog.getLatestDialog()

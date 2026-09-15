@@ -131,4 +131,144 @@ class SharedCameraCaptureUiTest {
         previewView.showCountdown("3")
         previewView.hideCountdown()
     }
+
+    @Test
+    fun activitySelectionSheetDispatchesSelection() {
+        var selectedName: String? = null
+        var selectedCategory: String? = null
+        val sheet = ActivitySelectionSheet(
+            context = context,
+            selectedActivity = "Alternating straight punches",
+            onActivitySelected = { name, category ->
+                selectedName = name
+                selectedCategory = category
+            }
+        )
+        sheet.show()
+        assertTrue(sheet.isShowing)
+
+        val body = (sheet.findViewById<View>(android.R.id.content) as? android.view.ViewGroup)?.getChildAt(0) as? android.view.ViewGroup
+        assertNotNull(body)
+
+        var foundRow: View? = null
+        for (i in 0 until body.childCount) {
+            val child = body.getChildAt(i)
+            if (child is android.view.ViewGroup) {
+                for (j in 0 until child.childCount) {
+                    val sub = child.getChildAt(j)
+                    if (sub is android.view.ViewGroup) {
+                        for (k in 0 until sub.childCount) {
+                            val tv = sub.getChildAt(k) as? TextView
+                            if (tv?.text == "Front kicks") {
+                                foundRow = child
+                                break
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        assertNotNull(foundRow)
+        foundRow.performClick()
+
+        assertEquals("Front kicks", selectedName)
+        assertEquals("Kicks", selectedCategory)
+        assertFalse(sheet.isShowing)
+    }
+
+    @Test
+    fun cueModeSelectionSheetDispatchesUnavailableCallback() {
+        var lastBlock: CaptureStartBlock? = null
+        val sheet = CueModeSelectionSheet(
+            context = context,
+            onUnavailableSelected = { lastBlock = it }
+        )
+        sheet.show()
+        assertTrue(sheet.isShowing)
+
+        val body = (sheet.findViewById<View>(android.R.id.content) as? android.view.ViewGroup)?.getChildAt(0) as? android.view.ViewGroup
+        assertNotNull(body)
+
+        var selfCuedRow: View? = null
+        var autoCountRow: View? = null
+        for (i in 0 until body.childCount) {
+            val child = body.getChildAt(i)
+            if (child is android.view.ViewGroup) {
+                for (j in 0 until child.childCount) {
+                    val sub = child.getChildAt(j)
+                    if (sub is android.view.ViewGroup) {
+                        for (k in 0 until sub.childCount) {
+                            val tv = sub.getChildAt(k) as? TextView
+                            if (tv?.text == "Self-cued") selfCuedRow = child
+                            if (tv?.text == "Automatic movement count") autoCountRow = child
+                        }
+                    }
+                }
+            }
+        }
+
+        assertNotNull(selfCuedRow)
+        selfCuedRow.performClick()
+        assertEquals(CaptureStartBlock.UNSUPPORTED_SELF_CUED, lastBlock)
+
+        assertNotNull(autoCountRow)
+        autoCountRow.performClick()
+        assertEquals(CaptureStartBlock.UNSUPPORTED_FREE_AUTO_COUNT, lastBlock)
+
+        sheet.dismiss()
+    }
+
+    @Test
+    fun processingSettingsViewStructureAndSliderInteraction() {
+        val view = dk.lasse.karatecliprecorder.training.ProcessingSettingsView(context)
+        val heading = view.getChildAt(0) as TextView
+        assertEquals("RECORDING PROCESSING", heading.text.toString())
+
+        val card = view.getChildAt(1) as dk.lasse.karatecliprecorder.SettingsCardView
+        assertEquals(3, card.childCount) // Row 1 (toggle), Divider, Row 2 (slider)
+
+        val prefs = dk.lasse.karatecliprecorder.training.ProcessingPreferences(context)
+        val initialBattery = prefs.minimumBattery
+
+        val sliderRow = card.getChildAt(2) as android.view.ViewGroup
+        val contentCol = sliderRow.getChildAt(1) as android.view.ViewGroup
+        val seekBar = contentCol.getChildAt(2) as android.widget.SeekBar
+
+        assertEquals(5, seekBar.min)
+        assertEquals(100, seekBar.max)
+        assertEquals(initialBattery, seekBar.progress)
+        assertNotNull(seekBar.contentDescription)
+    }
+
+    @Test
+    fun bottomSheetDoneActionClosesDialog() {
+        val sheet = ActivitySelectionSheet(
+            context = context,
+            selectedActivity = "Alternating straight punches",
+            onActivitySelected = { _, _ -> }
+        )
+        sheet.show()
+        assertTrue(sheet.isShowing)
+
+        val body = (sheet.findViewById<View>(android.R.id.content) as? android.view.ViewGroup)?.getChildAt(0) as? android.view.ViewGroup
+        assertNotNull(body)
+
+        // Find "Done" button in title row
+        var doneBtn: View? = null
+        for (i in 0 until body.childCount) {
+            val child = body.getChildAt(i)
+            if (child is android.view.ViewGroup) {
+                for (j in 0 until child.childCount) {
+                    val tv = child.getChildAt(j) as? TextView
+                    if (tv?.text == "Done") {
+                        doneBtn = tv
+                        break
+                    }
+                }
+            }
+        }
+        assertNotNull(doneBtn)
+        doneBtn.performClick()
+        assertFalse(sheet.isShowing)
+    }
 }

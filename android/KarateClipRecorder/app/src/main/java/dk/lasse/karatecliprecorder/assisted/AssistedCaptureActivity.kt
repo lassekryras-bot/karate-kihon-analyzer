@@ -53,6 +53,7 @@ class AssistedCaptureActivity : AppCompatActivity() {
     private lateinit var recordButton: SharedCameraRecordButton
     private lateinit var permissionButton: Button
     private lateinit var topNavigation: View
+    private lateinit var setupSectionHeading: TextView
     private lateinit var setupCard: LinearLayout
     private lateinit var viewRecordingButton: View
     private lateinit var setup: AssistedCaptureSetup
@@ -151,10 +152,24 @@ class AssistedCaptureActivity : AppCompatActivity() {
         }
         root.addView(cameraPreviewView, LinearLayout.LayoutParams(LayoutParams.MATCH_PARENT, 0, 1f))
 
+        // Recording setup section heading outside and above card
+        setupSectionHeading = TextView(this).apply {
+            text = "RECORDING SETUP"
+            textSize = 12f
+            typeface = Typeface.create("sans-serif", Typeface.BOLD)
+            letterSpacing = 0.08f
+            setTextColor(0xFF94A3B8.toInt())
+            ViewCompat.setAccessibilityHeading(this, true)
+        }
+        root.addView(setupSectionHeading, LinearLayout.LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT).apply {
+            topMargin = 12.dp()
+            bottomMargin = 6.dp()
+            marginStart = 2.dp()
+        })
+
         // Recording setup card
         setupCard = buildSetupCard()
         root.addView(setupCard, LinearLayout.LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT).apply {
-            topMargin = 12.dp()
             bottomMargin = 8.dp()
         })
 
@@ -288,42 +303,23 @@ class AssistedCaptureActivity : AppCompatActivity() {
             }
             setPadding(16.dp(), 14.dp(), 16.dp(), 14.dp())
 
-            // Card Header: Gear icon + "Recording setup"
-            val header = LinearLayout(this@AssistedCaptureActivity).apply {
-                orientation = LinearLayout.HORIZONTAL
-                gravity = Gravity.CENTER_VERTICAL
-                val icon = AppIconView(this@AssistedCaptureActivity, AppIcon.SETTINGS, sizeDp = 20).apply {
-                    setIconColor(Color.WHITE)
-                }
-                addView(icon, LayoutParams(20.dp(), 20.dp()).apply { marginEnd = 10.dp() })
-                val title = TextView(this@AssistedCaptureActivity).apply {
-                    text = "Recording setup"
-                    textSize = 16.5f
-                    setTextColor(Color.WHITE)
-                    typeface = Typeface.create("sans-serif", Typeface.BOLD)
-                }
-                addView(title)
-            }
-            addView(header, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT).apply {
-                bottomMargin = 14.dp()
-            })
-
             // Row 1: Activity
             val activityRow = buildSettingRow(
                 icon = AppIcon.KARATE,
                 label = "Activity",
                 content = buildPillButton(setup.expectedActivity) {
-                    val names = arrayOf("Alternating straight punches", "Front kicks", "Other karate movements")
-                    AlertDialog.Builder(this@AssistedCaptureActivity)
-                        .setTitle("Expected activity")
-                        .setItems(names) { _, index ->
+                    ActivitySelectionSheet(
+                        context = this@AssistedCaptureActivity,
+                        selectedActivity = setup.expectedActivity,
+                        onActivitySelected = { name, category ->
                             setup = setup.copy(
-                                expectedActivity = names[index],
-                                expectedCategory = listOf("Punches", "Kicks", "Other")[index]
+                                expectedActivity = name,
+                                expectedCategory = category
                             )
                             preferences.save(profiles.activeProfile().id, setup)
                             renderSetupCard()
-                        }.show()
+                        }
+                    ).show()
                 }
             )
             addView(activityRow)
@@ -373,19 +369,12 @@ class AssistedCaptureActivity : AppCompatActivity() {
                 icon = AppIcon.VOLUME,
                 label = "Cue mode",
                 content = buildPillButton("App cues") {
-                    val choices = arrayOf(
-                        "App cues (spoken movement cues)",
-                        "Self-cued — not available yet",
-                        "Automatic movement count — not available yet"
-                    )
-                    AlertDialog.Builder(this@AssistedCaptureActivity)
-                        .setTitle("Cue mode")
-                        .setItems(choices) { _, index ->
-                            if (index > 0) {
-                                val block = if (index == 1) CaptureStartBlock.UNSUPPORTED_SELF_CUED else CaptureStartBlock.UNSUPPORTED_FREE_AUTO_COUNT
-                                Toast.makeText(this@AssistedCaptureActivity, block.message, Toast.LENGTH_LONG).show()
-                            }
-                        }.show()
+                    CueModeSelectionSheet(
+                        context = this@AssistedCaptureActivity,
+                        onUnavailableSelected = { block ->
+                            Toast.makeText(this@AssistedCaptureActivity, block.message, Toast.LENGTH_LONG).show()
+                        }
+                    ).show()
                 }
             )
             addView(cueModeRow)
@@ -709,9 +698,10 @@ class AssistedCaptureActivity : AppCompatActivity() {
         if (renderedState == state) return
         renderedState = state
 
-        // Layout expansion and visibility transitions
         topNavigation.visibility = if (active) View.GONE else View.VISIBLE
-        setupCard.visibility = if (active || state == AssistedCaptureState.SAVED) View.GONE else View.VISIBLE
+        val showSetup = !active && state != AssistedCaptureState.SAVED
+        setupSectionHeading.visibility = if (showSetup) View.VISIBLE else View.GONE
+        setupCard.visibility = if (showSetup) View.VISIBLE else View.GONE
         cameraPreviewView.setRecordingActive(active, isFinishing = state == AssistedCaptureState.FINISHING)
 
         recordButton.state = when (state) {
