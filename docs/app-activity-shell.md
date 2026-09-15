@@ -5,6 +5,16 @@ Use the [authoring guide](activity-shell-authoring-guide.md) for learning-design
 decisions and the [contract](activity-shell-contract.md) for normative behavior.
 This file distinguishes implemented behavior from placeholders and planned work.
 
+Skill Coach's Record & Analyze card now opens a dedicated assisted-capture page.
+It is outside Activity Shell: opening it is an explicit operator camera action,
+with live preview, touch Record/Stop and optional spoken counts. It starts no
+microphone, recognition or live analysis. Learning Ready pages and shell ownership
+remain unchanged. See [assisted capture](record-and-analyze-assisted-capture-v1.md)
+for persistence, interruption, playback and pending physical acceptance.
+The bundled continuation adds two-stage Stop, immediate saved-MP4 completion,
+a durable serial background queue and Performance → Recordings with calendar,
+playback, retry and confirmed deletion. These remain outside the shared shell.
+
 ## Current source map
 
 Paths are relative to `android/KarateClipRecorder/app/src` unless stated otherwise.
@@ -216,6 +226,17 @@ Current limitations:
 
 ## Progress and persistence
 
+New continuous CameraX recordings now use the separate Room training evidence
+foundation described in [Android training evidence database](app-training-database.md).
+The legacy guided runner persists cues, landmark files, timestamp-ordered
+movements and versioned analyses through a repository. Its completion count is
+derived from stored movements. Processing completion is separate from partial,
+abstained or valid measurement evidence; the existing static Android analyzer
+does not establish dynamic technique validity. Backgrounding cancels guided
+countdown/recording and ignores late completion callbacks; persisted processing
+checkpoints remain available. No shared-shell or passive-page hardware boundary
+changes. This is the legacy capture runner, not a new Karate Basics activity.
+
 `ProfileRepository` currently saves broad `LearningStatus` values, active activity
 identity, completion timestamp, and recency. `touchActiveLearningActivity`
 preserves completed status while updating recency.
@@ -302,9 +323,10 @@ Implemented behavior:
   failing attempt. Repeated reparenting is removed; capture verification and
   the updated regression test await an approved rebuild. The section and shared
   terminology header are now titled Voice Interaction.
-- the selfie remains in memory for the current result only and is discarded on
-  retry, exit, or destruction; the activity separately records `voiceVerified`,
-  `selfieCaptured`, and `selfiePersisted=false` evidence;
+- the displayed bitmap remains in memory for the current result and is discarded
+  on retry, exit, or destruction; the canonical app-private JPEG and Room identity
+  persist separately with `voiceVerified`, `selfieCaptured`, `selfiePersisted`,
+  `captureId`, and `captureOutcome` evidence;
 - Osu examples use two packaged voice recordings and make a fresh random sample
   choice for each playback; the English Ready prompt continues to use device
   text-to-speech;
@@ -376,8 +398,8 @@ Current limitations:
    prompts with an instructor/content owner before release.
 4. Validate short-command recognition and Stop barge-in on representative real
    devices without connecting it to the old guided-session MVP.
-5. Validate the Ready? — Osu front-camera capture and hands-free timing on
-   representative devices without persisting its session-only selfie.
+5. Validate the Ready? — Osu front-camera capture, app-private durable photo,
+   persisted outcome, and hands-free timing on representative devices.
 6. Add a typed durable activity-attempt/evidence model when more activities need
    to query voice evidence; the current training-session JSON keeps completion
    and verification separate without a premature migration.

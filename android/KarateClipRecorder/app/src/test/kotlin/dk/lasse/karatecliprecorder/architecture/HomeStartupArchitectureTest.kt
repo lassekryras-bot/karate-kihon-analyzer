@@ -24,10 +24,10 @@ class HomeStartupArchitectureTest {
         assertTrue(activity.contains("onLearn = ::showLearnUi"))
         assertFalse(activity.contains("onPractice = ::openTrainingHub"))
         assertFalse(activity.contains("onSkillCoach = ::openTrainingHub"))
-        listOf("Practice", "Skill Coach").forEach { destination ->
-            val callback = "showHomeDestinationPlaceholder(\"$destination\")"
-            assertTrue(activity.windowed(callback.length).count { it == callback } == 2)
-        }
+        val practicePlaceholder = "showHomeDestinationPlaceholder(\"Practice\")"
+        assertTrue(activity.windowed(practicePlaceholder.length).count { it == practicePlaceholder } == 2)
+        val skillCoachRoute = "onSkillCoach = ::showSkillCoachUi"
+        assertTrue(activity.windowed(skillCoachRoute.length).count { it == skillCoachRoute } == 2)
         assertFalse(catalogue.contains("content.addView(continueCard"))
         val trainEntry = activity.substringAfter("private fun showTrainUi()").substringBefore("private fun showLearnUi()")
         assertTrue(trainEntry.contains("learnScreen.visibility = View.GONE"))

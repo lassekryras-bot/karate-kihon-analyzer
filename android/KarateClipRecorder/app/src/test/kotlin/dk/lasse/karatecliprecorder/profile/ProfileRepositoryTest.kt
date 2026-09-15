@@ -24,6 +24,7 @@ class ProfileRepositoryTest {
 
     @BeforeTest
     fun setUp() {
+        dk.lasse.karatecliprecorder.training.TrainingServices.closeForTests()
         context = ApplicationProvider.getApplicationContext()
         context.deleteDatabase("trainee_profiles.db")
         context.getSharedPreferences("karate_kihon_analyzer_preferences", Context.MODE_PRIVATE)
@@ -33,6 +34,7 @@ class ProfileRepositoryTest {
     @AfterTest
     fun tearDown() {
         repository?.close()
+        dk.lasse.karatecliprecorder.training.TrainingServices.closeForTests()
     }
 
     @Test
@@ -87,7 +89,9 @@ class ProfileRepositoryTest {
         listOf(owned, untouched, legacy, calibration).forEach { it.parentFile!!.mkdirs(); it.writeText("fixture") }
         val store = dk.lasse.karatecliprecorder.TrainingHistoryStore(context)
         kotlin.test.assertFailsWith<IllegalArgumentException> { store.clear("../camera_setup") }
-        assertTrue(store.clear(other.id).succeeded)
+        val clearTask = java.util.concurrent.FutureTask { store.clear(other.id) }
+        Thread(clearTask).start()
+        assertTrue(clearTask.get().succeeded)
         assertTrue(!owned.exists())
         listOf(untouched, legacy, calibration).forEach { assertTrue(it.exists()) }
         repo.clearTrainingSessions(other.id)
@@ -123,6 +127,7 @@ class ProfileRepositoryTest {
             created_at INTEGER, updated_at INTEGER)""")
         db.execSQL("""INSERT INTO profiles VALUES ('kept', 'Existing', 'MALE', 'ADULT',
             'avatar_01', 0.5, 0.5, 'WHITE', 175, NULL, NULL, 1, 1)""")
+        db.execSQL("CREATE TABLE calibrations (id TEXT PRIMARY KEY, profile_id TEXT, calibration_type TEXT, payload TEXT, updated_at INTEGER)")
         db.version = 1
         db.close()
         repository = ProfileRepository(context, AppPreferences(context))

@@ -1,0 +1,1478 @@
+{
+  "formatVersion": 1,
+  "database": {
+    "version": 4,
+    "identityHash": "801f0e79deb7744509942d1680b27a3c",
+    "entities": [
+      {
+        "tableName": "TrainingUser",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`userId` TEXT NOT NULL, `createdAtMs` INTEGER NOT NULL, PRIMARY KEY(`userId`))",
+        "fields": [
+          {
+            "fieldPath": "value.userId",
+            "columnName": "userId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "value.createdAtMs",
+            "columnName": "createdAtMs",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "userId"
+          ]
+        }
+      },
+      {
+        "tableName": "RecordingProcessing",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`sessionId` TEXT NOT NULL, `queuedAtMs` INTEGER NOT NULL, `state` TEXT NOT NULL, `promotedAtMs` INTEGER, `manual` INTEGER NOT NULL, `error` TEXT, PRIMARY KEY(`sessionId`), FOREIGN KEY(`sessionId`) REFERENCES `RecordingSession`(`sessionId`) ON UPDATE NO ACTION ON DELETE CASCADE )",
+        "fields": [
+          {
+            "fieldPath": "value.sessionId",
+            "columnName": "sessionId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "value.queuedAtMs",
+            "columnName": "queuedAtMs",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "value.state",
+            "columnName": "state",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "value.promotedAtMs",
+            "columnName": "promotedAtMs",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "value.manual",
+            "columnName": "manual",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "value.error",
+            "columnName": "error",
+            "affinity": "TEXT"
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "sessionId"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_RecordingProcessing_state_queuedAtMs",
+            "unique": false,
+            "columnNames": [
+              "state",
+              "queuedAtMs"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_RecordingProcessing_state_queuedAtMs` ON `${TABLE_NAME}` (`state`, `queuedAtMs`)"
+          }
+        ],
+        "foreignKeys": [
+          {
+            "table": "RecordingSession",
+            "onDelete": "CASCADE",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "sessionId"
+            ],
+            "referencedColumns": [
+              "sessionId"
+            ]
+          }
+        ]
+      },
+      {
+        "tableName": "RecordingSession",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`sessionId` TEXT NOT NULL, `userId` TEXT NOT NULL, `startedAtMs` INTEGER NOT NULL, `endedAtMs` INTEGER, `activityKey` TEXT, `guided` INTEGER NOT NULL, `expectedRepetitions` INTEGER, `state` TEXT NOT NULL, `reason` TEXT, `cadenceUs` INTEGER, `spokenCounting` INTEGER, `firstCueDelayUs` INTEGER, `expectedActivity` TEXT, `expectedCategory` TEXT, `interruptionReason` TEXT, PRIMARY KEY(`sessionId`), FOREIGN KEY(`userId`) REFERENCES `TrainingUser`(`userId`) ON UPDATE NO ACTION ON DELETE RESTRICT )",
+        "fields": [
+          {
+            "fieldPath": "value.sessionId",
+            "columnName": "sessionId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "value.userId",
+            "columnName": "userId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "value.startedAtMs",
+            "columnName": "startedAtMs",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "value.endedAtMs",
+            "columnName": "endedAtMs",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "value.activityKey",
+            "columnName": "activityKey",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "value.guided",
+            "columnName": "guided",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "value.expectedRepetitions",
+            "columnName": "expectedRepetitions",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "value.state",
+            "columnName": "state",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "value.reason",
+            "columnName": "reason",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "value.cadenceUs",
+            "columnName": "cadenceUs",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "value.spokenCounting",
+            "columnName": "spokenCounting",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "value.firstCueDelayUs",
+            "columnName": "firstCueDelayUs",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "value.expectedActivity",
+            "columnName": "expectedActivity",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "value.expectedCategory",
+            "columnName": "expectedCategory",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "value.interruptionReason",
+            "columnName": "interruptionReason",
+            "affinity": "TEXT"
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "sessionId"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_RecordingSession_userId_startedAtMs",
+            "unique": false,
+            "columnNames": [
+              "userId",
+              "startedAtMs"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_RecordingSession_userId_startedAtMs` ON `${TABLE_NAME}` (`userId`, `startedAtMs`)"
+          }
+        ],
+        "foreignKeys": [
+          {
+            "table": "TrainingUser",
+            "onDelete": "RESTRICT",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "userId"
+            ],
+            "referencedColumns": [
+              "userId"
+            ]
+          }
+        ]
+      },
+      {
+        "tableName": "MasterRecording",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`recordingId` TEXT NOT NULL, `sessionId` TEXT NOT NULL, `filePath` TEXT NOT NULL, `createdAtMs` INTEGER NOT NULL, `durationUs` INTEGER, `frameRate` REAL, `width` INTEGER, `height` INTEGER, `device` TEXT, `camera` TEXT, `sourceState` TEXT NOT NULL, PRIMARY KEY(`recordingId`), FOREIGN KEY(`sessionId`) REFERENCES `RecordingSession`(`sessionId`) ON UPDATE NO ACTION ON DELETE CASCADE )",
+        "fields": [
+          {
+            "fieldPath": "value.recordingId",
+            "columnName": "recordingId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "value.sessionId",
+            "columnName": "sessionId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "value.filePath",
+            "columnName": "filePath",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "value.createdAtMs",
+            "columnName": "createdAtMs",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "value.durationUs",
+            "columnName": "durationUs",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "value.frameRate",
+            "columnName": "frameRate",
+            "affinity": "REAL"
+          },
+          {
+            "fieldPath": "value.width",
+            "columnName": "width",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "value.height",
+            "columnName": "height",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "value.device",
+            "columnName": "device",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "value.camera",
+            "columnName": "camera",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "value.sourceState",
+            "columnName": "sourceState",
+            "affinity": "TEXT",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "recordingId"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_MasterRecording_sessionId",
+            "unique": true,
+            "columnNames": [
+              "sessionId"
+            ],
+            "orders": [],
+            "createSql": "CREATE UNIQUE INDEX IF NOT EXISTS `index_MasterRecording_sessionId` ON `${TABLE_NAME}` (`sessionId`)"
+          }
+        ],
+        "foreignKeys": [
+          {
+            "table": "RecordingSession",
+            "onDelete": "CASCADE",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "sessionId"
+            ],
+            "referencedColumns": [
+              "sessionId"
+            ]
+          }
+        ]
+      },
+      {
+        "tableName": "LandmarkTrack",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`landmarkTrackId` TEXT NOT NULL, `recordingId` TEXT NOT NULL, `pipelineKey` TEXT NOT NULL, `pipelineVersion` TEXT NOT NULL, `configuration` TEXT NOT NULL, `filePath` TEXT NOT NULL, `createdAtMs` INTEGER NOT NULL, `state` TEXT NOT NULL, `sourceState` TEXT NOT NULL, `quality` TEXT, `sha256` TEXT, `formatId` TEXT, `formatVersion` INTEGER, PRIMARY KEY(`landmarkTrackId`), FOREIGN KEY(`recordingId`) REFERENCES `MasterRecording`(`recordingId`) ON UPDATE NO ACTION ON DELETE CASCADE )",
+        "fields": [
+          {
+            "fieldPath": "value.landmarkTrackId",
+            "columnName": "landmarkTrackId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "value.recordingId",
+            "columnName": "recordingId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "value.pipelineKey",
+            "columnName": "pipelineKey",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "value.pipelineVersion",
+            "columnName": "pipelineVersion",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "value.configuration",
+            "columnName": "configuration",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "value.filePath",
+            "columnName": "filePath",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "value.createdAtMs",
+            "columnName": "createdAtMs",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "value.state",
+            "columnName": "state",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "value.sourceState",
+            "columnName": "sourceState",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "value.quality",
+            "columnName": "quality",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "value.sha256",
+            "columnName": "sha256",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "value.formatId",
+            "columnName": "formatId",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "value.formatVersion",
+            "columnName": "formatVersion",
+            "affinity": "INTEGER"
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "landmarkTrackId"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_LandmarkTrack_recordingId",
+            "unique": false,
+            "columnNames": [
+              "recordingId"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_LandmarkTrack_recordingId` ON `${TABLE_NAME}` (`recordingId`)"
+          }
+        ],
+        "foreignKeys": [
+          {
+            "table": "MasterRecording",
+            "onDelete": "CASCADE",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "recordingId"
+            ],
+            "referencedColumns": [
+              "recordingId"
+            ]
+          }
+        ]
+      },
+      {
+        "tableName": "SessionMovement",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`movementId` TEXT NOT NULL, `sessionId` TEXT NOT NULL, `startUs` INTEGER NOT NULL, `endUs` INTEGER NOT NULL, `playbackStartUs` INTEGER NOT NULL, `playbackEndUs` INTEGER NOT NULL, `state` TEXT NOT NULL, `segmentationSource` TEXT NOT NULL, `segmentationVersion` TEXT NOT NULL, `segmentationTrackId` TEXT, `segmentationConfidence` REAL, PRIMARY KEY(`movementId`), FOREIGN KEY(`sessionId`) REFERENCES `RecordingSession`(`sessionId`) ON UPDATE NO ACTION ON DELETE CASCADE , FOREIGN KEY(`segmentationTrackId`) REFERENCES `LandmarkTrack`(`landmarkTrackId`) ON UPDATE NO ACTION ON DELETE NO ACTION DEFERRABLE INITIALLY DEFERRED)",
+        "fields": [
+          {
+            "fieldPath": "value.movementId",
+            "columnName": "movementId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "value.sessionId",
+            "columnName": "sessionId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "value.startUs",
+            "columnName": "startUs",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "value.endUs",
+            "columnName": "endUs",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "value.playbackStartUs",
+            "columnName": "playbackStartUs",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "value.playbackEndUs",
+            "columnName": "playbackEndUs",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "value.state",
+            "columnName": "state",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "value.segmentationSource",
+            "columnName": "segmentationSource",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "value.segmentationVersion",
+            "columnName": "segmentationVersion",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "value.segmentationTrackId",
+            "columnName": "segmentationTrackId",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "value.segmentationConfidence",
+            "columnName": "segmentationConfidence",
+            "affinity": "REAL"
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "movementId"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_SessionMovement_sessionId_startUs",
+            "unique": false,
+            "columnNames": [
+              "sessionId",
+              "startUs"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_SessionMovement_sessionId_startUs` ON `${TABLE_NAME}` (`sessionId`, `startUs`)"
+          },
+          {
+            "name": "index_SessionMovement_segmentationTrackId",
+            "unique": false,
+            "columnNames": [
+              "segmentationTrackId"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_SessionMovement_segmentationTrackId` ON `${TABLE_NAME}` (`segmentationTrackId`)"
+          },
+          {
+            "name": "index_SessionMovement_movementId_sessionId",
+            "unique": true,
+            "columnNames": [
+              "movementId",
+              "sessionId"
+            ],
+            "orders": [],
+            "createSql": "CREATE UNIQUE INDEX IF NOT EXISTS `index_SessionMovement_movementId_sessionId` ON `${TABLE_NAME}` (`movementId`, `sessionId`)"
+          }
+        ],
+        "foreignKeys": [
+          {
+            "table": "RecordingSession",
+            "onDelete": "CASCADE",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "sessionId"
+            ],
+            "referencedColumns": [
+              "sessionId"
+            ]
+          },
+          {
+            "table": "LandmarkTrack",
+            "onDelete": "NO ACTION",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "segmentationTrackId"
+            ],
+            "referencedColumns": [
+              "landmarkTrackId"
+            ]
+          }
+        ]
+      },
+      {
+        "tableName": "ObservationContext",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`movementId` TEXT NOT NULL, `view` TEXT NOT NULL, `nearerSide` TEXT NOT NULL, `bodyToCameraDegrees` REAL, `confidence` REAL, `evidence` TEXT NOT NULL, PRIMARY KEY(`movementId`), FOREIGN KEY(`movementId`) REFERENCES `SessionMovement`(`movementId`) ON UPDATE NO ACTION ON DELETE CASCADE )",
+        "fields": [
+          {
+            "fieldPath": "value.movementId",
+            "columnName": "movementId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "value.view",
+            "columnName": "view",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "value.nearerSide",
+            "columnName": "nearerSide",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "value.bodyToCameraDegrees",
+            "columnName": "bodyToCameraDegrees",
+            "affinity": "REAL"
+          },
+          {
+            "fieldPath": "value.confidence",
+            "columnName": "confidence",
+            "affinity": "REAL"
+          },
+          {
+            "fieldPath": "value.evidence",
+            "columnName": "evidence",
+            "affinity": "TEXT",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "movementId"
+          ]
+        },
+        "foreignKeys": [
+          {
+            "table": "SessionMovement",
+            "onDelete": "CASCADE",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "movementId"
+            ],
+            "referencedColumns": [
+              "movementId"
+            ]
+          }
+        ]
+      },
+      {
+        "tableName": "SessionEvent",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`sessionEventId` TEXT NOT NULL, `sessionId` TEXT NOT NULL, `type` TEXT NOT NULL, `timestampUs` INTEGER NOT NULL, `data` TEXT, `timingSource` TEXT NOT NULL, PRIMARY KEY(`sessionEventId`), FOREIGN KEY(`sessionId`) REFERENCES `RecordingSession`(`sessionId`) ON UPDATE NO ACTION ON DELETE CASCADE )",
+        "fields": [
+          {
+            "fieldPath": "value.sessionEventId",
+            "columnName": "sessionEventId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "value.sessionId",
+            "columnName": "sessionId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "value.type",
+            "columnName": "type",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "value.timestampUs",
+            "columnName": "timestampUs",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "value.data",
+            "columnName": "data",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "value.timingSource",
+            "columnName": "timingSource",
+            "affinity": "TEXT",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "sessionEventId"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_SessionEvent_sessionId_timestampUs",
+            "unique": false,
+            "columnNames": [
+              "sessionId",
+              "timestampUs"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_SessionEvent_sessionId_timestampUs` ON `${TABLE_NAME}` (`sessionId`, `timestampUs`)"
+          },
+          {
+            "name": "index_SessionEvent_sessionEventId_sessionId",
+            "unique": true,
+            "columnNames": [
+              "sessionEventId",
+              "sessionId"
+            ],
+            "orders": [],
+            "createSql": "CREATE UNIQUE INDEX IF NOT EXISTS `index_SessionEvent_sessionEventId_sessionId` ON `${TABLE_NAME}` (`sessionEventId`, `sessionId`)"
+          }
+        ],
+        "foreignKeys": [
+          {
+            "table": "RecordingSession",
+            "onDelete": "CASCADE",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "sessionId"
+            ],
+            "referencedColumns": [
+              "sessionId"
+            ]
+          }
+        ]
+      },
+      {
+        "tableName": "MovementSessionEvent",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`movementId` TEXT NOT NULL, `sessionEventId` TEXT NOT NULL, `sessionId` TEXT NOT NULL, PRIMARY KEY(`movementId`, `sessionEventId`), FOREIGN KEY(`movementId`, `sessionId`) REFERENCES `SessionMovement`(`movementId`, `sessionId`) ON UPDATE NO ACTION ON DELETE CASCADE , FOREIGN KEY(`sessionEventId`, `sessionId`) REFERENCES `SessionEvent`(`sessionEventId`, `sessionId`) ON UPDATE NO ACTION ON DELETE CASCADE )",
+        "fields": [
+          {
+            "fieldPath": "value.movementId",
+            "columnName": "movementId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "value.sessionEventId",
+            "columnName": "sessionEventId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "value.sessionId",
+            "columnName": "sessionId",
+            "affinity": "TEXT",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "movementId",
+            "sessionEventId"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_MovementSessionEvent_movementId_sessionId",
+            "unique": false,
+            "columnNames": [
+              "movementId",
+              "sessionId"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_MovementSessionEvent_movementId_sessionId` ON `${TABLE_NAME}` (`movementId`, `sessionId`)"
+          },
+          {
+            "name": "index_MovementSessionEvent_sessionEventId_sessionId",
+            "unique": false,
+            "columnNames": [
+              "sessionEventId",
+              "sessionId"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_MovementSessionEvent_sessionEventId_sessionId` ON `${TABLE_NAME}` (`sessionEventId`, `sessionId`)"
+          }
+        ],
+        "foreignKeys": [
+          {
+            "table": "SessionMovement",
+            "onDelete": "CASCADE",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "movementId",
+              "sessionId"
+            ],
+            "referencedColumns": [
+              "movementId",
+              "sessionId"
+            ]
+          },
+          {
+            "table": "SessionEvent",
+            "onDelete": "CASCADE",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "sessionEventId",
+              "sessionId"
+            ],
+            "referencedColumns": [
+              "sessionEventId",
+              "sessionId"
+            ]
+          }
+        ]
+      },
+      {
+        "tableName": "Label",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`labelId` TEXT NOT NULL, `machineKey` TEXT NOT NULL, `displayText` TEXT NOT NULL, `category` TEXT NOT NULL, PRIMARY KEY(`labelId`))",
+        "fields": [
+          {
+            "fieldPath": "value.labelId",
+            "columnName": "labelId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "value.machineKey",
+            "columnName": "machineKey",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "value.displayText",
+            "columnName": "displayText",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "value.category",
+            "columnName": "category",
+            "affinity": "TEXT",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "labelId"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_Label_machineKey",
+            "unique": true,
+            "columnNames": [
+              "machineKey"
+            ],
+            "orders": [],
+            "createSql": "CREATE UNIQUE INDEX IF NOT EXISTS `index_Label_machineKey` ON `${TABLE_NAME}` (`machineKey`)"
+          }
+        ]
+      },
+      {
+        "tableName": "MovementLabel",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`movementId` TEXT NOT NULL, `labelId` TEXT NOT NULL, `source` TEXT NOT NULL, PRIMARY KEY(`movementId`, `labelId`), FOREIGN KEY(`movementId`) REFERENCES `SessionMovement`(`movementId`) ON UPDATE NO ACTION ON DELETE CASCADE , FOREIGN KEY(`labelId`) REFERENCES `Label`(`labelId`) ON UPDATE NO ACTION ON DELETE RESTRICT )",
+        "fields": [
+          {
+            "fieldPath": "value.movementId",
+            "columnName": "movementId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "value.labelId",
+            "columnName": "labelId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "value.source",
+            "columnName": "source",
+            "affinity": "TEXT",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "movementId",
+            "labelId"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_MovementLabel_labelId",
+            "unique": false,
+            "columnNames": [
+              "labelId"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_MovementLabel_labelId` ON `${TABLE_NAME}` (`labelId`)"
+          }
+        ],
+        "foreignKeys": [
+          {
+            "table": "SessionMovement",
+            "onDelete": "CASCADE",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "movementId"
+            ],
+            "referencedColumns": [
+              "movementId"
+            ]
+          },
+          {
+            "table": "Label",
+            "onDelete": "RESTRICT",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "labelId"
+            ],
+            "referencedColumns": [
+              "labelId"
+            ]
+          }
+        ]
+      },
+      {
+        "tableName": "MovementAnalysis",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`analysisId` TEXT NOT NULL, `movementId` TEXT NOT NULL, `analyzerKey` TEXT NOT NULL, `analyzerVersion` TEXT NOT NULL, `landmarkTrackId` TEXT NOT NULL, `state` TEXT NOT NULL, `createdAtMs` INTEGER NOT NULL, `reason` TEXT, PRIMARY KEY(`analysisId`), FOREIGN KEY(`movementId`) REFERENCES `SessionMovement`(`movementId`) ON UPDATE NO ACTION ON DELETE CASCADE , FOREIGN KEY(`landmarkTrackId`) REFERENCES `LandmarkTrack`(`landmarkTrackId`) ON UPDATE NO ACTION ON DELETE NO ACTION DEFERRABLE INITIALLY DEFERRED)",
+        "fields": [
+          {
+            "fieldPath": "value.analysisId",
+            "columnName": "analysisId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "value.movementId",
+            "columnName": "movementId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "value.analyzerKey",
+            "columnName": "analyzerKey",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "value.analyzerVersion",
+            "columnName": "analyzerVersion",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "value.landmarkTrackId",
+            "columnName": "landmarkTrackId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "value.state",
+            "columnName": "state",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "value.createdAtMs",
+            "columnName": "createdAtMs",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "value.reason",
+            "columnName": "reason",
+            "affinity": "TEXT"
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "analysisId"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_MovementAnalysis_movementId_analyzerKey_analyzerVersion_state_createdAtMs",
+            "unique": false,
+            "columnNames": [
+              "movementId",
+              "analyzerKey",
+              "analyzerVersion",
+              "state",
+              "createdAtMs"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_MovementAnalysis_movementId_analyzerKey_analyzerVersion_state_createdAtMs` ON `${TABLE_NAME}` (`movementId`, `analyzerKey`, `analyzerVersion`, `state`, `createdAtMs`)"
+          },
+          {
+            "name": "index_MovementAnalysis_landmarkTrackId",
+            "unique": false,
+            "columnNames": [
+              "landmarkTrackId"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_MovementAnalysis_landmarkTrackId` ON `${TABLE_NAME}` (`landmarkTrackId`)"
+          }
+        ],
+        "foreignKeys": [
+          {
+            "table": "SessionMovement",
+            "onDelete": "CASCADE",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "movementId"
+            ],
+            "referencedColumns": [
+              "movementId"
+            ]
+          },
+          {
+            "table": "LandmarkTrack",
+            "onDelete": "NO ACTION",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "landmarkTrackId"
+            ],
+            "referencedColumns": [
+              "landmarkTrackId"
+            ]
+          }
+        ]
+      },
+      {
+        "tableName": "MeasurementResult",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`measurementResultId` TEXT NOT NULL, `analysisId` TEXT NOT NULL, `measurementKey` TEXT NOT NULL, `calculationVersion` TEXT NOT NULL, `valueType` TEXT NOT NULL, `numericValue` REAL, `categoricalValue` TEXT, `side` TEXT NOT NULL, `role` TEXT NOT NULL, `state` TEXT NOT NULL, `reason` TEXT, `confidence` REAL, `uncertainty` REAL, `occurrenceUs` INTEGER, `frameIndex` INTEGER, PRIMARY KEY(`measurementResultId`), FOREIGN KEY(`analysisId`) REFERENCES `MovementAnalysis`(`analysisId`) ON UPDATE NO ACTION ON DELETE CASCADE )",
+        "fields": [
+          {
+            "fieldPath": "value.measurementResultId",
+            "columnName": "measurementResultId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "value.analysisId",
+            "columnName": "analysisId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "value.measurementKey",
+            "columnName": "measurementKey",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "value.calculationVersion",
+            "columnName": "calculationVersion",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "value.valueType",
+            "columnName": "valueType",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "value.numericValue",
+            "columnName": "numericValue",
+            "affinity": "REAL"
+          },
+          {
+            "fieldPath": "value.categoricalValue",
+            "columnName": "categoricalValue",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "value.side",
+            "columnName": "side",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "value.role",
+            "columnName": "role",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "value.state",
+            "columnName": "state",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "value.reason",
+            "columnName": "reason",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "value.confidence",
+            "columnName": "confidence",
+            "affinity": "REAL"
+          },
+          {
+            "fieldPath": "value.uncertainty",
+            "columnName": "uncertainty",
+            "affinity": "REAL"
+          },
+          {
+            "fieldPath": "value.occurrenceUs",
+            "columnName": "occurrenceUs",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "value.frameIndex",
+            "columnName": "frameIndex",
+            "affinity": "INTEGER"
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "measurementResultId"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_MeasurementResult_analysisId",
+            "unique": false,
+            "columnNames": [
+              "analysisId"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_MeasurementResult_analysisId` ON `${TABLE_NAME}` (`analysisId`)"
+          },
+          {
+            "name": "index_MeasurementResult_measurementKey",
+            "unique": false,
+            "columnNames": [
+              "measurementKey"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_MeasurementResult_measurementKey` ON `${TABLE_NAME}` (`measurementKey`)"
+          }
+        ],
+        "foreignKeys": [
+          {
+            "table": "MovementAnalysis",
+            "onDelete": "CASCADE",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "analysisId"
+            ],
+            "referencedColumns": [
+              "analysisId"
+            ]
+          }
+        ]
+      },
+      {
+        "tableName": "UserBodyMeasurement",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`bodyMeasurementId` TEXT NOT NULL, `userId` TEXT NOT NULL, `type` TEXT NOT NULL, `value` REAL NOT NULL, `canonicalUnit` TEXT NOT NULL, `measuredAtMs` INTEGER NOT NULL, `source` TEXT NOT NULL, PRIMARY KEY(`bodyMeasurementId`), FOREIGN KEY(`userId`) REFERENCES `TrainingUser`(`userId`) ON UPDATE NO ACTION ON DELETE RESTRICT )",
+        "fields": [
+          {
+            "fieldPath": "value.bodyMeasurementId",
+            "columnName": "bodyMeasurementId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "value.userId",
+            "columnName": "userId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "value.type",
+            "columnName": "type",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "value.value",
+            "columnName": "value",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "value.canonicalUnit",
+            "columnName": "canonicalUnit",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "value.measuredAtMs",
+            "columnName": "measuredAtMs",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "value.source",
+            "columnName": "source",
+            "affinity": "TEXT",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "bodyMeasurementId"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_UserBodyMeasurement_userId_type_measuredAtMs",
+            "unique": false,
+            "columnNames": [
+              "userId",
+              "type",
+              "measuredAtMs"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_UserBodyMeasurement_userId_type_measuredAtMs` ON `${TABLE_NAME}` (`userId`, `type`, `measuredAtMs`)"
+          }
+        ],
+        "foreignKeys": [
+          {
+            "table": "TrainingUser",
+            "onDelete": "RESTRICT",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "userId"
+            ],
+            "referencedColumns": [
+              "userId"
+            ]
+          }
+        ]
+      },
+      {
+        "tableName": "UserCalibration",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`calibrationId` TEXT NOT NULL, `userId` TEXT NOT NULL, `type` TEXT NOT NULL, `measuredAtMs` INTEGER NOT NULL, `version` TEXT NOT NULL, `source` TEXT NOT NULL, `state` TEXT NOT NULL, `data` TEXT NOT NULL, PRIMARY KEY(`calibrationId`), FOREIGN KEY(`userId`) REFERENCES `TrainingUser`(`userId`) ON UPDATE NO ACTION ON DELETE RESTRICT )",
+        "fields": [
+          {
+            "fieldPath": "value.calibrationId",
+            "columnName": "calibrationId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "value.userId",
+            "columnName": "userId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "value.type",
+            "columnName": "type",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "value.measuredAtMs",
+            "columnName": "measuredAtMs",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "value.version",
+            "columnName": "version",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "value.source",
+            "columnName": "source",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "value.state",
+            "columnName": "state",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "value.data",
+            "columnName": "data",
+            "affinity": "TEXT",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "calibrationId"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_UserCalibration_userId_type_measuredAtMs",
+            "unique": false,
+            "columnNames": [
+              "userId",
+              "type",
+              "measuredAtMs"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_UserCalibration_userId_type_measuredAtMs` ON `${TABLE_NAME}` (`userId`, `type`, `measuredAtMs`)"
+          }
+        ],
+        "foreignKeys": [
+          {
+            "table": "TrainingUser",
+            "onDelete": "RESTRICT",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "userId"
+            ],
+            "referencedColumns": [
+              "userId"
+            ]
+          }
+        ]
+      },
+      {
+        "tableName": "AnalysisBodyMeasurement",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`analysisId` TEXT NOT NULL, `bodyMeasurementId` TEXT NOT NULL, PRIMARY KEY(`analysisId`, `bodyMeasurementId`), FOREIGN KEY(`analysisId`) REFERENCES `MovementAnalysis`(`analysisId`) ON UPDATE NO ACTION ON DELETE CASCADE , FOREIGN KEY(`bodyMeasurementId`) REFERENCES `UserBodyMeasurement`(`bodyMeasurementId`) ON UPDATE NO ACTION ON DELETE RESTRICT )",
+        "fields": [
+          {
+            "fieldPath": "value.analysisId",
+            "columnName": "analysisId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "value.bodyMeasurementId",
+            "columnName": "bodyMeasurementId",
+            "affinity": "TEXT",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "analysisId",
+            "bodyMeasurementId"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_AnalysisBodyMeasurement_bodyMeasurementId",
+            "unique": false,
+            "columnNames": [
+              "bodyMeasurementId"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_AnalysisBodyMeasurement_bodyMeasurementId` ON `${TABLE_NAME}` (`bodyMeasurementId`)"
+          }
+        ],
+        "foreignKeys": [
+          {
+            "table": "MovementAnalysis",
+            "onDelete": "CASCADE",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "analysisId"
+            ],
+            "referencedColumns": [
+              "analysisId"
+            ]
+          },
+          {
+            "table": "UserBodyMeasurement",
+            "onDelete": "RESTRICT",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "bodyMeasurementId"
+            ],
+            "referencedColumns": [
+              "bodyMeasurementId"
+            ]
+          }
+        ]
+      },
+      {
+        "tableName": "AnalysisCalibration",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`analysisId` TEXT NOT NULL, `calibrationId` TEXT NOT NULL, PRIMARY KEY(`analysisId`, `calibrationId`), FOREIGN KEY(`analysisId`) REFERENCES `MovementAnalysis`(`analysisId`) ON UPDATE NO ACTION ON DELETE CASCADE , FOREIGN KEY(`calibrationId`) REFERENCES `UserCalibration`(`calibrationId`) ON UPDATE NO ACTION ON DELETE RESTRICT )",
+        "fields": [
+          {
+            "fieldPath": "value.analysisId",
+            "columnName": "analysisId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "value.calibrationId",
+            "columnName": "calibrationId",
+            "affinity": "TEXT",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "analysisId",
+            "calibrationId"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_AnalysisCalibration_calibrationId",
+            "unique": false,
+            "columnNames": [
+              "calibrationId"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_AnalysisCalibration_calibrationId` ON `${TABLE_NAME}` (`calibrationId`)"
+          }
+        ],
+        "foreignKeys": [
+          {
+            "table": "MovementAnalysis",
+            "onDelete": "CASCADE",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "analysisId"
+            ],
+            "referencedColumns": [
+              "analysisId"
+            ]
+          },
+          {
+            "table": "UserCalibration",
+            "onDelete": "RESTRICT",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "calibrationId"
+            ],
+            "referencedColumns": [
+              "calibrationId"
+            ]
+          }
+        ]
+      },
+      {
+        "tableName": "SessionBodyMeasurement",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`sessionId` TEXT NOT NULL, `bodyMeasurementId` TEXT NOT NULL, PRIMARY KEY(`sessionId`, `bodyMeasurementId`), FOREIGN KEY(`sessionId`) REFERENCES `RecordingSession`(`sessionId`) ON UPDATE NO ACTION ON DELETE CASCADE , FOREIGN KEY(`bodyMeasurementId`) REFERENCES `UserBodyMeasurement`(`bodyMeasurementId`) ON UPDATE NO ACTION ON DELETE RESTRICT )",
+        "fields": [
+          {
+            "fieldPath": "value.sessionId",
+            "columnName": "sessionId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "value.bodyMeasurementId",
+            "columnName": "bodyMeasurementId",
+            "affinity": "TEXT",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "sessionId",
+            "bodyMeasurementId"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_SessionBodyMeasurement_bodyMeasurementId",
+            "unique": false,
+            "columnNames": [
+              "bodyMeasurementId"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_SessionBodyMeasurement_bodyMeasurementId` ON `${TABLE_NAME}` (`bodyMeasurementId`)"
+          }
+        ],
+        "foreignKeys": [
+          {
+            "table": "RecordingSession",
+            "onDelete": "CASCADE",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "sessionId"
+            ],
+            "referencedColumns": [
+              "sessionId"
+            ]
+          },
+          {
+            "table": "UserBodyMeasurement",
+            "onDelete": "RESTRICT",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "bodyMeasurementId"
+            ],
+            "referencedColumns": [
+              "bodyMeasurementId"
+            ]
+          }
+        ]
+      }
+    ],
+    "setupQueries": [
+      "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '801f0e79deb7744509942d1680b27a3c')"
+    ]
+  }
+}

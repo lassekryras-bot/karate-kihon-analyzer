@@ -26,6 +26,10 @@ class GuidedJodanSessionControllerTest {
         var recordingStartedCount = 0
         var recordingStoppedCount = 0
         val createdFiles = mutableListOf<File>()
+        val persistedCues = mutableListOf<String>()
+        var sessionIdentityEnabled = false
+        override fun currentRecordingSessionId(): String? = if (sessionIdentityEnabled && recordingStartedCount > 0) "session-$recordingStartedCount" else null
+        override fun recordSessionEvent(name: String, monotonicMs: Long) { persistedCues += name }
 
         override fun beginMeasurementSession() {
             measurementSessionActive = true
@@ -188,5 +192,83 @@ class GuidedJodanSessionControllerTest {
         assertNotNull(completedResult!!.retrospectiveResult)
         assertEquals(masterVideo.absolutePath, completedResult!!.masterVideoPath)
         assertEquals(GuidedSessionState.COMPLETE, states.last())
+    }
+
+    @Test fun persistentCompletionUsesStoredCountAndCaptureOwnerWithoutMetadataJson() {
+        val adapter = FakeSessionRecordingAdapter().apply { sessionIdentityEnabled = true }
+        var completion: GuidedSessionResult? = null
+        val controller = GuidedJodanSessionController(adapter,
+            onStateChanged = {}, onPromptChanged = {}, onStrikeChanged = {}, onSavedClipCountChanged = {},
+            onComplete = { completion = it }, onError = { error(it) }, countdownBeforeTrainingMs = 0,
+            postProcessingExecutor = { it.run() }, persistedProcessor = { id, _ -> assertEquals("session-1", id); 7 })
+        controller.start()
+        ShadowLooper.idleMainLooper(25_000, TimeUnit.MILLISECONDS)
+        controller.handleRecordingSaved(RecordingResult("master.mp4", "/master.mp4", Uri.EMPTY,
+            sessionId = "session-1", userId = "capture-owner", guided = true))
+        ShadowLooper.idleMainLooper()
+        assertEquals(7, completion?.savedClipCount)
+        assertEquals("capture-owner", completion?.userId)
+        assertEquals("session-1", completion?.sessionId)
+        assertTrue(adapter.createdFiles.isEmpty())
+        assertEquals(12, adapter.persistedCues.size)
+        assertEquals("YOI", adapter.persistedCues.first())
+        assertEquals("STOP", adapter.persistedCues.last())
+    }
+
+    @Test fun latePersistentResultCannotCompleteCancelledOrNewAttempt() {
+        val adapter = FakeSessionRecordingAdapter().apply { sessionIdentityEnabled = true }
+        val tasks = mutableListOf<Runnable>()
+        val completions = mutableListOf<GuidedSessionResult>()
+        val states = mutableListOf<GuidedSessionState>()
+        val controller = GuidedJodanSessionController(adapter,
+            onStateChanged = states::add, onPromptChanged = {}, onStrikeChanged = {}, onSavedClipCountChanged = {},
+            onComplete = completions::add, onError = { error(it) }, countdownBeforeTrainingMs = 0,
+            postProcessingExecutor = { tasks += it }, persistedProcessor = { _, _ -> 10 })
+        controller.start()
+        ShadowLooper.idleMainLooper(25_000, TimeUnit.MILLISECONDS)
+        controller.handleRecordingSaved(RecordingResult("master.mp4", "/master.mp4", Uri.EMPTY, sessionId = "session-1"))
+        controller.cancel()
+        controller.start()
+        tasks.single().run()
+        ShadowLooper.idleMainLooper()
+        assertTrue(completions.isEmpty())
+        assertTrue(states.last() != GuidedSessionState.COMPLETE)
+        controller.cancel()
+    }
+
+    @Test fun savedCallbackFromEarlierRecordingCannotEnterNewAttemptsProcessor() {
+        val adapter = FakeSessionRecordingAdapter().apply { sessionIdentityEnabled = true }
+        var processed = 0
+        val controller = GuidedJodanSessionController(adapter,
+            onStateChanged = {}, onPromptChanged = {}, onStrikeChanged = {}, onSavedClipCountChanged = {},
+            onComplete = {}, onError = { error(it) }, countdownBeforeTrainingMs = 0,
+            postProcessingExecutor = { it.run() }, persistedProcessor = { _, _ -> processed++; 10 })
+        controller.start()
+        ShadowLooper.idleMainLooper(1, TimeUnit.MILLISECONDS)
+        controller.cancel()
+        controller.start()
+        // Also reject an old saved callback during the new attempt's Ready/countdown phase.
+        controller.handleRecordingSaved(RecordingResult("old.mp4", "/old.mp4", Uri.EMPTY, sessionId = "session-1", guided = true))
+        assertEquals(0, processed)
+        ShadowLooper.idleMainLooper(1, TimeUnit.MILLISECONDS)
+        assertEquals("session-2", adapter.currentRecordingSessionId())
+        controller.handleRecordingSaved(RecordingResult("old.mp4", "/old.mp4", Uri.EMPTY, sessionId = "session-1", guided = true))
+        ShadowLooper.idleMainLooper()
+        assertEquals(0, processed)
+        controller.cancel()
+    }
+
+    @Test fun persistenceFailureStopsRecordingWithoutWritingLegacySessionJson() {
+        val adapter = FakeSessionRecordingAdapter()
+        val controller = GuidedJodanSessionController(adapter,
+            onStateChanged = {}, onPromptChanged = {}, onStrikeChanged = {}, onSavedClipCountChanged = {},
+            onComplete = {}, onError = {}, countdownBeforeTrainingMs = 0,
+            persistedProcessor = { _, _ -> 0 })
+        controller.start()
+        ShadowLooper.idleMainLooper(1, TimeUnit.MILLISECONDS)
+        controller.handleRecordingError("Session cue could not be saved")
+        assertEquals(1, adapter.recordingStoppedCount)
+        assertFalse(adapter.measurementSessionActive)
+        assertTrue(adapter.createdFiles.isEmpty())
     }
 }

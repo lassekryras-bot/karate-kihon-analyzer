@@ -117,6 +117,7 @@ import dk.lasse.karatecliprecorder.learning.PunchHeightVoiceCoach
 import dk.lasse.karatecliprecorder.learning.RandomAudioSampleSelector
 import dk.lasse.karatecliprecorder.learning.ReadyOsuSelfieCamera
 import dk.lasse.karatecliprecorder.learning.ReadyOsuSelfieCameraFailure
+import dk.lasse.karatecliprecorder.sharedcapture.PersistedCaptureResult
 import dk.lasse.karatecliprecorder.learning.ShortVoiceCommand
 import dk.lasse.karatecliprecorder.learning.ShortVoiceCommandMatcher
 import dk.lasse.karatecliprecorder.learning.ShortVoiceRecognitionConfig
@@ -255,6 +256,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var osuSampleSelector: RandomAudioSampleSelector
     private var readyOsuSelfieCamera: ReadyOsuSelfieCamera? = null
     private var readyOsuSelfieBitmap: Bitmap? = null
+    private var readyOsuCaptureResult: PersistedCaptureResult? = null
     private lateinit var osuMeaningUseController: OsuMeaningUseController
     private lateinit var readyOsuController: ReadyOsuController
     private lateinit var stopCountController: StopCountController
@@ -503,6 +505,7 @@ class MainActivity : AppCompatActivity() {
             onHome = ::showHomeUi,
             onTrain = ::showTrainUi,
             onSettings = ::showSettingsUi,
+            onRecordings = { startActivity(android.content.Intent(this, dk.lasse.karatecliprecorder.recordings.RecordingsActivity::class.java)) },
         ).apply {
             visibility = View.GONE
         }
@@ -514,6 +517,9 @@ class MainActivity : AppCompatActivity() {
             addView(learnScreen)
             addView(settingsScreen)
             addView(progressScreen)
+            addView(dk.lasse.karatecliprecorder.recordings.QueueStatusView(this@MainActivity), FrameLayout.LayoutParams(-2, -2, Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL).apply {
+                bottomMargin = ((AppBottomNavigationView.BASE_HEIGHT_DP + 12) * resources.displayMetrics.density).toInt()
+            })
         }
         setContentView(appRoot)
         trainingOrderPlayer = SoundFileTrainingOrderPlayer(this)
@@ -548,13 +554,20 @@ class MainActivity : AppCompatActivity() {
                 }
             }
         })
-        if (savedInstanceState?.getString(STATE_APP_DESTINATION) == AppDestination.SETTINGS.name) {
+        if (intent.getBooleanExtra("open_performance", false)) {
+            showProgressUi()
+        } else if (savedInstanceState?.getString(STATE_APP_DESTINATION) == AppDestination.SETTINGS.name) {
             showSettingsUi()
         } else if (savedInstanceState?.getString(STATE_APP_DESTINATION) == AppDestination.PROGRESS.name) {
             showProgressUi()
         } else if (savedInstanceState?.getString(STATE_APP_DESTINATION) == AppDestination.TRAIN.name) {
             showTrainUi()
         }
+    }
+
+    override fun onNewIntent(intent: android.content.Intent) {
+        super.onNewIntent(intent)
+        if (intent.getBooleanExtra("open_performance", false)) showProgressUi()
     }
 
     private fun showMeasurementWiki() {
@@ -583,6 +596,10 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun handleSkillCoachAction(action: SkillCoachAction) {
+        if (action == SkillCoachAction.RECORD_AND_ANALYZE) {
+            startActivity(android.content.Intent(this, dk.lasse.karatecliprecorder.assisted.AssistedCaptureActivity::class.java))
+            return
+        }
         val destination = when (action) {
             SkillCoachAction.RECORD_MOVEMENTS -> "Record movements"
             SkillCoachAction.TECHNIQUE_REVIEW -> "Technique Review"
@@ -830,7 +847,9 @@ class MainActivity : AppCompatActivity() {
                     .put("activityCompleted", true)
                     .put("voiceVerified", presentation.state.voiceVerified)
                     .put("selfieCaptured", presentation.state.selfieCaptured)
-                    .put("selfiePersisted", false)
+                    .put("selfiePersisted", readyOsuCaptureResult?.mediaFinalized == true)
+                    .put("captureId", readyOsuCaptureResult?.captureId)
+                    .put("captureOutcome", readyOsuCaptureResult?.outcome?.name)
                     .put("attemptCount", presentation.state.attempts)
                     .toString(),
             ))
@@ -888,6 +907,7 @@ class MainActivity : AppCompatActivity() {
             context = this,
             lifecycleOwner = this,
             previewView = screen.cameraPreview,
+            userId = { profileRepository.activeProfile().id },
             onReady = {
                 if (readyOsuController.state.phase == ReadyOsuPhase.PREPARING_CAMERA) {
                     playReadyPromptAndListen()
@@ -1004,7 +1024,7 @@ class MainActivity : AppCompatActivity() {
         readyOsuController.start()
     }
 
-    private fun handleReadyOsuSelfieCaptured(bitmap: Bitmap) {
+    private fun handleReadyOsuSelfieCaptured(bitmap: Bitmap, capture: PersistedCaptureResult) {
         recordReadyOsuDiagnostic("selfie_captured")
         if (readyOsuController.state.phase != ReadyOsuPhase.CAPTURING || readyOsuScreen == null) {
             bitmap.recycle()
@@ -1012,6 +1032,7 @@ class MainActivity : AppCompatActivity() {
         }
         clearReadyOsuSelfie()
         readyOsuSelfieBitmap = bitmap
+        readyOsuCaptureResult = capture
         readyOsuScreen?.setSelfie(bitmap)
         stopReadyOsuSelfieCamera()
         readyOsuController.selfieCaptured()
@@ -1039,6 +1060,7 @@ class MainActivity : AppCompatActivity() {
             if (!bitmap.isRecycled) bitmap.recycle()
         }
         readyOsuSelfieBitmap = null
+        readyOsuCaptureResult = null
     }
 
     private fun exitReadyOsu() {
@@ -1506,10 +1528,10 @@ class MainActivity : AppCompatActivity() {
     private fun confirmClearTrainingHistory(profile: dk.lasse.karatecliprecorder.profile.Profile) {
         AlertDialog.Builder(this)
             .setTitle("Clear ${profile.name}'s training history?")
-            .setMessage("This permanently removes this profile's session history and profile-owned recordings. Learning progress, measurements, calibration and other profiles stay. Older shared recordings will be kept because their owner is unknown. This cannot be undone.")
+            .setMessage("This permanently removes this profile's recordings and saved practice summaries. Movement measurements, pose data, learning progress, body measurements and calibrations stay. Older shared recordings will be kept because their owner is unknown. This cannot be undone.")
             .setNegativeButton("Cancel", null)
             .setPositiveButton("Clear") { _, _ ->
-                punchHeightStorageExecutor.execute {
+                dk.lasse.karatecliprecorder.training.TrainingServices.get(this).processingExecutor.execute {
                     val result = TrainingHistoryStore(this).clear(profile.id)
                     runOnMainThread {
                         if (result.succeeded) profileRepository.clearTrainingSessions(profile.id)
@@ -2068,13 +2090,16 @@ class MainActivity : AppCompatActivity() {
         findYourWeaponController = FindYourWeaponSessionController(
             onStateChanged = ::updateFindYourWeaponState,
         )
+        val training = dk.lasse.karatecliprecorder.training.TrainingServices.get(this)
         sessionController = GuidedJodanSessionController(
+            postProcessingExecutor = training.processingExecutor,
+            persistedProcessor = { id, progress -> training.processor().process(id, progress) },
             recordingAdapter = adapter,
             videoPoseProcessor = dk.lasse.karatecliprecorder.mediapipeposeadapter.SequentialVideoPoseDecoder(this),
             onStateChanged = ::updateGuidedState,
             onPromptChanged = { prompt -> currentCountText.text = "Count: $prompt" },
             onStrikeChanged = ::showCurrentStrike,
-            onSavedClipCountChanged = { savedCount -> savedClipText.text = "Saved clips: $savedCount / 10" },
+            onSavedClipCountChanged = { savedCount -> savedClipText.text = "$savedCount movements found" },
             onComplete = ::showSessionComplete,
             onError = { message -> metadataPathText.text = "Error: $message" },
             captureProfile = adapter.selectedCaptureProfile,
@@ -3088,6 +3113,8 @@ class MainActivity : AppCompatActivity() {
     }
 
     override fun onStop() {
+        sessionController?.cancel()
+        recordingAdapter?.stopRecording()
         if (cameraSetupActive) closeCameraSetupSession()
         if (punchHeightActive) cancelPunchHeightSession()
         val readyOsuWasInFlight = readyOsuScreen != null && readyOsuController.state.phase in setOf(
@@ -3572,10 +3599,18 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun handleSavedClip(result: RecordingResult) {
-        if (latestGuidedState == GuidedSessionState.RECORDING || latestGuidedState == GuidedSessionState.SAVING) {
+        if (result.guided || latestGuidedState == GuidedSessionState.RECORDING || latestGuidedState == GuidedSessionState.SAVING) {
             sessionController?.handleRecordingSaved(result)
         } else {
-            savedClipText.text = "Last saved clip: ${result.fileName}\nPath: ${result.absolutePath}\nURI: ${result.uri}"
+            savedClipText.text = "Recording saved. Analyzing movements..."
+            val id = result.sessionId ?: return
+            val training = dk.lasse.karatecliprecorder.training.TrainingServices.get(this)
+            training.submit({ training.processor().process(id) }) { processed ->
+                if (isDestroyed) return@submit
+                savedClipText.text = processed.fold(
+                    onSuccess = { "$it movements found" },
+                    onFailure = { "Recording saved. Analysis is incomplete: ${it.message}" })
+            }
         }
     }
 
@@ -3601,7 +3636,10 @@ class MainActivity : AppCompatActivity() {
 
     private fun showSessionComplete(result: GuidedSessionResult) {
         val retro = result.retrospectiveResult
-        if (retro != null) {
+        if (result.sessionId != null) {
+            savedClipText.text = "${result.savedClipCount} movements found"
+            metadataPathText.text = "Master: ${java.io.File(result.masterVideoPath.orEmpty()).name}"
+        } else if (retro != null) {
             savedClipText.text = "Movements detected: ${retro.detectedMovementCount} / ${result.expectedClipCount}"
             metadataPathText.text = "Master: ${java.io.File(result.masterVideoPath.orEmpty()).name}\nMetadata: ${result.metadataPath}"
         } else {
@@ -3612,17 +3650,18 @@ class MainActivity : AppCompatActivity() {
         if (result.completed) {
             currentCountText.text = "Count: Session complete"
             profileRepository.saveTrainingSession(TrainingSession(
-                profileId = profileRepository.activeProfile().id,
+                profileId = result.userId ?: profileRepository.activeProfile().id,
                 mode = TrainingMode.PRACTICE,
                 skillOrActivityId = "guided_jodan_session",
                 completedAt = System.currentTimeMillis(),
                 resultPayload = result.metadataPath,
             ))
-            profileRepository.saveActiveLearningProgress(
-                LearningPathId.JODAN_PUNCH.name,
-                "step-4",
-                LearningStatus.COMPLETED,
-            )
+            profileRepository.saveLearningProgress(dk.lasse.karatecliprecorder.profile.LearningProgress(
+                profileId = result.userId ?: profileRepository.activeProfile().id,
+                learningPathId = LearningPathId.JODAN_PUNCH.name,
+                activityId = "step-4", status = LearningStatus.COMPLETED,
+                completedAt = System.currentTimeMillis(),
+            ))
         }
     }
 

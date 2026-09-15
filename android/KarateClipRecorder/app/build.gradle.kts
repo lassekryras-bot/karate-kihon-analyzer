@@ -3,6 +3,8 @@ import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
+    id("com.google.devtools.ksp")
+    id("androidx.room")
 }
 
 android {
@@ -15,6 +17,7 @@ android {
         targetSdk = 35
         versionCode = 1
         versionName = "0.1.0"
+        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
     compileOptions {
@@ -25,7 +28,11 @@ android {
     testOptions {
         unitTests.isIncludeAndroidResources = true
     }
+    // Robolectric loads the tested variant's assets; release APKs do not include schemas.
+    sourceSets.getByName("debug").assets.srcDir("schemas")
 }
+
+room { schemaDirectory("$projectDir/schemas") }
 
 kotlin {
     compilerOptions {
@@ -36,6 +43,13 @@ kotlin {
 val cameraxVersion = "1.4.1"
 
 dependencies {
+    implementation("androidx.work:work-runtime-ktx:2.10.1")
+    implementation("androidx.room:room-runtime:2.7.2")
+    ksp("androidx.room:room-compiler:2.7.2")
+    testImplementation("androidx.room:room-testing:2.7.2")
+    androidTestImplementation("androidx.room:room-testing:2.7.2")
+    androidTestImplementation("androidx.test:runner:1.6.2")
+    androidTestImplementation("androidx.test.ext:junit:1.2.1")
     implementation(project(":karate-analyzer-core"))
     implementation(project(":mediapipe-hand-adapter"))
     implementation(project(":mediapipe-pose-adapter"))

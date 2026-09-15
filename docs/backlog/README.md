@@ -20,6 +20,12 @@ When starting work on a task, first verify the current implementation. Do not as
 
 ## Open tasks
 
+- [Shared Camera Capture backend](shared-camera-capture-backend.md) — implemented locally for shared video/photo capture; physical-device acceptance pending.
+
+- [Record & Analyze assisted capture](record-and-analyze-assisted-capture.md) — all three bundled slices implemented locally (capture, durable queue, Performance browser); physical acceptance pending.
+
+- [Karate training database foundation](karate-training-database.md) — Room foundation and pipeline integration in local source; physical-device acceptance remains pending.
+
 - [Osu meaning illustration assets](osu-meaning-illustrations.md) — replace the completed lesson’s semantic icon placeholders with approved recurring-character artwork.
 - [Body conditioning / knuckle push-up learning path](body-conditioning-knuckle-pushup-learning-path.md) — later progression that separates knuckle conditioning from the basic strength learning path.
 

@@ -23,6 +23,7 @@ class ProgressScreenView(
     onHome: () -> Unit,
     onTrain: () -> Unit,
     onSettings: () -> Unit,
+    private val onRecordings: () -> Unit = {},
 ) : FrameLayout(context) {
     private val content = LinearLayout(context).apply { orientation = LinearLayout.VERTICAL }
     private val mainHeader = MainPageHeader(
@@ -64,6 +65,11 @@ class ProgressScreenView(
     private fun renderHeaderAndSummary(onProfile: () -> Unit) {
         content.removeAllViews()
         mainHeader.setSubtitle("Track your technique over time")
+        content.addView(SettingsSectionView(context, "RECORDINGS", first = true).apply {
+            addRow(SettingsRowView(context, AppIcon.KARATE, "Recordings", "Recent recordings and calendar").apply {
+                configureAsNavigation(onClick = onRecordings)
+            })
+        })
         content.addView(SettingsSectionView(context, "MEASUREMENTS", first = true).apply {
             addRow(SettingsRowView(context, AppIcon.KARATE, "Measurement wiki", "Understand your technique measurements").apply {
                 configureAsNavigation(onClick = onWiki)

@@ -1,5 +1,23 @@
 # Karate Clip Recorder Android MVP
 
+Skill Coach → Record & Analyze now provides assisted touch capture, video-only
+MP4s and a durable serial Movement Landmark Stream queue. Performance → Recordings
+provides recent history, a filtered month calendar, playback, retry and confirmed
+deletion. See [assisted capture](../../docs/record-and-analyze-assisted-capture-v1.md).
+Physical-device acceptance is pending.
+
+Video capture and the Ready? — Osu selfie now share one CameraX backend and one
+Room-backed persistence coordinator. Callers provide a typed video/photo request;
+successful finalization returns durable capture/session identity. See the
+[shared capture implementation](../../docs/shared-camera-capture-backend.md).
+
+Current recording/storage architecture is documented in
+[Android training evidence database](../../docs/app-training-database.md).
+The app now records a continuous master video and stores structured session,
+movement and analysis evidence in Room, with dense landmarks in separate files.
+The fixed-duration clips and session-JSON descriptions below are historical MVP
+notes, not the current recording contract.
+
 This folder contains the Android phone milestone for the Karate Clip Recorder. It is a standalone Kotlin/Gradle Android project that proves the CameraX preview and fixed-duration recording path for guided kihon capture.
 
 ## What the guided Jodan session does

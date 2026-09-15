@@ -16,4 +16,6 @@ data class GuidedSessionResult(
     val completed: Boolean,
     val masterVideoPath: String? = null,
     val retrospectiveResult: RetrospectiveSessionResult? = null,
+    val sessionId: String? = null,
+    val userId: String? = null,
 )

@@ -4,168 +4,126 @@ import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.Matrix
-import androidx.camera.core.CameraSelector
-import androidx.camera.core.ImageCapture
-import androidx.camera.core.ImageCaptureException
-import androidx.camera.core.ImageProxy
-import androidx.camera.core.Preview
-import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.view.PreviewView
-import androidx.core.content.ContextCompat
 import androidx.lifecycle.LifecycleOwner
-import java.io.IOException
-import java.util.concurrent.ExecutorService
-import java.util.concurrent.Executors
+import dk.lasse.karatecliprecorder.sharedcapture.*
+import dk.lasse.karatecliprecorder.training.*
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicLong
 
-/** Front-camera runner for the hands-free Ready? — Osu selfie attempt. */
+/** Activity-specific voice orchestration over the same backend and persistence used by video capture. */
 class ReadyOsuSelfieCamera(
     context: Context,
-    private val lifecycleOwner: LifecycleOwner,
-    private val previewView: PreviewView,
+    lifecycleOwner: LifecycleOwner,
+    previewView: PreviewView,
+    private val userId: () -> String,
     private val onReady: () -> Unit,
-    private val onCaptured: (Bitmap) -> Unit,
+    private val onCaptured: (Bitmap, PersistedCaptureResult) -> Unit,
     private val onFailure: (ReadyOsuSelfieCameraFailure) -> Unit,
 ) : AutoCloseable {
     private val appContext = context.applicationContext
-    private val mainExecutor = ContextCompat.getMainExecutor(context)
-    private val captureExecutor: ExecutorService = Executors.newSingleThreadExecutor()
+    private val services = TrainingServices.get(context)
+    private val persistence = CapturePersistenceCoordinator(services)
+    private val backend = SharedCameraCaptureBackend(context, lifecycleOwner, previewView)
+    private val request = SharedCaptureRequests.readyOsuSelfie()
     private val generation = AtomicLong(0L)
     private val closed = AtomicBoolean(false)
-    private var cameraProvider: ProcessCameraProvider? = null
-    private var preview: Preview? = null
-    private var imageCapture: ImageCapture? = null
+    private var ready = false
+    private var capturePending = false
+    private var interrupted = false
+    private var lease: AutoCloseable? = null
 
     fun start() {
         if (closed.get()) return
-        val requestGeneration = generation.incrementAndGet()
-        val providerFuture = ProcessCameraProvider.getInstance(appContext)
-        providerFuture.addListener({
-            if (!isCurrent(requestGeneration)) return@addListener
-            try {
-                val provider = providerFuture.get()
-                if (!provider.hasCamera(CameraSelector.DEFAULT_FRONT_CAMERA)) {
-                    onFailure(ReadyOsuSelfieCameraFailure.FRONT_CAMERA_UNAVAILABLE)
-                    return@addListener
-                }
-                val nextPreview = Preview.Builder().build().also {
-                    it.setSurfaceProvider(previewView.surfaceProvider)
-                }
-                val nextCapture = ImageCapture.Builder()
-                    .setCaptureMode(ImageCapture.CAPTURE_MODE_MINIMIZE_LATENCY)
-                    .build()
-                    .also { capture ->
-                        previewView.display?.rotation?.let { capture.targetRotation = it }
-                    }
-
-                provider.unbindAll()
-                provider.bindToLifecycle(
-                    lifecycleOwner,
-                    CameraSelector.DEFAULT_FRONT_CAMERA,
-                    nextPreview,
-                    nextCapture,
-                )
-                if (!isCurrent(requestGeneration)) {
-                    provider.unbind(nextPreview, nextCapture)
-                    return@addListener
-                }
-                cameraProvider = provider
-                preview = nextPreview
-                imageCapture = nextCapture
-                onReady()
-            } catch (_: Throwable) {
-                if (isCurrent(requestGeneration)) onFailure(ReadyOsuSelfieCameraFailure.FRONT_CAMERA_UNAVAILABLE)
-            }
-        }, mainExecutor)
+        val attempt = generation.incrementAndGet()
+        backend.bind(request,
+            onReady = {
+                if (current(attempt)) { ready = true; onReady() }
+            },
+            onError = {
+                if (current(attempt)) onFailure(ReadyOsuSelfieCameraFailure.FRONT_CAMERA_UNAVAILABLE)
+            })
     }
 
     fun capture() {
-        val capture = imageCapture
-        if (capture == null || closed.get()) {
+        if (!ready || capturePending || closed.get()) {
             onFailure(ReadyOsuSelfieCameraFailure.CAPTURE_FAILED)
             return
         }
-        val requestGeneration = generation.get()
-        capture.takePicture(captureExecutor, object : ImageCapture.OnImageCapturedCallback() {
-            override fun onCaptureSuccess(image: ImageProxy) {
-                val bitmap = try {
-                    image.toMirroredUprightBitmap()
-                        ?: throw IOException("The captured selfie could not be decoded.")
-                } catch (_: Throwable) {
-                    null
-                } finally {
-                    image.close()
+        capturePending = true
+        val attempt = generation.get()
+        lease = ProcessingCoordinator.reserveCapture()
+        val blocked = ProcessingPolicy.recordingBlock(
+            ProcessingPolicy.snapshot(appContext), ProcessingPreferences(appContext).minimumBattery)
+        if (blocked != null) {
+            capturePending = false
+            finishLease()
+            onFailure(ReadyOsuSelfieCameraFailure.CAPTURE_FAILED)
+            return
+        }
+        services.submit({
+            ProcessingCoordinator.awaitCapturePriority()
+            persistence.prepare(request, userId(), "front;voice_triggered;shared_backend")
+        }) { preparedResult ->
+            val prepared = preparedResult.getOrNull()
+            if (prepared == null) {
+                finishLease()
+                capturePending = false
+                if (current(attempt)) onFailure(ReadyOsuSelfieCameraFailure.CAPTURE_FAILED)
+                return@submit
+            }
+            if (!current(attempt)) {
+                services.submit({ persistence.cancelPrepared(prepared, "capture_page_destroyed") }) {
+                    finishLease(); capturePending = false
                 }
-                mainExecutor.execute {
-                    if (!isCurrent(requestGeneration)) {
-                        bitmap?.recycle()
-                    } else if (bitmap == null) {
-                        onFailure(ReadyOsuSelfieCameraFailure.CAPTURE_FAILED)
-                    } else {
-                        onCaptured(bitmap)
+                return@submit
+            }
+            backend.capturePhoto(prepared.file,
+                onSaved = { finalizePhoto(prepared, attempt) },
+                onError = { failure ->
+                    services.submit({ persistence.finalize(prepared, CaptureOutcome.FAILED, failure = failure) }) {
+                        finishLease(); capturePending = false
+                        if (current(attempt)) onFailure(ReadyOsuSelfieCameraFailure.CAPTURE_FAILED)
                     }
-                }
-            }
+                })
+        }
+    }
 
-            override fun onError(exception: ImageCaptureException) {
-                mainExecutor.execute {
-                    if (isCurrent(requestGeneration)) onFailure(ReadyOsuSelfieCameraFailure.CAPTURE_FAILED)
-                }
+    private fun finalizePhoto(prepared: PreparedCapture, attempt: Long) {
+        val source = BitmapFactory.decodeFile(prepared.file.absolutePath)
+        if (source == null) {
+            services.submit({ persistence.finalize(prepared, CaptureOutcome.FAILED, failure = "Finalized photo could not be decoded") }) {
+                finishLease(); capturePending = false
+                if (current(attempt)) onFailure(ReadyOsuSelfieCameraFailure.CAPTURE_FAILED)
             }
-        })
+            return
+        }
+        val mirrored = Bitmap.createBitmap(source, 0, 0, source.width, source.height,
+            Matrix().apply { postScale(-1f, 1f) }, true).also { if (it !== source) source.recycle() }
+        services.submit({
+            persistence.finalize(prepared, if (interrupted) CaptureOutcome.INTERRUPTED else CaptureOutcome.COMPLETED,
+                width = mirrored.width, height = mirrored.height)
+        }) { result ->
+            finishLease(); capturePending = false
+            val persisted = result.getOrNull()
+            if (persisted == null || !persisted.mediaFinalized || !current(attempt)) {
+                mirrored.recycle()
+                if (current(attempt)) onFailure(ReadyOsuSelfieCameraFailure.CAPTURE_FAILED)
+            } else onCaptured(mirrored, persisted)
+        }
     }
 
     override fun close() {
         if (!closed.compareAndSet(false, true)) return
+        interrupted = capturePending
         generation.incrementAndGet()
-        val provider = cameraProvider
-        val boundPreview = preview
-        val boundCapture = imageCapture
-        if (provider != null && boundPreview != null && boundCapture != null) {
-            runCatching { provider.unbind(boundPreview, boundCapture) }
-        }
-        preview = null
-        imageCapture = null
-        cameraProvider = null
-        captureExecutor.shutdownNow()
+        ready = false
+        backend.close()
+        finishLease()
     }
 
-    private fun isCurrent(requestGeneration: Long) =
-        !closed.get() && generation.get() == requestGeneration
-
-    private fun ImageProxy.toMirroredUprightBitmap(): Bitmap? {
-        val sourceBuffer = planes.firstOrNull()?.buffer ?: return null
-        val buffer = sourceBuffer.duplicate().apply { rewind() }
-        val bytes = ByteArray(buffer.remaining())
-        buffer.get(bytes)
-        val decoded = BitmapFactory.decodeByteArray(bytes, 0, bytes.size) ?: return null
-        val upright = if (imageInfo.rotationDegrees == 0) {
-            decoded
-        } else {
-            Bitmap.createBitmap(
-                decoded,
-                0,
-                0,
-                decoded.width,
-                decoded.height,
-                Matrix().apply { postRotate(imageInfo.rotationDegrees.toFloat()) },
-                true,
-            ).also { if (it !== decoded) decoded.recycle() }
-        }
-        return Bitmap.createBitmap(
-            upright,
-            0,
-            0,
-            upright.width,
-            upright.height,
-            Matrix().apply { postScale(-1f, 1f) },
-            true,
-        ).also { if (it !== upright) upright.recycle() }
-    }
+    private fun finishLease() { lease?.close(); lease = null }
+    private fun current(attempt: Long) = !closed.get() && generation.get() == attempt
 }
 
-enum class ReadyOsuSelfieCameraFailure {
-    FRONT_CAMERA_UNAVAILABLE,
-    CAPTURE_FAILED,
-}
+enum class ReadyOsuSelfieCameraFailure { FRONT_CAMERA_UNAVAILABLE, CAPTURE_FAILED }

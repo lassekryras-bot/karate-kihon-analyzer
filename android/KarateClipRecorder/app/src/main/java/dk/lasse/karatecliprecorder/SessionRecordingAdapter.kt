@@ -10,6 +10,7 @@ interface SessionRecordingAdapter {
     fun endMeasurementSession()
     fun startRecording(customName: String? = null)
     fun stopRecording()
+    fun recordSessionEvent(name: String, monotonicMs: Long) {}
+    fun currentRecordingSessionId(): String? = null
     fun createGuidedSessionFile(fileName: String): File
 }
-

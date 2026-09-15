@@ -9,16 +9,19 @@ class ProfileRepository(
     private val preferences: AppPreferences,
 ) {
     private val database = ProfileDatabase(context)
+    private val training = dk.lasse.karatecliprecorder.training.TrainingServices.get(context)
     private val listeners = linkedSetOf<(Profile) -> Unit>()
 
     init {
         ensureDefaultProfile()
+        database.profiles().forEach { training.archiveProfile(it, database.calibrations(it.id)) }
     }
 
     fun listProfiles(): List<Profile> = database.profiles()
 
     fun createProfile(profile: Profile): Profile {
         database.insertProfile(profile.copy(name = profile.name.trim()))
+        training.archiveProfile(profile)
         if (preferences.activeProfileId == null) preferences.activeProfileId = profile.id
         notifyActiveChanged()
         return profile
@@ -32,6 +35,7 @@ class ProfileRepository(
             updatedAt = System.currentTimeMillis(),
         )
         database.updateProfile(updated)
+        training.archiveProfile(updated)
         if (updated.id == activeProfile().id) notifyActiveChanged()
         return updated
     }
@@ -127,6 +131,7 @@ class ProfileRepository(
 
     fun saveCalibration(calibration: Calibration) {
         database.upsertCalibration(calibration)
+        database.profile(calibration.profileId)?.let { training.archiveProfile(it, listOf(calibration)) }
         if (calibration.profileId == activeProfile().id) notifyActiveChanged()
     }
 

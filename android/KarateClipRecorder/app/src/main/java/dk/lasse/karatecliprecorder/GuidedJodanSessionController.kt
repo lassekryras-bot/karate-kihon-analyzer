@@ -38,6 +38,7 @@ class GuidedJodanSessionController(
     var captureProfile: SelectedCaptureProfile? = null,
     private val countdownBeforeTrainingMs: Long = DEFAULT_COUNTDOWN_BEFORE_TRAINING_MS,
     private val postProcessingExecutor: Executor = Executors.newSingleThreadExecutor(),
+    private val persistedProcessor: ((String, (Float, Long) -> Unit) -> Int)? = null,
 ) {
     private val handler = Handler(Looper.getMainLooper())
     private val plan = createPlan()
@@ -49,9 +50,12 @@ class GuidedJodanSessionController(
     private var currentPlanIndex = 0
     private var running = false
     private var cancelled = false
+    private var generation = 0L
+    private var expectedRecordingSessionId: String? = null
 
     fun start() {
         if (running) return
+        generation++
         recordingAdapter.beginMeasurementSession()
         running = true
         cancelled = false
@@ -61,6 +65,7 @@ class GuidedJodanSessionController(
         cueEvents.clear()
         sessionStartMonotonicMs = 0L
         masterRecordingResult = null
+        expectedRecordingSessionId = null
         onSavedClipCountChanged(0)
         onStrikeChanged(null)
         onStateChanged(GuidedSessionState.READY)
@@ -71,6 +76,7 @@ class GuidedJodanSessionController(
     fun cancel() {
         if (!running) return
         cancelled = true
+        generation++
         running = false
         handler.removeCallbacksAndMessages(null)
         recordingAdapter.stopRecording()
@@ -81,8 +87,41 @@ class GuidedJodanSessionController(
     }
 
     fun handleRecordingSaved(result: RecordingResult) {
+        if (result.sessionId != null && result.sessionId != expectedRecordingSessionId) return
         masterRecordingResult = result
         if (!running || cancelled) return
+
+        val sessionId = result.sessionId
+        val persistent = persistedProcessor
+        if (sessionId != null && persistent != null) {
+            val attempt = generation
+            onStateChanged(GuidedSessionState.ANALYZING)
+            onPromptChanged("Analyzing practice session...")
+            postProcessingExecutor.execute {
+                val processed = runCatching { persistent(sessionId) { fraction, _ ->
+                    handler.post { if (running && !cancelled && generation == attempt)
+                        onPromptChanged("Analyzing movements... ${(fraction * 100).toInt()}%") }
+                } }
+                handler.post {
+                    if (!running || cancelled || generation != attempt) return@post
+                    running = false
+                    recordingAdapter.endMeasurementSession()
+                    handler.removeCallbacksAndMessages(null)
+                    processed.fold(onSuccess = { count ->
+                        onSavedClipCountChanged(count)
+                        onStateChanged(GuidedSessionState.COMPLETE)
+                        onPromptChanged("$count movements found")
+                        onComplete(GuidedSessionResult(plan.size, count, "training-session:$sessionId", true,
+                            masterVideoPath = result.absolutePath, sessionId = sessionId, userId = result.userId))
+                    }, onFailure = { error ->
+                        onStateChanged(GuidedSessionState.FAILED)
+                        onPromptChanged("Recording saved. Analysis is incomplete.")
+                        onError(error.message ?: "Session processing failed")
+                    })
+                }
+            }
+            return
+        }
 
         val processor = videoPoseProcessor
         if (processor == null) {
@@ -136,13 +175,15 @@ class GuidedJodanSessionController(
     fun handleRecordingError(message: String) {
         if (!running) return
         running = false
+        recordingAdapter.stopRecording()
+        recordingAdapter.endMeasurementSession()
         activePlan?.let { clipResults.add(GuidedClipResult(it, null)) }
         activePlan = null
         handler.removeCallbacksAndMessages(null)
         onStateChanged(GuidedSessionState.FAILED)
         onPromptChanged("Session failed")
         onError(message)
-        finishSession(completed = false, masterResult = null, retroResult = null)
+        if (persistedProcessor == null) finishSession(completed = false, masterResult = null, retroResult = null)
     }
 
     private fun showYoi() {
@@ -152,8 +193,16 @@ class GuidedJodanSessionController(
 
         // Start continuous master video recording
         val masterFileName = "master_guided_jodan_${System.currentTimeMillis()}"
+        val previousSessionId = recordingAdapter.currentRecordingSessionId()
         recordingAdapter.startRecording(masterFileName)
+        if (!running || cancelled) return
+        expectedRecordingSessionId = recordingAdapter.currentRecordingSessionId()
+        if (expectedRecordingSessionId != null && expectedRecordingSessionId == previousSessionId) {
+            handleRecordingError("The previous recording is still finishing. Start a new session after it is saved.")
+            return
+        }
         sessionStartMonotonicMs = SystemClock.elapsedRealtime()
+        recordingAdapter.recordSessionEvent("YOI", sessionStartMonotonicMs)
         cueEvents.add(
             CueEvent(
                 id = "cue-yoi",
@@ -176,6 +225,7 @@ class GuidedJodanSessionController(
         currentPlanIndex += 1
 
         val now = SystemClock.elapsedRealtime()
+        recordingAdapter.recordSessionEvent(nextPlan.japaneseCount, now)
         val videoTs = if (sessionStartMonotonicMs > 0) now - sessionStartMonotonicMs else 0L
         cueEvents.add(
             CueEvent(
@@ -200,6 +250,7 @@ class GuidedJodanSessionController(
         onStrikeChanged(null)
         onStateChanged(GuidedSessionState.SAVING)
         onPromptChanged("Finalizing session recording...")
+        recordingAdapter.recordSessionEvent("STOP", SystemClock.elapsedRealtime())
         recordingAdapter.stopRecording()
     }
 
@@ -214,12 +265,12 @@ class GuidedJodanSessionController(
         val metadataFile = recordingAdapter.createGuidedSessionFile(METADATA_FILE_NAME)
         metadataFile.writeText(buildMetadataJson(completed, masterResult, retroResult), Charsets.UTF_8)
         onStateChanged(if (completed) GuidedSessionState.COMPLETE else GuidedSessionState.FAILED)
-        val count = retroResult?.detectedMovementCount ?: plan.size
+        val count = retroResult?.detectedMovementCount ?: 0
         onPromptChanged(if (completed) "Session complete ($count movements)" else "Session incomplete")
         onComplete(
             GuidedSessionResult(
                 expectedClipCount = plan.size,
-                savedClipCount = retroResult?.detectedMovementCount ?: (if (completed) plan.size else 0),
+                savedClipCount = count,
                 metadataPath = metadataFile.absolutePath,
                 completed = completed,
                 masterVideoPath = masterResult?.absolutePath,

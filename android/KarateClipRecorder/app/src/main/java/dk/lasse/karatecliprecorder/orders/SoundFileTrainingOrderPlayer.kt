@@ -73,6 +73,14 @@ class SoundFileTrainingOrderPlayer(context: Context) : TrainingOrderPlayer {
         playLoaded(order, soundId, onComplete)
     }
 
+    /** Immediate-only playback for timestamped recording cues; never queues a late sound. */
+    fun playImmediately(order: TrainingOrder): Boolean {
+        val id = soundIdsByOrder[order]?.takeIf { it in loadedSoundIds } ?: return false
+        stop()
+        playLoaded(order, id, null)
+        return activeStreamId != null
+    }
+
     private fun playLoaded(order: TrainingOrder, soundId: Int, onComplete: (() -> Unit)?) {
         cancelCompletionCallback()
         activeStreamId?.let(soundPool::stop)

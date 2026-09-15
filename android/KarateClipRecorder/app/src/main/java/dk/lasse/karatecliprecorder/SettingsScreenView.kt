@@ -56,6 +56,7 @@ class SettingsScreenView(
             addView(permissionsSection())
             addView(soundAndVoiceSection())
             addView(trainingPreferencesSection())
+            addView(dk.lasse.karatecliprecorder.training.ProcessingSettingsView(context))
             addView(appearanceSection())
             addView(developerSection())
             addView(aboutSection())

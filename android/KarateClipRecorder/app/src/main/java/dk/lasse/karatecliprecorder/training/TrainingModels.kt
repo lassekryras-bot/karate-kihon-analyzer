@@ -1,0 +1,128 @@
+package dk.lasse.karatecliprecorder.training
+
+import java.util.UUID
+import dk.lasse.karatecliprecorder.sharedcapture.CaptureType
+
+fun trainingId(): String = UUID.randomUUID().toString()
+
+// Wall-clock fields are epoch milliseconds. All media-relative fields use integer microseconds.
+enum class SessionState { PREPARING, RECORDING, FINALIZING, RECORDED, LANDMARKS_PROCESSING, LANDMARKS_READY, CANCELLED, SEGMENTING, MOVEMENTS_AVAILABLE, ANALYZING, COMPLETED, PARTIAL, FAILED }
+enum class SourceState { PENDING, AVAILABLE, DELETING, DELETED, MISSING, FAILED }
+enum class ProcessingState { PENDING, PROCESSING, COMPLETED, FAILED }
+enum class MovementState { DETECTED, ANALYZING, COMPLETED, PARTIAL, FAILED }
+enum class AnalysisState { COMPLETED, PARTIAL, ABSTAINED, FAILED }
+enum class ResultState { VALID, PARTIAL, ABSTAINED, FAILED }
+enum class ValueType { NUMERIC, CATEGORICAL }
+enum class ObservedView { FRONT, LEFT_SIDE, RIGHT_SIDE, OTHER, UNKNOWN }
+enum class BodySide { LEFT, RIGHT, BILATERAL, WHOLE_BODY, UNKNOWN }
+
+data class TrainingUser(val userId: String = trainingId(), val createdAtMs: Long = System.currentTimeMillis())
+enum class QueueState { QUEUED, PROCESSING, READY, FAILED, DELETING }
+data class RecordingProcessing(val sessionId: String, val queuedAtMs: Long,
+    val state: QueueState = QueueState.QUEUED, val promotedAtMs: Long? = null,
+    val manual: Boolean = false, val error: String? = null)
+data class RecordingSession(
+    val sessionId: String = trainingId(), val userId: String, val startedAtMs: Long,
+    val endedAtMs: Long? = null, val activityKey: String? = null, val guided: Boolean = false,
+    val expectedRepetitions: Int? = null, val state: SessionState = SessionState.RECORDING,
+    val reason: String? = null,
+    val cadenceUs: Long? = null, val spokenCounting: Boolean? = null, val firstCueDelayUs: Long? = null,
+    val expectedActivity: String? = null, val expectedCategory: String? = null,
+    val interruptionReason: String? = null,
+    val callerId: String? = null, val parentId: String? = null,
+    val captureTrigger: String? = null, val cueMode: String? = null,
+    val requestedView: String? = null, val completionPrompt: String? = null,
+    val captureOutcome: String? = null,
+)
+data class MasterRecording(
+    val recordingId: String = trainingId(), val sessionId: String, val filePath: String,
+    val createdAtMs: Long, val durationUs: Long? = null, val frameRate: Double? = null,
+    val width: Int? = null, val height: Int? = null, val device: String? = null,
+    val camera: String? = null, val sourceState: SourceState = SourceState.PENDING,
+    val captureType: CaptureType = CaptureType.VIDEO, val mimeType: String? = "video/mp4",
+)
+data class LandmarkTrack(
+    val landmarkTrackId: String = trainingId(), val recordingId: String,
+    val pipelineKey: String, val pipelineVersion: String, val configuration: String,
+    val filePath: String, val createdAtMs: Long = System.currentTimeMillis(),
+    val state: ProcessingState = ProcessingState.PENDING, val sourceState: SourceState = SourceState.PENDING,
+    val quality: String? = null, val sha256: String? = null,
+    val formatId: String? = null, val formatVersion: Int? = null,
+)
+data class SessionMovement(
+    val movementId: String = trainingId(), val sessionId: String,
+    val startUs: Long, val endUs: Long, val playbackStartUs: Long, val playbackEndUs: Long,
+    val state: MovementState = MovementState.DETECTED,
+    val segmentationSource: String, val segmentationVersion: String,
+    val segmentationTrackId: String? = null, val segmentationConfidence: Double? = null,
+)
+data class ObservationContext(
+    val movementId: String, val view: ObservedView = ObservedView.UNKNOWN,
+    val nearerSide: BodySide = BodySide.UNKNOWN, val bodyToCameraDegrees: Double? = null,
+    val confidence: Double? = null, val evidence: String = "orientation_not_estimated",
+)
+data class SessionEvent(
+    val sessionEventId: String = trainingId(), val sessionId: String,
+    val type: String, val timestampUs: Long, val data: String? = null,
+    val timingSource: String = "recording_timeline",
+)
+data class MovementSessionEvent(val movementId: String, val sessionEventId: String, val sessionId: String)
+data class Label(val labelId: String = trainingId(), val machineKey: String, val displayText: String, val category: String)
+data class MovementLabel(val movementId: String, val labelId: String, val source: String = "activity_context")
+data class MovementAnalysis(
+    val analysisId: String = trainingId(), val movementId: String, val analyzerKey: String,
+    val analyzerVersion: String, val landmarkTrackId: String, val state: AnalysisState,
+    val createdAtMs: Long = System.currentTimeMillis(), val reason: String? = null,
+)
+data class MeasurementResult(
+    val measurementResultId: String = trainingId(), val analysisId: String, val measurementKey: String,
+    val calculationVersion: String, val valueType: ValueType = ValueType.NUMERIC,
+    val numericValue: Double? = null, val categoricalValue: String? = null,
+    val side: BodySide = BodySide.UNKNOWN, val role: String = "unspecified",
+    val state: ResultState, val reason: String? = null, val confidence: Double? = null,
+    val uncertainty: Double? = null, val occurrenceUs: Long? = null, val frameIndex: Long? = null,
+)
+data class UserBodyMeasurement(
+    val bodyMeasurementId: String = trainingId(), val userId: String, val type: String,
+    val value: Double, val canonicalUnit: String = "cm", val measuredAtMs: Long, val source: String,
+)
+data class UserCalibration(
+    val calibrationId: String = trainingId(), val userId: String, val type: String,
+    val measuredAtMs: Long, val version: String, val source: String, val state: String, val data: String,
+)
+data class AnalysisBodyMeasurement(val analysisId: String, val bodyMeasurementId: String)
+data class AnalysisCalibration(val analysisId: String, val calibrationId: String)
+data class SessionBodyMeasurement(val sessionId: String, val bodyMeasurementId: String)
+
+data class MovementEvidence(
+    val movement: SessionMovement, val recording: MasterRecording, val observation: ObservationContext?,
+    val labels: List<Label>, val events: List<SessionEvent>, val analyses: List<MovementAnalysis>,
+    val measurements: List<MeasurementResult>, val landmarkTracks: List<LandmarkTrack>,
+)
+
+/** Ordered explicitly by application approval, newest first; version strings are never sorted lexically. */
+data class AnalyzerPolicy(val analyzerKey: String, val approvedVersions: List<String>)
+data class HistoryQuery(
+    val userId: String, val measurementKey: String, val analyzer: AnalyzerPolicy,
+    val labelKeys: Set<String> = emptySet(), val side: BodySide? = null, val role: String? = null,
+    val acceptedStates: Set<ResultState> = setOf(ResultState.VALID), val minimumConfidence: Double? = null,
+    val limit: Int = 100,
+)
+
+data class MeasurementDefinition(
+    val key: String, val meaning: String, val canonicalUnit: String, val calculationVersion: String,
+    val bodyRole: String, val technique: String?, val requiredViews: Set<ObservedView>,
+    val orientationRequirement: String, val requiredLandmarks: Set<String>, val phase: String,
+)
+
+/** Only measurements actually produced by the Android adapter are registered. Ratios stay ratios. */
+object TrainingMeasurements {
+    val definitions = listOf(
+        MeasurementDefinition("PUNCH_HEIGHT_ERROR_TORSO_RATIO", "Signed fist height error relative to target",
+            "torso_ratio", "1", "strike", "straight_punch", setOf(ObservedView.LEFT_SIDE, ObservedView.RIGHT_SIDE),
+            "Side-view setup accepted by PunchHeightAnalyzer", setOf("SHOULDER", "HIP", "WRIST", "ELBOW", "NOSE", "MOUTH"), "most_extended_observed_sample"),
+        MeasurementDefinition("PUNCH_ELBOW_ANGLE", "Elbow angle in the camera image", "degree", "1", "strike",
+            "straight_punch", setOf(ObservedView.LEFT_SIDE, ObservedView.RIGHT_SIDE),
+            "Side-view setup accepted by PunchHeightAnalyzer", setOf("SHOULDER", "ELBOW", "WRIST"), "most_extended_observed_sample"),
+    ).associateBy { it.key }
+}

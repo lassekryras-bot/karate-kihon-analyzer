@@ -3,36 +3,28 @@ package dk.lasse.karatecliprecorder
 import android.content.Context
 import android.graphics.Bitmap
 import android.os.Environment
+import android.os.SystemClock
 import androidx.camera.core.CameraSelector
 import androidx.camera.core.ImageAnalysis
 import androidx.camera.core.ImageProxy
-import androidx.camera.core.Preview
-import androidx.camera.lifecycle.ProcessCameraProvider
-import androidx.camera.video.FallbackStrategy
-import androidx.camera.video.FileOutputOptions
-import androidx.camera.video.PendingRecording
-import androidx.camera.video.Quality
-import androidx.camera.video.QualitySelector
-import androidx.camera.video.Recorder
-import androidx.camera.video.Recording
-import androidx.camera.video.VideoCapture
 import androidx.camera.video.VideoRecordEvent
 import androidx.camera.view.PreviewView
-import androidx.core.content.ContextCompat
 import androidx.lifecycle.LifecycleOwner
-import dk.lasse.karatecliprecorder.captureprofile.CameraCapabilityInitializer
-import dk.lasse.karatecliprecorder.captureprofile.CaptureProfileSelector
+import dk.lasse.karatecliprecorder.captureprofile.CaptureQuality
+import dk.lasse.karatecliprecorder.captureprofile.RearLens
 import dk.lasse.karatecliprecorder.captureprofile.SelectedCaptureProfile
+import dk.lasse.karatecliprecorder.profile.BodyMeasurementSnapshot
+import dk.lasse.karatecliprecorder.sharedcapture.*
+import dk.lasse.karatecliprecorder.training.*
 import java.io.File
-import java.util.Locale
-import java.util.concurrent.Executor
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicBoolean
 
+/** Compatibility adapter for guided sessions; all CameraX ownership lives in SharedCameraCaptureBackend. */
 class CameraXRecordingAdapter(
     private val context: Context,
-    private val lifecycleOwner: LifecycleOwner,
+    lifecycleOwner: LifecycleOwner,
     private val previewView: PreviewView,
     private val onStateChanged: (RecordingState) -> Unit,
     private val onSaved: (RecordingResult) -> Unit,
@@ -44,14 +36,37 @@ class CameraXRecordingAdapter(
     private val onAnalysisFramePermit: (Long) -> Any? = { null },
     private val onAnalysisPermitRelease: (Any) -> Unit = {},
     private val onAnalysisFrame: (Bitmap, Long, Any?, FloatArray?) -> Boolean = { _, _, _, _ -> false },
-    private val bodyMeasurements: () -> dk.lasse.karatecliprecorder.profile.BodyMeasurementSnapshot? = { null },
+    private val onRecordingStarted: (Long) -> Unit = {},
+    private val onRecordingFinalizing: () -> Unit = {},
+    private val previewOnly: Boolean = false,
+    private val onCameraOptions: (List<CaptureQuality>, CaptureQuality, Float, Float) -> Unit = { _, _, _, _ -> },
+    private val onRearLenses: (List<RearLens>, String) -> Unit = { _, _ -> },
+    private val bodyMeasurements: () -> BodyMeasurementSnapshot? = { null },
 ) : SessionRecordingAdapter, AutoCloseable {
-    private var videoCapture: VideoCapture<Recorder>? = null
+    private val training = TrainingServices.get(context)
+    private val persistence = CapturePersistenceCoordinator(training)
+    private val camera = SharedCameraCaptureBackend(context, lifecycleOwner, previewView)
+    private val analysisExecutor: ExecutorService = Executors.newSingleThreadExecutor()
+    private val analysisEnabled = AtomicBoolean(false)
+    private val closed = AtomicBoolean(false)
     private var imageAnalysis: ImageAnalysis? = null
-    private var activeRecording: Recording? = null
-    private var nextClipNumber = 1
+    private var requestedQuality: CaptureQuality? = null
+    private var requestedLens: String? = null
+    private var requestedZoom = 1f
+    private var setupLocked = false
+    private var recordingPending = false
+    private var pendingCancelled = false
+    private var captureLease: AutoCloseable? = null
+    private var cancelPrepared: (() -> Unit)? = null
+    private var trainingSessionId: String? = null
+    private var recordingStartMs: Long? = null
+    private var pendingOutcome = CaptureOutcome.COMPLETED
+    private val pendingEvents = mutableListOf<Pair<String, Long>>()
     private var measurementSessionActive = false
-    private var sessionMeasurements: dk.lasse.karatecliprecorder.profile.BodyMeasurementSnapshot? = null
+    private var sessionMeasurements: BodyMeasurementSnapshot? = null
+
+    var selectedCaptureProfile: SelectedCaptureProfile? = null
+        private set
 
     override fun beginMeasurementSession() {
         sessionMeasurements = bodyMeasurements()
@@ -62,65 +77,60 @@ class CameraXRecordingAdapter(
         measurementSessionActive = false
         sessionMeasurements = null
     }
-    var selectedCaptureProfile: SelectedCaptureProfile? = null
-        private set
-    private val mainExecutor: Executor = ContextCompat.getMainExecutor(context)
-    private val analysisExecutor: ExecutorService = Executors.newSingleThreadExecutor()
-    private val analysisEnabled = AtomicBoolean(false)
-    private val closed = AtomicBoolean(false)
 
     fun bindCameraPreview() {
+        if (closed.get()) return
         onStateChanged(RecordingState.PREPARING)
-        val providerFuture = ProcessCameraProvider.getInstance(context)
-        providerFuture.addListener({
-            try {
-                val cameraProvider: ProcessCameraProvider = providerFuture.get()
-                val preview = Preview.Builder().build().also {
-                    it.setSurfaceProvider(previewView.surfaceProvider)
-                }
-                val cameraInfo = cameraProvider.availableCameraInfos.firstOrNull { info ->
-                    runCatching { cameraSelector.filter(listOf(info)).isNotEmpty() }.getOrDefault(false)
-                }
-                val profile = cameraInfo
-                    ?.let { CameraCapabilityInitializer.initialize(it) }
-                    ?: CaptureProfileSelector.fallback(
-                        reason = "Using safe HD 30fps fallback because no back camera info was available.",
-                    )
-                selectedCaptureProfile = profile
-                onCaptureProfileSelected(profile)
-
-                val recorder = Recorder.Builder()
-                    .setQualitySelector(profile.toQualitySelector())
-                    .build()
-                videoCapture = VideoCapture.withOutput(recorder)
-                imageAnalysis = ImageAnalysis.Builder()
-                    .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
-                    .setOutputImageFormat(ImageAnalysis.OUTPUT_IMAGE_FORMAT_RGBA_8888)
-                    .setTargetResolution(android.util.Size(640, 480))
-                    .build()
-                    .also { analysis ->
-                        analysis.setAnalyzer(analysisExecutor) { image -> analyzeImage(image) }
+        if (!previewOnly && imageAnalysis == null) {
+            imageAnalysis = ImageAnalysis.Builder()
+                .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
+                .setOutputImageFormat(ImageAnalysis.OUTPUT_IMAGE_FORMAT_RGBA_8888)
+                .setTargetResolution(android.util.Size(640, 480))
+                .build().also { it.setAnalyzer(analysisExecutor, ::analyzeImage) }
+        }
+        camera.bind(currentPreviewRequest(), imageAnalysis,
+            onReady = { binding ->
+                selectedCaptureProfile = binding.captureProfile
+                onCaptureProfileSelected(binding.captureProfile)
+                if (previewOnly) {
+                    binding.selectedQuality?.let {
+                        onCameraOptions(binding.supportedQualities, it, binding.minimumZoom, binding.maximumZoom)
                     }
-
-                cameraProvider.unbindAll()
-                cameraProvider.bindToLifecycle(
-                    lifecycleOwner,
-                    cameraSelector,
-                    preview,
-                    videoCapture!!,
-                    imageAnalysis!!,
-                )
+                    binding.selectedLensId?.let { onRearLenses(binding.rearLenses, it) }
+                }
                 onStateChanged(RecordingState.IDLE)
-            } catch (error: Exception) {
-                onStateChanged(RecordingState.FAILED)
-                onError("Camera preview failed: ${error.message}")
-            }
-        }, mainExecutor)
+            },
+            onError = { message -> onStateChanged(RecordingState.FAILED); onError(message) })
     }
 
-    fun setAnalysisEnabled(enabled: Boolean) {
-        analysisEnabled.set(enabled)
+    fun setCaptureQuality(quality: CaptureQuality?) {
+        if (setupLocked) return
+        requestedQuality = quality
+        bindCameraPreview()
     }
+
+    fun setRearLens(id: String) {
+        if (setupLocked) return
+        requestedLens = id
+        requestedZoom = 1f
+        requestedQuality = null
+        bindCameraPreview()
+    }
+
+    fun setZoom(ratio: Float) {
+        if (setupLocked) return
+        requestedZoom = ratio
+        camera.setZoom(ratio)
+    }
+
+    fun focus(x: Float, y: Float) = camera.focus(x, y)
+
+    fun lockSetup(locked: Boolean) {
+        setupLocked = locked
+        camera.lockConfiguration(locked)
+    }
+
+    fun setAnalysisEnabled(enabled: Boolean) { analysisEnabled.set(enabled) }
 
     private fun analyzeImage(image: ImageProxy) {
         var permit: Any? = null
@@ -132,15 +142,10 @@ class CameraXRecordingAdapter(
                 onAnalysisError("Camera analysis frame conversion failed.")
                 return
             }
-            var bitmapOwnershipTransferred = false
-            try {
-                bitmapOwnershipTransferred = onAnalysisFrame(bitmap, timestampMs, permit, null)
-            } finally {
-                if (!bitmapOwnershipTransferred && !bitmap.isRecycled) {
-                    bitmap.recycle()
-                }
-            }
-            if (bitmapOwnershipTransferred) permit = null
+            var transferred = false
+            try { transferred = onAnalysisFrame(bitmap, timestampMs, permit, null) }
+            finally { if (!transferred && !bitmap.isRecycled) bitmap.recycle() }
+            if (transferred) permit = null
         } catch (error: Exception) {
             onAnalysisError("Camera analysis failed: ${error.message}")
         } finally {
@@ -151,126 +156,234 @@ class CameraXRecordingAdapter(
 
     private fun ImageProxy.toUprightBitmap(): Bitmap? {
         val plane = planes.firstOrNull() ?: return null
-        return CameraRgbaBitmapConverter.convert(
-            buffer = plane.buffer,
-            width = width,
-            height = height,
-            pixelStride = plane.pixelStride,
-            rowStride = plane.rowStride,
-            rotationDegrees = imageInfo.rotationDegrees,
-        )
+        return CameraRgbaBitmapConverter.convert(plane.buffer, width, height, plane.pixelStride,
+            plane.rowStride, imageInfo.rotationDegrees)
     }
 
-    override fun startRecording(fileName: String?) {
-        val capture = videoCapture
-        if (capture == null) {
+    override fun startRecording(customName: String?) = prepareRecording(legacyVideoRequest(), customName) { it() }
+
+    fun prepareSharedCapture(request: SharedCaptureRequest, onPrepared: (() -> Unit) -> Unit) =
+        prepareRecording(request, null, onPrepared)
+
+    private fun prepareRecording(request: SharedCaptureRequest, customName: String?, onPrepared: (() -> Unit) -> Unit) {
+        request.startBlock()?.let { onError(it.message); return }
+        if (closed.get()) return
+        if (camera.recordingActive || recordingPending) {
+            onError("Previous recording is still finishing. Try again shortly.")
+            return
+        }
+        val snapshot = if (measurementSessionActive) sessionMeasurements else bodyMeasurements()
+        val userId = snapshot?.profileId
+        if (userId == null) {
             onStateChanged(RecordingState.FAILED)
-            onError("Camera is not ready yet.")
+            onError("Select a training profile before recording.")
             return
         }
-        if (activeRecording != null) {
-            return
-        }
-
-        val outputFile = if (fileName == null) createNextOutputFile() else createGuidedSessionFile(fileName)
-        val measurementSnapshot = if (measurementSessionActive) sessionMeasurements else bodyMeasurements()
-        if (fileName != null && outputFile.exists()) {
-            outputFile.delete()
-        }
-        val outputOptions = FileOutputOptions.Builder(outputFile).build()
-        val pendingRecording: PendingRecording = capture.output.prepareRecording(context, outputOptions)
-
-        try {
-            File(outputFile.parentFile, "${outputFile.nameWithoutExtension}.body-measurements.json")
-                .writeText((measurementSnapshot?.toJson() ?: org.json.JSONObject()
-                    .put("contract", "body_measurements_v1")
-                    .put("source", "unavailable")).toString(2))
-        } catch (error: Exception) {
-            onStateChanged(RecordingState.FAILED)
-            onError("Could not save recording body measurements: ${error.message}")
-            return
-        }
-
-        onStateChanged(RecordingState.RECORDING)
-        activeRecording = pendingRecording.start(mainExecutor) { event ->
-            when (event) {
-                is VideoRecordEvent.Finalize -> {
-                    activeRecording = null
-                    if (event.hasError()) {
-                        onStateChanged(RecordingState.FAILED)
-                        onError("Recording failed: ${event.error}")
-                    } else {
-                        val result = RecordingResult(
-                            fileName = outputFile.name,
-                            absolutePath = outputFile.absolutePath,
-                            uri = event.outputResults.outputUri,
-                        )
-                        onStateChanged(RecordingState.SAVED)
-                        onSaved(result)
-                    }
+        captureLease = ProcessingCoordinator.reserveCapture()
+        recordingPending = true
+        pendingCancelled = false
+        pendingOutcome = CaptureOutcome.COMPLETED
+        recordingStartMs = null
+        pendingEvents.clear()
+        training.submit({
+            ProcessingCoordinator.awaitCapturePriority()
+            val legacyFile = customName?.let { createGuidedSessionFile("${it.removeSuffix(".mp4")}_${trainingId()}.mp4") }
+            persistence.prepare(request, userId, cameraProvenance(), snapshot, legacyFile)
+        }) { preparedResult ->
+            if (preparedResult.isFailure) {
+                releaseCapturePriority()
+                recordingPending = false
+                if (!closed.get()) {
+                    onStateChanged(RecordingState.FAILED)
+                    onError("Could not save capture session: ${preparedResult.exceptionOrNull()?.message}")
                 }
+                return@submit
+            }
+            val prepared = preparedResult.getOrThrow()
+            trainingSessionId = prepared.session.sessionId
+            val cancel = {
+                releaseCapturePriority()
+                recordingPending = false
+                cancelPrepared = null
+                training.submit({ persistence.cancelPrepared(prepared, "cancelled_before_capture") })
+                Unit
+            }
+            if (closed.get() || pendingCancelled) { cancel(); return@submit }
+            cancelPrepared = cancel
+            onPrepared startPrepared@{
+                if (closed.get() || pendingCancelled) { cancel(); return@startPrepared }
+                if (request.captureType != CaptureType.VIDEO) {
+                    cancel()
+                    onError("This recording adapter requires a video request.")
+                    return@startPrepared
+                }
+                val block = ProcessingPolicy.recordingBlock(ProcessingPolicy.snapshot(context), ProcessingPreferences(context).minimumBattery)
+                if (block != null) {
+                    cancel()
+                    onStateChanged(RecordingState.FAILED)
+                    onError(block)
+                    return@startPrepared
+                }
+                cancelPrepared = null
+                recordingPending = false
+                startPreparedVideo(prepared, snapshot)
             }
         }
     }
 
+    private fun startPreparedVideo(prepared: PreparedCapture, snapshot: BodyMeasurementSnapshot?) {
+        try {
+            camera.startVideo(prepared.file) { event ->
+                when (event) {
+                    is VideoRecordEvent.Start -> {
+                        if (closed.get() || pendingCancelled) { camera.stopVideo(); return@startVideo }
+                        recordingStartMs = SystemClock.elapsedRealtime() - event.recordingStats.recordedDurationNanos / 1_000_000
+                        training.submit({ it.setSessionState(prepared.session.sessionId, SessionState.RECORDING) })
+                        onStateChanged(RecordingState.RECORDING)
+                        camera.lockConfiguration(previewOnly)
+                        onRecordingStarted(requireNotNull(recordingStartMs))
+                        pendingEvents.toList().also { pendingEvents.clear() }.forEach { (name, time) -> recordSessionEvent(name, time) }
+                    }
+                    is VideoRecordEvent.Finalize -> finalizeVideo(prepared, snapshot, event)
+                }
+            }
+        } catch (error: Exception) {
+            releaseCapturePriority()
+            training.submit({ persistence.finalize(prepared, CaptureOutcome.FAILED, failure = error.message ?: "CameraX start failed") })
+            onStateChanged(RecordingState.FAILED)
+            onError("Recording could not start: ${error.message}")
+        }
+    }
+
+    private fun finalizeVideo(prepared: PreparedCapture, snapshot: BodyMeasurementSnapshot?, event: VideoRecordEvent.Finalize) {
+        recordingPending = true
+        if (!closed.get()) onRecordingFinalizing()
+        val startMs = recordingStartMs
+        val cameraError = if (event.hasError()) "Recording failed: ${event.error}" else null
+        training.submit({
+            val metadata = if (cameraError == null) runCatching { RecordedVideoMetadata.read(prepared.file) }
+                else Result.failure(IllegalStateException(cameraError))
+            val failure = cameraError ?: metadata.exceptionOrNull()?.let { it.message ?: "MP4 verification failed" }
+            val media = metadata.getOrNull()
+            val persisted = persistence.finalize(prepared, pendingOutcome,
+                event.recordingStats.recordedDurationNanos / 1000, media?.width, media?.height, media?.frameRate, failure)
+            check(persisted.mediaFinalized) { persisted.failureReason ?: "Unreadable video" }
+            if (prepared.request.callerId != "record_and_analyze") runCatching {
+                File(prepared.file.parentFile, "${prepared.file.nameWithoutExtension}.body-measurements.json")
+                    .writeText(requireNotNull(snapshot).toJson().toString(2))
+            }
+            persisted
+        }) { saved ->
+            releaseCapturePriority()
+            recordingPending = false
+            if (closed.get()) return@submit
+            val result = saved.getOrNull()
+            if (result == null || !result.mediaFinalized) {
+                onStateChanged(RecordingState.FAILED)
+                onError(cameraError ?: "Recording finalization or verification failed: ${saved.exceptionOrNull()?.message}")
+            } else {
+                onStateChanged(RecordingState.SAVED)
+                onSaved(RecordingResult(prepared.file.name, prepared.file.absolutePath, event.outputResults.outputUri,
+                    persistedCapture = result, recordingStartMonotonicMs = startMs,
+                    userId = prepared.session.userId, guided = prepared.session.guided))
+            }
+        }
+    }
+
+    override fun recordSessionEvent(name: String, monotonicMs: Long) {
+        val sessionId = trainingSessionId ?: return
+        val start = recordingStartMs
+        if (start == null) { pendingEvents += name to monotonicMs; return }
+        val elapsed = monotonicMs - start
+        training.submit({ it.addEvent(SessionEvent(sessionId = sessionId, type = "cue",
+            timestampUs = elapsed.coerceAtLeast(0) * 1000, data = name,
+            timingSource = if (elapsed < 0) "before_video_start_clamped" else "CameraX_Start_elapsedRealtime_ms")) }) {
+            if (it.isFailure && !closed.get()) onError("Could not save session cue: ${it.exceptionOrNull()?.message}")
+        }
+    }
+
+    fun recordBoundary(type: String, monotonicMs: Long, reason: String?) {
+        if (type == "FORCE_STOP_REQUESTED") pendingOutcome = CaptureOutcome.FORCE_STOPPED
+        if (type == "INTERRUPTION_DETECTED") pendingOutcome = CaptureOutcome.INTERRUPTED
+        val id = trainingSessionId ?: return
+        val start = recordingStartMs
+        training.submit({ it.recordBoundary(SessionEvent(sessionId = id, type = type,
+            timestampUs = if (start == null) 0 else (monotonicMs - start).coerceAtLeast(0) * 1000,
+            data = reason, timingSource = if (start == null) "before_video_start" else "CameraX_Start_elapsedRealtime_ms"),
+            if (type == "INTERRUPTION_DETECTED") reason else null) })
+    }
+
+    fun recordCountCue(value: Int, ordinal: Int, monotonicMs: Long) {
+        val sessionId = trainingSessionId ?: return
+        val start = recordingStartMs ?: return
+        training.submit({ it.addEvent(SessionEvent(sessionId = sessionId, type = "spoken_count",
+            timestampUs = (monotonicMs - start).coerceAtLeast(0) * 1000,
+            data = "count=$value;ordinal=$ordinal", timingSource = "playback_request_CameraX_Start_elapsedRealtime_ms")) }) {
+            if (it.isFailure && !closed.get()) onError("Could not persist count cue: ${it.exceptionOrNull()?.message}")
+        }
+    }
+
+    override fun currentRecordingSessionId(): String? = trainingSessionId
+
     override fun stopRecording() {
-        activeRecording?.stop()
+        pendingCancelled = true
+        cancelPrepared?.invoke()
+        if (camera.recordingActive) trainingSessionId?.let { id ->
+            training.submit({ it.setSessionState(id, SessionState.FINALIZING) })
+        }
+        camera.stopVideo()
     }
 
     override fun createGuidedSessionFile(fileName: String): File {
         val sessionDir = File(getMoviesDir(), GUIDED_SESSION_DIR_NAME)
-        if (!sessionDir.exists()) {
-            sessionDir.mkdirs()
-        }
+        if (!sessionDir.exists()) sessionDir.mkdirs()
         return File(sessionDir, fileName)
     }
 
-    private fun createNextOutputFile(): File {
-        val moviesDir = getMoviesDir()
+    private fun getMoviesDir(): File = (context.getExternalFilesDir(Environment.DIRECTORY_MOVIES) ?: context.filesDir)
+        .also { if (!it.exists()) it.mkdirs() }
 
-        while (true) {
-            val fileName = String.format(Locale.US, "strike_test_%03d.mp4", nextClipNumber++)
-            val candidate = File(moviesDir, fileName)
-            if (!candidate.exists()) {
-                return candidate
-            }
-        }
-    }
-
-    private fun getMoviesDir(): File {
-        val moviesDir = context.getExternalFilesDir(Environment.DIRECTORY_MOVIES)
-            ?: context.filesDir
-        if (!moviesDir.exists()) {
-            moviesDir.mkdirs()
-        }
-        return moviesDir
-    }
-
-    private fun SelectedCaptureProfile.toQualitySelector(): QualitySelector {
-        val quality = when (selectedCameraXQualityName.uppercase()) {
-            "UHD" -> Quality.UHD
-            "FHD" -> Quality.FHD
-            "HD" -> Quality.HD
-            "SD" -> Quality.SD
-            else -> Quality.HD
-        }
-        return QualitySelector.from(
-            quality,
-            FallbackStrategy.higherQualityOrLowerThan(quality),
+    private fun currentPreviewRequest(): SharedCaptureRequest {
+        val base = if (previewOnly) SharedCaptureRequests.recordAndAnalyze(
+            "Alternating straight punches", "Punches", 10, 1000, true)
+        else legacyVideoRequest()
+        return base.copy(
+            camera = if (cameraSelector == CameraSelector.DEFAULT_FRONT_CAMERA) CaptureCamera.FRONT else CaptureCamera.REAR,
+            preferredLensId = requestedLens,
+            preferredZoom = requestedZoom,
+            quality = requestedQuality?.let { CaptureQualityPolicy.Exact(CaptureQualityRequest(it.name, it.fps)) }
+                ?: CaptureQualityPolicy.AutomaticFastMovement,
         )
     }
 
+    private fun legacyVideoRequest() = SharedCaptureRequest(
+        captureType = CaptureType.VIDEO,
+        trigger = CaptureTrigger.CALLER_CONTROLLED,
+        callerId = "guided_session",
+        activityContextId = if (measurementSessionActive) "guided_jodan_session" else "legacy_recording",
+        expectedActivity = if (measurementSessionActive) "Guided Jodan punches" else null,
+        plannedRepetitions = if (measurementSessionActive) 10 else null,
+        camera = if (cameraSelector == CameraSelector.DEFAULT_FRONT_CAMERA) CaptureCamera.FRONT else CaptureCamera.REAR,
+        countdown = CaptureCountdown.NONE,
+        autoStop = CaptureAutoStop.MANUAL,
+        operationalVoicePrompts = true,
+    )
+
+    private fun cameraProvenance() = "${if (cameraSelector == CameraSelector.DEFAULT_FRONT_CAMERA) "front" else "back"};" +
+        "cameraId=$requestedLens;zoom=$requestedZoom;quality=${requestedQuality ?: "automatic"};rotation=${previewView.display?.rotation}"
+
+    private fun releaseCapturePriority() { captureLease?.close(); captureLease = null }
+
     override fun close() {
         if (!closed.compareAndSet(false, true)) return
+        pendingCancelled = true
+        cancelPrepared?.invoke()
         analysisEnabled.set(false)
         imageAnalysis?.clearAnalyzer()
         imageAnalysis = null
-        activeRecording?.close()
-        activeRecording = null
+        camera.close()
         analysisExecutor.shutdownNow()
     }
 
-    companion object {
-        private const val GUIDED_SESSION_DIR_NAME = "guided_jodan_session"
-    }
+    companion object { private const val GUIDED_SESSION_DIR_NAME = "guided_jodan_session" }
 }

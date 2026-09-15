@@ -16,8 +16,16 @@ class TrainingHistoryStore(context: Context) {
         require(target.parentFile == root)
         val existed = target.exists()
         val failed = existed && !target.deleteRecursively()
+        val training = dk.lasse.karatecliprecorder.training.TrainingRepository(
+            dk.lasse.karatecliprecorder.training.KarateTrainingDatabase.get(appContext))
+        val videoFailures = runCatching {
+            training.sessions(profileId).mapNotNull { session ->
+                runCatching { training.deleteVideo(session.sessionId) }.exceptionOrNull()
+                    ?.let { training.recording(session.sessionId)?.filePath ?: session.sessionId }
+            }
+        }.getOrElse { listOf("Training database: ${it.message}") }
         return ClearTrainingHistoryResult(if (existed && !failed) 1 else 0,
-            if (failed) listOf(target.absolutePath) else emptyList())
+            (if (failed) listOf(target.absolutePath) else emptyList()) + videoFailures)
     }
 }
 
