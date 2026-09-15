@@ -8,7 +8,7 @@ internal interface TrainingDao {
     @Update fun update(row: RecordingProcessingRow)
     @Query("SELECT * FROM RecordingProcessing WHERE sessionId = :id") fun job(id: String): RecordingProcessingRow?
     @Query("SELECT * FROM RecordingProcessing ORDER BY promotedAtMs IS NULL, promotedAtMs DESC, queuedAtMs, sessionId") fun jobs(): List<RecordingProcessingRow>
-    @Query("UPDATE RecordingProcessing SET state = 'QUEUED' WHERE state = 'PROCESSING'") fun recoverJobs()
+    @Query("UPDATE RecordingProcessing SET state = 'QUEUED', phase = 'QUEUED' WHERE state = 'PROCESSING'") fun recoverJobs()
     @Query("SELECT * FROM RecordingSession WHERE activityKey = 'record_and_analyze_assisted_v1'") fun assistedSessions(): List<RecordingSessionRow>
     @Insert fun insert(row: TrainingUserRow)
     @Insert fun insert(row: RecordingSessionRow)

@@ -27,12 +27,17 @@ class TrainingSchemaTest {
             execSQL("INSERT INTO MasterRecording(recordingId,sessionId,filePath,createdAtMs,sourceState) VALUES ('failed','cancelled','recordings/failed.mp4',20,'FAILED')")
             close()
         }
-        helper.runMigrationsAndValidate(name, 5, true, KarateTrainingDatabase.MIGRATION_2_3,
-            KarateTrainingDatabase.MIGRATION_3_4, KarateTrainingDatabase.MIGRATION_4_5).use { db ->
+        helper.runMigrationsAndValidate(name, 6, true, KarateTrainingDatabase.MIGRATION_2_3,
+            KarateTrainingDatabase.MIGRATION_3_4, KarateTrainingDatabase.MIGRATION_4_5, KarateTrainingDatabase.MIGRATION_5_6).use { db ->
             db.query("SELECT sessionId,state,queuedAtMs,manual FROM RecordingProcessing").use {
                 assertEquals(1, it.count); org.junit.Assert.assertTrue(it.moveToFirst())
                 assertEquals("saved", it.getString(0)); assertEquals("QUEUED", it.getString(1))
                 assertEquals(10L, it.getLong(2)); assertEquals(0, it.getInt(3))
+            }
+            db.query("SELECT phase,planKey,planVersion,landmarkDurationMs,segmentationDurationMs,sourceLandmarkTrackId,segmentationVersion FROM RecordingProcessing").use {
+                org.junit.Assert.assertTrue(it.moveToFirst())
+                assertEquals("QUEUED", it.getString(0)); assertEquals("straight_punch_segments", it.getString(1))
+                assertEquals(1, it.getInt(2)); (3..6).forEach { column -> org.junit.Assert.assertTrue(it.isNull(column)) }
             }
             db.query("SELECT expectedActivity,expectedCategory,interruptionReason,cadenceUs FROM RecordingSession WHERE sessionId='saved'").use {
                 org.junit.Assert.assertTrue(it.moveToFirst())
@@ -52,13 +57,14 @@ class TrainingSchemaTest {
             execSQL("INSERT INTO LandmarkTrack(landmarkTrackId,recordingId,pipelineKey,pipelineVersion,configuration,filePath,createdAtMs,state,sourceState) VALUES ('track','recording','pose','legacy','fixture','/legacy/track.pose',10,'COMPLETED','AVAILABLE')")
             close()
         }
-        helper.runMigrationsAndValidate(name, 5, true, KarateTrainingDatabase.MIGRATION_1_2,
+        helper.runMigrationsAndValidate(name, 6, true, KarateTrainingDatabase.MIGRATION_1_2,
             KarateTrainingDatabase.MIGRATION_2_3, KarateTrainingDatabase.MIGRATION_3_4,
-            KarateTrainingDatabase.MIGRATION_4_5).close()
+            KarateTrainingDatabase.MIGRATION_4_5, KarateTrainingDatabase.MIGRATION_5_6).close()
         val context = InstrumentationRegistry.getInstrumentation().targetContext
         val database = Room.databaseBuilder(context, KarateTrainingDatabase::class.java, name).addMigrations(
             KarateTrainingDatabase.MIGRATION_1_2, KarateTrainingDatabase.MIGRATION_2_3,
-            KarateTrainingDatabase.MIGRATION_3_4, KarateTrainingDatabase.MIGRATION_4_5).build()
+            KarateTrainingDatabase.MIGRATION_3_4, KarateTrainingDatabase.MIGRATION_4_5,
+            KarateTrainingDatabase.MIGRATION_5_6).build()
         try {
             database.openHelper.readableDatabase.query("SELECT userId FROM TrainingUser").use { cursor ->
                 cursor.moveToFirst()
@@ -81,7 +87,8 @@ class TrainingSchemaTest {
             execSQL("INSERT INTO MasterRecording(recordingId,sessionId,filePath,createdAtMs,sourceState) VALUES ('media','session','recordings/legacy.mp4',10,'AVAILABLE')")
             close()
         }
-        helper.runMigrationsAndValidate(name, 5, true, KarateTrainingDatabase.MIGRATION_4_5).use { db ->
+        helper.runMigrationsAndValidate(name, 6, true, KarateTrainingDatabase.MIGRATION_4_5,
+            KarateTrainingDatabase.MIGRATION_5_6).use { db ->
             db.query("SELECT captureType,mimeType FROM MasterRecording WHERE recordingId='media'").use {
                 org.junit.Assert.assertTrue(it.moveToFirst())
                 assertEquals("VIDEO", it.getString(0)); assertEquals("video/mp4", it.getString(1))

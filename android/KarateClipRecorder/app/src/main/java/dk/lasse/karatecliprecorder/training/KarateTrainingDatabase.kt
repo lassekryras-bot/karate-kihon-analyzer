@@ -24,11 +24,23 @@ import androidx.room.RoomDatabase
     AnalysisBodyMeasurementRow::class,
     AnalysisCalibrationRow::class,
     SessionBodyMeasurementRow::class
-], version = 5, exportSchema = true)
+], version = 6, exportSchema = true)
 abstract class KarateTrainingDatabase : RoomDatabase() {
     internal abstract fun trainingDao(): TrainingDao
 
     companion object {
+        val MIGRATION_5_6 = object : androidx.room.migration.Migration(5, 6) {
+            override fun migrate(db: androidx.sqlite.db.SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE RecordingProcessing ADD COLUMN phase TEXT NOT NULL DEFAULT 'QUEUED'")
+                db.execSQL("ALTER TABLE RecordingProcessing ADD COLUMN planKey TEXT NOT NULL DEFAULT 'straight_punch_segments'")
+                db.execSQL("ALTER TABLE RecordingProcessing ADD COLUMN planVersion INTEGER NOT NULL DEFAULT 1")
+                db.execSQL("ALTER TABLE RecordingProcessing ADD COLUMN landmarkDurationMs INTEGER")
+                db.execSQL("ALTER TABLE RecordingProcessing ADD COLUMN segmentationDurationMs INTEGER")
+                db.execSQL("ALTER TABLE RecordingProcessing ADD COLUMN sourceLandmarkTrackId TEXT")
+                db.execSQL("ALTER TABLE RecordingProcessing ADD COLUMN segmentationVersion TEXT")
+                db.execSQL("UPDATE RecordingProcessing SET phase = CASE state WHEN 'READY' THEN 'READY' WHEN 'FAILED' THEN 'FAILED' WHEN 'PROCESSING' THEN 'LANDMARKS' ELSE 'QUEUED' END")
+            }
+        }
         val MIGRATION_4_5 = object : androidx.room.migration.Migration(4, 5) {
             override fun migrate(db: androidx.sqlite.db.SupportSQLiteDatabase) {
                 db.execSQL("ALTER TABLE RecordingSession ADD COLUMN callerId TEXT")
@@ -69,7 +81,7 @@ abstract class KarateTrainingDatabase : RoomDatabase() {
         internal fun closeForTests() = synchronized(this) { instance?.close(); instance = null }
         fun get(context: Context): KarateTrainingDatabase = instance ?: synchronized(this) {
             instance ?: Room.databaseBuilder(context.applicationContext, KarateTrainingDatabase::class.java,
-                "karate-training.db").addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5).build().also { instance = it }
+                "karate-training.db").addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6).build().also { instance = it }
         }
     }
 }

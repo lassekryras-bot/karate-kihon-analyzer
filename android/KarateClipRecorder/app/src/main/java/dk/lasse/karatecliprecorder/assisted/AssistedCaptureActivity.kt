@@ -35,6 +35,8 @@ import dk.lasse.karatecliprecorder.profile.BodyMeasurementSnapshot
 import dk.lasse.karatecliprecorder.profile.ProfileRepository
 import dk.lasse.karatecliprecorder.sharedcapture.*
 import dk.lasse.karatecliprecorder.training.*
+import dk.lasse.karatecliprecorder.recordings.QueueManager
+import dk.lasse.karatecliprecorder.recordings.QueueManagerTrayView
 import java.util.Locale
 
 /**
@@ -138,6 +140,7 @@ class AssistedCaptureActivity : AppCompatActivity() {
         // Top Navigation: Back arrow on left, centered "Record & Analyze" title
         topNavigation = buildTopNavigation()
         root.addView(topNavigation)
+        root.addView(QueueManagerTrayView(this), LinearLayout.LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT))
 
         // Shared Camera Preview View
         cameraPreviewView = SharedCameraPreviewView(this).apply {
@@ -675,6 +678,7 @@ class AssistedCaptureActivity : AppCompatActivity() {
     private fun renderState(state: AssistedCaptureState, text: String) {
         if (disposed) return
         val active = controller.captureActive
+        QueueManager.setRecordingHidden(state == AssistedCaptureState.RECORDING || state == AssistedCaptureState.FINISHING)
 
         if (state == AssistedCaptureState.COUNTDOWN) {
             cameraPreviewView.showCountdown(text)
@@ -761,6 +765,7 @@ class AssistedCaptureActivity : AppCompatActivity() {
 
     override fun onDestroy() {
         disposed = true
+        QueueManager.setRecordingHidden(false)
         controller.close()
         camera?.close()
         player.release()

@@ -55,7 +55,7 @@ class RecordingQueueWorker(context: Context, parameters: WorkerParameters) : Wor
                     ProcessingPolicy.mayProcess(preferences.background, ProcessingCoordinator.foregroundActivities.get() > 0, it.manual) }
                     ?: return Result.success()
                 if (!ProcessingPolicy.mayStart(ProcessingPolicy.snapshot(applicationContext), preferences.minimumBattery)) return Result.retry()
-                repo.updateJob(job.copy(state = QueueState.PROCESSING, error = null))
+                repo.updateJob(job.copy(state = QueueState.PROCESSING, phase = ProcessingPhase.LANDMARKS, error = null))
                 try {
                     setForegroundAsync(foregroundInfo()).get()
                     val check = {
@@ -66,15 +66,17 @@ class RecordingQueueWorker(context: Context, parameters: WorkerParameters) : Wor
                     }
                     check()
                     service.processor(check) { operation -> synchronized(ProcessingCoordinator.publication) { check(); operation() } }
-                        .ensureLandmarks(job.sessionId)
+                        .process(job.sessionId)
                     synchronized(ProcessingCoordinator.publication) {
                         check()
-                        repo.job(job.sessionId)?.let { repo.updateJob(it.copy(state = QueueState.READY, error = null, manual = false)) }
+                        repo.job(job.sessionId)?.let { repo.updateJob(it.copy(state = QueueState.READY,
+                            phase = ProcessingPhase.READY, error = null, manual = false)) }
                     }
                 } catch (error: Exception) {
                     synchronized(ProcessingCoordinator.publication) {
                         repo.job(job.sessionId)?.takeIf { it.state != QueueState.DELETING }?.let {
                             repo.updateJob(it.copy(state = if (error is java.util.concurrent.CancellationException) QueueState.QUEUED else QueueState.FAILED,
+                                phase = if (error is java.util.concurrent.CancellationException) ProcessingPhase.QUEUED else ProcessingPhase.FAILED,
                                 error = if (error is java.util.concurrent.CancellationException) null else error.message))
                         }
                     }

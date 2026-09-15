@@ -55,7 +55,7 @@ detail immediately. Saved recordings are not listed on the capture page.
 
 ## Processing and resource policy
 
-Room v5 stores shared capture request/result context plus durable
+Room v6 stores shared capture request/result context plus durable
 `RecordingProcessing` rows: Queued, Processing, Ready, Failed and Deleting.
 Successful assisted finalization publishes a durable-media event and returns to
 the caller. The separate worker discovers eligible finalized videos from Room;
@@ -72,11 +72,14 @@ gate. Retry/Process now below threshold explains that a charger is needed. These
 settings are in Settings. Low storage warns below 1 GiB and blocks new capture
 below 256 MiB; these conservative V1 boundaries do not predict recording length.
 
-`TrainingSessionProcessor.ensureLandmarks` reuses the authoritative offline
-MediaPipe decoder and produces one full-recording MLS. No segmentation, labels,
-SessionMovements, analyses or measurements are created by this route. See the
-[MLS contract](movement-landmark-stream-format.md). Queue state and extraction
-failure do not remove or disable the saved MP4.
+`TrainingSessionProcessor.process` reuses or produces the authoritative
+full-recording MLS, then passes its persisted frames to the existing retrospective
+segmenter. The straight-punch v1 plan ends after it transactionally saves the
+actual detected `SessionMovement` rows; no technique analyses or measurements are
+configured. Logical landmark-membership bounds remain distinct from buffered,
+possibly overlapping playback bounds. See the
+[MLS contract](movement-landmark-stream-format.md). Queue or phase failure does
+not remove the saved MP4 or valid upstream MLS evidence.
 
 ## Performance recordings
 
@@ -89,20 +92,28 @@ day replaces Recent; Recent and Today restore those views.
 Detail opens the exact recording, including one outside the recent five. It shows
 context, duration, interruption and processing state, Retry/Process now, and a
 secondary Watch full recording action. Viewing or playback never promotes work.
-Developer mode exposes the existing landmark overlay when data is ready.
-Deletion requires confirmation and removes the owned recording/evidence graph and
+Developer mode exposes the existing landmark overlay when data is ready. The
+recording's persistent Segments section separately shows planned and detected
+counts, processing state, logical and playback bounds, segmenter/track provenance,
+and interval playback. A valid completed run with zero detections says so rather
+than displaying planned repetitions as detected movements. Deletion requires confirmation and removes the owned recording/evidence graph and
 files. Cancellation and a shared publication fence prevent a stale worker from
 republishing MLS. Failed deletion remains durable for recovery. The lower-level
 media-only deletion API remains available but is not exposed here.
 
-Global status distinguishes queued from processing counts. Calendar and dense-row
-queries are read-only. No cue-derived slices or fake movements are persisted.
+The app-shell Queue Manager Tray distinguishes waiting, landmark processing, and
+movement finding, then offers **Segments ready · View** for the completed recording.
+It remains one row per recording, shows at most three rows plus useful overflow,
+respects user collapse, and hides only while actual camera recording is active. Calendar and
+dense-row queries remain read-only. Only emitted count/cue events can be associated
+with segments; lifecycle events never become cues or movement boundaries.
 
 ## Schema and acceptance
 
-Exports v1–v5 remain checked in. v2 adds cadence/counting/delay and MLS format
+Exports v1–v6 remain checked in. v2 adds cadence/counting/delay and MLS format
 metadata; v3 adds expected activity/category and interruption reason; v4 adds
-the durable queue and backfills saved assisted recordings. Migration preserves
+the durable queue and backfills saved assisted recordings; v5→v6 adds processing
+plan/phase, timing, landmark-track, and segmenter provenance. Migration preserves
 existing evidence and legacy absolute file references.
 
 Technical results and remaining device checks are recorded in

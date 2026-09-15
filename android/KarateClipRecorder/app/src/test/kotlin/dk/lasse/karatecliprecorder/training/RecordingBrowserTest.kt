@@ -1,6 +1,5 @@
 package dk.lasse.karatecliprecorder.training
 
-import dk.lasse.karatecliprecorder.recordings.QueueStatusView
 import org.junit.Test
 import java.time.*
 import kotlin.test.*
@@ -13,7 +12,13 @@ class RecordingBrowserTest {
             expectedActivity = if (category == "Punches") "Alternating straight punches" else "Front kicks",
             expectedCategory = category, expectedRepetitions = 10)
         return RecordingSummary(session, MasterRecording(sessionId = session.sessionId, filePath = "$day.mp4",
-            createdAtMs = time, sourceState = SourceState.AVAILABLE), RecordingProcessing(session.sessionId, time, state), count)
+            createdAtMs = time, sourceState = SourceState.AVAILABLE), RecordingProcessing(session.sessionId, time, state,
+                phase = when (state) {
+                    QueueState.PROCESSING -> ProcessingPhase.LANDMARKS
+                    QueueState.READY -> ProcessingPhase.READY
+                    QueueState.FAILED -> ProcessingPhase.FAILED
+                    else -> ProcessingPhase.QUEUED
+                }), count)
     }
     @Test fun recentIsLatestFiveAndDayUsesLocalTime() {
         val browser = RecordingBrowser((1..9).map { row(it) }, zone)
@@ -39,11 +44,10 @@ class RecordingBrowserTest {
         }
         assertNull(browser.exact("deleted"))
     }
-    @Test fun plannedCountIsNeverCalledDetectedAndQueueStatusIsAccurate() {
+    @Test fun plannedCountIsNeverCalledDetected() {
         assertEquals("Planned 10", row(1).countLabel)
-        assertEquals("9 movements", row(2, count = 9).countLabel)
-        val jobs = listOf(row(1), row(2), row(3, state = QueueState.PROCESSING), row(4, state = QueueState.FAILED)).map { it.processing!! }
-        assertEquals("Recordings: 1 processing · 2 queued", QueueStatusView.queueStatus(jobs))
-        assertEquals("", QueueStatusView.queueStatus(jobs.filter { it.state == QueueState.FAILED }))
+        assertEquals("Detected 9 · Planned 10", row(2, count = 9).countLabel)
+        assertEquals("Detected 0 · Planned 10", row(3).copy(processing =
+            RecordingProcessing("recording-3", 1, QueueState.READY, phase = ProcessingPhase.READY)).countLabel)
     }
 }

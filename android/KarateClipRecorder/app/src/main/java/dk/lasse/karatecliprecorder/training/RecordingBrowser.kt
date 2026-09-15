@@ -7,9 +7,17 @@ import java.time.ZoneId
 
 data class RecordingSummary(val session: RecordingSession, val recording: MasterRecording,
     val processing: RecordingProcessing?, val movementCount: Int) {
-    val countLabel: String get() = if (movementCount > 0) "$movementCount movements"
+    val countLabel: String get() = if (processing?.phase == ProcessingPhase.READY || movementCount > 0)
+        "Detected $movementCount" + (session.expectedRepetitions?.let { " · Planned $it" } ?: "")
         else session.expectedRepetitions?.let { "Planned $it" } ?: "No planned count"
-    val status: String get() = processing?.state?.name?.lowercase()?.replaceFirstChar { it.uppercase() }
+    val status: String get() = processing?.let { job -> when (job.phase) {
+        ProcessingPhase.QUEUED -> "Queued"
+        ProcessingPhase.LANDMARKS -> "Processing landmarks"
+        ProcessingPhase.SEGMENTATION -> "Finding movements"
+        ProcessingPhase.ANALYSIS -> "Analyzing movements"
+        ProcessingPhase.READY -> "Segments ready"
+        ProcessingPhase.FAILED -> "Processing failed"
+    } }
         ?: if (recording.sourceState == SourceState.AVAILABLE) "Saved" else "Video unavailable"
     val context: String get() = session.expectedActivity ?: "Unspecified activity"
     fun day(zone: ZoneId): LocalDate = Instant.ofEpochMilli(session.startedAtMs).atZone(zone).toLocalDate()

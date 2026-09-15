@@ -22,7 +22,7 @@ class TrainingProcessorTest {
         val fixtureFile = File(requireNotNull(root), "output/task5/real-kihon-10-punch.fixture.json")
         // Existing real-recording fixture; import is a supported JSON use, not application persistence.
         org.junit.Assume.assumeTrue("Optional local real-recording fixture", fixtureFile.isFile)
-        verifyPersistence(PoseReplayJson.decode(fixtureFile.readText()).frames, null)
+        verifyPersistence(PoseReplayJson.decode(fixtureFile.readText()).frames, null, assisted = false)
     }
 
     @Test fun syntheticContinuousTenPunchSessionPersistsExactlyTenMovements() {
@@ -38,10 +38,10 @@ class TrainingProcessorTest {
                 PoseLandmarkId.LEFT_WRIST to sample(0.4f - reach, 0.6f), PoseLandmarkId.RIGHT_WRIST to sample(0.6f + reach, 0.6f),
                 PoseLandmarkId.LEFT_HIP to sample(0.4f, 0.6f), PoseLandmarkId.RIGHT_HIP to sample(0.6f, 0.6f)))
         }
-        verifyPersistence(frames, 10)
+        verifyPersistence(frames, 10, assisted = true)
     }
 
-    private fun verifyPersistence(frames: List<PoseFrame>, expectedCount: Int?) {
+    private fun verifyPersistence(frames: List<PoseFrame>, expectedCount: Int?, assisted: Boolean) {
         val context = ApplicationProvider.getApplicationContext<Context>()
         val databaseName = "processor-${trainingId()}"
         val directory = kotlin.io.path.createTempDirectory("processor-test").toFile()
@@ -51,16 +51,22 @@ class TrainingProcessorTest {
             var repository = TrainingRepository(db)
             val user = TrainingUser()
             repository.createUser(user)
-            val session = RecordingSession(userId = user.userId, startedAtMs = 1000, activityKey = "guided_jodan_session", guided = true, expectedRepetitions = 10)
+            val session = RecordingSession(userId = user.userId, startedAtMs = 1000,
+                activityKey = if (assisted) AssistedCaptureSetup.ACTIVITY_KEY else "guided_jodan_session",
+                guided = !assisted, expectedRepetitions = if (assisted) 12 else 10)
             val source = File(directory, "master.mp4").apply { writeText("decoder replaced by captured pose fixture") }
             repository.beginSession(session, MasterRecording(sessionId = session.sessionId, filePath = source.path, createdAtMs = 1000))
             repository.finishRecording(session.sessionId, frames.last().timestampMs * 1000)
             repository.addEvent(SessionEvent(sessionId = session.sessionId, type = "cue", timestampUs = 400_000, data = "Ichi"))
+            repository.addEvent(SessionEvent(sessionId = session.sessionId, type = "STOP_REQUESTED", timestampUs = 450_000))
+            repository.enqueue(session.sessionId)
             var decodes = 0
             val decoder = object : VideoPoseProcessor {
                 override fun processVideo(videoFile: File, onProgress: (Float, Long) -> Unit): List<PoseFrame> { decodes++; return frames }
             }
-            val processor = TrainingSessionProcessor(repository, directory, decoder, "fixture-v1")
+            var clock = 1_000L
+            val processor = TrainingSessionProcessor(repository, directory, decoder, "fixture-v1",
+                elapsedRealtimeMs = { clock.also { clock += 7 } })
             val count = processor.process(session.sessionId)
             println("Continuous ${if (expectedCount == null) "real fixture" else "synthetic fixture"}: $count movements, 1 landmark decode")
             if (expectedCount != null) assertEquals(expectedCount, count)
@@ -68,10 +74,22 @@ class TrainingProcessorTest {
             assertEquals(count, repository.movementCount(session.sessionId))
             val fifth = assertNotNull(repository.movementEvidence(session.sessionId, 5))
             assertEquals(1, fifth.landmarkTracks.size)
-            assertEquals(1, fifth.analyses.size)
-            assertEquals(2, fifth.measurements.size)
+            assertEquals(if (assisted) 0 else 1, fifth.analyses.size)
+            assertEquals(if (assisted) 0 else 2, fifth.measurements.size)
             assertNotNull(fifth.observation)
-            assertEquals(setOf("straight_punch", "jodan"), fifth.labels.map { it.machineKey }.toSet())
+            assertEquals(if (assisted) emptySet() else setOf("straight_punch", "jodan"), fifth.labels.map { it.machineKey }.toSet())
+            if (assisted) {
+                assertEquals(12, repository.session(session.sessionId)!!.expectedRepetitions)
+                assertEquals(count, repository.movementCount(session.sessionId))
+                assertEquals(SessionState.COMPLETED, repository.session(session.sessionId)!!.state)
+                val job = repository.job(session.sessionId)!!
+                assertEquals(ProcessingPhase.READY, job.phase)
+                assertEquals("straight_punch_segments", job.planKey)
+                assertEquals(7L, job.landmarkDurationMs)
+                assertEquals(7L, job.segmentationDurationMs)
+                assertEquals(TrainingSessionProcessor.SEGMENTATION_VERSION, job.segmentationVersion)
+                assertNotNull(job.sourceLandmarkTrackId)
+            }
             val identities = repository.movements(session.sessionId).map { it.movementId }
             repository.deleteVideo(session.sessionId)
             db.close()
