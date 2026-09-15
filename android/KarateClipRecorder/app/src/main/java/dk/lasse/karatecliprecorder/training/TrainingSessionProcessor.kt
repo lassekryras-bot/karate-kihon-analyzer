@@ -12,8 +12,14 @@ class TrainingSessionProcessor(
     private val modelVersion: String,
     private val checkActive: () -> Unit = {},
     private val publication: (() -> Unit) -> Unit = { it() },
+    private val elapsedRealtimeMs: () -> Long = { android.os.SystemClock.elapsedRealtime() },
+    private val segment: (String, String, List<PoseFrame>, CueTimeline) -> RetrospectiveSessionResult =
+        { recordingId, path, frames, cues ->
+            RetrospectiveSessionSegmenter(RetrospectiveSegmenterConfig(cadence = RetrospectiveCadence.REPETITIONS))
+                .segment(recordingId, path, frames, cues)
+        },
 ) {
-    /** Assisted capture ends here: no movements, labels, analysis or measurement rows. */
+    /** Landmark-only entry point retained for diagnostics/tests; queued recordings call [process]. */
     fun ensureLandmarks(sessionId: String, onProgress: (Float, Long) -> Unit = { _, _ -> }): LandmarkTrack {
         try {
             repository.setSessionState(sessionId, SessionState.LANDMARKS_PROCESSING)
@@ -88,16 +94,27 @@ class TrainingSessionProcessor(
     fun process(sessionId: String, onProgress: (Float, Long) -> Unit = { _, _ -> }): Int {
         val session = requireNotNull(repository.session(sessionId))
         val recording = requireNotNull(repository.recording(sessionId))
+        val plan = RecordingProcessingPlans.forSession(session)
         try {
-            repository.setSessionState(sessionId, SessionState.SEGMENTING)
             val existingMovements = repository.movements(sessionId)
+            updateJob(sessionId) { it.copy(phase = ProcessingPhase.LANDMARKS, planKey = plan.key, planVersion = plan.version) }
+            repository.setSessionState(sessionId, SessionState.LANDMARKS_PROCESSING)
+            val landmarkStarted = elapsedRealtimeMs()
             val (source, frames) = loadLandmarks(sessionId, onProgress,
                 existingMovements.firstOrNull()?.segmentationTrackId)
+            val landmarkDuration = (elapsedRealtimeMs() - landmarkStarted).coerceAtLeast(0)
+            android.util.Log.i("RecordingProcessing", "session=$sessionId phase=landmarks durationMs=$landmarkDuration track=${source.landmarkTrackId}")
+            updateJob(sessionId) { it.copy(landmarkDurationMs = landmarkDuration, sourceLandmarkTrackId = source.landmarkTrackId) }
+            repository.setSessionState(sessionId, SessionState.LANDMARKS_READY)
+
+            check(plan.requiresSegmentation) { "Selected plan does not configure segmentation" }
+            updateJob(sessionId) { it.copy(phase = ProcessingPhase.SEGMENTATION) }
+            repository.setSessionState(sessionId, SessionState.SEGMENTING)
+            val segmentationStarted = elapsedRealtimeMs()
             if (existingMovements.isEmpty() && session.state !in setOf(SessionState.MOVEMENTS_AVAILABLE, SessionState.COMPLETED)) {
-                val events = repository.events(sessionId)
+                val events = repository.events(sessionId).filter(SessionCueEvents::isCue)
                 val cues = events.map { CueEvent(it.sessionEventId, it.data ?: it.type, 0, it.timestampUs / 1000) }
-                val retro = RetrospectiveSessionSegmenter(RetrospectiveSegmenterConfig(cadence = RetrospectiveCadence.REPETITIONS))
-                    .segment(recording.recordingId, recording.filePath, frames, CueTimeline(recording.recordingId, cues))
+                val retro = segment(recording.recordingId, recording.filePath, frames, CueTimeline(recording.recordingId, cues))
                 val movements = retro.movements.map { m ->
                     SessionMovement(sessionId = sessionId, startUs = m.logicalStartTimestampMs * 1000,
                         endUs = m.logicalEndTimestampMs * 1000, playbackStartUs = m.retainedStartTimestampMs * 1000,
@@ -115,7 +132,18 @@ class TrainingSessionProcessor(
                 ) else emptyList()
                 repository.saveSegmentation(sessionId, movements, movements.map { MovementObservation.estimate(it, frames) }, links, labels)
             }
+            val segmentationDuration = (elapsedRealtimeMs() - segmentationStarted).coerceAtLeast(0)
+            android.util.Log.i("RecordingProcessing", "session=$sessionId phase=segmentation durationMs=$segmentationDuration movements=${repository.movementCount(sessionId)}")
+            updateJob(sessionId) { it.copy(segmentationDurationMs = segmentationDuration,
+                segmentationVersion = SEGMENTATION_VERSION) }
+
+            if (plan.analyzers.isEmpty()) {
+                repository.setSessionState(sessionId, SessionState.COMPLETED)
+                updateJob(sessionId) { it.copy(phase = ProcessingPhase.READY) }
+                return repository.movementCount(sessionId)
+            }
             repository.setSessionState(sessionId, SessionState.ANALYZING)
+            updateJob(sessionId) { it.copy(phase = ProcessingPhase.ANALYSIS) }
             var hadFailure = false
             repository.movements(sessionId).forEach { movement ->
                 if (repository.preferredAnalysis(movement.movementId, AndroidPunchMovementAnalyzer.policy) == null) {
@@ -138,9 +166,24 @@ class TrainingSessionProcessor(
             return repository.movementCount(sessionId)
         } catch (error: Exception) {
             repository.setSessionState(sessionId, SessionState.PARTIAL, error.message ?: "Processing interrupted")
+            if (error !is java.util.concurrent.CancellationException) updateJob(sessionId) {
+                it.copy(phase = ProcessingPhase.FAILED, error = error.message ?: "Processing interrupted")
+            }
             throw error
         }
     }
+
+    private fun updateJob(sessionId: String, transform: (RecordingProcessing) -> RecordingProcessing) {
+        repository.job(sessionId)?.let { repository.updateJob(transform(it)) }
+    }
+
+    companion object { const val SEGMENTATION_VERSION = "1" }
+}
+
+/** Persisted session lifecycle events are not movement cues. Keep this allow-list deliberately narrow. */
+object SessionCueEvents {
+    private val TYPES = setOf("spoken_count", "cue")
+    fun isCue(event: SessionEvent): Boolean = event.type.lowercase() in TYPES
 }
 
 /** Adapter for the existing static punch-height analyzer; it does not invent a dynamic wrist-path analyzer. */

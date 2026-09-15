@@ -7,13 +7,15 @@ Status: implemented in local source; physical-device acceptance is pending. See 
 
 `training/KarateTrainingDatabase` is the authoritative structured store for new
 CameraX recording sessions. Its file is `karate-training.db`, Room schema version
-**5**. Exported schemas v1–v5 are retained under `app/schemas/`.
+**6**. Exported schemas v1–v6 are retained under `app/schemas/`.
 The explicit v1→v2 migration adds nullable session cadence/counting/delay
 snapshots and landmark format ID/version; existing evidence is preserved.
 The v2→v3 migration adds expected activity/category and interruption reason;
 v3→v4 adds the durable processing queue and backfills saved assisted recordings.
 The v4→v5 migration adds shared capture request/result fields and media type, so
-video and photo evidence use the same durable identity model.
+video and photo evidence use the same durable identity model. The v5→v6 migration
+adds the recording processing-plan snapshot, current phase, landmark/segmentation
+durations, and source landmark/segmenter provenance.
 
 The existing project uses Kotlin 2.0.21, AGP 8.7.3, Java 17, minSdk 26 and native
 Android Views (no Compose dependency). Room 2.7.2 with KSP 2.0.21-1.0.28 fits that
@@ -121,15 +123,26 @@ is queried by start/end timestamp, with ID as a deterministic tie breaker.
 The processing subsystem discovers eligible finalized videos from Room after the
 recorder publishes its event; capture and persistence do not insert or understand
 queue jobs. The new Skill Coach [assisted capture page](record-and-analyze-assisted-capture-v1.md)
-therefore returns saved success before `TrainingSessionProcessor.ensureLandmarks` runs. The worker stops at
-LANDMARKS_READY, with no segmentation, labels, analysis runs or measurements.
-It snapshots requested count, cadence, counting toggle, first-cue delay and expected
-activity context. Exact stop/force/interruption event times remain separate from
-actual recording end. Performance Recordings consumes repository snapshots and
-never treats planned repetition count as detected movement count.
-Actual emitted spoken cues are separate events, never detected movement counts.
-Playback and a debug landmark overlay reopen the persisted evidence. MLS failure
-preserves the successful MP4 and offers retry.
+therefore returns saved success before background processing starts. One durable
+recording job now advances through landmark extraction and retrospective
+segmentation. Its persisted plan snapshot is `straight_punch_segments` v1:
+landmarks and segmentation are required and no analyzers are configured. The job
+becomes Ready only after segmentation, including a valid zero-movement result.
+
+The segmenter reads the completed `.mls` track; it does not run MediaPipe a second
+time. Segments reference that track and persist distinct logical and buffered
+playback intervals. Saving is transactional and retries reuse the existing
+movement identities, so planned repetition count never trims or creates movement
+rows. Only `spoken_count` and the legacy `cue` event type enter cue association;
+Stop, interruption, capture-outcome, and other lifecycle events do not.
+
+The job persists its phase (`LANDMARKS`, `SEGMENTATION`, optional future
+`ANALYSIS`, or terminal `READY`/`FAILED`), both phase durations, selected plan
+version, source track, and segmenter version. QTray reads those phases and never
+runs work. Performance Recordings shows planned and detected counts separately,
+processing/failure state, and a durable Segments section with logical/playback
+bounds and interval playback. MLS or segmentation failure preserves the successful
+MP4 and any valid upstream landmark evidence and offers retry.
 
 Guided Straight Punch and Jōdan labels have `activity_context` assignment source;
 they express the drill context, not independently recognized technique/target.
@@ -201,9 +214,9 @@ can reference `training-session:<UUID>` instead of duplicating this evidence.
   on retry. Existing segmentation and successful analyses are reused. Corrupt
   or missing landmark files leave an explicit partial state; history stays intact.
 
-Recovery is exposed through repository/session-processor APIs. A WorkManager
-scheduler, a session-history/recovery screen, and automatic retry scheduling are
-not implemented in this foundation.
+Recovery is exposed through repository/session-processor APIs and the existing
+WorkManager recording queue. Segmentation remains an internal phase of the same
+serial heavy-processing job rather than a second queue.
 
 ## Verification
 

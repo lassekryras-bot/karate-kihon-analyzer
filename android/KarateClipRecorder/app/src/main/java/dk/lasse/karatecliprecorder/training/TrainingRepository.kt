@@ -42,7 +42,12 @@ class TrainingRepository(private val database: KarateTrainingDatabase, val stora
                         width: Int? = null, height: Int? = null, frameRate: Double? = null) =
         finishCapture(sessionId, durationUs, failed, width, height, frameRate)
 
-    fun enqueue(id: String) { dao.insert(RecordingProcessingRow(RecordingProcessing(id, session(id)?.startedAtMs ?: System.currentTimeMillis()))) }
+    fun enqueue(id: String) {
+        val session = session(id)
+        val plan = session?.let(RecordingProcessingPlans::forSession) ?: RecordingProcessingPlans.STRAIGHT_PUNCH_SEGMENTS
+        dao.insert(RecordingProcessingRow(RecordingProcessing(id, session?.startedAtMs ?: System.currentTimeMillis(),
+            planKey = plan.key, planVersion = plan.version)))
+    }
     fun jobs() = dao.jobs().map { it.value }
     fun job(id: String) = dao.job(id)?.value
     fun updateJob(value: RecordingProcessing) = dao.update(RecordingProcessingRow(value))
@@ -53,6 +58,7 @@ class TrainingRepository(private val database: KarateTrainingDatabase, val stora
         require(job.state != QueueState.DELETING)
         if (job.state != QueueState.READY) updateJob(job.copy(
             state = if (job.state == QueueState.PROCESSING) job.state else QueueState.QUEUED,
+            phase = if (job.state == QueueState.PROCESSING) job.phase else ProcessingPhase.QUEUED,
             promotedAtMs = System.currentTimeMillis(), manual = true, error = null))
     }
     fun recoverJobs() {

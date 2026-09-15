@@ -13,7 +13,13 @@ import dk.lasse.karateanalyzer.core.PoseFrame
 import java.io.File
 
 /** VideoView's fitted bounds are also the normalized-image landmark viewport. */
-class LandmarkPlaybackDialog(context: Context, file: File, private val frames: List<PoseFrame>) : Dialog(context) {
+class LandmarkPlaybackDialog(
+    context: Context,
+    file: File,
+    private val frames: List<PoseFrame>,
+    private val playbackStartMs: Long = 0,
+    private val playbackEndMs: Long? = null,
+) : Dialog(context) {
     private val video = VideoView(context)
     private val landmarkOverlay = object : View(context) {
         private val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.GREEN }
@@ -44,12 +50,24 @@ class LandmarkPlaybackDialog(context: Context, file: File, private val frames: L
         setContentView(body)
         video.setVideoPath(file.absolutePath)
         video.setMediaController(MediaController(context).also { it.setAnchorView(surface) })
-        video.setOnPreparedListener { video.start() }
+        video.setOnPreparedListener {
+            video.seekTo(playbackStartMs.coerceIn(0, Int.MAX_VALUE.toLong()).toInt())
+            video.start()
+            playbackEndMs?.let { end -> stopAt(end) }
+        }
         video.setOnErrorListener { _, _, _ -> Toast.makeText(context, "Recording playback failed", Toast.LENGTH_LONG).show(); true }
         setOnDismissListener { video.stopPlayback() }
     }
     override fun onStart() {
         super.onStart()
         window?.setLayout(ViewGroup.LayoutParams.MATCH_PARENT, (context.resources.displayMetrics.heightPixels * .9).toInt())
+    }
+
+    private fun stopAt(endMs: Long) {
+        if (!video.isPlaying) return
+        if (video.currentPosition >= endMs) {
+            video.pause()
+            video.seekTo(endMs.coerceIn(0, Int.MAX_VALUE.toLong()).toInt())
+        } else video.postDelayed({ stopAt(endMs) }, 33)
     }
 }

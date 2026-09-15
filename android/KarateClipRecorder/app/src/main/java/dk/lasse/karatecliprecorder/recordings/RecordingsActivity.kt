@@ -30,6 +30,7 @@ class RecordingsActivity : AppCompatActivity() {
     private var day: LocalDate? = null
     private var category: String? = null
     private var selected: String? = null
+    private var segmentData: SegmentData? = null
     private var loaded = false
     private var active = false
     private var loading = false
@@ -92,13 +93,15 @@ class RecordingsActivity : AppCompatActivity() {
         training.submit({ repo ->
             // A post-capture deep link retains the recording's owning profile.
             val owner = selected?.let { repo.session(it)?.userId } ?: user
-            repo.recordingSummaries(owner)
+            BrowserLoad(repo.recordingSummaries(owner), selected?.let { id ->
+                SegmentData(repo.movements(id))
+            })
         }) { result ->
             loading = false
             if (!active) return@submit
             result.onSuccess {
-                val changed = !loaded || it != browser.recordings
-                loaded = true; browser = RecordingBrowser(it)
+                val changed = !loaded || it.summaries != browser.recordings || it.segments != segmentData
+                loaded = true; browser = RecordingBrowser(it.summaries); segmentData = it.segments
                 if (changed) render()
             }.onFailure { toast("Could not load recordings: ${it.message}") }
         }
@@ -126,7 +129,7 @@ class RecordingsActivity : AppCompatActivity() {
         if (rows.isEmpty()) body.addView(label("No recordings for this selection."))
         rows.forEach { row ->
             body.addView(button("${date(row)}\n${row.context} · ${row.countLabel} · ${row.status}") {
-                selected = row.session.sessionId; render()
+                selected = row.session.sessionId; segmentData = null; render(); load()
             }.apply { gravity = Gravity.START or Gravity.CENTER_VERTICAL; textSize = 14f })
         }
     }
@@ -170,7 +173,7 @@ class RecordingsActivity : AppCompatActivity() {
         row.recording.durationUs?.let { body.addView(label("Duration: ${"%.1f".format(it / 1_000_000.0)} s")) }
         row.session.interruptionReason?.let { body.addView(label("Capture interrupted: ${it.replace('_', ' ')}")) }
         row.processing?.error?.let { body.addView(label("Processing failed: $it")) }
-        if (row.movementCount == 0) body.addView(label("Confirmed movements will appear here after movement segmentation."))
+        segments(row)
         if (row.recording.sourceState == SourceState.AVAILABLE && row.processing?.state in listOf(null, QueueState.QUEUED, QueueState.FAILED)) {
             body.addView(button(if (row.processing?.state == QueueState.FAILED) "Retry" else "Process now") {
                 RecordingQueue.processNow(this, row.session.sessionId) { result ->
@@ -195,10 +198,35 @@ class RecordingsActivity : AppCompatActivity() {
                 }.show()
         })
     }
-    private fun play(row: RecordingSummary) {
+    private fun segments(row: RecordingSummary) {
+        body.addView(label("Segments", 18f))
+        body.addView(label("Activity: ${row.context}"))
+        body.addView(label("Planned repetitions: ${row.session.expectedRepetitions?.toString() ?: "Not specified"}"))
+        body.addView(label("Detected movements: ${row.movementCount}"))
+        body.addView(label("Status: ${row.status}"))
+        val details = segmentData
+        if (details == null) { body.addView(label("Loading segments…")); return }
+        if (details.movements.isEmpty()) {
+            body.addView(label(if (row.processing?.phase == ProcessingPhase.READY)
+                "No movements were detected." else "Movement segmentation is not complete."))
+            return
+        }
+        details.movements.forEachIndexed { index, movement ->
+            body.addView(label("Movement ${index + 1}", 17f))
+            body.addView(label("Logical: ${time(movement.startUs)} – ${time(movement.endUs)}\n" +
+                "Duration: ${time(movement.endUs - movement.startUs)}\n" +
+                "Playback: ${time(movement.playbackStartUs)} – ${time(movement.playbackEndUs)}\n" +
+                "Segmenter: ${movement.segmentationSource} v${movement.segmentationVersion}\n" +
+                "Landmark track: ${movement.segmentationTrackId ?: "Unavailable"}"))
+            if (row.recording.sourceState == SourceState.AVAILABLE) body.addView(button("Play movement ${index + 1}") {
+                play(row, movement.playbackStartUs / 1000, movement.playbackEndUs / 1000)
+            })
+        }
+    }
+    private fun play(row: RecordingSummary, startMs: Long = 0, endMs: Long? = null) {
         val file = training.repository.file(row.recording.filePath)
         if (!file.isFile) { toast("The video file is unavailable."); return }
-        playback = LandmarkPlaybackDialog(this, file, emptyList()).also { it.show() }
+        playback = LandmarkPlaybackDialog(this, file, emptyList(), startMs, endMs).also { it.show() }
     }
     private fun playLandmarks(row: RecordingSummary) {
         training.submit({ repo -> repo.tracks(row.recording.recordingId).lastOrNull {
@@ -217,6 +245,7 @@ class RecordingsActivity : AppCompatActivity() {
     }
     private fun date(row: RecordingSummary) = Instant.ofEpochMilli(row.session.startedAtMs).atZone(ZoneId.systemDefault())
         .format(DateTimeFormatter.ofPattern("d MMM yyyy · HH:mm"))
+    private fun time(valueUs: Long) = "%.3f s".format(valueUs / 1_000_000.0)
     private fun label(value: String, size: Float = 16f) = TextView(this).apply {
         text = value; textSize = size; setPadding(0, dp(8), 0, dp(8))
         setTextColor(ContextCompat.getColor(this@RecordingsActivity, R.color.app_text_primary))
@@ -228,3 +257,6 @@ class RecordingsActivity : AppCompatActivity() {
     private fun dp(value: Int) = (value * resources.displayMetrics.density).toInt()
     companion object { const val EXTRA_SESSION_ID = "recording_session_id" }
 }
+
+private data class SegmentData(val movements: List<SessionMovement>)
+private data class BrowserLoad(val summaries: List<RecordingSummary>, val segments: SegmentData?)

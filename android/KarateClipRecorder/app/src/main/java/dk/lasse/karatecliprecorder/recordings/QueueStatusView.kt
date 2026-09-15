@@ -12,6 +12,7 @@ class QueueStatusView(context: Context) : AppCompatTextView(context) {
     private val handler = Handler(Looper.getMainLooper())
     private var attached = false
     private var loading = false
+    private var readySessionId: String? = null
     private val refresh = object : Runnable {
         override fun run() {
             if (!attached) return
@@ -21,6 +22,9 @@ class QueueStatusView(context: Context) : AppCompatTextView(context) {
                     loading = false
                     if (attached) {
                         val message = queueStatus(result.getOrDefault(emptyList()))
+                        readySessionId = result.getOrDefault(emptyList()).firstOrNull {
+                            it.state == QueueState.READY && it.phase == ProcessingPhase.READY
+                        }?.sessionId
                         text = message; visibility = if (message.isEmpty()) GONE else VISIBLE
                     }
                 }
@@ -34,16 +38,28 @@ class QueueStatusView(context: Context) : AppCompatTextView(context) {
         setPadding(padding, padding, padding, padding)
         setTextColor(android.graphics.Color.WHITE); setBackgroundColor(0xDD303030.toInt())
         isClickable = true; isFocusable = true
-        setOnClickListener { context.startActivity(Intent(context, RecordingsActivity::class.java)) }
+        setOnClickListener {
+            context.startActivity(Intent(context, RecordingsActivity::class.java).apply {
+                readySessionId?.let { putExtra(RecordingsActivity.EXTRA_SESSION_ID, it) }
+            })
+        }
     }
     override fun onAttachedToWindow() { super.onAttachedToWindow(); attached = true; handler.post(refresh) }
     override fun onDetachedFromWindow() { attached = false; handler.removeCallbacksAndMessages(null); super.onDetachedFromWindow() }
     companion object {
         fun queueStatus(jobs: List<RecordingProcessing>): String {
             val queued = jobs.count { it.state == QueueState.QUEUED }
-            val processing = jobs.count { it.state == QueueState.PROCESSING }
-            return listOfNotNull(if (processing > 0) "$processing processing" else null,
-                if (queued > 0) "$queued queued" else null).joinToString(" · ")
+            val processing = jobs.filter { it.state == QueueState.PROCESSING }
+            val ready = jobs.any { it.state == QueueState.READY && it.phase == ProcessingPhase.READY }
+            val phase = processing.firstOrNull()?.let { when (it.phase) {
+                ProcessingPhase.LANDMARKS -> "Processing landmarks"
+                ProcessingPhase.SEGMENTATION -> "Finding movements"
+                ProcessingPhase.ANALYSIS -> "Analyzing movements"
+                else -> "Processing"
+            } }
+            return listOfNotNull(phase?.let { if (processing.size == 1) it else "${processing.size} processing" },
+                if (queued > 0) "$queued queued" else null,
+                if (ready) "Segments ready · View" else null).joinToString(" · ")
                 .let { if (it.isEmpty()) "" else "Recordings: $it" }
         }
     }

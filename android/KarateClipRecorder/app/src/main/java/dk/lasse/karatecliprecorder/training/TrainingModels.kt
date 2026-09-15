@@ -18,9 +18,38 @@ enum class BodySide { LEFT, RIGHT, BILATERAL, WHOLE_BODY, UNKNOWN }
 
 data class TrainingUser(val userId: String = trainingId(), val createdAtMs: Long = System.currentTimeMillis())
 enum class QueueState { QUEUED, PROCESSING, READY, FAILED, DELETING }
+enum class ProcessingPhase { QUEUED, LANDMARKS, SEGMENTATION, ANALYSIS, READY, FAILED }
 data class RecordingProcessing(val sessionId: String, val queuedAtMs: Long,
     val state: QueueState = QueueState.QUEUED, val promotedAtMs: Long? = null,
-    val manual: Boolean = false, val error: String? = null)
+    val manual: Boolean = false, val error: String? = null,
+    val phase: ProcessingPhase = ProcessingPhase.QUEUED,
+    val planKey: String = RecordingProcessingPlans.STRAIGHT_PUNCH_SEGMENTS.key,
+    val planVersion: Int = RecordingProcessingPlans.STRAIGHT_PUNCH_SEGMENTS.version,
+    val landmarkDurationMs: Long? = null, val segmentationDurationMs: Long? = null,
+    val sourceLandmarkTrackId: String? = null, val segmentationVersion: String? = null)
+
+data class RecordingProcessingPlan(
+    val key: String,
+    val version: Int,
+    val requiresLandmarks: Boolean,
+    val requiresSegmentation: Boolean,
+    val analyzers: List<String>,
+)
+
+object RecordingProcessingPlans {
+    val STRAIGHT_PUNCH_SEGMENTS = RecordingProcessingPlan(
+        key = "straight_punch_segments",
+        version = 1,
+        requiresLandmarks = true,
+        requiresSegmentation = true,
+        analyzers = emptyList(),
+    )
+
+    fun forSession(session: RecordingSession): RecordingProcessingPlan = when (session.activityKey) {
+        AssistedCaptureSetup.ACTIVITY_KEY -> STRAIGHT_PUNCH_SEGMENTS
+        else -> RecordingProcessingPlan("legacy_punch_analysis", 1, true, true, listOf("android_punch_height"))
+    }
+}
 data class RecordingSession(
     val sessionId: String = trainingId(), val userId: String, val startedAtMs: Long,
     val endedAtMs: Long? = null, val activityKey: String? = null, val guided: Boolean = false,
