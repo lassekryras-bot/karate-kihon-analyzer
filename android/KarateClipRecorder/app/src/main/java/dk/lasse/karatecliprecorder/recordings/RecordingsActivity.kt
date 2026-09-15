@@ -10,6 +10,7 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
 import dk.lasse.karatecliprecorder.AppPreferences
 import dk.lasse.karatecliprecorder.R
+import dk.lasse.karatecliprecorder.SubPageHeader
 import dk.lasse.karatecliprecorder.assisted.LandmarkPlaybackDialog
 import dk.lasse.karatecliprecorder.profile.ProfileRepository
 import dk.lasse.karatecliprecorder.training.*
@@ -25,6 +26,7 @@ class RecordingsActivity : AppCompatActivity() {
     private val profileStore = lazy { ProfileRepository(this, AppPreferences(this)) }
     private val profiles by profileStore
     private lateinit var body: LinearLayout
+    private lateinit var header: SubPageHeader
     private var browser = RecordingBrowser(emptyList())
     private var month = YearMonth.now()
     private var day: LocalDate? = null
@@ -53,11 +55,19 @@ class RecordingsActivity : AppCompatActivity() {
             setBackgroundColor(ContextCompat.getColor(this@RecordingsActivity, R.color.app_background))
             addView(body)
         }
-        androidx.core.view.ViewCompat.setOnApplyWindowInsetsListener(scroll) { view, insets ->
-            val bars = insets.getInsets(androidx.core.view.WindowInsetsCompat.Type.systemBars() or androidx.core.view.WindowInsetsCompat.Type.displayCutout())
-            view.setPadding(bars.left, bars.top, bars.right, bars.bottom); insets
+        header = SubPageHeader(this, "Recordings", onBack = ::back)
+        val root = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setBackgroundColor(ContextCompat.getColor(this@RecordingsActivity, R.color.app_background))
+            addView(header, LinearLayout.LayoutParams(-1, -2))
+            addView(QueueManagerTrayView(this@RecordingsActivity), LinearLayout.LayoutParams(-1, -2))
+            addView(scroll, LinearLayout.LayoutParams(-1, 0, 1f))
         }
-        setContentView(scroll)
+        androidx.core.view.ViewCompat.setOnApplyWindowInsetsListener(scroll) { view, insets ->
+            val bars = insets.getInsets(androidx.core.view.WindowInsetsCompat.Type.navigationBars())
+            view.setPadding(0, 0, 0, bars.bottom); insets
+        }
+        setContentView(root)
         onBackPressedDispatcher.addCallback(this, object : androidx.activity.OnBackPressedCallback(true) {
             override fun handleOnBackPressed() { back() }
         })
@@ -108,8 +118,7 @@ class RecordingsActivity : AppCompatActivity() {
     }
     private fun render() {
         body.removeAllViews()
-        body.addView(button(if (selected == null) "Back to Performance" else "Back to Recordings") { back() })
-        body.addView(label(if (selected == null) "Recordings" else "Recording", 26f))
+        header.setTitle(if (selected == null) "Recordings" else "Recording")
         if (!loaded) { body.addView(label("Loading recordings…")); return }
         selected?.let { id -> detail(browser.exact(id)); return }
         body.addView(button("Filter: ${category ?: "All activities"}") {
@@ -167,6 +176,7 @@ class RecordingsActivity : AppCompatActivity() {
     }
     private fun detail(row: RecordingSummary?) {
         if (row == null) { body.addView(label("This recording is no longer available.")); return }
+        QueueManager.acknowledge(row.session.sessionId)
         body.addView(label(row.context, 21f))
         body.addView(label("Expected activity · ${row.session.expectedCategory ?: "Unspecified"}"))
         body.addView(label("${date(row)}\n${row.countLabel} · ${row.status}"))

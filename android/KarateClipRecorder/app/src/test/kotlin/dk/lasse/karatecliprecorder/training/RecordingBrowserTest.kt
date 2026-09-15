@@ -1,6 +1,5 @@
 package dk.lasse.karatecliprecorder.training
 
-import dk.lasse.karatecliprecorder.recordings.QueueStatusView
 import org.junit.Test
 import java.time.*
 import kotlin.test.*
@@ -45,14 +44,9 @@ class RecordingBrowserTest {
         }
         assertNull(browser.exact("deleted"))
     }
-    @Test fun plannedCountIsNeverCalledDetectedAndQueueStatusIsAccurate() {
+    @Test fun plannedCountIsNeverCalledDetected() {
         assertEquals("Planned 10", row(1).countLabel)
         assertEquals("Detected 9 · Planned 10", row(2, count = 9).countLabel)
-        val jobs = listOf(row(1), row(2), row(3, state = QueueState.PROCESSING), row(4, state = QueueState.FAILED)).map { it.processing!! }
-        assertEquals("Recordings: Processing landmarks · 2 queued", QueueStatusView.queueStatus(jobs))
-        assertEquals("", QueueStatusView.queueStatus(jobs.filter { it.state == QueueState.FAILED }))
-        assertEquals("Recordings: Segments ready · View", QueueStatusView.queueStatus(listOf(
-            RecordingProcessing("ready", 1, QueueState.READY, phase = ProcessingPhase.READY))))
         assertEquals("Detected 0 · Planned 10", row(3).copy(processing =
             RecordingProcessing("recording-3", 1, QueueState.READY, phase = ProcessingPhase.READY)).countLabel)
     }

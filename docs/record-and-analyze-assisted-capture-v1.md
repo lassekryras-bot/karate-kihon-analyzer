@@ -101,8 +101,10 @@ files. Cancellation and a shared publication fence prevent a stale worker from
 republishing MLS. Failed deletion remains durable for recovery. The lower-level
 media-only deletion API remains available but is not exposed here.
 
-Global status distinguishes queued, landmark processing, and movement finding,
-then offers **Segments ready · View** for the completed recording. Calendar and
+The app-shell Queue Manager Tray distinguishes waiting, landmark processing, and
+movement finding, then offers **Segments ready · View** for the completed recording.
+It remains one row per recording, shows at most three rows plus useful overflow,
+respects user collapse, and hides only while actual camera recording is active. Calendar and
 dense-row queries remain read-only. Only emitted count/cue events can be associated
 with segments; lifecycle events never become cues or movement boundaries.
 

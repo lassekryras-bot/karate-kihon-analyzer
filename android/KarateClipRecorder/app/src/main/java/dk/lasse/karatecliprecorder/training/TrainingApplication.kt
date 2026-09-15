@@ -7,6 +7,7 @@ import android.os.Bundle
 class TrainingApplication : Application() {
     override fun onCreate() {
         super.onCreate()
+        dk.lasse.karatecliprecorder.recordings.QueueManager.start(this)
         dk.lasse.karatecliprecorder.sharedcapture.CaptureFinalizedEvents.listener = {
             if (it.captureType == dk.lasse.karatecliprecorder.sharedcapture.CaptureType.VIDEO) RecordingQueue.schedule(this)
         }

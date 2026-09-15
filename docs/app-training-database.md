@@ -138,8 +138,11 @@ Stop, interruption, capture-outcome, and other lifecycle events do not.
 
 The job persists its phase (`LANDMARKS`, `SEGMENTATION`, optional future
 `ANALYSIS`, or terminal `READY`/`FAILED`), both phase durations, selected plan
-version, source track, and segmenter version. QTray reads those phases and never
-runs work. Performance Recordings shows planned and detected counts separately,
+version, source track, and segmenter version. The Queue Manager reads those phases and the Queue Manager Tray never runs work.
+The tray shows up to three recent user jobs, stable overflow counts, a compact
+user-controlled collapsed handle, and contextual recording-time hiding. It filters
+maintenance-prefixed plans and suppresses historical Ready rows on a fresh launch.
+Performance Recordings shows planned and detected counts separately,
 processing/failure state, and a durable Segments section with logical/playback
 bounds and interval playback. MLS or segmentation failure preserves the successful
 MP4 and any valid upstream landmark evidence and offers retry.

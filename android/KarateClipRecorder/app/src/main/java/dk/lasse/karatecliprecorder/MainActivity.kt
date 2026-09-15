@@ -517,9 +517,6 @@ class MainActivity : AppCompatActivity() {
             addView(learnScreen)
             addView(settingsScreen)
             addView(progressScreen)
-            addView(dk.lasse.karatecliprecorder.recordings.QueueStatusView(this@MainActivity), FrameLayout.LayoutParams(-2, -2, Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL).apply {
-                bottomMargin = ((AppBottomNavigationView.BASE_HEIGHT_DP + 12) * resources.displayMetrics.density).toInt()
-            })
         }
         setContentView(appRoot)
         trainingOrderPlayer = SoundFileTrainingOrderPlayer(this)
@@ -3191,6 +3188,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun updateRecordingState(state: RecordingState) {
         latestRecordingState = state
+        dk.lasse.karatecliprecorder.recordings.QueueManager.setRecordingHidden(state == RecordingState.RECORDING)
         recordingStateText.text = "Recording: ${state.name.lowercase()}"
         updateMainMenuAvailability()
         updateControlVisibility()

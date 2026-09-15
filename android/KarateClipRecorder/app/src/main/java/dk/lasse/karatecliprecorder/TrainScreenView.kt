@@ -11,6 +11,7 @@ import android.widget.TextView
 import androidx.core.content.ContextCompat
 import dk.lasse.karatecliprecorder.profile.ProfileAvatarButton
 import dk.lasse.karatecliprecorder.profile.ProfileRepository
+import dk.lasse.karatecliprecorder.recordings.QueueManagerTrayView
 
 /** Passive mode chooser. Its three cards share the available height without scrolling. */
 class TrainScreenView(
@@ -29,6 +30,7 @@ class TrainScreenView(
         setBackgroundColor(ContextCompat.getColor(context, R.color.app_background))
         addView(MainPageHeader(context, "Training", "How would you like to train?",
             ProfileAvatarButton(context, repository, onProfile)), LayoutParams(-1, -2))
+        addView(QueueManagerTrayView(context), LayoutParams(-1, -2))
         addView(LinearLayout(context).apply {
             orientation = VERTICAL
             setPadding(20.dp(), 16.dp(), 20.dp(), 16.dp())

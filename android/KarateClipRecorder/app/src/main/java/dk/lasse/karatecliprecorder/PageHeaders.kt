@@ -16,6 +16,7 @@ import android.widget.TextView
 import androidx.core.content.ContextCompat
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
+import dk.lasse.karatecliprecorder.recordings.QueueManagerTrayView
 
 internal object AppChromeStyle {
     val SURFACE_COLOR_RES = R.color.app_card_surface
@@ -198,6 +199,7 @@ class StickyHeaderPageLayout(
     init {
         orientation = VERTICAL
         addView(header, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT))
+        addView(QueueManagerTrayView(context), LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT))
         addView(scroller, LayoutParams(LayoutParams.MATCH_PARENT, 0, 1f))
         body?.let(content::addView)
         setBackgroundColor(ContextCompat.getColor(context, R.color.app_background))

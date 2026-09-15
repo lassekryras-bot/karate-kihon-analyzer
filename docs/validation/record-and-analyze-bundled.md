@@ -104,7 +104,7 @@ Paths below are relative to `android/KarateClipRecorder/app/`.
 | Room queue/schema/repository | `src/main/java/dk/lasse/karatecliprecorder/training/TrainingModels.kt`, `TrainingRows.kt`, `TrainingDao.kt`, `TrainingRepository.kt`, `KarateTrainingDatabase.kt`, exports `schemas/**/1.json`–`4.json` |
 | Worker and policy | `src/main/java/dk/lasse/karatecliprecorder/training/RecordingQueue.kt`, `ProcessingCoordinator.kt`, `ProcessingPolicy.kt`, `TrainingApplication.kt`, `ProcessingSettingsView.kt` |
 | MLS publication/reuse | `src/main/java/dk/lasse/karatecliprecorder/training/TrainingServices.kt`, `TrainingSessionProcessor.kt`, `LandmarkFiles.kt` |
-| Performance browsing | `src/main/java/dk/lasse/karatecliprecorder/training/RecordingBrowser.kt`, `recordings/RecordingsActivity.kt`, `recordings/QueueStatusView.kt`, `profile/ProgressScreenView.kt` |
+| Performance browsing | `src/main/java/dk/lasse/karatecliprecorder/training/RecordingBrowser.kt`, `recordings/RecordingsActivity.kt`, `recordings/QueueManager.kt`, `recordings/QueueManagerTrayView.kt`, `profile/ProgressScreenView.kt` |
 | App integration | `src/main/AndroidManifest.xml`, `src/main/java/dk/lasse/karatecliprecorder/MainActivity.kt`, `SettingsScreenView.kt`, `build.gradle.kts` |
 | New/extended tests | `src/test/kotlin/dk/lasse/karatecliprecorder/assisted/`, `src/test/kotlin/dk/lasse/karatecliprecorder/training/`, `src/androidTest/java/dk/lasse/karatecliprecorder/training/TrainingMigrationTest.kt` |
 

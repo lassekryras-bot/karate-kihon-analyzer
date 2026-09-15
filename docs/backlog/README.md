@@ -20,6 +20,8 @@ When starting work on a task, first verify the current implementation. Do not as
 
 ## Open tasks
 
+- [Queue Manager Tray v1](queue-manager-tray-v1.md) — app-shell presentation of recent recording jobs with phase-aware rows, collapse/hide behavior, overflow, and result acknowledgement; implementation is local and physical-device validation remains pending.
+
 - [Segmenter Integration v1](segmenter-integration-v1-requirements.md) — connect persisted landmark processing to retrospective segmentation, durable movement records, and recording-level segment inspection; implemented in local source; automated build and physical-device boundary validation remain pending. See the [validation plan](segmenter-integration-v1-validation.md) and [starter prompt](../prompts/segmenter-integration-v1-start-prompt.md).
 
 - [Shared Camera Capture backend](shared-camera-capture-backend.md) — implemented locally for shared video/photo capture; physical-device acceptance pending.
