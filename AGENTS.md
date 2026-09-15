@@ -12,6 +12,31 @@ A reusable task prompt is in `docs/prompts/new-measurement-wiki-entry.md`.
 Keep the guide aligned when implementation changes these conventions. It records
 the current baseline and distinguishes planned capabilities from implemented ones.
 
+## Movement detector and segmentation
+
+For work on movement detection, movement segmentation, `BaseMovementSegmenter`,
+`PoseMotionObservationExtractor`, retrospective segmentation, movement-boundary
+math, or activity-specific body selection, read these first:
+
+1. `docs/motion-detector-math.md` — normative activity-aware Quantity-of-Motion
+   signal, filtering, block definitions, rolling area and hysteresis math.
+2. `docs/motion-detector-implementation-guide.md` — migration contract for
+   replacing the current Top-2/translation/angular detector paths with the QoM
+   detector while preserving persistence, cue association and logical/retained
+   interval semantics.
+3. `docs/validation/task5/archive/README.md` — historical detector experiments and
+   the rule against rebuilding multi-safeguard complexity without real-recording
+   evidence.
+
+Treat the QoM documents as the preferred production direction. Historical Top-2,
+angular, displacement, pose-similarity and coverage-gating methods may remain as
+analysis/diagnostic research, but must not be reintroduced as competing production
+movement gates without a concrete validation recording and an explicit detector
+version change. Activity metadata selects the movement body profile: punch uses
+left arm + right arm + torso; kick uses left leg + right leg + torso; head is
+excluded. Keep logical movement boundaries separate from pre/post-roll playback
+padding.
+
 ## Outstanding development tasks
 
 Small agreed requirements that are not yet implemented or verified live in
