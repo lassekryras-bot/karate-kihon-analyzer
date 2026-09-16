@@ -1,6 +1,7 @@
 package dk.lasse.karatecliprecorder.training
 
 import java.util.UUID
+import dk.lasse.karateanalyzer.capture.qom.MotionBodyProfile
 import dk.lasse.karatecliprecorder.sharedcapture.CaptureType
 
 fun trainingId(): String = UUID.randomUUID().toString()
@@ -34,6 +35,7 @@ data class RecordingProcessingPlan(
     val requiresLandmarks: Boolean,
     val requiresSegmentation: Boolean,
     val analyzers: List<String>,
+    val movementProfile: MotionBodyProfile = MotionBodyProfile.PUNCH,
 )
 
 object RecordingProcessingPlans {
@@ -43,11 +45,18 @@ object RecordingProcessingPlans {
         requiresLandmarks = true,
         requiresSegmentation = true,
         analyzers = emptyList(),
+        movementProfile = MotionBodyProfile.PUNCH,
     )
 
-    fun forSession(session: RecordingSession): RecordingProcessingPlan = when (session.activityKey) {
-        AssistedCaptureSetup.ACTIVITY_KEY -> STRAIGHT_PUNCH_SEGMENTS
-        else -> RecordingProcessingPlan("legacy_punch_analysis", 1, true, true, listOf("android_punch_height"))
+    fun forSession(session: RecordingSession): RecordingProcessingPlan {
+        val isKick = (session.expectedCategory?.contains("kick", ignoreCase = true) == true) ||
+            (session.activityKey?.contains("kick", ignoreCase = true) == true)
+        val profile = if (isKick) MotionBodyProfile.KICK else MotionBodyProfile.PUNCH
+
+        return when (session.activityKey) {
+            AssistedCaptureSetup.ACTIVITY_KEY -> STRAIGHT_PUNCH_SEGMENTS.copy(movementProfile = profile)
+            else -> RecordingProcessingPlan("legacy_punch_analysis", 1, true, true, listOf("android_punch_height"), movementProfile = profile)
+        }
     }
 }
 data class RecordingSession(

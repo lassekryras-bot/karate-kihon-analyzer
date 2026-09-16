@@ -1,5 +1,8 @@
 package dk.lasse.karateanalyzer.capture.retrospective
 
+import dk.lasse.karateanalyzer.capture.qom.QomFrameEvidence
+import dk.lasse.karateanalyzer.capture.qom.QomMotionEvidenceExtractor
+import dk.lasse.karateanalyzer.capture.qom.QomMovementSegmenter
 import dk.lasse.karateanalyzer.core.PoseFrame
 import kotlin.math.max
 import kotlin.math.min
@@ -16,21 +19,21 @@ data class RetrospectiveSessionResult(
     val movements: List<SessionMovement>,
     val kinematicsTimeline: List<RetrospectiveKinematicFrame>,
     val stats: RetrospectiveSignalStats,
+    val qomTimeline: List<QomFrameEvidence> = emptyList(),
 )
 
 /**
  * Authoritative retrospective movement segmenter.
  *
  * Operates over the completed landmark timeline from the finalized continuous master recording.
- * Applies centered temporal kinematics and session-relative q20/q90 normalization.
+ * Uses activity-aware Quantity of Motion (QoM) and two-state hysteresis as the normative physical
+ * movement boundary evidence.
  *
  * Segments movements into logical [SessionMovement] intervals without cutting physical MP4 files.
  */
 class RetrospectiveSessionSegmenter(
     val config: RetrospectiveSegmenterConfig = RetrospectiveSegmenterConfig(),
 ) {
-    private val extractor = RetrospectiveKinematicsExtractor(config)
-
     fun segment(
         sequenceId: String,
         masterVideoPath: String,
@@ -47,61 +50,36 @@ class RetrospectiveSessionSegmenter(
                 movements = emptyList(),
                 kinematicsTimeline = emptyList(),
                 stats = RetrospectiveSignalStats(0.0, 0.0, 0.0, 0.0, 0.1580),
+                qomTimeline = emptyList(),
             )
         }
 
         val totalDurationMs = frames.last().timestampMs
-        val (timeline, stats) = extractor.extract(frames)
-        val n = timeline.size
+        val extractor = QomMotionEvidenceExtractor(config = config.qomConfig, profile = config.profile)
+        val segmenter = QomMovementSegmenter(config = config.qomConfig)
 
-        // 1. Detect raw movement bursts using normalized hysteresis
+        // 1. Detect raw physical movement bursts using QoM hysteresis
         data class RawBurst(val startMs: Long, val endMs: Long)
         val rawBursts = mutableListOf<RawBurst>()
+        val qomTimeline = ArrayList<QomFrameEvidence>(frames.size)
 
-        var inMovement = false
-        var currentStartMs = 0L
-
-        for (i in 0 until n) {
-            val f = timeline[i]
-            val comb = f.combinedMovementEvidence ?: continue
-
-            if (!inMovement) {
-                if (comb >= config.startThresholdNormalized) {
-                    inMovement = true
-                    // Trace back to when signal rose above quiet threshold (up to 300 ms back)
-                    var j = i
-                    val tCurrent = f.timestampMs
-                    while (j > 0) {
-                        val prevFrame = timeline[j - 1]
-                        if ((tCurrent - prevFrame.timestampMs) > 300L) break
-                        val prevComb = prevFrame.combinedMovementEvidence ?: break
-                        if (prevComb <= config.quietThresholdNormalized) break
-                        j--
-                    }
-                    currentStartMs = timeline[j].timestampMs
-                }
-            } else {
-                if (comb <= config.quietThresholdNormalized) {
-                    // Check if quiet persists for minQuietDwellMs
-                    var k = i
-                    var quietDuration = 0L
-                    while (k < n && (timeline[k].combinedMovementEvidence ?: 1.0) <= config.quietThresholdNormalized && quietDuration < (config.minQuietDwellMs + 20L)) {
-                        quietDuration = timeline[k].timestampMs - f.timestampMs
-                        k++
-                    }
-                    if (quietDuration >= config.minQuietDwellMs) {
-                        inMovement = false
-                        val burstEndMs = f.timestampMs
-                        val dur = burstEndMs - currentStartMs
-                        if (dur >= config.minMovementDurationMs && dur <= config.maxMovementDurationMs) {
-                            rawBursts.add(RawBurst(currentStartMs, burstEndMs))
-                        }
-                    }
+        for (frame in frames) {
+            val ev = extractor.extract(frame)
+            qomTimeline.add(ev)
+            val snap = segmenter.accept(ev)
+            if (snap.completedSegment != null) {
+                val seg = snap.completedSegment
+                if (seg.durationMs in config.minMovementDurationMs..config.maxMovementDurationMs) {
+                    rawBursts.add(RawBurst(seg.logicalStartTimestampMs, seg.logicalEndTimestampMs))
                 }
             }
         }
+        val finalSeg = segmenter.finish(totalDurationMs)
+        if (finalSeg != null && finalSeg.durationMs in config.minMovementDurationMs..config.maxMovementDurationMs) {
+            rawBursts.add(RawBurst(finalSeg.logicalStartTimestampMs, finalSeg.logicalEndTimestampMs))
+        }
 
-        // 2. Merge bursts separated by less than cadence threshold
+        // 2. Merge bursts separated by less than cadence threshold (preserves combinations if configured)
         val mergedBursts = mutableListOf<RawBurst>()
         val minPauseMs = config.cadence.minInterMovementPauseMs
 
@@ -137,15 +115,14 @@ class RetrospectiveSessionSegmenter(
                 cueTime in (logicalStart - 600L)..(logicalStart + 200L)
             }
 
-            // Select preferred snapshot timestamp: peak movement evidence frame within the movement
+            // Select preferred snapshot timestamp: peak rolling area frame within the movement
             var peakTimestampMs = (logicalStart + logicalEnd) / 2L
             var peakEvidence = -1.0
-            for (f in timeline) {
-                if (f.timestampMs in logicalStart..logicalEnd) {
-                    val ev = f.combinedMovementEvidence ?: 0.0
-                    if (ev > peakEvidence) {
-                        peakEvidence = ev
-                        peakTimestampMs = f.timestampMs
+            for (ev in qomTimeline) {
+                if (ev.timestampMs in logicalStart..logicalEnd) {
+                    if (ev.rollingArea > peakEvidence) {
+                        peakEvidence = ev.rollingArea
+                        peakTimestampMs = ev.timestampMs
                     }
                 }
             }
@@ -167,6 +144,29 @@ class RetrospectiveSessionSegmenter(
             )
         }
 
+        // Maintain compatibility kinematics timeline populated with QoM metrics
+        val kinematicsTimeline = qomTimeline.mapIndexed { index, ev ->
+            RetrospectiveKinematicFrame(
+                timestampMs = ev.timestampMs,
+                frameIndex = index,
+                rawTranslationEvidence = ev.aggregateQom,
+                rawAngularEvidence = null,
+                normalizedTranslationEvidence = ev.rollingArea,
+                normalizedAngularEvidence = null,
+                combinedMovementEvidence = ev.rollingArea,
+                isMoving = ev.rollingArea >= config.qomConfig.startGateMeters,
+                isQuiet = ev.rollingArea <= config.qomConfig.stopGateMeters,
+            )
+        }
+
+        val stats = RetrospectiveSignalStats(
+            translationQ20 = 0.0,
+            translationQ90 = 0.0,
+            angularQ20 = 0.0,
+            angularQ90 = 0.0,
+            referenceScale = 1.0,
+        )
+
         return RetrospectiveSessionResult(
             sequenceId = sequenceId,
             masterVideoPath = masterVideoPath,
@@ -174,9 +174,11 @@ class RetrospectiveSessionSegmenter(
             totalDurationMs = totalDurationMs,
             detectedMovementCount = sessionMovements.size,
             movements = sessionMovements,
-            kinematicsTimeline = timeline,
+            kinematicsTimeline = kinematicsTimeline,
             stats = stats,
+            qomTimeline = qomTimeline,
         )
     }
 }
+
 

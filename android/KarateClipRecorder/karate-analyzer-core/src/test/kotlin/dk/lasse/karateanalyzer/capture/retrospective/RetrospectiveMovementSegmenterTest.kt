@@ -70,10 +70,9 @@ class RetrospectiveMovementSegmenterTest {
             )
         }
 
-        // Verify Punch 1 through 5 bounds approximately match visual landmarks
-        // P1: starts ~400ms, ends ~817ms
-        assertTrue(movements[0].logicalStartTimestampMs in 380L..450L)
-        assertTrue(movements[0].logicalEndTimestampMs in 800L..900L)
+        // Verify Punch 1 bounds match normative QoM landmarks: starts ~567ms, ends ~1033ms
+        assertTrue(movements[0].logicalStartTimestampMs in 500L..650L)
+        assertTrue(movements[0].logicalEndTimestampMs in 950L..1100L)
 
         // P4 and P5 are completely separated (NOT merged!)
         val p4 = movements[3]

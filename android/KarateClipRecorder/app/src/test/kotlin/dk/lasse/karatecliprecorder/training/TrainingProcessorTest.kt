@@ -31,11 +31,24 @@ class TrainingProcessorTest {
             val cycle = (t - 500).floorDiv(1500)
             val phase = (t - 500).mod(1500) / 1000.0
             val reach = if (cycle in 0..9 && phase < 0.5) kotlin.math.sin(phase * 2 * Math.PI).toFloat() * 0.35f else 0f
-            fun sample(x: Float, y: Float) = PoseLandmarkSample(Point3(x, y, 0f), visibility = 0.9f, presence = 0.9f, source = LandmarkSource.OBSERVED)
+            fun sample(x: Float, y: Float) = PoseLandmarkSample(
+                position = Point3(x, y, 0f),
+                worldPosition = Point3(x, y, 0f),
+                visibility = 0.9f,
+                presence = 0.9f,
+                source = LandmarkSource.OBSERVED,
+            )
+            val leftWrist = sample(0.4f - reach, 0.6f)
+            val rightWrist = sample(0.6f + reach, 0.6f)
+            val leftElbow = sample(0.4f - reach * 0.5f, 0.5f)
+            val rightElbow = sample(0.6f + reach * 0.5f, 0.5f)
             PoseFrame(t, mapOf(
                 PoseLandmarkId.LEFT_SHOULDER to sample(0.4f, 0.3f), PoseLandmarkId.RIGHT_SHOULDER to sample(0.6f, 0.3f),
-                PoseLandmarkId.LEFT_ELBOW to sample(0.4f, 0.5f), PoseLandmarkId.RIGHT_ELBOW to sample(0.6f, 0.5f),
-                PoseLandmarkId.LEFT_WRIST to sample(0.4f - reach, 0.6f), PoseLandmarkId.RIGHT_WRIST to sample(0.6f + reach, 0.6f),
+                PoseLandmarkId.LEFT_ELBOW to leftElbow, PoseLandmarkId.RIGHT_ELBOW to rightElbow,
+                PoseLandmarkId.LEFT_WRIST to leftWrist, PoseLandmarkId.RIGHT_WRIST to rightWrist,
+                PoseLandmarkId.LEFT_INDEX to leftWrist, PoseLandmarkId.RIGHT_INDEX to rightWrist,
+                PoseLandmarkId.LEFT_THUMB to leftWrist, PoseLandmarkId.RIGHT_THUMB to rightWrist,
+                PoseLandmarkId.LEFT_PINKY to leftWrist, PoseLandmarkId.RIGHT_PINKY to rightWrist,
                 PoseLandmarkId.LEFT_HIP to sample(0.4f, 0.6f), PoseLandmarkId.RIGHT_HIP to sample(0.6f, 0.6f)))
         }
         verifyPersistence(frames, 10, assisted = true)

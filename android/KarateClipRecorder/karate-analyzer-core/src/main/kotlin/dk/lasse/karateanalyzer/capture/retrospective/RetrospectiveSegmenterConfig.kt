@@ -1,5 +1,8 @@
 package dk.lasse.karateanalyzer.capture.retrospective
 
+import dk.lasse.karateanalyzer.capture.qom.MotionBodyProfile
+import dk.lasse.karateanalyzer.capture.qom.QomDetectorConfig
+
 /**
  * Recording cadence profile governing movement isolation vs combination grouping.
  */
@@ -28,18 +31,22 @@ enum class RetrospectiveCadence(
  * Configuration for the authoritative retrospective movement segmenter.
  */
 data class RetrospectiveSegmenterConfig(
+    val profile: MotionBodyProfile = MotionBodyProfile.PUNCH,
+    val qomConfig: QomDetectorConfig = QomDetectorConfig(),
     val cadence: RetrospectiveCadence = RetrospectiveCadence.NORMAL,
+    val minMovementDurationMs: Long = 120L,
+    val maxMovementDurationMs: Long = 8000L,
+    val preRollMs: Long = qomConfig.preRollMs,
+    val postRollMs: Long = qomConfig.postRollMs,
+    // Legacy fields retained for backwards compatibility
     val halfWindowDurationMs: Long = 50L,
     val minimumSamplesInWindow: Int = 3,
     val minimumWindowSpanMs: Long = 50L,
-    val preRollMs: Long = 150L,
-    val postRollMs: Long = 200L,
     val startThresholdNormalized: Double = 0.50,
     val quietThresholdNormalized: Double = 0.25,
     val minQuietDwellMs: Long = 60L,
-    val minMovementDurationMs: Long = 120L,
-    val maxMovementDurationMs: Long = 8000L,
     val q20Percentile: Double = 20.0,
     val q90Percentile: Double = 90.0,
 )
+
 

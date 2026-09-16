@@ -1,5 +1,6 @@
 package dk.lasse.karatecliprecorder.training
 
+import dk.lasse.karateanalyzer.capture.qom.MotionBodyProfile
 import dk.lasse.karateanalyzer.capture.retrospective.*
 import dk.lasse.karateanalyzer.core.*
 import java.io.File
@@ -13,10 +14,19 @@ class TrainingSessionProcessor(
     private val checkActive: () -> Unit = {},
     private val publication: (() -> Unit) -> Unit = { it() },
     private val elapsedRealtimeMs: () -> Long = { android.os.SystemClock.elapsedRealtime() },
-    private val segment: (String, String, List<PoseFrame>, CueTimeline) -> RetrospectiveSessionResult =
-        { recordingId, path, frames, cues ->
-            RetrospectiveSessionSegmenter(RetrospectiveSegmenterConfig(cadence = RetrospectiveCadence.REPETITIONS))
-                .segment(recordingId, path, frames, cues)
+    private val segment: ((String, String, List<PoseFrame>, CueTimeline) -> RetrospectiveSessionResult)? = null,
+    private val segmentWithProfile: (String, String, List<PoseFrame>, CueTimeline, MotionBodyProfile) -> RetrospectiveSessionResult =
+        { recordingId, path, frames, cues, profile ->
+            if (segment != null) {
+                segment(recordingId, path, frames, cues)
+            } else {
+                RetrospectiveSessionSegmenter(
+                    RetrospectiveSegmenterConfig(
+                        profile = profile,
+                        cadence = RetrospectiveCadence.REPETITIONS,
+                    )
+                ).segment(recordingId, path, frames, cues)
+            }
         },
 ) {
     /** Landmark-only entry point retained for diagnostics/tests; queued recordings call [process]. */
@@ -114,12 +124,12 @@ class TrainingSessionProcessor(
             if (existingMovements.isEmpty() && session.state !in setOf(SessionState.MOVEMENTS_AVAILABLE, SessionState.COMPLETED)) {
                 val events = repository.events(sessionId).filter(SessionCueEvents::isCue)
                 val cues = events.map { CueEvent(it.sessionEventId, it.data ?: it.type, 0, it.timestampUs / 1000) }
-                val retro = segment(recording.recordingId, recording.filePath, frames, CueTimeline(recording.recordingId, cues))
+                val retro = segmentWithProfile(recording.recordingId, recording.filePath, frames, CueTimeline(recording.recordingId, cues), plan.movementProfile)
                 val movements = retro.movements.map { m ->
                     SessionMovement(sessionId = sessionId, startUs = m.logicalStartTimestampMs * 1000,
                         endUs = m.logicalEndTimestampMs * 1000, playbackStartUs = m.retainedStartTimestampMs * 1000,
                         playbackEndUs = m.retainedEndTimestampMs * 1000, segmentationSource = "retrospective_session_segmenter",
-                        segmentationVersion = "1", segmentationTrackId = source.landmarkTrackId,
+                        segmentationVersion = SEGMENTATION_VERSION, segmentationTrackId = source.landmarkTrackId,
                         // Current segmenter emits constant 1.0, not a calibrated confidence estimate.
                         segmentationConfidence = null)
                 }
@@ -177,7 +187,7 @@ class TrainingSessionProcessor(
         repository.job(sessionId)?.let { repository.updateJob(transform(it)) }
     }
 
-    companion object { const val SEGMENTATION_VERSION = "1" }
+    companion object { const val SEGMENTATION_VERSION = "activity_qom_hysteresis_v1" }
 }
 
 /** Persisted session lifecycle events are not movement cues. Keep this allow-list deliberately narrow. */
