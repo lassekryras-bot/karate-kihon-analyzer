@@ -12,11 +12,27 @@ Historical Task 5 kinematic experiments remain useful research material, but the
 
 The detector answers one narrow question:
 
-> Is the activity-relevant body currently moving or still?
+> Where is the bounded period of activity-relevant body movement associated with the known activity/cue?
 
 It does **not** classify technique quality, identify impact, estimate punch type, score biomechanics, or decide whether a detected movement is a correct karate technique.
 
-The recording already has an activity identity. That activity identity determines which body blocks matter for movement detection.
+The recording already has an activity identity. In counted exercises the cue timestamp is also known. That context tells the system what movement profile to expect and which detected movement belongs to the requested repetition.
+
+The segmenter produces a **movement / analysis window**. Downstream activity-specific analysis then searches inside that bounded window for technique events such as theoretical impact, terminal extension, maximum chamber, or another activity-defined event.
+
+Keep three concepts separate:
+
+1. **Movement / analysis window** — produced by this QoM segmenter.
+2. **Technique events** — found later inside that window by the activity-specific analyzer.
+3. **Human-viewable clip** — may add deliberate pre-roll/post-roll around the logical movement boundaries.
+
+For a counted straight punch the conceptual sequence is:
+
+`cue -> reaction -> movement START -> punch movement -> theoretical impact -> recovery -> movement STOP`
+
+The QoM segmenter finds START and STOP. The punch analyzer finds theoretical impact and other punch-specific events inside that window. Playback/export may start before START and end after STOP.
+
+The recording/activity identity determines which body blocks matter for movement detection.
 
 For punching activity, leg motion is ignored by the detector.
 
@@ -25,6 +41,10 @@ For kicking / leg activity, arm motion is ignored by the detector.
 The torso participates in both.
 
 Head and face landmarks are excluded from movement segmentation. They are not required for punching or kicking detection and MediaPipe's dense face representation would otherwise overweight the head.
+
+Guiding principle:
+
+> **Segment relevant movement first. Interpret karate technique afterward.**
 
 ---
 
@@ -75,6 +95,34 @@ This removes global camera-frame translation of the body and keeps the detector 
 Important: the validated experimental thresholds below were produced from MediaPipe world coordinates after hip-centering, **without dividing coordinates by torso length or upper-arm length**. Do not silently reuse the current torso-normalized `RelativePose` values with the same numeric gates; that would change the signal scale.
 
 A future whole-body-translation channel may be added if an activity needs it, but it is not part of this detector definition.
+
+### 4.1 World coordinates versus torso-normalized coordinates
+
+The existing analyzer also has a second body-relative representation:
+
+`r_norm(i,l) = (p(i,l) - H_i) / torsoLength_i`
+
+where `torsoLength_i` is the distance from hip midpoint to shoulder midpoint for that frame.
+
+The complete QoM pipeline was A/B tested using both coordinate systems on three real recordings, with every other stage kept the same. Signal separation was compared using the ratio of the 95th-percentile rolling-area value to the 25th-percentile value:
+
+| Recording | Approx. FPS | Hip-relative world | Torso-normalized |
+| --- | ---: | ---: | ---: |
+| 12-year-old child recording | 33.3 | 9.6x | 9.4x |
+| Adult recording | 58.8 | 15.9x | 15.7x |
+| Additional `.mls` recording | 30.3 | 15.4x | 16.3x |
+
+After scaling each signal by its own high-percentile level, the curve shapes were effectively identical. Torso normalization did not consistently clean the valleys, sharpen movement regions, or improve movement-to-baseline separation.
+
+This comparison is especially useful because the 33 FPS recording is from a 12-year-old child and the 59 FPS recording is from an adult. Both produced clean segmentable movement envelopes without torso normalization. This is encouraging early evidence that the simpler world-scale formulation can work across substantially different body sizes.
+
+Decision for v1:
+
+- use hip-relative MediaPipe world coordinates;
+- do **not** divide by torso length;
+- retain broader cross-user/body-size validation as an open question rather than adding normalization complexity now.
+
+The numeric START/STOP gates below belong specifically to this world-coordinate formulation.
 
 ---
 
@@ -333,11 +381,13 @@ Do not add a movement deadband in v1. A deadband produced a visually flat baseli
 
 Detector boundaries and playback boundaries are different concepts.
 
-Logical movement:
+Logical movement / analysis window:
 
 `logicalStart = high-gate crossing`
 
 `logicalEnd = low-gate crossing`
+
+This is the bounded period passed to downstream activity-specific analysis. It is **not** itself the final-impact/theoretical-impact answer. Those technique events are detected later inside this window.
 
 Viewable/retained interval:
 
@@ -472,3 +522,17 @@ For punch: blocks = `{LEFT_ARM, RIGHT_ARM, TORSO}`.
 For kick: blocks = `{LEFT_LEG, RIGHT_LEG, TORSO}`.
 
 Head is excluded. Clip padding is separate from detector logic.
+
+---
+
+## 19. Current real-recording validation summary
+
+The selected pipeline was replayed without per-recording parameter changes on the available real landmark recordings:
+
+- approximately 30.3 FPS `.mls`: 10 clean isolated movement windows;
+- approximately 33.3 FPS child recording: 10 clean isolated movement windows;
+- approximately 58.8 FPS adult recording: 14 clean upper-body movement windows without baseline chatter or unintended merging.
+
+The 59 FPS recording contains more generic upper-body movement bursts than the ten-punch recordings. That does not by itself mean the segmenter is wrong. The generic segmenter identifies physical movement inside the relevant body profile; activity/cue association and downstream technique analysis determine which movement corresponds to a requested repetition and whether the expected punch/kick events exist.
+
+Open validation questions remain intentionally open: hooks, short close-body punches, slower controlled techniques, kicks, noisy stillness, difficult camera distance, and a broader range of children/adults. Do not pre-emptively add safeguards for these cases until replay evidence demonstrates a concrete failure.
