@@ -1,14 +1,17 @@
 # Implementation prompt — replace generic movement detection with activity-aware QoM segmentation
 
-Implement the replacement movement-segmentation foundation defined in `docs/motion-segmentation-math.md`.
+Implement the replacement movement-segmentation foundation defined in:
 
-Treat that document as authoritative for the math, coordinate system, filtering order, block definitions, QoM aggregation, rolling area, hysteresis, cue/analysis-window semantics, and current validation evidence.
+- `docs/motion-detector-math.md` — authoritative mathematical definition and current validation evidence.
+- `docs/motion-detector-implementation-guide.md` — migration/replacement guide for the current production detector paths.
+
+Treat those documents as authoritative for the coordinate system, filtering order, block definitions, QoM aggregation, rolling area, hysteresis, cue/analysis-window semantics, migration boundary, and current validation evidence.
 
 ## Goal
 
 Replace most of the current complex generic motion-evidence path with the simpler validated QoM model.
 
-Do **not** treat the segmenter as a technique classifier. Its job is to isolate the activity-relevant movement window associated with a known activity/cue. Activity-specific analyzers then search inside that bounded window for events such as theoretical impact, terminal extension, target-height events, kick extension, etc.
+Do **not** treat the segmenter as a technique classifier. Its job is to isolate the activity-relevant movement / analysis window associated with a known activity/cue. Activity-specific analyzers then search inside that bounded window for events such as theoretical impact, terminal extension, target-height events, kick extension, etc.
 
 Keep these three concepts separate:
 
@@ -27,7 +30,7 @@ Initial gates for this exact world-coordinate formulation:
 - START = `0.08`
 - STOP = `0.04`
 
-Do not torso-normalize this detector in v1. The adult/child A/B comparison in the math document showed essentially identical curve shapes and no consistent signal-quality gain from torso normalization.
+Do not torso-normalize this detector in v1. The adult/12-year-old-child A/B comparison in the math document showed essentially identical curve shapes and no consistent signal-quality gain from torso normalization.
 
 Do not add a deadband in v1.
 
@@ -48,11 +51,13 @@ Keep block selection configurable so later activities can supply different relev
 
 ## Migration
 
-Inspect the current `PoseMotionObservationExtractor`, `BaseMovementSegmenter`, profiles, controller integration, replay tests, and archived Task 5 experiments before editing.
+Inspect the current `PoseMotionObservationExtractor`, `BaseMovementSegmenter`, profiles, controller integration, retrospective segmentation path, replay tests, and archived Task 5 experiments before editing.
 
-Preserve useful external contracts such as timestamps, cue association, segment/window output, recording identity, pre/post-roll, and downstream analysis integration.
+Preserve useful external contracts such as timestamps, cue association, movement-window output, recording identity, downstream analysis integration, and logical-vs-retained clip boundaries.
 
 Do **not** preserve old internal complexity only for compatibility. Review old RMS/Top-2/angular/baseline/displacement/kinematic-chain/settling logic and remove or bypass anything whose purpose was only to compensate for the previous motion evidence.
+
+Do not remove downstream technique-analysis mathematics simply because similar calculations existed inside the old generic detector.
 
 If a legacy safeguard is retained, document the concrete recording/failure mode that still requires it.
 
