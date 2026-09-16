@@ -3,8 +3,10 @@ package dk.lasse.karatecliprecorder.sharedcapture
 import android.content.Context
 import android.util.Range
 import androidx.camera.core.*
+import androidx.camera.core.featuregroup.GroupableFeature
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.video.*
+import androidx.camera.video.GroupableFeatures
 import androidx.camera.view.PreviewView
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.LifecycleOwner
@@ -68,8 +70,14 @@ class SharedCameraCaptureBackend(
                 val selector = CameraSelector.Builder().requireLensFacing(direction).addCameraFilter { candidates ->
                     candidates.filter { it === selectedInfo }
                 }.build()
-                val profile = CameraCapabilityInitializer.initialize(selectedInfo)
-                val supported = if (request.captureType == CaptureType.VIDEO) AssistedCameraOptions.supported(selectedInfo) else emptyList()
+                val profile = CameraCapabilityInitializer.initialize(
+                    selectedInfo,
+                    wantedId,
+                    requiresAnalysis = analysis != null,
+                )
+                val supported = if (request.captureType == CaptureType.VIDEO) {
+                    AssistedCameraOptions.supported(selectedInfo, profile.capabilityReport)
+                } else emptyList()
                 val requested = when (val policy = request.quality) {
                     CaptureQualityPolicy.AutomaticFastMovement -> null
                     is CaptureQualityPolicy.Exact -> CaptureQuality(policy.value.resolution, policy.value.framesPerSecond)
@@ -79,8 +87,7 @@ class SharedCameraCaptureBackend(
                     requested != null -> listOf(requested)
                     else -> supported
                 }
-                val nextPreview = Preview.Builder().build().also { it.setSurfaceProvider(previewView.surfaceProvider) }
-                nextProvider.unbindAll()
+                var nextPreview: Preview? = null
                 var bound: Camera? = null
                 var chosen: CaptureQuality? = null
                 var nextVideo: VideoCapture<Recorder>? = null
@@ -89,13 +96,26 @@ class SharedCameraCaptureBackend(
                 if (request.captureType == CaptureType.VIDEO) {
                     for (candidate in candidates.ifEmpty { listOf(CaptureQuality("HD", 30)) }) {
                         try {
-                            val recorder = Recorder.Builder().setQualitySelector(QualitySelector.from(candidate.toCameraXQuality())).build()
-                            val capture = VideoCapture.Builder(recorder).setTargetFrameRate(Range(candidate.fps, candidate.fps)).build()
+                            nextProvider.unbindAll()
+                            val previewUseCase = Preview.Builder().build().also {
+                                it.setSurfaceProvider(previewView.surfaceProvider)
+                            }
+                            val recorder = Recorder.Builder()
+                                .setQualitySelector(QualitySelector.from(candidate.toCameraXQuality()))
+                                .build()
+                            val capture = VideoCapture.Builder(recorder)
+                                .setTargetFrameRate(Range(candidate.fps, candidate.fps))
+                                .build()
                             capture.targetRotation = previewView.display?.rotation ?: android.view.Surface.ROTATION_0
-                            bound = nextProvider.bindToLifecycle(lifecycleOwner, selector,
-                                *listOfNotNull(nextPreview, capture, analysis).toTypedArray())
+
+                            bound = nextProvider.bindToLifecycle(
+                                lifecycleOwner,
+                                selector,
+                                *listOfNotNull(previewUseCase, capture, analysis).toTypedArray()
+                            )
                             chosen = candidate
                             nextVideo = capture
+                            nextPreview = previewUseCase
                             break
                         } catch (error: Throwable) {
                             bindError = error
@@ -103,10 +123,15 @@ class SharedCameraCaptureBackend(
                         }
                     }
                 } else {
+                    nextProvider.unbindAll()
+                    val previewUseCase = Preview.Builder().build().also {
+                        it.setSurfaceProvider(previewView.surfaceProvider)
+                    }
                     nextPhoto = ImageCapture.Builder().setCaptureMode(ImageCapture.CAPTURE_MODE_MINIMIZE_LATENCY).build().also {
                         it.targetRotation = previewView.display?.rotation ?: android.view.Surface.ROTATION_0
                     }
-                    bound = nextProvider.bindToLifecycle(lifecycleOwner, selector, nextPreview, nextPhoto)
+                    bound = nextProvider.bindToLifecycle(lifecycleOwner, selector, previewUseCase, nextPhoto)
+                    nextPreview = previewUseCase
                 }
                 checkNotNull(bound) { "No supported ${request.captureType.name.lowercase()} configuration: ${bindError?.message}" }
                 if (!current(attempt)) {

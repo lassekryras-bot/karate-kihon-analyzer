@@ -694,6 +694,7 @@ class CameraSettingsSheet(
     private val qualities: List<CaptureQuality>,
     private val selectedQuality: CaptureQuality?,
     private val automaticQuality: Boolean,
+    private val diagnosticsReport: dk.lasse.karatecliprecorder.captureprofile.SessionCapabilityReport? = null,
     private val onLensSelected: (String) -> Unit,
     private val onZoomSelected: (Float) -> Unit,
     private val onQualitySelected: (CaptureQuality?, Boolean) -> Unit,
@@ -806,6 +807,25 @@ class CameraSettingsSheet(
             setLineSpacing(0f, 1.2f)
         }
         sheetBody.addView(focusNote, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
+
+        if (diagnosticsReport != null) {
+            sheetBody.addView(createSectionDivider())
+            sheetBody.addView(createSectionHeading("SESSION & CAPABILITY DIAGNOSTICS"))
+            val diagView = TextView(context).apply {
+                text = diagnosticsReport.formatDiagnostics()
+                textSize = 11.5f
+                typeface = Typeface.MONOSPACE
+                setTextColor(0xFFCBD5E1.toInt())
+                background = GradientDrawable().apply {
+                    setColor(0xFF11161B.toInt())
+                    cornerRadius = 8.dp().toFloat()
+                    setStroke(1.dp(), 0xFF283545.toInt())
+                }
+                setPadding(12.dp(), 10.dp(), 12.dp(), 10.dp())
+                setLineSpacing(0f, 1.15f)
+            }
+            sheetBody.addView(diagView, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
+        }
 
         setContentView(sheetBody)
     }

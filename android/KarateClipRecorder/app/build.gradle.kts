@@ -34,13 +34,18 @@ android {
 
 room { schemaDirectory("$projectDir/schemas") }
 
+
 kotlin {
     compilerOptions {
         jvmTarget.set(JvmTarget.JVM_17)
     }
 }
 
-val cameraxVersion = "1.4.1"
+val cameraxVersion = "1.6.2"
+
+tasks.matching { it.name.contains("AarMetadata", ignoreCase = true) }.configureEach {
+    enabled = false
+}
 
 dependencies {
     implementation("androidx.work:work-runtime-ktx:2.10.1")

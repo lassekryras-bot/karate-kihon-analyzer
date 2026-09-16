@@ -5,10 +5,16 @@ import android.media.MediaFormat
 import android.media.MediaMetadataRetriever
 import java.io.File
 
-data class RecordedVideoMetadata(val durationUs: Long, val width: Int, val height: Int, val frameRate: Double?) {
+data class RecordedVideoMetadata(
+    val durationUs: Long,
+    val width: Int,
+    val height: Int,
+    val frameRate: Double?,
+    val verificationResult: FpsVerificationResult? = null,
+) {
     companion object {
         /** Verify a decodable, video-only finalized source before marking it AVAILABLE. */
-        fun read(file: File): RecordedVideoMetadata {
+        fun read(file: File, expectedFps: Int? = null): RecordedVideoMetadata {
             check(file.isFile && file.length() > 0) { "Finalized MP4 is missing" }
             val extractor = MediaExtractor()
             try {
@@ -27,9 +33,19 @@ data class RecordedVideoMetadata(val durationUs: Long, val width: Int, val heigh
                 val frame = reader.getFrameAtTime(0)
                 check(frame != null) { "Finalized MP4 cannot be decoded" }
                 frame.recycle()
-                val fps = reader.extractMetadata(MediaMetadataRetriever.METADATA_KEY_CAPTURE_FRAMERATE)?.toDoubleOrNull()
+                val captureFps = reader.extractMetadata(MediaMetadataRetriever.METADATA_KEY_CAPTURE_FRAMERATE)?.toDoubleOrNull()
                     ?.takeIf { it.isFinite() && it > 0 }
-                return RecordedVideoMetadata(Math.multiplyExact(durationMs, 1000), width, height, fps)
+
+                val verification = expectedFps?.let { RecordedVideoFpsVerifier.verify(file, it) }
+                val finalFps = verification?.actualFps ?: captureFps
+
+                return RecordedVideoMetadata(
+                    durationUs = Math.multiplyExact(durationMs, 1000),
+                    width = width,
+                    height = height,
+                    frameRate = finalFps,
+                    verificationResult = verification,
+                )
             } finally { reader.release() }
         }
     }

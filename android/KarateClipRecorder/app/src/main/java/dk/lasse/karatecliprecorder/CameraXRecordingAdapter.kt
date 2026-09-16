@@ -7,6 +7,8 @@ import android.os.SystemClock
 import androidx.camera.core.CameraSelector
 import androidx.camera.core.ImageAnalysis
 import androidx.camera.core.ImageProxy
+import androidx.camera.core.resolutionselector.ResolutionSelector
+import androidx.camera.core.resolutionselector.ResolutionStrategy
 import androidx.camera.video.VideoRecordEvent
 import androidx.camera.view.PreviewView
 import androidx.lifecycle.LifecycleOwner
@@ -85,7 +87,13 @@ class CameraXRecordingAdapter(
             imageAnalysis = ImageAnalysis.Builder()
                 .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
                 .setOutputImageFormat(ImageAnalysis.OUTPUT_IMAGE_FORMAT_RGBA_8888)
-                .setTargetResolution(android.util.Size(640, 480))
+                .setResolutionSelector(
+                    ResolutionSelector.Builder()
+                        .setResolutionStrategy(
+                            ResolutionStrategy(android.util.Size(640, 480), ResolutionStrategy.FALLBACK_RULE_CLOSEST_HIGHER_THEN_LOWER)
+                        )
+                        .build()
+                )
                 .build().also { it.setAnalyzer(analysisExecutor, ::analyzeImage) }
         }
         camera.bind(currentPreviewRequest(), imageAnalysis,
@@ -258,13 +266,17 @@ class CameraXRecordingAdapter(
     private fun finalizeVideo(prepared: PreparedCapture, snapshot: BodyMeasurementSnapshot?, event: VideoRecordEvent.Finalize) {
         recordingPending = true
         if (!closed.get()) onRecordingFinalizing()
-        val startMs = recordingStartMs
         val cameraError = if (event.hasError()) "Recording failed: ${event.error}" else null
+        val startMs = recordingStartMs
         training.submit({
-            val metadata = if (cameraError == null) runCatching { RecordedVideoMetadata.read(prepared.file) }
+            val expectedFps = selectedCaptureProfile?.preferredTargetFps
+            val metadata = if (cameraError == null) runCatching { RecordedVideoMetadata.read(prepared.file, expectedFps) }
                 else Result.failure(IllegalStateException(cameraError))
             val failure = cameraError ?: metadata.exceptionOrNull()?.let { it.message ?: "MP4 verification failed" }
             val media = metadata.getOrNull()
+            media?.verificationResult?.let { verification ->
+                selectedCaptureProfile = selectedCaptureProfile?.withActualRecordedFps(verification.actualFps, verification.isVerified)
+            }
             val persisted = persistence.finalize(prepared, pendingOutcome,
                 event.recordingStats.recordedDurationNanos / 1000, media?.width, media?.height, media?.frameRate, failure)
             check(persisted.mediaFinalized) { persisted.failureReason ?: "Unreadable video" }

@@ -60,6 +60,7 @@ class AssistedCaptureActivity : AppCompatActivity() {
 
     private var camera: CameraXRecordingAdapter? = null
     private var cameraReady = false
+    private var cameraErrorMessage: String? = null
     private var selectedSession: String? = null
     private var disposed = false
     private var renderedState: AssistedCaptureState? = null
@@ -527,6 +528,9 @@ class AssistedCaptureActivity : AppCompatActivity() {
             previewView = cameraPreviewView.preview,
             onStateChanged = { state ->
                 cameraReady = state != RecordingState.PREPARING && state != RecordingState.FAILED
+                if (cameraReady) {
+                    cameraErrorMessage = null
+                }
                 if (!controller.captureActive) {
                     recordButton.isEnabled = cameraReady
                 }
@@ -538,7 +542,11 @@ class AssistedCaptureActivity : AppCompatActivity() {
                     controller.saved()
                 }
             },
-            onError = { if (!disposed) controller.fail(it) },
+            onError = { message ->
+                cameraErrorMessage = message
+                if (!disposed) controller.fail(message)
+                updateRuntimeStatus()
+            },
             onRecordingStarted = { startMs ->
                 recordingStartRealtime = SystemClock.elapsedRealtime()
                 lastCueOrdinal = 0
@@ -590,6 +598,7 @@ class AssistedCaptureActivity : AppCompatActivity() {
             qualities = qualities,
             selectedQuality = quality,
             automaticQuality = automaticQuality,
+            diagnosticsReport = camera?.selectedCaptureProfile?.capabilityReport,
             onLensSelected = { id ->
                 lensId = id
                 zoom = 1f
@@ -651,6 +660,8 @@ class AssistedCaptureActivity : AppCompatActivity() {
                 CameraStatusMessage.missingRequirement("Camera access required", "request_camera")
             resources.freeBytes < ProcessingPolicy.WARN_STORAGE_BYTES ->
                 CameraStatusMessage.missingRequirement("Storage is getting low", "storage_warning")
+            cameraErrorMessage != null ->
+                CameraStatusMessage.informational("Camera error: $cameraErrorMessage")
             !cameraReady ->
                 CameraStatusMessage.informational("Preparing camera…")
             else ->
