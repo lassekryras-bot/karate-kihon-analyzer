@@ -76,6 +76,20 @@ branch, not a mandatory learning stage. Update `docs/app-activity-shell.md` when
 implemented behavior changes, and add transition, navigation, lifecycle,
 permission, accessibility, and architecture-boundary tests as applicable.
 
+## Karate technique icon SVG cleanup
+
+For work on SVG assets converted from approved karate technique/stance artwork,
+read `docs/technique-icon-svg-cleanup-guide.md` before editing. This cleanup stage
+starts after raster-to-vector conversion and must preserve the approved pose rather
+than silently correcting karate technique or redrawing anatomy.
+
+The repository-owned cleanup skill is
+`.codex/skills/karate-technique-icon-svg-cleanup/SKILL.md`. Use it for cleaning,
+normalizing, renaming, validating, and previewing converted SVG technique icons.
+The app technique-icon red is `#EF4444`; use transparent negative space for the
+white relief/cutout details and keep the standardized 1024 x 1024 viewBox unless a
+future documented asset contract replaces it.
+
 ## Wiki authoring decisions
 
 - Write for a person training, not a technical reviewer. Keep animation and graph
