@@ -171,4 +171,19 @@ object DraftLearningPathProgressResolver {
             .firstOrNull { it.progressState == DraftActivityProgressState.AVAILABLE }
             ?: resolved.activities.firstOrNull { it.progressState == DraftActivityProgressState.AVAILABLE }
     }
+
+    fun hasCompletedAppLearningPath(
+        context: Context,
+        repository: dk.lasse.karatecliprecorder.profile.ProfileRepository,
+        profileId: String? = repository.resolveActiveProfile()?.id,
+    ): Boolean {
+        if (profileId == null) return false
+        val completedIds = repository.learningProgress(profileId)
+            .asSequence()
+            .filter { it.learningPathId == KARATE_BASICS_PATH_ID && it.status == dk.lasse.karatecliprecorder.profile.LearningStatus.COMPLETED }
+            .mapTo(mutableSetOf()) { it.activityId }
+        val path = DraftLearningPathCatalog.karateBasics(context)
+        val resolved = resolve(path, completedIds, activeProfileExists = true)
+        return resolved.totalCount > 0 && resolved.completedCount >= resolved.totalCount
+    }
 }

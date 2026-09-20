@@ -5,14 +5,14 @@ import kotlin.math.acos
 import kotlin.math.max
 import kotlin.math.sqrt
 
-class PunchHeightAnalyzer {
+class PunchHeightAnalyzer(explicitGedanTarget: TargetId? = null) {
     private val tracker = TemporalPoseTracker()
     private val setupSamples = mutableListOf<Pair<Long, ReferenceCandidate>>()
     private val initializationSamples = mutableListOf<Pair<Long, ReferenceCandidate>>()
     private val chinEstimator = SideViewChinEstimator()
     private val jodanModel = JodanTargetModel(chinEstimator)
     private val chudanModel = ChudanTargetModel()
-    private val gedanModel = GedanTargetModel()
+    private val gedanModel = GedanTargetModel(explicitGedanTarget)
     private var bodyReference: BodyReference? = null
     private var lockedArm = ActiveArm.NONE
     private var armCandidate = ActiveArm.NONE
@@ -440,18 +440,49 @@ class JodanTargetModel(private val estimator: SideViewChinEstimator) : PunchHeig
             explanation = "Jodan is aligned with your estimated chin height.",
             captureEligible = chin.captureEligible,
             chinEstimate = chin,
+            targetId = TargetId.JODAN_CHIN,
         )
     }
 }
 
 class ChudanTargetModel : PunchHeightTargetModel {
     override fun evaluate(frame: TrackedPoseFrame, bodyReference: BodyReference, chinProjectionMultiplier: Float): PunchHeightTarget =
-        torsoRatioTarget(PunchHeightTargetType.CHUDAN, bodyReference, 0.45f, "Chudan is aligned with your solar plexus.")
+        torsoRatioTarget(
+            PunchHeightTargetType.CHUDAN,
+            bodyReference,
+            0.45f,
+            "Chudan is aligned with your solar plexus.",
+            targetId = TargetId.CHUDAN_SOLAR_PLEXUS,
+        )
 }
 
-class GedanTargetModel : PunchHeightTargetModel {
-    override fun evaluate(frame: TrackedPoseFrame, bodyReference: BodyReference, chinProjectionMultiplier: Float): PunchHeightTarget =
-        torsoRatioTarget(PunchHeightTargetType.GEDAN, bodyReference, 0.80f, "Gedan is aligned with your lower abdomen.")
+class GedanTargetModel(
+    val explicitTarget: TargetId? = null,
+) : PunchHeightTargetModel {
+    override fun evaluate(
+        frame: TrackedPoseFrame,
+        bodyReference: BodyReference,
+        chinProjectionMultiplier: Float,
+    ): PunchHeightTarget? {
+        val target = explicitTarget ?: return null
+        return when (target) {
+            TargetId.GEDAN_LOWER_ABDOMEN -> torsoRatioTarget(
+                PunchHeightTargetType.GEDAN,
+                bodyReference,
+                0.80f,
+                "Gedan is aligned with your lower abdomen.",
+                targetId = TargetId.GEDAN_LOWER_ABDOMEN,
+            )
+            TargetId.GEDAN_GROIN_LEVEL -> torsoRatioTarget(
+                PunchHeightTargetType.GEDAN,
+                bodyReference,
+                1.00f,
+                "Gedan is aligned with your groin level.",
+                targetId = TargetId.GEDAN_GROIN_LEVEL,
+            )
+            else -> null
+        }
+    }
 }
 
 class SideViewChinEstimator {
@@ -594,7 +625,13 @@ private class TemporalPoseTracker {
     }
 }
 
-private fun torsoRatioTarget(type: PunchHeightTargetType, body: BodyReference, ratio: Float, explanation: String): PunchHeightTarget =
+private fun torsoRatioTarget(
+    type: PunchHeightTargetType,
+    body: BodyReference,
+    ratio: Float,
+    explanation: String,
+    targetId: TargetId? = null,
+): PunchHeightTarget =
     PunchHeightTarget(
         type = type,
         targetPoint = body.shoulderPoint + body.torsoAxis * (body.torsoLength * ratio),
@@ -605,6 +642,7 @@ private fun torsoRatioTarget(type: PunchHeightTargetType, body: BodyReference, r
         calculationStrategy = "shoulder-to-hip torso ratio $ratio",
         explanation = explanation,
         captureEligible = body.confidence >= 0.70f,
+        targetId = targetId,
     )
 
 private fun TrackedPoseFrame.point(id: PoseLandmarkId): Point3? = landmarks[id]?.position

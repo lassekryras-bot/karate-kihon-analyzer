@@ -39,6 +39,7 @@ import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import dk.lasse.karatecliprecorder.enso.EnsoDebugGalleryView
 import dk.lasse.karatecliprecorder.enso.EnsoLibrary
+import dk.lasse.karatecliprecorder.home.HomeOnboardingController
 import dk.lasse.karatecliprecorder.learningartwork.LearningActivityEntryView
 import dk.lasse.karatecliprecorder.learningartwork.LearningActivityType
 import dk.lasse.karatecliprecorder.learningpath.LearnScreenView
@@ -170,6 +171,8 @@ class MainActivity : AppCompatActivity() {
     private lateinit var settingsScreen: SettingsScreenView
     private lateinit var progressScreen: ProgressScreenView
     private lateinit var profileRepository: ProfileRepository
+    private lateinit var navigationRepository: AppNavigationStateRepository
+    private lateinit var sharedBottomNavigation: AppBottomNavigationView
     private var secondaryScreen: View? = null
     private var secondaryBackAction: (() -> Unit)? = null
     private var profileReturnDestination = AppDestination.HOME
@@ -416,6 +419,7 @@ class MainActivity : AppCompatActivity() {
         cameraSetupCaptureStore = CameraSetupCaptureStore(this)
         val isDebuggable = (applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE) != 0
         buildUi()
+        navigationRepository = AppNavigationStateRepository(this, appPreferences, profileRepository)
         homeScreen = HomeScreenView(
             context = this,
             profileRepository = profileRepository,
@@ -429,6 +433,19 @@ class MainActivity : AppCompatActivity() {
             onTrain = ::showTrainUi,
             onProgress = ::showProgressUi,
             onSettings = ::showSettingsUi,
+            preferences = appPreferences,
+            controller = HomeOnboardingController(
+                context = this,
+                preferences = appPreferences,
+                profileRepository = profileRepository,
+                onOpenProfile = ::showProfileUi,
+                onOpenLearning = ::showLearnUi,
+                onCreateProfile = ::showDirectProfileCreation,
+                onRecordStraightPunches = ::recordStraightPunches,
+                navigationRepository = navigationRepository,
+            ),
+            onCreateProfile = ::showDirectProfileCreation,
+            onRecordStraightPunches = ::recordStraightPunches,
         )
         trainScreen = TrainScreenView(
             context = this,
@@ -509,6 +526,15 @@ class MainActivity : AppCompatActivity() {
         ).apply {
             visibility = View.GONE
         }
+        sharedBottomNavigation = AppBottomNavigationView(this).apply {
+            onDestinationSelected = ::navigateToDestination
+        }
+        navigationRepository.addListener { navState ->
+            sharedBottomNavigation.setNavigationState(navState)
+            if (currentAppDestination !in navState.visibleDestinations) {
+                showHomeUi()
+            }
+        }
         appRoot = FrameLayout(this).apply {
             addView(trainingRoot)
             addView(homeScreen)
@@ -517,6 +543,11 @@ class MainActivity : AppCompatActivity() {
             addView(learnScreen)
             addView(settingsScreen)
             addView(progressScreen)
+            addView(sharedBottomNavigation, FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT,
+                AppBottomNavigationView.BASE_HEIGHT_DP.dp(),
+                Gravity.BOTTOM,
+            ))
         }
         setContentView(appRoot)
         trainingOrderPlayer = SoundFileTrainingOrderPlayer(this)
@@ -539,6 +570,8 @@ class MainActivity : AppCompatActivity() {
                     showLearnUi()
                 } else if (currentAppDestination == AppDestination.SETTINGS) {
                     showHomeUi()
+                } else if (currentAppDestination == AppDestination.LEARNING) {
+                    showHomeUi()
                 } else if (currentAppDestination == AppDestination.TRAIN && skillCoachScreen.visibility == View.VISIBLE) {
                     showTrainUi()
                 } else if (currentAppDestination == AppDestination.TRAIN && learnScreen.visibility == View.VISIBLE) {
@@ -551,14 +584,22 @@ class MainActivity : AppCompatActivity() {
                 }
             }
         })
-        if (intent.getBooleanExtra("open_performance", false)) {
+        val visibleDestinations = navigationRepository.resolveVisibleDestinations()
+        val savedDestination = savedInstanceState?.getString(STATE_APP_DESTINATION)
+            ?.let { runCatching { AppDestination.valueOf(it) }.getOrNull() }
+
+        if (intent.getBooleanExtra("open_performance", false) && AppDestination.PROGRESS in visibleDestinations) {
             showProgressUi()
-        } else if (savedInstanceState?.getString(STATE_APP_DESTINATION) == AppDestination.SETTINGS.name) {
-            showSettingsUi()
-        } else if (savedInstanceState?.getString(STATE_APP_DESTINATION) == AppDestination.PROGRESS.name) {
-            showProgressUi()
-        } else if (savedInstanceState?.getString(STATE_APP_DESTINATION) == AppDestination.TRAIN.name) {
-            showTrainUi()
+        } else if (savedDestination != null && savedDestination in visibleDestinations) {
+            when (savedDestination) {
+                AppDestination.SETTINGS -> showSettingsUi()
+                AppDestination.PROGRESS -> showProgressUi()
+                AppDestination.LEARNING -> showLearnUi()
+                AppDestination.TRAIN -> showTrainUi()
+                AppDestination.HOME -> showHomeUi()
+            }
+        } else {
+            showHomeUi()
         }
     }
 
@@ -567,11 +608,30 @@ class MainActivity : AppCompatActivity() {
         if (intent.getBooleanExtra("open_performance", false)) showProgressUi()
     }
 
+    private fun updateChromeVisibility(showBottomNavigation: Boolean) {
+        if (::sharedBottomNavigation.isInitialized) {
+            sharedBottomNavigation.visibility = if (showBottomNavigation) View.VISIBLE else View.GONE
+        }
+    }
+
+    private fun navigateToDestination(destination: AppDestination) {
+        val target = navigationRepository.selectDestination(destination)
+        when (target) {
+            AppDestination.HOME -> showHomeUi()
+            AppDestination.LEARNING -> showLearnUi()
+            AppDestination.TRAIN -> showTrainUi()
+            AppDestination.PROGRESS -> showProgressUi()
+            AppDestination.SETTINGS -> showSettingsUi()
+        }
+    }
+
     private fun showMeasurementWiki() {
         if (measurementWiki != null) return
+        updateChromeVisibility(false)
         measurementWiki = dk.lasse.karatecliprecorder.wiki.MeasurementWikiView(this) {
             measurementWiki?.let(appRoot::removeView)
             measurementWiki = null
+            updateChromeVisibility(true)
         }.also { appRoot.addView(it, FrameLayout.LayoutParams(-1, -1)) }
     }
 
@@ -582,6 +642,8 @@ class MainActivity : AppCompatActivity() {
     private fun showSkillCoachUi() {
         closeSecondaryScreen()
         currentAppDestination = AppDestination.TRAIN
+        navigationRepository.selectDestination(AppDestination.TRAIN)
+        updateChromeVisibility(true)
         trainingRoot.visibility = View.GONE
         homeScreen.visibility = View.GONE
         trainScreen.visibility = View.GONE
@@ -610,6 +672,8 @@ class MainActivity : AppCompatActivity() {
     private fun showHomeUi() {
         closeSecondaryScreen()
         currentAppDestination = AppDestination.HOME
+        navigationRepository.selectDestination(AppDestination.HOME)
+        updateChromeVisibility(true)
         trainingRoot.visibility = View.GONE
         trainScreen.visibility = View.GONE
         learnScreen.visibility = View.GONE
@@ -621,14 +685,25 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun showTrainUi() {
-        showLearnUi()
+        closeSecondaryScreen()
+        currentAppDestination = AppDestination.TRAIN
+        navigationRepository.selectDestination(AppDestination.TRAIN)
+        updateChromeVisibility(true)
+        trainingRoot.visibility = View.GONE
+        homeScreen.visibility = View.GONE
+        skillCoachScreen.visibility = View.GONE
+        skillProgressionScreen?.visibility = View.GONE
+        settingsScreen.visibility = View.GONE
+        progressScreen.visibility = View.GONE
         learnScreen.visibility = View.GONE
         trainScreen.visibility = View.VISIBLE
     }
 
     private fun showLearnUi() {
         closeSecondaryScreen()
-        currentAppDestination = AppDestination.TRAIN
+        currentAppDestination = AppDestination.LEARNING
+        navigationRepository.selectDestination(AppDestination.LEARNING)
+        updateChromeVisibility(true)
         trainingRoot.visibility = View.GONE
         homeScreen.visibility = View.GONE
         skillCoachScreen.visibility = View.GONE
@@ -641,6 +716,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun showSkillProgression(path: LearningPath) {
         currentAppDestination = AppDestination.TRAIN
+        updateChromeVisibility(false)
         trainingRoot.visibility = View.GONE
         homeScreen.visibility = View.GONE
         skillCoachScreen.visibility = View.GONE
@@ -1327,6 +1403,8 @@ class MainActivity : AppCompatActivity() {
     private fun showSettingsUi() {
         closeSecondaryScreen()
         currentAppDestination = AppDestination.SETTINGS
+        navigationRepository.selectDestination(AppDestination.SETTINGS)
+        updateChromeVisibility(true)
         trainingRoot.visibility = View.GONE
         trainScreen.visibility = View.GONE
         learnScreen.visibility = View.GONE
@@ -1341,6 +1419,8 @@ class MainActivity : AppCompatActivity() {
     private fun showProgressUi() {
         closeSecondaryScreen()
         currentAppDestination = AppDestination.PROGRESS
+        navigationRepository.selectDestination(AppDestination.PROGRESS)
+        updateChromeVisibility(true)
         trainingRoot.visibility = View.GONE
         homeScreen.visibility = View.GONE
         trainScreen.visibility = View.GONE
@@ -1352,10 +1432,40 @@ class MainActivity : AppCompatActivity() {
         progressScreen.visibility = View.VISIBLE
     }
 
+    private fun showDirectProfileCreation() {
+        if (secondaryScreen == null) profileReturnDestination = currentAppDestination
+        val returnToDestination = {
+            closeSecondaryScreen()
+            homeScreen.onboardingController.onProfileCancelled()
+            showProfileReturnDestination()
+        }
+        showSecondary(ProfileEditorView(
+            context = this,
+            repository = profileRepository,
+            editing = null,
+            onBack = returnToDestination,
+            onSaved = {
+                closeSecondaryScreen()
+                homeScreen.onboardingController.onProfileCompleted()
+                showProfileReturnDestination()
+            },
+        ), returnToDestination)
+    }
+
+    private fun recordStraightPunches(repetitions: Int) {
+        startActivity(
+            dk.lasse.karatecliprecorder.assisted.AssistedCaptureActivity.createIntent(
+                context = this,
+                repetitions = repetitions,
+            )
+        )
+    }
+
     private fun showProfileUi() {
         if (secondaryScreen == null) profileReturnDestination = currentAppDestination
         val returnFromProfile = {
             closeSecondaryScreen()
+            homeScreen.onboardingController.onProfileCancelled()
             showProfileReturnDestination()
         }
         showSecondary(ProfileScreenView(
@@ -1375,7 +1485,10 @@ class MainActivity : AppCompatActivity() {
             repository = profileRepository,
             editing = profile,
             onBack = ::showProfileUi,
-            onSaved = { showProfileUi() },
+            onSaved = {
+                homeScreen.onboardingController.onProfileCompleted()
+                showProfileUi()
+            },
         ), ::showProfileUi)
     }
 
@@ -1400,6 +1513,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun showSecondary(view: View, onBack: () -> Unit) {
         closeSecondaryScreen()
+        updateChromeVisibility(false)
         trainingRoot.visibility = View.GONE
         homeScreen.visibility = View.GONE
         trainScreen.visibility = View.GONE
@@ -1417,11 +1531,13 @@ class MainActivity : AppCompatActivity() {
         secondaryScreen?.let(appRoot::removeView)
         secondaryScreen = null
         secondaryBackAction = null
+        updateChromeVisibility(true)
     }
 
     private fun showProfileReturnDestination() {
         when (profileReturnDestination) {
             AppDestination.HOME -> showHomeUi()
+            AppDestination.LEARNING -> showLearnUi()
             AppDestination.TRAIN -> showTrainUi()
             AppDestination.PROGRESS -> showProgressUi()
             AppDestination.SETTINGS -> showSettingsUi()
@@ -1480,6 +1596,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun showTrainingUi() {
         currentAppDestination = AppDestination.TRAIN
+        updateChromeVisibility(false)
         homeScreen.visibility = View.GONE
         trainScreen.visibility = View.GONE
         learnScreen.visibility = View.GONE
@@ -3152,6 +3269,9 @@ class MainActivity : AppCompatActivity() {
     }
 
     override fun onDestroy() {
+        if (::navigationRepository.isInitialized) {
+            navigationRepository.dispose()
+        }
         cancelPendingFindYourWeaponAdvance()
         stopReadyOsuSelfieCamera()
         clearReadyOsuSelfie()

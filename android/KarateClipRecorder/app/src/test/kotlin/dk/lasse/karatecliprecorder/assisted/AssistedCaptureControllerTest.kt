@@ -12,6 +12,7 @@ import org.robolectric.annotation.Config
 import java.time.Duration
 import kotlin.test.*
 
+
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [28])
 class AssistedCaptureControllerTest {
@@ -19,12 +20,16 @@ class AssistedCaptureControllerTest {
     private var starts = 0
     private var stops = 0
     private var audioWorks = true
+    private var packageValid = true
     private val cues = mutableListOf<Triple<Int, Int, Long>>()
+    private val playbackStarts = mutableListOf<Triple<Int, Int, Long>>()
     private val shown = mutableListOf<String>()
     private val controller = AssistedCaptureController(
         prepare = { _, ready -> prepared = ready }, stopCamera = { stops++ },
         playCount = { audioWorks }, stopAudio = {}, persistCue = { a, b, t -> cues += Triple(a, b, t) },
         changed = { _, text -> shown += text },
+        persistPlaybackStart = { a, b, t -> playbackStarts += Triple(a, b, t) },
+        isAudioPackageValid = { packageValid },
     )
     private fun advance(ms: Long) = shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(ms))
     private fun commit() { requireNotNull(prepared).invoke { starts++ } }
@@ -128,5 +133,78 @@ class AssistedCaptureControllerTest {
         commit(); advance(5000)
         assertEquals(0, starts)
         assertEquals(AssistedCaptureState.FAILED, controller.state)
+    }
+
+    @Test fun preRollPlaybackStartsAheadOfCueTimeWhileCueEventsLandOnCadence() {
+        val start = begin(AssistedCaptureSetup(repetitions = 2, cadenceMs = 1000))
+        // At 368ms, playback for Ichi (offset 131ms from 500ms = 369ms) has not started yet
+        advance(368)
+        assertTrue(playbackStarts.isEmpty())
+        assertTrue(cues.isEmpty())
+
+        // At 369ms, playback for Ichi starts
+        advance(1)
+        assertEquals(1, playbackStarts.size)
+        assertEquals(Triple(1, 1, start + 369), playbackStarts.single())
+        assertTrue(cues.isEmpty()) // Cue event has not landed yet!
+
+        // At 500ms, cue 1 lands
+        advance(131)
+        assertEquals(1, cues.size)
+        assertEquals(Triple(1, 1, start + 500), cues.single())
+
+        // At 1441ms, playback for Ni (offset 58ms from 1500ms = 1442ms) has not started yet
+        advance(941)
+        assertEquals(1, playbackStarts.size)
+
+        // At 1442ms, playback for Ni starts
+        advance(1)
+        assertEquals(2, playbackStarts.size)
+        assertEquals(Triple(2, 2, start + 1442), playbackStarts.last())
+        assertEquals(1, cues.size) // Cue 2 has not landed yet!
+
+        // At 1500ms, cue 2 lands
+        advance(58)
+        assertEquals(2, cues.size)
+        assertEquals(Triple(2, 2, start + 1500), cues.last())
+
+        // Exact 1000ms cue spacing
+        assertEquals(1000L, cues[1].third - cues[0].third)
+        // Pre-roll playback spacing differs (1073ms)
+        assertEquals(1073L, playbackStarts[1].third - playbackStarts[0].third)
+    }
+
+    @Test fun assetHashMismatchPreventsUseOfStaleMetadataAndFailsSafely() {
+        packageValid = false
+        begin()
+        advance(500)
+        assertTrue(cues.isEmpty())
+        assertTrue(playbackStarts.isEmpty())
+        assertEquals(AssistedCaptureState.FAILED, controller.state)
+        assertEquals(1, stops)
+    }
+
+    @Test fun cancellationRemovesPendingFuturePlaybackWithoutMutatingPersistedCues() {
+        val start = begin(AssistedCaptureSetup(repetitions = 10, cadenceMs = 1000))
+        advance(1550) // After rep 1 (369ms/500ms) and rep 2 (1442ms/1500ms)
+        assertEquals(2, cues.size)
+        assertEquals(2, playbackStarts.size)
+
+        controller.stop()
+        advance(20_000)
+
+        // No new cues or playback starts were emitted after cancellation
+        assertEquals(2, cues.size)
+        assertEquals(2, playbackStarts.size)
+        assertEquals(listOf(start + 500, start + 1500), cues.map { it.third })
+    }
+
+    @Test fun cadenceTooFastForAudioPackageFailsSafelyBeforeCapture() {
+        // JapaneseCountAudioPackage requires at least 596ms cadence to prevent Shichi (7) -> Hachi (8) truncation.
+        // Requesting 500ms cadence in SharedCaptureRequest should fail safely in controller and explain why.
+        controller.record(SharedCaptureRequests.recordAndAnalyze("Punches", "Punches", 10, 500L, true))
+        assertEquals(AssistedCaptureState.FAILED, controller.state)
+        assertTrue(shown.last().contains("too fast"))
+        assertEquals(0, starts)
     }
 }

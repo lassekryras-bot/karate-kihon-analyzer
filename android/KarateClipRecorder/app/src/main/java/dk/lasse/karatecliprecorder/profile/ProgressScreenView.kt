@@ -1,7 +1,6 @@
 package dk.lasse.karatecliprecorder.profile
 
 import android.content.Context
-import android.view.Gravity
 import android.widget.FrameLayout
 import android.widget.LinearLayout
 import androidx.core.content.ContextCompat
@@ -20,11 +19,13 @@ class ProgressScreenView(
     private val repository: ProfileRepository,
     private val onProfile: () -> Unit,
     private val onWiki: () -> Unit,
-    onHome: () -> Unit,
-    onTrain: () -> Unit,
-    onSettings: () -> Unit,
+    onHome: () -> Unit = {},
+    onTrain: () -> Unit = {},
+    onSettings: () -> Unit = {},
     private val onRecordings: () -> Unit = {},
 ) : FrameLayout(context) {
+    val destination: AppDestination = AppDestination.PROGRESS
+
     private val content = LinearLayout(context).apply { orientation = LinearLayout.VERTICAL }
     private val mainHeader = MainPageHeader(
         context = context,
@@ -44,8 +45,6 @@ class ProgressScreenView(
             topContentPaddingDp = 16,
             bottomContentClearanceDp = AppBottomNavigationView.CONTENT_CLEARANCE_DP,
         ), LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT))
-        addView(AppBottomNavigationView(context, AppDestination.PROGRESS, onHome, onTrain, {}, onSettings),
-            LayoutParams(LayoutParams.MATCH_PARENT, AppBottomNavigationView.BASE_HEIGHT_DP.dp(), Gravity.BOTTOM))
         renderHeaderAndSummary(onProfile)
     }
 
@@ -75,23 +74,13 @@ class ProgressScreenView(
                 configureAsNavigation(onClick = onWiki)
             })
         })
-        content.addView(SettingsSectionView(context, "ACTIVITIES").apply {
-            addRow(SettingsRowView(context, AppIcon.KARATE, "Punching", "Measurement trends for your punches").apply {
-                configureAsNavigation(onClick = { showEmptyPerformance("Punching") })
+        val active = repository.resolveActiveProfile()
+        if (active != null) {
+            content.addView(SettingsSectionView(context, "ACTIVE PROFILE").apply {
+                addRow(SettingsRowView(context, AppIcon.SETTINGS, active.name, "${active.gender.name.lowercase().replaceFirstChar { it.uppercase() }}, ${active.ageGroup.name.lowercase().replaceFirstChar { it.uppercase() }}").apply {
+                    configureAsNavigation(onClick = onProfile)
+                })
             })
-            addRow(SettingsRowView(context, AppIcon.KARATE, "Kicking", "Measurement trends for your kicks").apply {
-                configureAsNavigation(onClick = { showEmptyPerformance("Kicking") })
-            })
-        })
+        }
     }
-
-    private fun showEmptyPerformance(activity: String) {
-        android.app.AlertDialog.Builder(context)
-            .setTitle(activity)
-            .setMessage("Performance trends are coming soon. Your technique measurements will appear here over time.")
-            .setPositiveButton("Done", null)
-            .show()
-    }
-
-    private fun Int.dp() = context.dp(this)
 }

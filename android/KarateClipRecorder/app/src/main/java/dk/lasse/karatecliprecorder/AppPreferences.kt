@@ -68,6 +68,18 @@ class AppPreferences(context: Context) {
             editor.apply()
         }
 
+    var homeOnboardingPhase: String
+        get() = preferences.getString(KEY_HOME_ONBOARDING_PHASE, "WELCOME") ?: "WELCOME"
+        set(value) = preferences.edit().putString(KEY_HOME_ONBOARDING_PHASE, value).apply()
+
+    var isProfileSetupComplete: Boolean
+        get() = preferences.getBoolean(KEY_PROFILE_SETUP_COMPLETE, false)
+        set(value) = preferences.edit().putBoolean(KEY_PROFILE_SETUP_COMPLETE, value).apply()
+
+    var hasAcknowledgedLearningUnlock: Boolean
+        get() = preferences.getBoolean(KEY_ACKNOWLEDGED_LEARNING_UNLOCK, false)
+        set(value) = preferences.edit().putBoolean(KEY_ACKNOWLEDGED_LEARNING_UNLOCK, value).apply()
+
     companion object {
         val COUNTDOWN_OPTIONS_SECONDS = listOf(0, 3, 5, 10)
         val PRACTICE_DURATION_OPTIONS_MINUTES = listOf(5, 10, 15, 20, 30)
@@ -82,5 +94,8 @@ class AppPreferences(context: Context) {
         private const val KEY_THEME = "theme"
         private const val KEY_DEVELOPER_MODE = "developer_mode"
         private const val KEY_ACTIVE_PROFILE_ID = "active_profile_id"
+        private const val KEY_HOME_ONBOARDING_PHASE = "home_onboarding_phase"
+        private const val KEY_PROFILE_SETUP_COMPLETE = "profile_setup_complete"
+        private const val KEY_ACKNOWLEDGED_LEARNING_UNLOCK = "acknowledged_learning_unlock"
     }
 }

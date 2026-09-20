@@ -89,6 +89,26 @@ class TrainingServices private constructor(context: Context) {
             SequentialVideoPoseDecoder(app), "pose_full_sha256:$hash;decoder=1;tasks=0.10.26;CPU;settings=1", checkActive, publication)
     }
 
+    fun reanalyze(sessionId: String, completed: (Result<ProcessingRun>) -> Unit = {}) {
+        processingExecutor.execute {
+            val result = runCatching {
+                val (run, _) = repository.prepareReanalysisRun(sessionId)
+                val proc = processor(
+                    checkActive = {
+                        val currentJob = repository.job(sessionId)
+                        check(currentJob == null || currentJob.state != QueueState.DELETING) { "Cancelled" }
+                    },
+                    publication = { op ->
+                        synchronized(ProcessingCoordinator.publication) { op() }
+                    }
+                )
+                proc.processReanalysis(sessionId, run.runId)
+                requireNotNull(repository.run(run.runId))
+            }
+            main.post { completed(result) }
+        }
+    }
+
     companion object {
         @Volatile private var instance: TrainingServices? = null
         internal fun closeForTests() = synchronized(this) {

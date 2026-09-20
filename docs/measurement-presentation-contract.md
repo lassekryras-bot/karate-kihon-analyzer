@@ -1,5 +1,31 @@
 # Measurement presentation contract
 
+## Recording target geometry
+
+Movement Detail uses a separate persisted `straight_punch_geometry_v1` contract in
+`MovementAnalysis.geometryJson` (Room schema 9). This is not a wiki bundle or a new
+biomechanics method. The straight-punch adapter serializes the actual analyzer evaluation;
+the detail mapper never initializes an analyzer or reconstructs a body reference.
+
+The JSON contains `contract`, `coordinateSpace: normalized_upright_unmirrored_image`,
+recording-relative `timestampUs`, optional `frameIndex`, `activeSide` (`LEFT` or `RIGHT`),
+`origin: {x, y}` and `rays: [{targetType, endpointX, endpointY, isClosest}]`. Coordinates
+are finite normalized image coordinates, with x right and y down; off-image points are
+permitted. Each valid target appears once and at most one ray is classified closest.
+Analysis identity, analyzer version and landmark-track identity belong to the owning
+analysis row. No physical length scale is implied by these coordinates.
+
+Readers validate the entire payload before publishing any geometry, require the known
+contract/coordinate space, and reject timestamps outside retained playback bounds.
+Missing, unversioned or malformed payloads remain unavailable until reanalysis. There
+is no UI backfill. Valid persisted geometry remains available without landmark files.
+
+The approved-version analysis selector is shared by the repository and detail page.
+Results are filtered by its analysis ID; the corresponding track is loaded exactly or
+reported unavailable. An abstained/failed run is diagnostic evidence, not a technique
+finding. Current recording analyzers do not yet supply continuous speed/deviation plots;
+Movement Detail explicitly keeps those result slots and Graph evidence unavailable.
+
 ## Forearm-based metric wiki scale
 
 Wiki bundles may carry `body_measurements` with contract `body_measurements_v1`

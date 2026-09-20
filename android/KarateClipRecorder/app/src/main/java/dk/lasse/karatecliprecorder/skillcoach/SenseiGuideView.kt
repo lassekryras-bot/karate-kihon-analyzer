@@ -19,9 +19,7 @@ import androidx.annotation.RawRes
 import androidx.core.content.ContextCompat
 import androidx.core.graphics.PathParser
 import dk.lasse.karatecliprecorder.R
-import org.xmlpull.v1.XmlPullParser
-import java.util.concurrent.ConcurrentHashMap
-import java.util.concurrent.Executors
+import dk.lasse.karatecliprecorder.artwork.FullColorSvgView
 import kotlin.math.roundToInt
 
 /**
@@ -59,7 +57,8 @@ class SenseiGuideView(
         clipChildren = true
         clipToPadding = true
         contentDescription = "Sensei says: $speech"
-        addView(FullColorSvgView(context, R.raw.sensei_speaking_blank_bubble).apply {
+        // FullColorSvgView renders mirrored character with canvas.scale(-scale, scale)
+        addView(FullColorSvgView(context, R.raw.sensei_speaking_blank_bubble, mirrored = true).apply {
             importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
         }, LayoutParams(ARTWORK_SIZE_DP.dp(), ARTWORK_SIZE_DP.dp(), ARTWORK_GRAVITY))
         addView(speechView)
@@ -114,129 +113,3 @@ private object SenseiArtworkGeometry {
     }
 }
 
-/** Minimal renderer for the supplied path-only, full-color Sensei SVG. */
-@SuppressLint("ViewConstructor")
-private class FullColorSvgView(
-    context: Context,
-    @RawRes private val resourceId: Int,
-) : View(context) {
-    private val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.FILL }
-    private var artwork: FullColorSvgArtwork? = null
-
-    init {
-        FullColorSvgRepository.loadAsync(resources, resourceId) { result ->
-            post {
-                result.onSuccess {
-                    artwork = it
-                    invalidate()
-                }.onFailure { error ->
-                    Log.e(TAG, "Unable to render Sensei artwork $resourceId.", error)
-                }
-            }
-        }
-    }
-
-    override fun onDraw(canvas: Canvas) {
-        super.onDraw(canvas)
-        val image = artwork ?: return
-        if (width <= 0 || height <= 0) return
-
-        // The parent gives this renderer a fixed square footprint. Keep that scale and top anchor
-        // for every guidance state, then let the shorter parent viewport crop below the belt knot.
-        val scale = width.toFloat() / image.viewportWidth
-        canvas.save()
-        canvas.clipRect(0, 0, width, height)
-        canvas.translate(width.toFloat(), 0f)
-        canvas.scale(-scale, scale)
-        image.paths.forEach { item ->
-            paint.color = item.color
-            canvas.drawPath(item.path, paint)
-        }
-        canvas.restore()
-    }
-
-    private companion object {
-        const val TAG = "SenseiArtwork"
-    }
-}
-
-private data class FullColorSvgPath(val path: Path, val color: Int)
-
-private data class FullColorSvgArtwork(
-    val viewportWidth: Float,
-    val viewportHeight: Float,
-    val paths: List<FullColorSvgPath>,
-)
-
-private object FullColorSvgRepository {
-    private val executor = Executors.newSingleThreadExecutor()
-    private val cache = ConcurrentHashMap<Int, FullColorSvgArtwork>()
-    private val rgba = Regex("rgba\\((\\d+),(\\d+),(\\d+),([0-9.]+)\\)")
-
-    fun loadAsync(
-        resources: Resources,
-        @RawRes resourceId: Int,
-        callback: (Result<FullColorSvgArtwork>) -> Unit,
-    ) {
-        cache[resourceId]?.let { callback(Result.success(it)); return }
-        executor.execute {
-            callback(runCatching {
-                cache[resourceId] ?: resources.openRawResource(resourceId).use { stream ->
-                    parse(stream.reader()).also { cache[resourceId] = it }
-                }
-            })
-        }
-    }
-
-    private fun parse(reader: java.io.Reader): FullColorSvgArtwork {
-        val parser = Xml.newPullParser().apply { setInput(reader) }
-        var viewportWidth = 1f
-        var viewportHeight = 1f
-        val paths = mutableListOf<FullColorSvgPath>()
-        while (parser.eventType != XmlPullParser.END_DOCUMENT) {
-            if (parser.eventType == XmlPullParser.START_TAG) {
-                when (parser.name.substringAfter(':')) {
-                    "svg" -> parser.attribute("viewBox")?.let { viewBox ->
-                        val values = viewBox.trim().split(Regex("\\s+")).map(String::toFloat)
-                        require(values.size == 4 && values[2] > 0f && values[3] > 0f)
-                        viewportWidth = values[2]
-                        viewportHeight = values[3]
-                    }
-                    "path" -> {
-                        val path = requireNotNull(
-                            PathParser.createPathFromPathData(requireNotNull(parser.attribute("d"))),
-                        )
-                        path.fillType = if (parser.attribute("fill-rule") == "evenodd") {
-                            Path.FillType.EVEN_ODD
-                        } else {
-                            Path.FillType.WINDING
-                        }
-                        paths += FullColorSvgPath(
-                            path = path,
-                            color = parseFill(requireNotNull(parser.attribute("fill"))),
-                        )
-                    }
-                }
-            }
-            parser.next()
-        }
-        require(paths.isNotEmpty()) { "Sensei SVG contains no paths." }
-        return FullColorSvgArtwork(viewportWidth, viewportHeight, paths)
-    }
-
-    private fun parseFill(value: String): Int {
-        val match = rgba.matchEntire(value.replace(" ", "")) ?: return Color.parseColor(value)
-        val red = match.groupValues[1].toInt().coerceIn(0, 255)
-        val green = match.groupValues[2].toInt().coerceIn(0, 255)
-        val blue = match.groupValues[3].toInt().coerceIn(0, 255)
-        val alpha = (match.groupValues[4].toFloat().coerceIn(0f, 1f) * 255f).roundToInt()
-        return Color.argb(alpha, red, green, blue)
-    }
-
-    private fun XmlPullParser.attribute(name: String): String? {
-        for (index in 0 until attributeCount) {
-            if (getAttributeName(index).substringAfter(':') == name) return getAttributeValue(index)
-        }
-        return null
-    }
-}

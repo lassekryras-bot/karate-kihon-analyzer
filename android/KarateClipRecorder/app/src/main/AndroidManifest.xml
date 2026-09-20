@@ -27,6 +27,7 @@
             android:foregroundServiceType="dataSync|mediaProcessing" tools:node="merge" />
         <activity android:name=".assisted.AssistedCaptureActivity" android:exported="false" android:configChanges="orientation|screenSize" />
         <activity android:name=".recordings.RecordingsActivity" android:exported="false" />
+        <activity android:name=".movement.MovementDetailActivity" android:exported="false" android:configChanges="orientation|screenSize" />
         <activity
             android:name=".MainActivity"
             android:exported="true">

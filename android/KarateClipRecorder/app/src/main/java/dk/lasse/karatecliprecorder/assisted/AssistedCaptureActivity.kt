@@ -1,6 +1,7 @@
 package dk.lasse.karatecliprecorder.assisted
 
 import android.Manifest
+import android.content.Context
 import android.content.Intent
 import android.content.pm.ActivityInfo
 import android.content.pm.PackageManager
@@ -98,15 +99,19 @@ class AssistedCaptureActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setup = preferences.read(profiles.activeProfile().id).copy(
+        val requestedReps = intent.getIntExtra(EXTRA_REPETITIONS, -1).takeIf { it > 0 }
+        val baseSetup = preferences.read(profiles.activeProfile().id)
+        setup = baseSetup.copy(
             expectedActivity = savedInstanceState?.getString("activity")
-                ?: intent.getStringExtra("expectedActivity")
+                ?: intent.getStringExtra(EXTRA_EXPECTED_ACTIVITY)
                 ?: "Alternating straight punches",
             expectedCategory = savedInstanceState?.getString("category")
-                ?: intent.getStringExtra("expectedCategory")
-                ?: "Punches"
+                ?: intent.getStringExtra(EXTRA_EXPECTED_CATEGORY)
+                ?: "Punches",
+            repetitions = requestedReps ?: baseSetup.repetitions,
         )
         player = SoundFileTrainingOrderPlayer(this)
+        val audioPkg = player.audioPackage
         controller = AssistedCaptureController(
             prepare = { request, ready ->
                 selectedSession = null
@@ -117,13 +122,20 @@ class AssistedCaptureActivity : AppCompatActivity() {
             stopAudio = player::stop,
             persistCue = { value, ordinal, time ->
                 lastCueOrdinal = ordinal
-                camera?.recordCountCue(value, ordinal, time)
+                val assetName = audioPkg.findAsset("COUNT_$value")?.resourceName
+                camera?.recordCountCue(value, ordinal, time, audioPkg.packageVersionId, assetName)
             },
             changed = ::renderState,
             persistBoundary = { type, time, reason -> camera?.recordBoundary(type, time, reason) },
             playPrompt = { prompt ->
                 CapturePromptCatalog.trainingOrder(prompt)?.let(player::play)
             },
+            audioCuePackage = audioPkg,
+            persistPlaybackStart = { value, ordinal, time ->
+                val assetName = audioPkg.findAsset("COUNT_$value")?.resourceName
+                camera?.recordPlaybackStart(value, ordinal, time, audioPkg.packageVersionId, assetName)
+            },
+            isAudioPackageValid = { player.isPackageValid },
         )
 
         val root = LinearLayout(this).apply {
@@ -774,4 +786,23 @@ class AssistedCaptureActivity : AppCompatActivity() {
     }
 
     private fun Int.dp() = (this * resources.displayMetrics.density).toInt()
+
+    companion object {
+        const val EXTRA_EXPECTED_ACTIVITY = "expectedActivity"
+        const val EXTRA_EXPECTED_CATEGORY = "expectedCategory"
+        const val EXTRA_REPETITIONS = "repetitions"
+
+        fun createIntent(
+            context: Context,
+            activity: String = "Alternating straight punches",
+            category: String = "Punches",
+            repetitions: Int? = null,
+        ): Intent = Intent(context, AssistedCaptureActivity::class.java).apply {
+            putExtra(EXTRA_EXPECTED_ACTIVITY, activity)
+            putExtra(EXTRA_EXPECTED_CATEGORY, category)
+            if (repetitions != null && repetitions > 0) {
+                putExtra(EXTRA_REPETITIONS, repetitions)
+            }
+        }
+    }
 }

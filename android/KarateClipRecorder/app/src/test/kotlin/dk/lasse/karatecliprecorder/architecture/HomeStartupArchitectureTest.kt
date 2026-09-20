@@ -134,14 +134,18 @@ class HomeStartupArchitectureTest {
         val progression = appSources.resolve("learningpath/SkillProgressionView.kt").readText()
         val progress = appSources.resolve("profile/ProgressScreenView.kt").readText()
         val navigation = appSources.resolve("AppBottomNavigationView.kt").readText()
+        val activity = appSources.resolve("MainActivity.kt").readText()
 
         assertTrue(navigation.contains("WindowInsetsCompat.Type.navigationBars()"))
         assertTrue(navigation.contains("BASE_HEIGHT_DP.dp() + navigationBarBottom"))
         assertTrue(navigation.contains("BOTTOM_PADDING_DP.dp() + navigationBarBottom"))
         assertTrue(navigation.contains("ViewCompat.requestApplyInsets(this)"))
+        assertTrue(activity.contains("AppBottomNavigationView.BASE_HEIGHT_DP.dp()"))
+        assertTrue(activity.contains("sharedBottomNavigation = AppBottomNavigationView(this)"))
         listOf(home, settings, learn, progress).forEach { screen ->
-            assertTrue(screen.contains("AppBottomNavigationView.BASE_HEIGHT_DP.dp()"))
+            assertTrue(screen.contains("bottomContentClearanceDp = AppBottomNavigationView.CONTENT_CLEARANCE_DP"))
             assertFalse(screen.contains("bottomMargin = navigationBars.bottom"))
+            assertFalse(screen.contains("AppBottomNavigationView("))
         }
         assertFalse(progression.contains("AppBottomNavigationView"))
 
@@ -203,9 +207,10 @@ class HomeStartupArchitectureTest {
         val home = appSources.resolve("HomeScreenView.kt").readText()
         val navigation = appSources.resolve("AppBottomNavigationView.kt").readText()
 
-        assertTrue(home.contains("title = \"Karate Kihon Analyzer\""))
-        assertTrue(home.contains("subtitle = \"Welcome \${profileRepository.activeProfile().name}\""))
-        assertTrue(home.contains("mainHeader.setSubtitle(\"Welcome \${it.name}\")"))
+        assertTrue(home.contains("R.string.app_display_name"))
+        assertFalse(home.contains("title = \"Karate Kihon Analyzer\""))
+        assertTrue(home.contains("R.string.home_welcome"))
+        assertTrue(home.contains("R.string.home_welcome_named"))
         assertTrue(navigation.contains("BASE_HEIGHT_DP = 68"))
         assertTrue(navigation.contains("BOTTOM_PADDING_DP = 0"))
         assertTrue(navigation.contains("minimumWidth = 48.dp()"))

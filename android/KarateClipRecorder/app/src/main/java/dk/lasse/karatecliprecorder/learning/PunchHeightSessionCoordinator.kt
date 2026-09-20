@@ -9,6 +9,7 @@ import dk.lasse.karateanalyzer.core.PunchHeightGuidanceState
 import dk.lasse.karateanalyzer.core.PunchHeightTargetType
 import dk.lasse.karateanalyzer.core.SetupEvaluation
 import dk.lasse.karateanalyzer.core.SetupGuidance
+import dk.lasse.karateanalyzer.core.TargetId
 import dk.lasse.karatecliprecorder.mediapipeposeadapter.LivePoseLandmarkerOutput
 
 enum class PunchHeightSessionStage {
@@ -62,7 +63,7 @@ data class PunchHeightFrameDecision(
 )
 
 class PunchHeightSessionCoordinator(
-    private val analyzer: PunchHeightAnalyzer = PunchHeightAnalyzer(),
+    private val analyzer: PunchHeightAnalyzer = PunchHeightAnalyzer(explicitGedanTarget = TargetId.GEDAN_LOWER_ABDOMEN),
 ) {
     private var state = PunchHeightSessionState()
 

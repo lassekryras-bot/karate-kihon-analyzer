@@ -23,9 +23,9 @@ class SettingsScreenView(
     private val cameraPermissionRoute: () -> PermissionRequestRoute,
     private val microphonePermissionRoute: () -> PermissionRequestRoute,
     private val onMicrophonePermissionRequest: () -> Unit,
-    private val onHome: () -> Unit,
-    private val onTrain: () -> Unit,
-    private val onProgress: () -> Unit,
+    private val onHome: () -> Unit = {},
+    private val onTrain: () -> Unit = {},
+    private val onProgress: () -> Unit = {},
     private val onCameraPermissionRequest: () -> Unit,
     private val onDeveloperModeChanged: (Boolean) -> Unit,
     private val onCameraDebug: () -> Unit,
@@ -33,6 +33,8 @@ class SettingsScreenView(
     private val onAbout: () -> Unit,
     private val onThemeChanged: (AppTheme) -> Unit,
 ) : FrameLayout(context) {
+    val destination: AppDestination = AppDestination.SETTINGS
+
     private lateinit var cameraPermissionRow: SettingsRowView
     private lateinit var microphonePermissionRow: SettingsRowView
     private lateinit var trainingSoundsSwitch: SwitchCompat
@@ -68,16 +70,6 @@ class SettingsScreenView(
             topContentPaddingDp = 16,
             bottomContentClearanceDp = AppBottomNavigationView.CONTENT_CLEARANCE_DP,
         ), LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT))
-
-        val navigation = AppBottomNavigationView(
-            context = context,
-            selectedDestination = AppDestination.SETTINGS,
-            onHome = onHome,
-            onTrain = onTrain,
-            onProgress = onProgress,
-            onSettings = {},
-        )
-        addView(navigation, LayoutParams(LayoutParams.MATCH_PARENT, AppBottomNavigationView.BASE_HEIGHT_DP.dp(), Gravity.BOTTOM))
 
         refresh()
     }

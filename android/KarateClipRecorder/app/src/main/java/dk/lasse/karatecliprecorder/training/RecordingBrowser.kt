@@ -6,7 +6,7 @@ import java.time.YearMonth
 import java.time.ZoneId
 
 data class RecordingSummary(val session: RecordingSession, val recording: MasterRecording,
-    val processing: RecordingProcessing?, val movementCount: Int) {
+    val processing: RecordingProcessing?, val movementCount: Int, val currentRun: ProcessingRun? = null) {
     val countLabel: String get() = if (processing?.phase == ProcessingPhase.READY || movementCount > 0)
         "Detected $movementCount" + (session.expectedRepetitions?.let { " · Planned $it" } ?: "")
         else session.expectedRepetitions?.let { "Planned $it" } ?: "No planned count"

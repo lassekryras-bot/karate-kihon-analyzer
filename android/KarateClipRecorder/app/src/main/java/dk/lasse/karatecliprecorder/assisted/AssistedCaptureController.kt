@@ -3,6 +3,8 @@ package dk.lasse.karatecliprecorder.assisted
 import android.os.Handler
 import android.os.Looper
 import android.os.SystemClock
+import dk.lasse.karateanalyzer.audiocue.AudioCuePackage
+import dk.lasse.karateanalyzer.audiocue.JapaneseCountAudioPackage
 import dk.lasse.karatecliprecorder.training.AssistedCaptureSetup
 import dk.lasse.karatecliprecorder.sharedcapture.*
 
@@ -19,6 +21,9 @@ class AssistedCaptureController(
     private val nowMs: () -> Long = SystemClock::elapsedRealtime,
     private val persistBoundary: (String, Long, String?) -> Unit = { _, _, _ -> },
     private val playPrompt: (CapturePrompt) -> Unit = {},
+    private val audioCuePackage: AudioCuePackage? = JapaneseCountAudioPackage.DEFAULT,
+    private val persistPlaybackStart: ((Int, Int, Long) -> Unit)? = null,
+    private val isAudioPackageValid: () -> Boolean = { true },
 ) {
     private val handler = Handler(Looper.getMainLooper())
     var state = AssistedCaptureState.READY
@@ -26,8 +31,8 @@ class AssistedCaptureController(
     private var generation = 0
     private var request = SharedCaptureRequests.recordAndAnalyze("Alternating straight punches", "Punches", 10, 1000, true)
     private var startedMs = 0L
-    private var ordinal = 0
-    private var nextCueMs = 0L
+    private var nextPlaybackOrdinal = 0
+    private var nextCueOrdinal = 0
     private var lastCueMs: Long? = null
     val captureActive: Boolean get() = state in setOf(AssistedCaptureState.PREPARING, AssistedCaptureState.COUNTDOWN,
         AssistedCaptureState.STARTING, AssistedCaptureState.RECORDING, AssistedCaptureState.FINISHING, AssistedCaptureState.FINALIZING)
@@ -40,6 +45,18 @@ class AssistedCaptureController(
         if (state !in setOf(AssistedCaptureState.READY, AssistedCaptureState.CANCELLED, AssistedCaptureState.FAILED, AssistedCaptureState.COMPLETE)) return
         captureRequest.startBlock()?.let { fail(it.message); return }
         require(captureRequest.captureType == CaptureType.VIDEO)
+        if (captureRequest.cueMode == CaptureCueMode.APP_CUED && captureRequest.spokenMovementCues) {
+            val cadence = captureRequest.cadenceMs
+            val planned = captureRequest.plannedRepetitions ?: 0
+            if (cadence != null && planned > 1 && audioCuePackage != null) {
+                val sequence = (0 until planned).map { "COUNT_${(it % 10) + 1}" }
+                val minSafeCadence = audioCuePackage.minSafeCadenceMs(sequence)
+                if (cadence < minSafeCadence) {
+                    fail("Requested cadence (${cadence}ms) is too fast for audio package (minimum safe cadence is ${minSafeCadence}ms to prevent audio cutoff).")
+                    return
+                }
+            }
+        }
         request = captureRequest
         val attempt = ++generation
         transition(AssistedCaptureState.PREPARING, "Preparing recording…")
@@ -62,9 +79,9 @@ class AssistedCaptureController(
     fun recordingStarted(monotonicMs: Long) {
         if (state != AssistedCaptureState.STARTING) { stopCamera(); return }
         startedMs = monotonicMs
-        ordinal = 0
+        nextPlaybackOrdinal = 0
+        nextCueOrdinal = 0
         lastCueMs = null
-        nextCueMs = startedMs + 500L
         transition(AssistedCaptureState.RECORDING, "Recording • 0:00")
         tick(generation)
     }
@@ -74,27 +91,69 @@ class AssistedCaptureController(
         val now = nowMs()
         val planned = request.plannedRepetitions ?: 0
         val cadence = requireNotNull(request.cadenceMs)
-        if (request.cueMode == CaptureCueMode.APP_CUED && ordinal < planned && now >= nextCueMs) {
-            val value = ordinal % 10 + 1
-            if (request.spokenMovementCues && !playCount(value)) {
-                fail("Spoken counting unavailable. Recording stopped; check sound and retry.")
-                return
+
+        if (request.cueMode == CaptureCueMode.APP_CUED) {
+            if (request.spokenMovementCues) {
+                while (nextPlaybackOrdinal < planned) {
+                    val k = nextPlaybackOrdinal
+                    val value = (k % 10) + 1
+                    val asset = audioCuePackage?.findAsset("COUNT_$value")
+                    val preRollMs = asset?.anchorOffsetMs ?: 0L
+                    val cueTime = startedMs + 500L + k * cadence
+                    val playbackTime = (cueTime - preRollMs).coerceAtLeast(startedMs)
+                    if (now < playbackTime) break
+
+                    if (!isAudioPackageValid() || !playCount(value)) {
+                        fail("Spoken counting unavailable. Recording stopped; check sound and retry.")
+                        return
+                    }
+                    persistPlaybackStart?.invoke(value, k + 1, nowMs())
+                    nextPlaybackOrdinal++
+                }
             }
-            ordinal++
-            lastCueMs = nowMs()
-            persistCue(value, ordinal, requireNotNull(lastCueMs))
-            // Anchor normal cadence to Start; avoid a burst/overlap if the UI thread was delayed.
-            nextCueMs = maxOf(startedMs + 500L + ordinal * cadence,
-                now + AssistedCaptureSetup.MIN_CADENCE_MS)
-            if (ordinal == planned && request.autoStop == CaptureAutoStop.AFTER_FINAL_CUE) {
-                beginAutomaticFinish(attempt)
-                return
+
+            while (nextCueOrdinal < planned) {
+                val k = nextCueOrdinal
+                val value = (k % 10) + 1
+                val cueTime = startedMs + 500L + k * cadence
+                if (now < cueTime) break
+
+                nextCueOrdinal++
+                lastCueMs = cueTime
+                persistCue(value, nextCueOrdinal, cueTime)
+                if (nextCueOrdinal == planned && request.autoStop == CaptureAutoStop.AFTER_FINAL_CUE) {
+                    beginAutomaticFinish(attempt)
+                    return
+                }
             }
         }
+
         val seconds = (now - startedMs).coerceAtLeast(0) / 1000
         changed(state, "Recording • ${seconds / 60}:${(seconds % 60).toString().padStart(2, '0')}" +
-            if (request.cueMode == CaptureCueMode.APP_CUED) " • Cue $ordinal/$planned" else "")
-        handler.postDelayed({ tick(attempt) }, 25)
+            if (request.cueMode == CaptureCueMode.APP_CUED) " • Cue $nextCueOrdinal/$planned" else "")
+
+        var delay = 25L
+        if (request.cueMode == CaptureCueMode.APP_CUED) {
+            if (request.spokenMovementCues && nextPlaybackOrdinal < planned) {
+                val k = nextPlaybackOrdinal
+                val value = (k % 10) + 1
+                val asset = audioCuePackage?.findAsset("COUNT_$value")
+                val preRollMs = asset?.anchorOffsetMs ?: 0L
+                val cueTime = startedMs + 500L + k * cadence
+                val playbackTime = (cueTime - preRollMs).coerceAtLeast(startedMs)
+                if (playbackTime > now) {
+                    delay = minOf(delay, playbackTime - now)
+                }
+            }
+            if (nextCueOrdinal < planned) {
+                val k = nextCueOrdinal
+                val cueTime = startedMs + 500L + k * cadence
+                if (cueTime > now) {
+                    delay = minOf(delay, cueTime - now)
+                }
+            }
+        }
+        handler.postDelayed({ tick(attempt) }, delay.coerceAtLeast(1L))
     }
 
     fun stop() {

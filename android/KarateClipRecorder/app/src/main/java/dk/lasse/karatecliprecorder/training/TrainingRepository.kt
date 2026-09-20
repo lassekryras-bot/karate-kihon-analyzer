@@ -87,13 +87,27 @@ class TrainingRepository(private val database: KarateTrainingDatabase, val stora
         sessions(userId).mapNotNull { session ->
             recording(session.sessionId)?.takeIf { it.captureType == dk.lasse.karatecliprecorder.sharedcapture.CaptureType.VIDEO &&
                 it.sourceState !in setOf(SourceState.PENDING, SourceState.FAILED) }?.let {
-                RecordingSummary(session, it, job(session.sessionId), movementCount(session.sessionId))
+                RecordingSummary(session, it, job(session.sessionId), movementCount(session.sessionId), currentRun(session.sessionId))
             }
         }
     }
     fun recording(sessionId: String) = dao.recording(sessionId)?.value
-    fun movements(sessionId: String) = dao.movements(sessionId).map { it.value }
-    fun movementCount(sessionId: String) = dao.movementCount(sessionId)
+    fun movements(sessionId: String, runId: String? = null): List<SessionMovement> = atomic {
+        val effectiveRunId = runId ?: currentRun(sessionId)?.runId
+        if (effectiveRunId != null) {
+            return@atomic dao.movementsForRun(effectiveRunId).map { it.value }
+        }
+        dao.movements(sessionId).map { it.value }
+    }
+    fun movementsForRun(runId: String): List<SessionMovement> = dao.movementsForRun(runId).map { it.value }
+    fun movementCount(sessionId: String, runId: String? = null): Int = atomic {
+        val effectiveRunId = runId ?: currentRun(sessionId)?.runId
+        if (effectiveRunId != null) {
+            return@atomic dao.movementCountForRun(effectiveRunId)
+        }
+        dao.movementCount(sessionId)
+    }
+    fun resultsForAnalysis(analysisId: String): List<MeasurementResult> = dao.results(analysisId).map { it.value }
     fun events(sessionId: String) = dao.events(sessionId).map { it.value }
     fun tracks(recordingId: String) = dao.tracks(recordingId).map { it.value }
     fun setSessionState(id: String, state: SessionState, reason: String? = null) = dao.sessionState(id, state, reason)
@@ -108,10 +122,78 @@ class TrainingRepository(private val database: KarateTrainingDatabase, val stora
     fun addTrack(track: LandmarkTrack) = dao.insert(LandmarkTrackRow(track))
     fun updateTrack(track: LandmarkTrack) = dao.update(LandmarkTrackRow(track))
 
+    fun createRun(run: ProcessingRun) = atomic { dao.insert(ProcessingRunRow(run)) }
+    fun updateRun(run: ProcessingRun) = atomic { dao.update(ProcessingRunRow(run)) }
+    fun run(runId: String): ProcessingRun? = dao.run(runId)?.value
+    fun currentRun(sessionId: String): ProcessingRun? = dao.currentRun(sessionId)?.value
+    fun runs(sessionId: String): List<ProcessingRun> = dao.runs(sessionId).map { it.value }
+
+    fun publishRun(runId: String) = atomic {
+        val run = requireNotNull(dao.run(runId)?.value) { "Processing run not found" }
+        dao.clearCurrentRuns(run.sessionId)
+        dao.update(ProcessingRunRow(run.copy(
+            isCurrent = true,
+            state = RunState.COMPLETED,
+            completedAtMs = System.currentTimeMillis(),
+            error = null,
+        )))
+        dao.sessionState(run.sessionId, SessionState.COMPLETED, null)
+    }
+
+    fun failRun(runId: String, error: String) = atomic {
+        val run = requireNotNull(dao.run(runId)?.value) { "Processing run not found" }
+        dao.update(ProcessingRunRow(run.copy(
+            state = RunState.FAILED,
+            completedAtMs = System.currentTimeMillis(),
+            error = error,
+        )))
+    }
+
+    fun canReanalyze(sessionId: String): Boolean {
+        val rec = recording(sessionId) ?: return false
+        if (rec.sourceState != SourceState.AVAILABLE) return false
+        val currentJob = job(sessionId)
+        if (currentJob?.state in setOf(QueueState.PROCESSING, QueueState.DELETING)) return false
+        val completedTrack = tracks(rec.recordingId).firstOrNull {
+            it.state == ProcessingState.COMPLETED && it.sourceState == SourceState.AVAILABLE && file(it.filePath).isFile
+        }
+        return completedTrack != null
+    }
+
+    fun prepareReanalysisRun(sessionId: String): Pair<ProcessingRun, LandmarkTrack> = atomic {
+        check(canReanalyze(sessionId)) { "Reanalysis cannot proceed: valid landmark evidence is not available" }
+        val rec = requireNotNull(recording(sessionId))
+        val track = tracks(rec.recordingId).first {
+            it.state == ProcessingState.COMPLETED && it.sourceState == SourceState.AVAILABLE && file(it.filePath).isFile
+        }
+        val session = requireNotNull(session(sessionId))
+        val plan = RecordingProcessingPlans.forSession(session)
+        val run = ProcessingRun(
+            sessionId = sessionId,
+            mode = RunMode.REANALYSIS,
+            sourceLandmarkTrackId = track.landmarkTrackId,
+            planKey = plan.key,
+            planVersion = plan.version,
+            segmenterVersion = TrainingSessionProcessor.SEGMENTATION_VERSION,
+            analyzerKey = plan.analyzers.firstOrNull(),
+            analyzerVersion = "1",
+            state = RunState.PROCESSING,
+            isCurrent = false,
+        )
+        dao.insert(ProcessingRunRow(run))
+        run to track
+    }
+
     /** Idempotent checkpoint. Never replace already identified physical movements on retry. */
     fun saveSegmentation(sessionId: String, movements: List<SessionMovement>, observations: List<ObservationContext>,
-                         links: List<MovementSessionEvent> = emptyList(), labels: List<Label> = emptyList()) = atomic {
-        require(dao.movementCount(sessionId) == 0) { "Segmentation already persisted; reuse existing movement identities" }
+                         links: List<MovementSessionEvent> = emptyList(), labels: List<Label> = emptyList(),
+                         runId: String? = null) = atomic {
+        val effectiveRunId = runId ?: movements.firstOrNull()?.runId
+        if (effectiveRunId != null) {
+            require(dao.movementCountForRun(effectiveRunId) == 0) { "Segmentation already persisted; reuse existing movement identities" }
+        } else {
+            require(dao.movementCount(sessionId) == 0) { "Segmentation already persisted; reuse existing movement identities" }
+        }
         require(observations.map { it.movementId }.toSet() == movements.map { it.movementId }.toSet())
         movements.forEach { movement ->
             require(movement.sessionId == sessionId)
@@ -188,10 +270,7 @@ class TrainingRepository(private val database: KarateTrainingDatabase, val stora
 
     fun preferredAnalysis(movementId: String, policy: AnalyzerPolicy): MovementAnalysis? {
         val candidates = dao.analyses(movementId).map { it.value }
-        return policy.approvedVersions.firstNotNullOfOrNull { version ->
-            candidates.firstOrNull { it.analyzerKey == policy.analyzerKey && it.analyzerVersion == version &&
-                it.state in setOf(AnalysisState.COMPLETED, AnalysisState.PARTIAL) }
-        }
+        return selectMovementAnalysis(candidates, policy)
     }
 
     fun movementEvidence(sessionId: String, displayedNumber: Int): MovementEvidence? = atomic {
@@ -202,6 +281,23 @@ class TrainingRepository(private val database: KarateTrainingDatabase, val stora
         MovementEvidence(movement, recording, dao.observation(movement.movementId)?.value,
             dao.labels(movement.movementId).map { it.value }, dao.movementEvents(movement.movementId).map { it.value },
             analyses, analyses.flatMap { dao.results(it.analysisId).map { row -> row.value } }, tracks(recording.recordingId))
+    }
+
+    fun movementEvidence(movementId: String): MovementEvidence? = atomic {
+        val movement = dao.movement(movementId)?.value ?: return@atomic null
+        val recording = requireNotNull(recording(movement.sessionId))
+        val analyses = dao.analyses(movement.movementId).map { it.value }
+        MovementEvidence(movement, recording, dao.observation(movement.movementId)?.value,
+            dao.labels(movement.movementId).map { it.value }, dao.movementEvents(movement.movementId).map { it.value },
+            analyses, analyses.flatMap { dao.results(it.analysisId).map { row -> row.value } }, tracks(recording.recordingId))
+    }
+
+    fun movementDisplayedNumber(movementId: String): Int = atomic {
+        val movement = dao.movement(movementId)?.value ?: return@atomic 1
+        val currentRun = currentRun(movement.sessionId)
+        val allMovements = if (currentRun != null) movementsForRun(currentRun.runId) else movements(movement.sessionId)
+        val idx = allMovements.indexOfFirst { it.movementId == movementId }
+        if (idx >= 0) idx + 1 else 1
     }
 
     /** Policy is applied at read time. Reanalyses cannot count one movement twice in a series. */

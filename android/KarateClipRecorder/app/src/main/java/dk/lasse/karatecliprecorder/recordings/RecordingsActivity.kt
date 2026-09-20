@@ -114,7 +114,15 @@ class RecordingsActivity : AppCompatActivity() {
             // A post-capture deep link retains the recording's owning profile.
             val owner = selected?.let { repo.session(it)?.userId } ?: user
             BrowserLoad(repo.recordingSummaries(owner), selected?.let { id ->
-                SegmentData(repo.movements(id))
+                val currentRun = repo.currentRun(id)
+                val movements = if (currentRun != null) repo.movementsForRun(currentRun.runId) else repo.movements(id)
+                val items = movements.map { m ->
+                    val preferred = repo.preferredAnalysis(m.movementId, StraightPunchMovementAdapter.policy)
+                        ?: repo.preferredAnalysis(m.movementId, AndroidPunchMovementAnalyzer.policy)
+                    val results = preferred?.let { a -> repo.resultsForAnalysis(a.analysisId) } ?: emptyList()
+                    MovementItem(m, preferred, results)
+                }
+                SegmentData(items, currentRun, repo.canReanalyze(id))
             })
         }) { result ->
             loading = false
@@ -293,6 +301,24 @@ class RecordingsActivity : AppCompatActivity() {
             }
             row.session.interruptionReason?.let { detailsBox.addView(label("Interrupted: ${it.replace('_', ' ')}", 13f)) }
 
+            val currentRun = segmentData?.currentRun ?: row.currentRun
+            if (currentRun != null) {
+                val trackLabel = if (currentRun.mode == RunMode.REANALYSIS) {
+                    "Landmarks: ${currentRun.sourceLandmarkTrackId ?: "none"} (reused existing MLS)"
+                } else {
+                    "Landmarks: ${currentRun.sourceLandmarkTrackId ?: "none"}"
+                }
+                detailsBox.addView(label(trackLabel, 13f))
+                currentRun.segmenterVersion?.let { detailsBox.addView(label("Segmentation: $it", 13f)) }
+                val analyzerStr = listOfNotNull(currentRun.analyzerKey, currentRun.analyzerVersion?.let { "v$it" }).joinToString(" ")
+                if (analyzerStr.isNotEmpty()) detailsBox.addView(label("Analysis: $analyzerStr", 13f))
+                currentRun.completedAtMs?.let {
+                    val processedDate = Instant.ofEpochMilli(it).atZone(ZoneId.systemDefault())
+                        .format(DateTimeFormatter.ofPattern("d MMM yyyy · HH:mm:ss"))
+                    detailsBox.addView(label("Processed: $processedDate", 13f))
+                }
+            }
+
             val utils = LinearLayout(this@RecordingsActivity).apply {
                 orientation = LinearLayout.VERTICAL
             }
@@ -314,6 +340,29 @@ class RecordingsActivity : AppCompatActivity() {
                         result.onFailure { toast(it.message ?: "Unable to process") }; load()
                     }
                 }.apply { (layoutParams as? ViewGroup.MarginLayoutParams)?.topMargin = dp(6) })
+            }
+            if (AppPreferences(this@RecordingsActivity).developerMode && segmentData?.canReanalyze == true &&
+                row.processing?.state != QueueState.PROCESSING) {
+                utils.addView(button("Reanalyze with current pipeline") {
+                    AlertDialog.Builder(this@RecordingsActivity)
+                        .setTitle("Reanalyze recording?")
+                        .setMessage("Reuse the existing landmark stream and run the current segmentation and analysis again. The original video and previous successful result will not be changed unless the new run completes successfully.")
+                        .setNegativeButton("Cancel", null)
+                        .setPositiveButton("Reanalyze") { _, _ ->
+                            toast("Reanalysis started…")
+                            training.reanalyze(row.session.sessionId) { result ->
+                                result.onSuccess {
+                                    toast("Reanalysis complete")
+                                }.onFailure { err ->
+                                    toast("Reanalysis failed: ${err.message}")
+                                }
+                                load()
+                            }
+                        }
+                        .show()
+                }.apply {
+                    (layoutParams as? ViewGroup.MarginLayoutParams)?.topMargin = dp(6)
+                })
             }
             utils.addView(button("Delete recording") {
                 AlertDialog.Builder(this@RecordingsActivity).setTitle("Delete recording?")
@@ -339,19 +388,82 @@ class RecordingsActivity : AppCompatActivity() {
             typeface = Typeface.create("sans-serif", Typeface.BOLD)
             setTextColor(ContextCompat.getColor(this@RecordingsActivity, R.color.app_text_primary))
         })
-        addView(TextView(this@RecordingsActivity).apply {
-            text = "Analysis not available yet"
-            textSize = 14f
-            typeface = Typeface.create("sans-serif", Typeface.BOLD)
-            setTextColor(ContextCompat.getColor(this@RecordingsActivity, R.color.app_text_secondary))
-            setPadding(0, dp(4), 0, dp(2))
-        })
-        addView(TextView(this@RecordingsActivity).apply {
-            text = "Movement segmentation is complete. Kinematic measurements and comparison against your baseline will appear here once an analyzer is configured for this activity."
-            textSize = 13f
-            setTextColor(ContextCompat.getColor(this@RecordingsActivity, R.color.app_text_secondary))
-            setLineSpacing(0f, 1.2f)
-        })
+
+        val items = segmentData?.movements.orEmpty()
+        if (segmentData != null && items.isEmpty() && row.processing?.phase == ProcessingPhase.READY) {
+            addView(TextView(this@RecordingsActivity).apply {
+                text = "No movements were detected."
+                textSize = 14f
+                typeface = Typeface.create("sans-serif", Typeface.BOLD)
+                setTextColor(ContextCompat.getColor(this@RecordingsActivity, R.color.app_text_secondary))
+                setPadding(0, dp(4), 0, dp(2))
+            })
+            return@apply
+        }
+
+        val closestTargets = items.mapNotNull { it.measurements.firstOrNull { m -> m.measurementKey == TrainingMeasurements.PUNCH_CLOSEST_TARGET }?.categoricalValue }
+        val targetErrors = items.mapNotNull { it.measurements.firstOrNull { m -> m.measurementKey == TrainingMeasurements.PUNCH_TARGET_ANGLE_ERROR_DEG }?.numericValue?.let { v -> kotlin.math.abs(v) } }
+
+        if (closestTargets.isNotEmpty()) {
+            val jodanCount = closestTargets.count { it == "JODAN" }
+            val chudanCount = closestTargets.count { it == "CHUDAN" }
+            val gedanCount = closestTargets.count { it == "GEDAN" }
+            val avgError = if (targetErrors.isNotEmpty()) targetErrors.average() else null
+
+            addView(TextView(this@RecordingsActivity).apply {
+                text = "Target height"
+                textSize = 15f
+                typeface = Typeface.create("sans-serif", Typeface.BOLD)
+                setTextColor(ContextCompat.getColor(this@RecordingsActivity, R.color.app_text_primary))
+                setPadding(0, dp(6), 0, dp(4))
+            })
+
+            val countsLayout = LinearLayout(this@RecordingsActivity).apply {
+                orientation = LinearLayout.VERTICAL
+                setPadding(0, 0, 0, dp(6))
+            }
+            countsLayout.addView(label("Closest targets:", 13f).apply { setPadding(0, 0, 0, dp(2)) })
+            countsLayout.addView(label("  • Jōdan: $jodanCount", 13f).apply { setPadding(0, 0, 0, dp(2)) })
+            countsLayout.addView(label("  • Chūdan: $chudanCount", 13f).apply { setPadding(0, 0, 0, dp(2)) })
+            countsLayout.addView(label("  • Gedan: $gedanCount", 13f).apply { setPadding(0, 0, 0, dp(2)) })
+            addView(countsLayout)
+
+            avgError?.let {
+                addView(TextView(this@RecordingsActivity).apply {
+                    text = "Average target-angle error: ${"%.1f".format(it)}°"
+                    textSize = 13f
+                    typeface = Typeface.create("sans-serif", Typeface.BOLD)
+                    setTextColor(ContextCompat.getColor(this@RecordingsActivity, R.color.app_text_primary))
+                    setPadding(0, dp(2), 0, dp(4))
+                })
+            }
+        } else {
+            val legacyErrors = items.mapNotNull { it.measurements.firstOrNull { m -> m.measurementKey == "PUNCH_HEIGHT_ERROR_TORSO_RATIO" }?.numericValue }
+            if (legacyErrors.isNotEmpty()) {
+                addView(TextView(this@RecordingsActivity).apply {
+                    text = "Legacy punch height analysis"
+                    textSize = 14f
+                    typeface = Typeface.create("sans-serif", Typeface.BOLD)
+                    setTextColor(ContextCompat.getColor(this@RecordingsActivity, R.color.app_text_secondary))
+                    setPadding(0, dp(4), 0, dp(2))
+                })
+                addView(label("Evaluated ${legacyErrors.size} movement(s) against legacy Jōdan model.", 13f))
+            } else {
+                addView(TextView(this@RecordingsActivity).apply {
+                    text = "Target analysis unavailable"
+                    textSize = 14f
+                    typeface = Typeface.create("sans-serif", Typeface.BOLD)
+                    setTextColor(ContextCompat.getColor(this@RecordingsActivity, R.color.app_text_secondary))
+                    setPadding(0, dp(4), 0, dp(2))
+                })
+                addView(TextView(this@RecordingsActivity).apply {
+                    text = "Movement segmentation is complete. Kinematic measurements will appear here once an analyzer runs on this recording."
+                    textSize = 13f
+                    setTextColor(ContextCompat.getColor(this@RecordingsActivity, R.color.app_text_secondary))
+                    setLineSpacing(0f, 1.2f)
+                })
+            }
+        }
     }
     private fun movementsCard(row: RecordingSummary): View = card().apply {
         val details = segmentData
@@ -379,16 +491,17 @@ class RecordingsActivity : AppCompatActivity() {
             return@apply
         }
 
-        details.movements.forEachIndexed { index, movement ->
+        details.movements.forEachIndexed { index, item ->
             if (index > 0) {
                 addView(View(this@RecordingsActivity).apply {
                     setBackgroundColor(ContextCompat.getColor(this@RecordingsActivity, R.color.app_divider))
                 }, LinearLayout.LayoutParams(-1, dp(1)).apply { topMargin = dp(8); bottomMargin = dp(8) })
             }
-            addView(buildMovementRow(row, movement, index + 1))
+            addView(buildMovementRow(row, item, index + 1))
         }
     }
-    private fun buildMovementRow(row: RecordingSummary, movement: SessionMovement, number: Int): View {
+    private fun buildMovementRow(row: RecordingSummary, item: MovementItem, number: Int): View {
+        val movement = item.movement
         val rowLayout = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
@@ -396,7 +509,12 @@ class RecordingsActivity : AppCompatActivity() {
             isClickable = true
             isFocusable = true
             setOnClickListener {
-                play(row, movement.playbackStartUs / 1000, movement.playbackEndUs / 1000)
+                val intent = android.content.Intent(this@RecordingsActivity, dk.lasse.karatecliprecorder.movement.MovementDetailActivity::class.java).apply {
+                    putExtra(dk.lasse.karatecliprecorder.movement.MovementDetailActivity.EXTRA_SESSION_ID, row.session.sessionId)
+                    putExtra(dk.lasse.karatecliprecorder.movement.MovementDetailActivity.EXTRA_MOVEMENT_ID, movement.movementId)
+                    putExtra(dk.lasse.karatecliprecorder.movement.MovementDetailActivity.EXTRA_DISPLAYED_NUMBER, number)
+                }
+                startActivity(intent)
             }
         }
 
@@ -408,13 +526,37 @@ class RecordingsActivity : AppCompatActivity() {
             }
             clipToOutline = true
 
+            val videoFile = training.repository.file(row.recording.filePath)
+            val cachedBitmap = dk.lasse.karatecliprecorder.movement.MovementThumbnailHelper.getCachedThumbnail(movement)
+            val frameView = ImageView(this@RecordingsActivity).apply {
+                scaleType = ImageView.ScaleType.CENTER_CROP
+            }
             val silhouette = ImageView(this@RecordingsActivity).apply {
                 setImageResource(R.drawable.ic_tabler_karate)
                 imageTintList = ColorStateList.valueOf(ContextCompat.getColor(this@RecordingsActivity, R.color.app_text_secondary))
                 alpha = 0.45f
                 scaleType = ImageView.ScaleType.FIT_CENTER
             }
-            addView(silhouette, FrameLayout.LayoutParams(dp(44), dp(44), Gravity.CENTER))
+
+            if (cachedBitmap != null) {
+                frameView.setImageBitmap(cachedBitmap)
+                addView(frameView, FrameLayout.LayoutParams(-1, -1))
+            } else {
+                addView(silhouette, FrameLayout.LayoutParams(dp(44), dp(44), Gravity.CENTER))
+                dk.lasse.karatecliprecorder.movement.MovementThumbnailHelper.loadThumbnailAsync(
+                    training.processingExecutor,
+                    videoFile,
+                    movement,
+                    targetWidth = dp(72),
+                    targetHeight = dp(96),
+                ) { bitmap ->
+                    if (bitmap != null && !isFinishing && !isDestroyed) {
+                        frameView.setImageBitmap(bitmap)
+                        removeView(silhouette)
+                        addView(frameView, 0, FrameLayout.LayoutParams(-1, -1))
+                    }
+                }
+            }
 
             val badge = TextView(this@RecordingsActivity).apply {
                 text = number.toString()
@@ -470,7 +612,61 @@ class RecordingsActivity : AppCompatActivity() {
                 orientation = LinearLayout.HORIZONTAL
                 addView(chip("Segment ready"))
             }
+
+            val closest = item.measurements.firstOrNull { it.measurementKey == TrainingMeasurements.PUNCH_CLOSEST_TARGET }?.categoricalValue
+            val error = item.measurements.firstOrNull { it.measurementKey == TrainingMeasurements.PUNCH_TARGET_ANGLE_ERROR_DEG }?.numericValue
+            if (closest != null) {
+                val targetName = when (closest) {
+                    "JODAN" -> "Jōdan"
+                    "CHUDAN" -> "Chūdan"
+                    "GEDAN" -> "Gedan"
+                    else -> closest
+                }
+                val errorText = if (error != null) {
+                    when {
+                        kotlin.math.abs(error) < 0.05 -> "exact"
+                        error > 0 -> "+${"%.1f".format(error)}° high"
+                        else -> "${"%.1f".format(error)}° low"
+                    }
+                } else null
+                val targetChipText = if (errorText != null) "$targetName · $errorText" else targetName
+                val targetChip = chip(targetChipText).apply {
+                    (layoutParams as? LinearLayout.LayoutParams)?.marginStart = dp(6)
+                }
+                chipContainer.addView(targetChip)
+            }
             addView(chipContainer)
+
+            if (AppPreferences(this@RecordingsActivity).developerMode && (item.analysis != null || movement.analysisFrameUs != null)) {
+                val debugLayout = LinearLayout(this@RecordingsActivity).apply {
+                    orientation = LinearLayout.VERTICAL
+                    background = GradientDrawable().apply {
+                        setColor(0x15FFFFFF.toInt())
+                        cornerRadius = dp(6).toFloat()
+                    }
+                    setPadding(dp(8), dp(6), dp(8), dp(6))
+                }
+                val jodanErr = item.measurements.firstOrNull { it.measurementKey == TrainingMeasurements.PUNCH_JODAN_TARGET_ANGLE_ERROR_DEG }?.numericValue
+                val chudanErr = item.measurements.firstOrNull { it.measurementKey == TrainingMeasurements.PUNCH_CHUDAN_TARGET_ANGLE_ERROR_DEG }?.numericValue
+                val gedanErr = item.measurements.firstOrNull { it.measurementKey == TrainingMeasurements.PUNCH_GEDAN_TARGET_ANGLE_ERROR_DEG }?.numericValue
+                val margin = item.measurements.firstOrNull { it.measurementKey == TrainingMeasurements.PUNCH_TARGET_CLASSIFICATION_MARGIN_DEG }?.numericValue
+                val side = item.measurements.firstOrNull()?.side?.name ?: "UNKNOWN"
+                val frameUs = movement.analysisFrameUs
+                val frameIdx = item.measurements.firstOrNull()?.frameIndex
+
+                debugLayout.addView(label("DEBUG INFO:", 11f).apply { setTypeface(typeface, Typeface.BOLD); setPadding(0, 0, 0, dp(2)) })
+                debugLayout.addView(label("Frame: ${frameUs?.let { "%.3f s".format(it / 1_000_000.0) } ?: "n/a"}${frameIdx?.let { " (#$it)" } ?: ""}", 11f).apply { setPadding(0, 0, 0, dp(1)) })
+                debugLayout.addView(label("Active arm: $side", 11f).apply { setPadding(0, 0, 0, dp(1)) })
+                debugLayout.addView(label("Reach provenance: anatomical_segment_sum_v1", 11f).apply { setPadding(0, 0, 0, dp(1)) })
+                debugLayout.addView(label("Target errors: J=${jodanErr?.let { "%.1f°".format(it) } ?: "n/a"} C=${chudanErr?.let { "%.1f°".format(it) } ?: "n/a"} G=${gedanErr?.let { "%.1f°".format(it) } ?: "n/a"}", 11f).apply { setPadding(0, 0, 0, dp(1)) })
+                debugLayout.addView(label("Closest: ${closest ?: "none"} (margin: ${margin?.let { "%.1f°".format(it) } ?: "n/a"})", 11f).apply { setPadding(0, 0, 0, dp(1)) })
+                item.analysis?.let {
+                    debugLayout.addView(label("Analyzer: ${it.analyzerKey} v${it.analyzerVersion}", 11f).apply { setPadding(0, 0, 0, dp(1)) })
+                }
+                debugLayout.addView(label("Segmenter: ${movement.segmentationVersion}", 11f).apply { setPadding(0, 0, 0, dp(1)) })
+                debugLayout.addView(label("Track: ${movement.segmentationTrackId ?: item.analysis?.landmarkTrackId ?: "n/a"}", 11f).apply { setPadding(0, 0, 0, dp(1)) })
+                addView(debugLayout, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(6) })
+            }
         }
         rowLayout.addView(detailsCol, LinearLayout.LayoutParams(0, -2, 1f))
 
@@ -536,5 +732,15 @@ class RecordingsActivity : AppCompatActivity() {
     companion object { const val EXTRA_SESSION_ID = "recording_session_id" }
 }
 
-private data class SegmentData(val movements: List<SessionMovement>)
+private data class MovementItem(
+    val movement: SessionMovement,
+    val analysis: MovementAnalysis?,
+    val measurements: List<MeasurementResult>,
+)
+private data class SegmentData(
+    val movements: List<MovementItem>,
+    val currentRun: ProcessingRun?,
+    val canReanalyze: Boolean,
+)
 private data class BrowserLoad(val summaries: List<RecordingSummary>, val segments: SegmentData?)
+

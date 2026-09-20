@@ -100,6 +100,14 @@ class RecordingsActivityTest {
         profileRepository.close()
         val session = RecordingSession(userId = user, startedAtMs = 2000, activityKey = AssistedCaptureSetup.ACTIVITY_KEY,
             expectedActivity = "Alternating straight punches", expectedCategory = "Punches", expectedRepetitions = 2)
+        val movements = listOf(
+            SessionMovement(sessionId = session.sessionId, startUs = 500_000, endUs = 1_500_000,
+                playbackStartUs = 200_000, playbackEndUs = 1_800_000,
+                segmentationSource = "test_segmenter", segmentationVersion = "1"),
+            SessionMovement(sessionId = session.sessionId, startUs = 2_000_000, endUs = 3_000_000,
+                playbackStartUs = 1_700_000, playbackEndUs = 3_300_000,
+                segmentationSource = "test_segmenter", segmentationVersion = "1")
+        )
         var seeded = false
         training.submit({ repo ->
             repo.createUser(TrainingUser(user))
@@ -109,14 +117,6 @@ class RecordingsActivityTest {
             repo.beginSession(session, MasterRecording(id, session.sessionId, reference, 2000))
             repo.finishRecording(session.sessionId, 4_000_000)
             repo.recoverJobs()
-            val movements = listOf(
-                SessionMovement(sessionId = session.sessionId, startUs = 500_000, endUs = 1_500_000,
-                    playbackStartUs = 200_000, playbackEndUs = 1_800_000,
-                    segmentationSource = "test_segmenter", segmentationVersion = "1"),
-                SessionMovement(sessionId = session.sessionId, startUs = 2_000_000, endUs = 3_000_000,
-                    playbackStartUs = 1_700_000, playbackEndUs = 3_300_000,
-                    segmentationSource = "test_segmenter", segmentationVersion = "1")
-            )
             val observations = movements.map { ObservationContext(it.movementId) }
             repo.saveSegmentation(session.sessionId, movements, observations, emptyList(), emptyList())
             repo.updateJob(repo.job(session.sessionId)!!.copy(state = QueueState.READY, phase = ProcessingPhase.READY))
@@ -132,16 +132,21 @@ class RecordingsActivityTest {
             // Verify 3 cards
             assertTrue(texts().any { "Alternating straight punches" in it })
             assertTrue("Session analysis" in texts())
-            assertTrue("Analysis not available yet" in texts())
+            assertTrue("Target analysis unavailable" in texts())
             assertTrue("Movements (2)" in texts())
             assertTrue("Movement 1" in texts())
             assertTrue("Movement 2" in texts())
-            // Tapping a movement row opens playback dialog
+            // Tapping a movement row opens MovementDetailActivity
             val row1 = views(root).first { it.isClickable && views(it).filterIsInstance<TextView>().any { tv -> tv.text == "Movement 1" } }
+            val row1ImageViews = views(row1).filterIsInstance<android.widget.ImageView>()
+            assertTrue(row1ImageViews.isNotEmpty(), "Movement row should render thumbnail/silhouette placeholder non-blockingly")
             row1.performClick()
-            val watch = ShadowDialog.getLatestDialog()
-            assertTrue(watch.isShowing)
-            watch.dismiss()
+            val nextIntent = shadowOf(activity.get()).nextStartedActivity
+            assertNotNull(nextIntent)
+            assertEquals(dk.lasse.karatecliprecorder.movement.MovementDetailActivity::class.java.name, nextIntent.component?.className)
+            assertEquals(session.sessionId, nextIntent.getStringExtra(dk.lasse.karatecliprecorder.movement.MovementDetailActivity.EXTRA_SESSION_ID))
+            assertEquals(movements[0].movementId, nextIntent.getStringExtra(dk.lasse.karatecliprecorder.movement.MovementDetailActivity.EXTRA_MOVEMENT_ID))
+            assertEquals(1, nextIntent.getIntExtra(dk.lasse.karatecliprecorder.movement.MovementDetailActivity.EXTRA_DISPLAYED_NUMBER, 0))
         } finally { activity.pause().stop().destroy() }
     }
 }

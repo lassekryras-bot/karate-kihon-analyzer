@@ -33,11 +33,13 @@ class SkillCoachScreenView(
     state: SkillCoachLandingState,
     onAction: (SkillCoachAction) -> Unit,
     onProfile: () -> Unit,
-    onHome: () -> Unit,
-    onTrain: () -> Unit,
-    onProgress: () -> Unit,
-    onSettings: () -> Unit,
+    onHome: () -> Unit = {},
+    onTrain: () -> Unit = {},
+    onProgress: () -> Unit = {},
+    onSettings: () -> Unit = {},
 ) : FrameLayout(context) {
+    val destination: AppDestination = AppDestination.TRAIN
+
     private val accent = ContextCompat.getColor(context, R.color.app_accent)
     private val ink = ContextCompat.getColor(context, R.color.app_text_primary)
     private val muted = ContextCompat.getColor(context, R.color.app_text_secondary)
@@ -65,18 +67,6 @@ class SkillCoachScreenView(
             topContentPaddingDp = 16,
             bottomContentClearanceDp = AppBottomNavigationView.CONTENT_CLEARANCE_DP,
         ), LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT))
-        addView(AppBottomNavigationView(
-            context = context,
-            selectedDestination = AppDestination.TRAIN,
-            onHome = onHome,
-            onTrain = onTrain,
-            onProgress = onProgress,
-            onSettings = onSettings,
-        ), LayoutParams(
-            LayoutParams.MATCH_PARENT,
-            AppBottomNavigationView.BASE_HEIGHT_DP.dp(),
-            Gravity.BOTTOM,
-        ))
     }
 
     private fun guidanceCard(

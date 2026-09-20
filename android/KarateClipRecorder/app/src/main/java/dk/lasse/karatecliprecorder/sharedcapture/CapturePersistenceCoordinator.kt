@@ -38,6 +38,7 @@ class CapturePersistenceCoordinator(private val services: TrainingServices) {
             cueMode = request.cueMode?.name,
             requestedView = request.requestedView,
             completionPrompt = request.completionPrompt.name,
+            audioCuePackageVersionId = if (request.spokenMovementCues) dk.lasse.karateanalyzer.audiocue.JapaneseCountAudioPackage.DEFAULT.packageVersionId else null,
         )
         val recording = MasterRecording(
             recordingId = captureId,

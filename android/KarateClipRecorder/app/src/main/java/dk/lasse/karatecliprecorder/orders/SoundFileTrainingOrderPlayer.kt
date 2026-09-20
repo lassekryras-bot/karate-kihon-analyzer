@@ -8,8 +8,15 @@ import android.net.Uri
 import android.os.Handler
 import android.os.Looper
 import android.util.Log
+import dk.lasse.karateanalyzer.audiocue.AudioCuePackage
+import dk.lasse.karateanalyzer.audiocue.AudioCuePackageIntegrity
+import dk.lasse.karateanalyzer.audiocue.JapaneseCountAudioPackage
+import dk.lasse.karateanalyzer.audiocue.PackageIntegrityResult
 
-class SoundFileTrainingOrderPlayer(context: Context) : TrainingOrderPlayer {
+class SoundFileTrainingOrderPlayer(
+    context: Context,
+    val audioPackage: AudioCuePackage = JapaneseCountAudioPackage.DEFAULT,
+) : TrainingOrderPlayer {
     private val appContext = context.applicationContext
     private val mainHandler = Handler(Looper.getMainLooper())
     private val soundPool = SoundPool.Builder()
@@ -28,6 +35,11 @@ class SoundFileTrainingOrderPlayer(context: Context) : TrainingOrderPlayer {
     private var pendingOrder: TrainingOrder? = null
     private var pendingCompletion: (() -> Unit)? = null
     private var activeCompletion: Runnable? = null
+
+    var isPackageValid: Boolean = true
+        private set
+    var packageIntegrityResult: PackageIntegrityResult = PackageIntegrityResult.Valid
+        private set
 
     init {
         soundPool.setOnLoadCompleteListener { _, sampleId, status ->
@@ -54,6 +66,23 @@ class SoundFileTrainingOrderPlayer(context: Context) : TrainingOrderPlayer {
                 Log.w(TAG, "Missing raw sound resource: $resourceName")
             }
         }
+
+        // Verify audio cue package asset integrity at construction time
+        packageIntegrityResult = AudioCuePackageIntegrity.verify(audioPackage) { asset ->
+            val resId = appContext.resources.getIdentifier(asset.resourceName, RAW_RESOURCE_TYPE, appContext.packageName)
+            if (resId == 0) null else {
+                try {
+                    appContext.resources.openRawResource(resId).use { it.readBytes() }
+                } catch (e: Exception) {
+                    Log.w(TAG, "Could not read audio resource for asset ${asset.cueId}", e)
+                    null
+                }
+            }
+        }
+        isPackageValid = packageIntegrityResult.isValid
+        if (!isPackageValid) {
+            Log.w(TAG, "Audio cue package integrity check failed: $packageIntegrityResult")
+        }
     }
 
     override fun play(order: TrainingOrder, onComplete: (() -> Unit)?) {
@@ -75,6 +104,7 @@ class SoundFileTrainingOrderPlayer(context: Context) : TrainingOrderPlayer {
 
     /** Immediate-only playback for timestamped recording cues; never queues a late sound. */
     fun playImmediately(order: TrainingOrder): Boolean {
+        if (!isPackageValid) return false
         val id = soundIdsByOrder[order]?.takeIf { it in loadedSoundIds } ?: return false
         stop()
         playLoaded(order, id, null)

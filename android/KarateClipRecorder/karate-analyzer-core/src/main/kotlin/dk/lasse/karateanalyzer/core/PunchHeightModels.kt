@@ -45,6 +45,16 @@ enum class VisibleSide { LEFT, RIGHT, UNKNOWN }
 enum class PunchHeightTargetType { JODAN, CHUDAN, GEDAN }
 enum class ActiveArm { LEFT, RIGHT, NONE }
 
+enum class TargetId(
+    val broadLevel: PunchHeightTargetType,
+    val description: String,
+) {
+    JODAN_CHIN(PunchHeightTargetType.JODAN, "Curriculum target described as chin height; estimator remains provisional."),
+    CHUDAN_SOLAR_PLEXUS(PunchHeightTargetType.CHUDAN, "Curriculum target described as solar-plexus height."),
+    GEDAN_LOWER_ABDOMEN(PunchHeightTargetType.GEDAN, "Curriculum target described as lower-abdomen height."),
+    GEDAN_GROIN_LEVEL(PunchHeightTargetType.GEDAN, "Curriculum target described as groin level."),
+}
+
 data class BodyReference(
     val visibleSide: VisibleSide,
     val shoulderPoint: Point3,
@@ -85,6 +95,7 @@ data class PunchHeightTarget(
     val explanation: String,
     val captureEligible: Boolean,
     val chinEstimate: ChinEstimate? = null,
+    val targetId: TargetId? = null,
 )
 
 interface PunchHeightTargetModel {

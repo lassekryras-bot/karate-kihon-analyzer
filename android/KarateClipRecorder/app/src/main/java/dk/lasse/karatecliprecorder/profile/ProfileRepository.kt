@@ -23,6 +23,7 @@ class ProfileRepository(
         database.insertProfile(profile.copy(name = profile.name.trim()))
         training.archiveProfile(profile)
         if (preferences.activeProfileId == null) preferences.activeProfileId = profile.id
+        preferences.isProfileSetupComplete = true
         notifyActiveChanged()
         return profile
     }
@@ -36,6 +37,7 @@ class ProfileRepository(
         )
         database.updateProfile(updated)
         training.archiveProfile(updated)
+        if (updated.name.isNotBlank()) preferences.isProfileSetupComplete = true
         if (updated.id == activeProfile().id) notifyActiveChanged()
         return updated
     }
@@ -52,6 +54,30 @@ class ProfileRepository(
         }
         notifyActiveChanged()
     }
+
+    fun hasConfiguredActiveProfile(): Boolean {
+        if (preferences.isProfileSetupComplete) return true
+        val profiles = database.profiles()
+        if (profiles.size > 1) {
+            preferences.isProfileSetupComplete = true
+            return true
+        }
+        val active = activeProfile()
+        if (active.name.trim() != "Trainee" && active.name.isNotBlank()) {
+            preferences.isProfileSetupComplete = true
+            return true
+        }
+        if (database.learningProgress(active.id).isNotEmpty() ||
+            database.trainingSessions(active.id).isNotEmpty() ||
+            database.calibrations(active.id).isNotEmpty()
+        ) {
+            preferences.isProfileSetupComplete = true
+            return true
+        }
+        return false
+    }
+
+    fun resolveActiveProfile(): Profile? = if (hasConfiguredActiveProfile()) activeProfile() else null
 
     fun activeProfile(): Profile {
         preferences.activeProfileId?.let(database::profile)?.let { return it }

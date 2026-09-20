@@ -26,10 +26,25 @@ internal data class MasterRecordingRow(@Embedded val value: MasterRecording)
 ], indices = [Index(value = ["recordingId"])])
 internal data class LandmarkTrackRow(@Embedded val value: LandmarkTrack)
 
+@Entity(tableName = "ProcessingRun", primaryKeys = ["runId"], foreignKeys = [
+    ForeignKey(entity = RecordingSessionRow::class, parentColumns = ["sessionId"], childColumns = ["sessionId"], onDelete = ForeignKey.CASCADE),
+    ForeignKey(entity = LandmarkTrackRow::class, parentColumns = ["landmarkTrackId"], childColumns = ["sourceLandmarkTrackId"], onDelete = ForeignKey.SET_NULL)
+], indices = [
+    Index(value = ["sessionId", "createdAtMs"]),
+    Index(value = ["sessionId", "isCurrent"]),
+    Index(value = ["sourceLandmarkTrackId"])
+])
+internal data class ProcessingRunRow(@Embedded val value: ProcessingRun)
+
 @Entity(tableName = "SessionMovement", primaryKeys = ["movementId"], foreignKeys = [
     ForeignKey(entity = RecordingSessionRow::class, parentColumns = ["sessionId"], childColumns = ["sessionId"], onDelete = ForeignKey.CASCADE),
     ForeignKey(entity = LandmarkTrackRow::class, parentColumns = ["landmarkTrackId"], childColumns = ["segmentationTrackId"], onDelete = ForeignKey.NO_ACTION, deferred = true)
-], indices = [Index(value = ["sessionId", "startUs"]), Index(value = ["segmentationTrackId"]), Index(value = ["movementId", "sessionId"], unique = true)])
+], indices = [
+    Index(value = ["sessionId", "startUs"]),
+    Index(value = ["segmentationTrackId"]),
+    Index(value = ["movementId", "sessionId"], unique = true),
+    Index(value = ["runId"])
+])
 internal data class SessionMovementRow(@Embedded val value: SessionMovement)
 
 @Entity(tableName = "ObservationContext", primaryKeys = ["movementId"], foreignKeys = [
@@ -95,4 +110,3 @@ internal data class AnalysisCalibrationRow(@Embedded val value: AnalysisCalibrat
     ForeignKey(entity = UserBodyMeasurementRow::class, parentColumns = ["bodyMeasurementId"], childColumns = ["bodyMeasurementId"], onDelete = ForeignKey.RESTRICT)
 ], indices = [Index(value = ["bodyMeasurementId"])])
 internal data class SessionBodyMeasurementRow(@Embedded val value: SessionBodyMeasurement)
-

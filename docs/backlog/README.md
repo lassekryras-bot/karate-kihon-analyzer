@@ -20,6 +20,8 @@ When starting work on a task, first verify the current implementation. Do not as
 
 ## Open tasks
 
+- [Movement Detail Page v1](movement-detail-page-v1.md) — local review remediation: consistent analysis provenance, validated persisted target geometry, playback ownership/rate fixes, explicit unavailable states and regression coverage; manual device acceptance pending. Analyzer plots, recording speed/deviation metrics and structured technique findings remain deferred.
+
 - [Recording Results Page v1](recording-results-page-v1.md) — three-card results hierarchy (recording summary, session analysis, movements list); phased from UI shell with current segmentation data through thumbnail generation, measurement population, baseline comparison, and movement detail; explicitly separates UI contract from backend availability.
 
 - [Queue Manager Tray v1](queue-manager-tray-v1.md) — app-shell presentation of recent recording jobs with phase-aware rows, collapse/hide behavior, overflow, and result acknowledgement; implementation is local and physical-device validation remains pending.
@@ -34,7 +36,13 @@ When starting work on a task, first verify the current implementation. Do not as
 
 - [Osu meaning illustration assets](osu-meaning-illustrations.md) — replace the completed lesson’s semantic icon placeholders with approved recurring-character artwork.
 - [Body conditioning / knuckle push-up learning path](body-conditioning-knuckle-pushup-learning-path.md) — later progression that separates knuckle conditioning from the basic strength learning path.
+- [Home vs Learning ownership / onboarding v0.2](home-learning-ownership-onboarding-v0.2.md) — separates Home current-attention/Sensei from persistent Learning progression and establishes the first-run discovery flow.
 
 ## Completed tasks
 
+- [Global Progressive Navigation Ownership Fix](global-progressive-navigation-ownership-fix.md) — completed 2026-09-19; single `AppNavigationStateRepository` global owner for progressive top-level navigation state; per-page `AppBottomNavigationView` removal from all 6 screens (Home, Learning, Train, Progress, Settings, SkillCoach); single shared bottom bar hosted in `MainActivity` app shell; profile-switch safe fallback to HOME; unlock acknowledgement persisted without replay; immersive chrome visibility contract; 7 repository-level unit tests and 3 updated architecture tests.
+- [Analytical Vertical Slice v1: Reanalysis & Straight-Punch Target Height](analytical-vertical-slice-v1-reanalysis-target-height.md) — completed 2026-09-19; end-to-end analytical slice with durable `ProcessingRun` model (Room migration 6->7), MLS reuse bypassing MediaPipe decode, shoulder-centered neutral body frame target-ray geometry evaluated against Jōdan, Chūdan, and Gedan, canonical analysis frame selection, closest-target classification and margin, Recording Results UI with target breakdown and developer inspection, and "Reanalyze with current pipeline" confirmation action.
+- [Dojo Sensei Home v2.1 Corrective Pass](dojo-sensei-home-v2.1-fix-requirements.md) — completed 2026-09-19; authoritative active profile startup resolution, direct profile creation route from unconfigured Home, root fix for SVG Path 7 leading command spike, balanced hero composition (~55–65% height), and 3 behavioral states (No Profile, Learning Incomplete, Training Ready with 30 straight punches).
+- [Dojo Sensei Home v2](dojo-sensei-home-v2-requirements.md) — completed 2026-09-19; Sensei-led Home experience, isolated Sensei vector asset, dynamic speech bubble view with directional tail, onboarding action card, deterministic onboarding state controller (States A through E) with durable AppPreferences persistence, and full test suite.
+- [App Chrome Update v1](app-chrome-update-requirements.md) — completed 2026-09-19; state-driven progressive bottom navigation supporting 1 to 5 destinations with canonical ordering, reflow transitions, discovery pulses, unified stable-geometry header, and 3 explicit profile avatar states.
 - [Permission status UI verification and fix](permission-status-ui.md) — completed 2026-09-13; Android-backed status, consistent check/X visuals, settings fallback, and lifecycle refresh are implemented and verified.

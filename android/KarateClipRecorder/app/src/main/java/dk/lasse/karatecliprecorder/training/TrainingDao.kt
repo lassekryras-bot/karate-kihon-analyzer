@@ -14,6 +14,15 @@ internal interface TrainingDao {
     @Insert fun insert(row: RecordingSessionRow)
     @Insert fun insert(row: MasterRecordingRow)
     @Insert fun insert(row: LandmarkTrackRow)
+    @Insert fun insert(row: ProcessingRunRow)
+    @Update fun update(row: ProcessingRunRow)
+    @Query("SELECT * FROM ProcessingRun WHERE runId = :runId") fun run(runId: String): ProcessingRunRow?
+    @Query("SELECT * FROM ProcessingRun WHERE sessionId = :sessionId AND isCurrent = 1 LIMIT 1") fun currentRun(sessionId: String): ProcessingRunRow?
+    @Query("SELECT * FROM ProcessingRun WHERE sessionId = :sessionId ORDER BY createdAtMs DESC") fun runs(sessionId: String): List<ProcessingRunRow>
+    @Query("UPDATE ProcessingRun SET isCurrent = 0 WHERE sessionId = :sessionId") fun clearCurrentRuns(sessionId: String)
+    @Query("SELECT * FROM SessionMovement WHERE runId = :runId ORDER BY startUs, endUs, movementId") fun movementsForRun(runId: String): List<SessionMovementRow>
+    @Query("SELECT COUNT(*) FROM SessionMovement WHERE runId = :runId") fun movementCountForRun(runId: String): Int
+    @Query("DELETE FROM ProcessingRun WHERE sessionId = :sessionId") fun deleteRunsForSession(sessionId: String)
     @Insert fun insert(row: SessionMovementRow)
     @Insert fun insert(row: ObservationContextRow)
     @Insert fun insert(row: SessionEventRow)

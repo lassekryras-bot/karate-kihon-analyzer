@@ -1,5 +1,14 @@
 <resources>
     <string name="app_name">Karate Kihon Analyzer</string>
+    <string name="app_display_name">Karate Analyzer</string>
+    <string name="home_welcome">Welcome</string>
+    <string name="home_welcome_named">Welcome %1$s</string>
+    <string name="select_profile">Select profile</string>
+    <string name="nav_home">Home</string>
+    <string name="nav_learning">Learning</string>
+    <string name="nav_training">Training</string>
+    <string name="nav_performance">Performance</string>
+    <string name="nav_settings">Settings</string>
     <string name="osu_artwork_placeholder">ARTWORK PLACEHOLDER</string>
     <string name="osu_illustration_sensei_speaking">Sensei speaking calmly</string>
     <string name="osu_illustration_heard_you">Boy listening attentively</string>
@@ -38,4 +47,29 @@
     <string name="osu_answer_state_try_another">Selected, try another</string>
     <string name="osu_answer_state_not_selected">Not selected, question complete</string>
     <string name="osu_answer_state_available">Not selected, available</string>
+
+    <string name="home_sensei_welcome_title">Osu! Welcome.</string>
+    <string name="home_sensei_welcome_body">Let’s start your karate journey.</string>
+    <string name="home_sensei_no_profile_body">Let\'s get you ready to begin.</string>
+    <string name="home_first_step_label">GET STARTED</string>
+    <string name="home_first_step_title">Your first step</string>
+    <string name="home_first_step_body">I’ll guide you through the app step by step.</string>
+    <string name="home_first_step_start">Start</string>
+    <string name="home_action_create_profile">Create profile</string>
+    <string name="home_no_profile_step_body">Create your profile to begin training.</string>
+    <string name="home_sensei_named_greeting">Osu, %1$s.</string>
+    <string name="home_sensei_learning_body">Let\'s continue learning how to use Karate Analyzer.</string>
+    <string name="home_learning_action_category">LEARNING</string>
+    <string name="home_learning_action_title">Karate Basics</string>
+    <string name="home_learning_action_body">Learn the fundamental stances, punches, and etiquette.</string>
+    <string name="home_action_continue_learning">Continue Learning</string>
+    <string name="home_sensei_training_body">Ready for some training?</string>
+    <string name="home_training_action_category">RECOMMENDED TRAINING</string>
+    <string name="home_training_action_title">Straight Punches</string>
+    <string name="home_training_action_body">Record and analyze %1$d straight punches.</string>
+    <string name="home_action_record_punches">Record %1$d straight punches</string>
+    <string name="home_profile_prompt">Before we continue, I’d like to know a little about you.\nTap your profile above.</string>
+    <string name="home_learning_prompt">Good. Now let’s begin learning.\nOpen Learning below.</string>
+    <string name="home_completed_sensei_title">Welcome back</string>
+    <string name="home_completed_sensei_body">Ready to continue your karate training?</string>
 </resources>

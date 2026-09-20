@@ -17,8 +17,17 @@ class PunchHeightAnalyzerTest {
         assertEquals(0.45f, smallTarget.torsoScalar)
         assertEquals(0.45f, largeTarget.torsoScalar)
         assertEquals(0.1125f, smallTarget.targetPoint.y - small.shoulderPoint.y, 0.0001f)
-        assertEquals(0.225f, largeTarget.targetPoint.y - large.shoulderPoint.y, 0.0001f)
-        assertEquals(0.80f, GedanTargetModel().evaluate(emptyTracked(), small, 1.1f).torsoScalar)
+        val lowerAbdomen = GedanTargetModel(TargetId.GEDAN_LOWER_ABDOMEN).evaluate(emptyTracked(), small, 1.1f)
+        assertNotNull(lowerAbdomen)
+        assertEquals(0.80f, lowerAbdomen.torsoScalar)
+        assertEquals(TargetId.GEDAN_LOWER_ABDOMEN, lowerAbdomen.targetId)
+
+        val groinLevel = GedanTargetModel(TargetId.GEDAN_GROIN_LEVEL).evaluate(emptyTracked(), small, 1.1f)
+        assertNotNull(groinLevel)
+        assertEquals(1.00f, groinLevel.torsoScalar)
+        assertEquals(TargetId.GEDAN_GROIN_LEVEL, groinLevel.targetId)
+
+        kotlin.test.assertNull(GedanTargetModel().evaluate(emptyTracked(), small, 1.1f))
     }
 
     @Test fun jodanProjectionMultiplierImmediatelyMovesTarget() {

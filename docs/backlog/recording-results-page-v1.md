@@ -206,31 +206,28 @@ Each row represents one detected `SessionMovement`.
 **Thumbnail generation does not currently exist and must be added as a separate
 capability.** The spec defines the desired behavior; implementation is phased.
 
-#### Desired final behavior
-
-- **Source frame**: The movement's **finish / terminal frame** — the last frame
-  of the logical movement interval (`movement.endUs`). If a reliable finish
-  frame cannot be extracted, the placeholder remains rather than silently
-  choosing another frame.
+- **Source frame**: The movement's **canonical analysis / impact frame**
+  (`movement.analysisFrameUs` or `occurrenceUs` fallback) selected by the
+  movement's presentation data. If a reliable frame cannot be extracted, the
+  placeholder remains rather than silently choosing an arbitrary frame.
+- **Clean unannotated frame**: No analytical drawing, no skeleton, no
+  target-height line, no path overlay, no debug text, and no metric text burned
+  into the image. The surrounding movement row carries the summary metrics and
+  the dedicated Movement Detail page provides detailed visual evidence.
 - **Crop**: Body-aware crop showing enough of the practitioner to make the
   technique legible for both punches and kicks.
 - **Aspect ratio**: Vertical / portrait orientation (taller than wide) to
   prevent punch-only bias and ensure legibility for high kicks and stances.
-- **Overlay**: Optional target marker, path vector, or technique annotation
-  added **only when the corresponding analysis data exists**. No overlays
-  without real data.
-- **Play button**: Small circular play button overlay (≈36 dp), translucent,
+- **Play button**: Small circular play button overlay (≈30–36 dp), translucent,
   positioned consistently. Secondary to the image.
-- **No dense text** on the thumbnail itself.
 
 #### Placeholder state
 
 Until the real thumbnail is ready (either because processing is still running
-or because the thumbnail extraction pipeline has not been built yet):
+or because the master video is unavailable):
 
 - Display a neutral **grey outlined human silhouette** (dashed or solid outline
   figure conveying "movement exists, preview pending").
-- Optionally show a subtle status chip: `Processing…` or similar.
 - Seamlessly swap to the real thumbnail once available.
 
 #### Progression
@@ -238,8 +235,8 @@ or because the thumbnail extraction pipeline has not been built yet):
 ```
 movement found by segmenter
   → placeholder silhouette (immediately visible)
-  → finish-frame thumbnail (when extraction is implemented and complete)
-  → technique overlays (when analysis data exists for this movement)
+  → canonical-event thumbnail (when extraction is available)
+  → tap opens Movement Detail for synchronized analytical inspection
 ```
 
 ### 3.3 Movement Row Metrics

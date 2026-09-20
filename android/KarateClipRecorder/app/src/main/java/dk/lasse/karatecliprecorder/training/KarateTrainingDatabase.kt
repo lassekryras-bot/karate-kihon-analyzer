@@ -11,6 +11,7 @@ import androidx.room.RoomDatabase
     RecordingSessionRow::class,
     MasterRecordingRow::class,
     LandmarkTrackRow::class,
+    ProcessingRunRow::class,
     SessionMovementRow::class,
     ObservationContextRow::class,
     SessionEventRow::class,
@@ -24,11 +25,99 @@ import androidx.room.RoomDatabase
     AnalysisBodyMeasurementRow::class,
     AnalysisCalibrationRow::class,
     SessionBodyMeasurementRow::class
-], version = 6, exportSchema = true)
+], version = 9, exportSchema = true)
 abstract class KarateTrainingDatabase : RoomDatabase() {
     internal abstract fun trainingDao(): TrainingDao
 
     companion object {
+        val MIGRATION_8_9 = object : androidx.room.migration.Migration(8, 9) {
+            override fun migrate(db: androidx.sqlite.db.SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE MovementAnalysis ADD COLUMN geometryJson TEXT")
+            }
+        }
+        val MIGRATION_7_8 = object : androidx.room.migration.Migration(7, 8) {
+            override fun migrate(db: androidx.sqlite.db.SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE RecordingSession ADD COLUMN audioCuePackageVersionId TEXT")
+            }
+        }
+        val MIGRATION_6_7 = object : androidx.room.migration.Migration(6, 7) {
+            override fun migrate(db: androidx.sqlite.db.SupportSQLiteDatabase) {
+                db.execSQL("""
+                    CREATE TABLE IF NOT EXISTS ProcessingRun (
+                        runId TEXT NOT NULL,
+                        sessionId TEXT NOT NULL,
+                        createdAtMs INTEGER NOT NULL,
+                        completedAtMs INTEGER,
+                        mode TEXT NOT NULL,
+                        sourceLandmarkTrackId TEXT,
+                        planKey TEXT NOT NULL,
+                        planVersion INTEGER NOT NULL,
+                        segmenterVersion TEXT,
+                        analyzerKey TEXT,
+                        analyzerVersion TEXT,
+                        state TEXT NOT NULL,
+                        isCurrent INTEGER NOT NULL,
+                        error TEXT,
+                        landmarkDurationMs INTEGER,
+                        segmentationDurationMs INTEGER,
+                        analysisDurationMs INTEGER,
+                        PRIMARY KEY(runId),
+                        FOREIGN KEY(sessionId) REFERENCES RecordingSession(sessionId) ON UPDATE NO ACTION ON DELETE CASCADE,
+                        FOREIGN KEY(sourceLandmarkTrackId) REFERENCES LandmarkTrack(landmarkTrackId) ON UPDATE NO ACTION ON DELETE SET NULL
+                    )
+                """.trimIndent())
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_ProcessingRun_sessionId_createdAtMs ON ProcessingRun(sessionId, createdAtMs)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_ProcessingRun_sessionId_isCurrent ON ProcessingRun(sessionId, isCurrent)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_ProcessingRun_sourceLandmarkTrackId ON ProcessingRun(sourceLandmarkTrackId)")
+
+                db.execSQL("ALTER TABLE SessionMovement ADD COLUMN runId TEXT")
+                db.execSQL("ALTER TABLE SessionMovement ADD COLUMN analysisFrameUs INTEGER")
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_SessionMovement_runId ON SessionMovement(runId)")
+
+                db.execSQL("""
+                    INSERT INTO ProcessingRun (
+                        runId, sessionId, createdAtMs, completedAtMs, mode,
+                        sourceLandmarkTrackId, planKey, planVersion, segmenterVersion,
+                        analyzerKey, analyzerVersion, state, isCurrent, error,
+                        landmarkDurationMs, segmentationDurationMs, analysisDurationMs
+                    )
+                    SELECT
+                        s.sessionId || '-initial-run',
+                        s.sessionId,
+                        s.startedAtMs,
+                        s.endedAtMs,
+                        'INITIAL',
+                        p.sourceLandmarkTrackId,
+                        COALESCE(p.planKey, 'straight_punch_target_analysis'),
+                        COALESCE(p.planVersion, 1),
+                        p.segmentationVersion,
+                        NULL,
+                        NULL,
+                        CASE WHEN p.state = 'READY' OR s.state = 'COMPLETED' THEN 'COMPLETED'
+                             WHEN p.state = 'FAILED' THEN 'FAILED'
+                             ELSE 'COMPLETED' END,
+                        1,
+                        p.error,
+                        p.landmarkDurationMs,
+                        p.segmentationDurationMs,
+                        NULL
+                    FROM RecordingSession s
+                    LEFT JOIN RecordingProcessing p ON p.sessionId = s.sessionId
+                    WHERE EXISTS (SELECT 1 FROM SessionMovement WHERE sessionId = s.sessionId)
+                       OR p.state = 'READY'
+                """.trimIndent())
+
+                db.execSQL("""
+                    UPDATE SessionMovement
+                    SET runId = (
+                        SELECT r.runId FROM ProcessingRun r
+                        WHERE r.sessionId = SessionMovement.sessionId
+                        LIMIT 1
+                    )
+                    WHERE runId IS NULL
+                """.trimIndent())
+            }
+        }
         val MIGRATION_5_6 = object : androidx.room.migration.Migration(5, 6) {
             override fun migrate(db: androidx.sqlite.db.SupportSQLiteDatabase) {
                 db.execSQL("ALTER TABLE RecordingProcessing ADD COLUMN phase TEXT NOT NULL DEFAULT 'QUEUED'")
@@ -81,7 +170,7 @@ abstract class KarateTrainingDatabase : RoomDatabase() {
         internal fun closeForTests() = synchronized(this) { instance?.close(); instance = null }
         fun get(context: Context): KarateTrainingDatabase = instance ?: synchronized(this) {
             instance ?: Room.databaseBuilder(context.applicationContext, KarateTrainingDatabase::class.java,
-                "karate-training.db").addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6).build().also { instance = it }
+                "karate-training.db").addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9).build().also { instance = it }
         }
     }
 }

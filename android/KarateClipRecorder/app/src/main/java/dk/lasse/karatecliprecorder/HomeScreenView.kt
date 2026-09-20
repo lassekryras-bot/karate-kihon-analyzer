@@ -16,14 +16,22 @@ import android.widget.ProgressBar
 import android.widget.TextView
 import androidx.core.content.ContextCompat
 import dk.lasse.karatecliprecorder.enso.EnsoVariant
+import dk.lasse.karatecliprecorder.home.HomeAction
+import dk.lasse.karatecliprecorder.home.HomeOnboardingActionCard
+import dk.lasse.karatecliprecorder.home.HomeOnboardingController
+import dk.lasse.karatecliprecorder.home.HomeOnboardingPhase
+import dk.lasse.karatecliprecorder.home.SenseiHomeHeroView
+import dk.lasse.karatecliprecorder.home.SenseiHomeState
+import dk.lasse.karatecliprecorder.home.SenseiMessage
 import dk.lasse.karatecliprecorder.learningartwork.LearningArtworkForeground
 import dk.lasse.karatecliprecorder.learningartwork.LearningPathArtworkView
-import dk.lasse.karatecliprecorder.learningpath.LearningPath
 import dk.lasse.karatecliprecorder.learningpath.DraftLearningPathDefinition
+import dk.lasse.karatecliprecorder.learningpath.LearningPath
 import dk.lasse.karatecliprecorder.learningpath.RecentLearningResolver
 import dk.lasse.karatecliprecorder.learningpath.RecentLearningTarget
-import dk.lasse.karatecliprecorder.profile.ProfileAvatarButton
 import dk.lasse.karatecliprecorder.profile.Profile
+import dk.lasse.karatecliprecorder.profile.ProfileAvatarButton
+import dk.lasse.karatecliprecorder.profile.ProfileAvatarState
 import dk.lasse.karatecliprecorder.profile.ProfileRepository
 
 data class ContinueLearningContent(
@@ -37,9 +45,16 @@ data class ContinueLearningContent(
 )
 
 /**
- * The product landing screen. It is deliberately a passive view: constructing it never touches
- * CameraX, MediaPipe, or runtime permissions. Training infrastructure is entered only by a user
- * action supplied through the callbacks below.
+ * Dojo Sensei Home screen (v0.1).
+ *
+ * It is deliberately a passive view: constructing it never touches CameraX, MediaPipe,
+ * or runtime permissions.
+ *
+ * Composition:
+ * - Shared AppHeaderView (sticky at top)
+ * - SenseiHomeHeroView (Sensei illustration + speech bubble)
+ * - HomeOnboardingActionCard (primary onboarding action CTA)
+ * - Shared AppBottomNavigationView (sticky at bottom)
  */
 class HomeScreenView(
     context: Context,
@@ -49,28 +64,59 @@ class HomeScreenView(
     private val karateBasics: DraftLearningPathDefinition,
     private val onContinue: (RecentLearningTarget) -> Unit,
     onLearn: () -> Unit,
-    onPractice: () -> Unit,
-    onSkillCoach: () -> Unit,
-    onTrain: () -> Unit,
-    onProgress: () -> Unit,
-    onSettings: () -> Unit,
+    onPractice: () -> Unit = {},
+    onSkillCoach: () -> Unit = {},
+    onTrain: () -> Unit = {},
+    onProgress: () -> Unit = {},
+    onSettings: () -> Unit = {},
+    preferences: AppPreferences = AppPreferences(context),
+    controller: HomeOnboardingController? = null,
+    onCreateProfile: () -> Unit = onProfile,
+    onRecordStraightPunches: (Int) -> Unit = {},
 ) : FrameLayout(context) {
+
     private val red = ContextCompat.getColor(context, R.color.app_accent)
     private val ink = ContextCompat.getColor(context, R.color.app_text_primary)
     private val muted = ContextCompat.getColor(context, R.color.app_text_secondary)
     private val paper = ContextCompat.getColor(context, R.color.app_card_surface)
     private val backgroundColor = ContextCompat.getColor(context, R.color.app_background)
     private val border = ContextCompat.getColor(context, R.color.app_border)
-    private val continueCardHost = FrameLayout(context)
-    private val mainHeader = MainPageHeader(
+
+    internal val onboardingController: HomeOnboardingController = controller ?: HomeOnboardingController(
         context = context,
-        title = "Karate Kihon Analyzer",
-        subtitle = "Welcome ${profileRepository.activeProfile().name}",
-        trailingSlot = ProfileAvatarButton(context, profileRepository, onProfile),
+        preferences = preferences,
+        profileRepository = profileRepository,
+        onOpenProfile = onProfile,
+        onOpenLearning = onLearn,
+        onCreateProfile = onCreateProfile,
+        onRecordStraightPunches = onRecordStraightPunches,
     )
+
+    val destination: AppDestination = AppDestination.HOME
+
+    internal val heroView = SenseiHomeHeroView(context)
+    internal val actionCard = HomeOnboardingActionCard(context)
+
+    internal val mainHeader = MainPageHeader(
+        context = context,
+        title = context.getString(R.string.app_display_name),
+        subtitle = formatWelcome(profileRepository.resolveActiveProfile()?.name),
+        trailingSlot = ProfileAvatarButton(context, profileRepository) {
+            if (profileRepository.resolveActiveProfile() == null) {
+                onCreateProfile()
+            } else {
+                onProfile()
+            }
+        },
+    )
+
+    private val onboardingListener: (SenseiHomeState, AppHeaderState, AppNavigationState) -> Unit = { homeState, headerState, _ ->
+        render(homeState)
+        setHeaderState(headerState)
+    }
+
     private val profileListener: (Profile) -> Unit = {
-        mainHeader.setSubtitle("Welcome ${it.name}")
-        renderContinueCard()
+        mainHeader.setSubtitle(formatWelcome(profileRepository.resolveActiveProfile()?.name))
     }
     private var observingProfile = false
 
@@ -78,32 +124,97 @@ class HomeScreenView(
         setBackgroundColor(backgroundColor)
         val content = LinearLayout(context).apply {
             orientation = LinearLayout.VERTICAL
-            addView(sectionLabel("CONTINUE LEARNING", first = true))
-            addView(continueCardHost, LinearLayout.LayoutParams(
+            addView(heroView, LinearLayout.LayoutParams(
+                LayoutParams.MATCH_PARENT,
+                0,
+                1f,
+            ))
+            addView(actionCard, LinearLayout.LayoutParams(
                 LayoutParams.MATCH_PARENT,
                 LayoutParams.WRAP_CONTENT,
-            ))
-            addView(sectionLabel("QUICK ACTIONS"))
-            addView(quickActions(onLearn, onPractice, onSkillCoach))
+            ).apply {
+                val margin = 16.dp()
+                marginStart = margin
+                marginEnd = margin
+                topMargin = 8.dp()
+                bottomMargin = 16.dp()
+            })
         }
+
         addView(StickyHeaderPageLayout(
             context = context,
             header = mainHeader,
             body = content,
-            topContentPaddingDp = 16,
+            topContentPaddingDp = 12,
             bottomContentClearanceDp = AppBottomNavigationView.CONTENT_CLEARANCE_DP,
         ), LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT))
-        renderContinueCard()
-        val navigation = AppBottomNavigationView(
-            context = context,
-            selectedDestination = AppDestination.HOME,
-            onHome = {},
-            onTrain = onTrain,
-            onProgress = onProgress,
-            onSettings = onSettings,
-        )
-        addView(navigation, LayoutParams(LayoutParams.MATCH_PARENT, AppBottomNavigationView.BASE_HEIGHT_DP.dp(), Gravity.BOTTOM))
+
+        onboardingController.addListener(onboardingListener)
     }
+
+    fun render(state: SenseiHomeState) {
+        heroView.setMessage(state.message)
+        val action = state.action
+        val content = state.actionContent
+        if (action != null && content != null) {
+            actionCard.setAction(content) {
+                onboardingController.executeAction(action)
+            }
+            actionCard.visibility = View.VISIBLE
+        } else if (action is HomeAction.PrimaryCta) {
+            actionCard.setAction(action)
+            actionCard.visibility = View.VISIBLE
+        } else {
+            actionCard.visibility = View.GONE
+        }
+    }
+
+    fun setHeaderState(state: AppHeaderState) {
+        mainHeader.setHeaderState(state)
+    }
+
+    fun showOnboardingStateA() {
+        mainHeader.setHeaderState(AppHeaderState(
+            title = context.getString(R.string.app_display_name),
+            subtitle = context.getString(R.string.home_welcome),
+            trailingAction = HeaderTrailingAction.ProfileShortcut(
+                state = ProfileAvatarState.UnknownProfile,
+                onClick = onProfile,
+            ),
+        ))
+        render(SenseiHomeState(
+            message = SenseiMessage(
+                title = context.getString(R.string.home_sensei_welcome_title),
+                body = context.getString(R.string.home_sensei_welcome_body),
+            ),
+            action = HomeAction.PrimaryCta(
+                category = context.getString(R.string.home_first_step_label),
+                title = context.getString(R.string.home_first_step_title),
+                body = context.getString(R.string.home_first_step_body),
+                buttonLabel = context.getString(R.string.home_first_step_start),
+                onClick = onboardingController::onStartTapped,
+            ),
+            onboardingPhase = HomeOnboardingPhase.WELCOME,
+        ))
+    }
+
+    fun showOnboardingStateB() {
+        mainHeader.setHeaderState(AppHeaderState(
+            title = context.getString(R.string.app_display_name),
+            subtitle = formatWelcome(profileRepository.activeProfile().name),
+            trailingAction = HeaderTrailingAction.ProfileShortcut(
+                state = ProfileAvatarState.ActiveWithAvatar(profileRepository.activeProfile()),
+                onClick = onProfile,
+            ),
+        ))
+    }
+
+    private fun formatWelcome(name: String?): String =
+        if (!name.isNullOrBlank()) {
+            context.getString(R.string.home_welcome_named, name)
+        } else {
+            context.getString(R.string.home_welcome)
+        }
 
     override fun onAttachedToWindow() {
         super.onAttachedToWindow()
@@ -116,8 +227,12 @@ class HomeScreenView(
     override fun onDetachedFromWindow() {
         if (observingProfile) profileRepository.removeActiveProfileListener(profileListener)
         observingProfile = false
+        onboardingController.removeListener(onboardingListener)
+        onboardingController.dispose()
         super.onDetachedFromWindow()
     }
+
+    // --- Legacy architectural compatibility methods ---
 
     private fun renderContinueCard() {
         val target = RecentLearningResolver.resolve(
@@ -135,11 +250,8 @@ class HomeScreenView(
             artwork = (target as? RecentLearningTarget.Standard)?.path?.artwork,
             ensoVariant = (target as? RecentLearningTarget.Standard)?.path?.ensoVariant,
         )
-        continueCardHost.removeAllViews()
-        continueCardHost.addView(
-            continueCard(content) { onContinue(target) },
-            FrameLayout.LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT),
-        )
+        val artwork = content.artwork
+        val enso = content.ensoVariant
     }
 
     private fun continueCard(content: ContinueLearningContent, onClick: () -> Unit) = card().apply {
@@ -194,6 +306,7 @@ class HomeScreenView(
             topMargin = 16.dp()
         })
     }
+
     private fun progressCopy(content: ContinueLearningContent): SpannableString {
         val current = content.currentStep.coerceAtLeast(0).toString()
         return SpannableString("$current of ${content.totalSteps.coerceAtLeast(0)} ${content.progressUnit}").apply {
@@ -269,12 +382,6 @@ class HomeScreenView(
         setColor(color)
         cornerRadius = radius
         stroke?.let { setStroke(1.dp(), it) }
-    }
-
-    private fun outlinedCircle() = GradientDrawable().apply {
-        shape = GradientDrawable.OVAL
-        setColor(paper)
-        setStroke(2.dp(), ink)
     }
 
     private fun Int.dp() = (this * resources.displayMetrics.density).toInt()

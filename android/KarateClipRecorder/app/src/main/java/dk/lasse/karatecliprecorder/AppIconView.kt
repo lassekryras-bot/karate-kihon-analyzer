@@ -38,6 +38,7 @@ enum class AppIcon(@DrawableRes val drawableRes: Int) {
     CHART_BAR(R.drawable.ic_nav_progress),
     SETTINGS(R.drawable.ic_nav_settings),
     KARATE(R.drawable.ic_tabler_karate),
+    LEARN(R.drawable.ic_learn_torii),
     KARATE_BELT(R.drawable.ic_profile_belt),
     TARGET(R.drawable.ic_skill_coach_target),
 }

@@ -18,10 +18,9 @@ class SkillCoachLandingArchitectureTest {
         assertTrue(screen.contains("StickyHeaderPageLayout"))
         assertTrue(screen.contains("ProfileAvatarButton"))
         assertTrue(screen.contains("title = \"Skill Coach\""))
-        assertTrue(screen.contains("subtitle = \"Improve what matters most.\""))
-        assertTrue(screen.contains("AppBottomNavigationView"))
-        assertTrue(screen.contains("selectedDestination = AppDestination.TRAIN"))
-        assertTrue(screen.contains("AppBottomNavigationView.BASE_HEIGHT_DP.dp()"))
+        assertTrue(screen.contains("val destination: AppDestination = AppDestination.TRAIN"))
+        assertFalse(screen.contains("AppBottomNavigationView("))
+        assertTrue(screen.contains("AppBottomNavigationView.CONTENT_CLEARANCE_DP"))
     }
 
     @Test fun homeAndTrainingEntriesOpenThePassiveCoachWorkspace() {

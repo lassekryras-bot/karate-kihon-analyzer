@@ -21,10 +21,12 @@ class TrainScreenView(
     onLearn: () -> Unit,
     onPractice: () -> Unit,
     onSkillCoach: () -> Unit,
-    onHome: () -> Unit,
-    onProgress: () -> Unit,
-    onSettings: () -> Unit,
+    onHome: () -> Unit = {},
+    onProgress: () -> Unit = {},
+    onSettings: () -> Unit = {},
 ) : LinearLayout(context) {
+    val destination: AppDestination = AppDestination.TRAIN
+
     init {
         orientation = VERTICAL
         setBackgroundColor(ContextCompat.getColor(context, R.color.app_background))
@@ -33,13 +35,11 @@ class TrainScreenView(
         addView(QueueManagerTrayView(context), LayoutParams(-1, -2))
         addView(LinearLayout(context).apply {
             orientation = VERTICAL
-            setPadding(20.dp(), 16.dp(), 20.dp(), 16.dp())
+            setPadding(20.dp(), 16.dp(), 20.dp(), AppBottomNavigationView.CONTENT_CLEARANCE_DP.dp())
             addView(modeCard(R.drawable.ic_learn_torii, "Learn", "Build your understanding and skills through step-by-step lessons.", onLearn), LayoutParams(-1, 0, 1f))
             addView(modeCard(R.drawable.ic_practice, "Practice", "Choose punches, kicks, or other exercises and build a practice session around them.", onPractice), LayoutParams(-1, 0, 1f).apply { topMargin = 12.dp() })
             addView(modeCard(R.drawable.ic_skill_coach_target, "Skill Coach", "Explore your technique with measured feedback. Slow down and work on one detail at a time.", onSkillCoach), LayoutParams(-1, 0, 1f).apply { topMargin = 12.dp() })
         }, LayoutParams(-1, 0, 1f))
-        addView(AppBottomNavigationView(context, AppDestination.TRAIN, onHome, {}, onProgress, onSettings),
-            LayoutParams(-1, AppBottomNavigationView.BASE_HEIGHT_DP.dp()))
     }
 
     private fun modeCard(icon: Int, title: String, description: String, onClick: () -> Unit) = LinearLayout(context).apply {

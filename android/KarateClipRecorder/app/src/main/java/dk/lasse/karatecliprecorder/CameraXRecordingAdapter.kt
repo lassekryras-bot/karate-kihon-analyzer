@@ -325,13 +325,46 @@ class CameraXRecordingAdapter(
             if (type == "INTERRUPTION_DETECTED") reason else null) })
     }
 
-    fun recordCountCue(value: Int, ordinal: Int, monotonicMs: Long) {
+    /**
+     * Persists a `spoken_count` event: the package-defined estimated audible cue timestamp
+     * (`playback_start + immutable A10 offset`). This serves as the authoritative semantic cue
+     * reference for reaction and movement analysis.
+     */
+    fun recordCountCue(value: Int, ordinal: Int, monotonicMs: Long, packageVersionId: String? = null, assetId: String? = null) {
         val sessionId = trainingSessionId ?: return
         val start = recordingStartMs ?: return
+        val dataStr = buildString {
+            append("count=").append(value)
+            append(";ordinal=").append(ordinal)
+            if (packageVersionId != null) append(";packageVersion=").append(packageVersionId)
+            if (assetId != null) append(";asset=").append(assetId)
+        }
+        val timingSource = if (packageVersionId != null) "audio_cue_anchor_A10" else "playback_request_CameraX_Start_elapsedRealtime_ms"
         training.submit({ it.addEvent(SessionEvent(sessionId = sessionId, type = "spoken_count",
             timestampUs = (monotonicMs - start).coerceAtLeast(0) * 1000,
-            data = "count=$value;ordinal=$ordinal", timingSource = "playback_request_CameraX_Start_elapsedRealtime_ms")) }) {
+            data = dataStr, timingSource = timingSource)) }) {
             if (it.isFailure && !closed.get()) onError("Could not persist count cue: ${it.exceptionOrNull()?.message}")
+        }
+    }
+
+    /**
+     * Persists a `cue_playback_start` event: the app playback request/start-command timestamp.
+     * Captures when playback was requested via SoundPool. Any future device/audio route latency
+     * calibration can be applied downstream without mutating this recorded event.
+     */
+    fun recordPlaybackStart(value: Int, ordinal: Int, monotonicMs: Long, packageVersionId: String? = null, assetId: String? = null) {
+        val sessionId = trainingSessionId ?: return
+        val start = recordingStartMs ?: return
+        val dataStr = buildString {
+            append("count=").append(value)
+            append(";ordinal=").append(ordinal)
+            if (packageVersionId != null) append(";packageVersion=").append(packageVersionId)
+            if (assetId != null) append(";asset=").append(assetId)
+        }
+        training.submit({ it.addEvent(SessionEvent(sessionId = sessionId, type = "cue_playback_start",
+            timestampUs = (monotonicMs - start).coerceAtLeast(0) * 1000,
+            data = dataStr, timingSource = "CameraX_Start_elapsedRealtime_ms")) }) {
+            if (it.isFailure && !closed.get()) onError("Could not persist playback start: ${it.exceptionOrNull()?.message}")
         }
     }
 

@@ -27,8 +27,10 @@ class TrainingSchemaTest {
             execSQL("INSERT INTO MasterRecording(recordingId,sessionId,filePath,createdAtMs,sourceState) VALUES ('failed','cancelled','recordings/failed.mp4',20,'FAILED')")
             close()
         }
-        helper.runMigrationsAndValidate(name, 6, true, KarateTrainingDatabase.MIGRATION_2_3,
-            KarateTrainingDatabase.MIGRATION_3_4, KarateTrainingDatabase.MIGRATION_4_5, KarateTrainingDatabase.MIGRATION_5_6).use { db ->
+        helper.runMigrationsAndValidate(name, 9, true, KarateTrainingDatabase.MIGRATION_2_3,
+            KarateTrainingDatabase.MIGRATION_3_4, KarateTrainingDatabase.MIGRATION_4_5, KarateTrainingDatabase.MIGRATION_5_6,
+            KarateTrainingDatabase.MIGRATION_6_7, KarateTrainingDatabase.MIGRATION_7_8,
+            KarateTrainingDatabase.MIGRATION_8_9).use { db ->
             db.query("SELECT sessionId,state,queuedAtMs,manual FROM RecordingProcessing").use {
                 assertEquals(1, it.count); org.junit.Assert.assertTrue(it.moveToFirst())
                 assertEquals("saved", it.getString(0)); assertEquals("QUEUED", it.getString(1))
@@ -39,10 +41,11 @@ class TrainingSchemaTest {
                 assertEquals("QUEUED", it.getString(0)); assertEquals("straight_punch_segments", it.getString(1))
                 assertEquals(1, it.getInt(2)); (3..6).forEach { column -> org.junit.Assert.assertTrue(it.isNull(column)) }
             }
-            db.query("SELECT expectedActivity,expectedCategory,interruptionReason,cadenceUs FROM RecordingSession WHERE sessionId='saved'").use {
+            db.query("SELECT expectedActivity,expectedCategory,interruptionReason,cadenceUs,audioCuePackageVersionId FROM RecordingSession WHERE sessionId='saved'").use {
                 org.junit.Assert.assertTrue(it.moveToFirst())
                 (0..2).forEach { column -> org.junit.Assert.assertTrue(it.isNull(column)) }
                 assertEquals(1_000_000L, it.getLong(3))
+                org.junit.Assert.assertTrue(it.isNull(4))
             }
         }
     }
@@ -57,14 +60,17 @@ class TrainingSchemaTest {
             execSQL("INSERT INTO LandmarkTrack(landmarkTrackId,recordingId,pipelineKey,pipelineVersion,configuration,filePath,createdAtMs,state,sourceState) VALUES ('track','recording','pose','legacy','fixture','/legacy/track.pose',10,'COMPLETED','AVAILABLE')")
             close()
         }
-        helper.runMigrationsAndValidate(name, 6, true, KarateTrainingDatabase.MIGRATION_1_2,
+        helper.runMigrationsAndValidate(name, 9, true, KarateTrainingDatabase.MIGRATION_1_2,
             KarateTrainingDatabase.MIGRATION_2_3, KarateTrainingDatabase.MIGRATION_3_4,
-            KarateTrainingDatabase.MIGRATION_4_5, KarateTrainingDatabase.MIGRATION_5_6).close()
+            KarateTrainingDatabase.MIGRATION_4_5, KarateTrainingDatabase.MIGRATION_5_6,
+            KarateTrainingDatabase.MIGRATION_6_7, KarateTrainingDatabase.MIGRATION_7_8,
+            KarateTrainingDatabase.MIGRATION_8_9).close()
         val context = InstrumentationRegistry.getInstrumentation().targetContext
         val database = Room.databaseBuilder(context, KarateTrainingDatabase::class.java, name).addMigrations(
             KarateTrainingDatabase.MIGRATION_1_2, KarateTrainingDatabase.MIGRATION_2_3,
             KarateTrainingDatabase.MIGRATION_3_4, KarateTrainingDatabase.MIGRATION_4_5,
-            KarateTrainingDatabase.MIGRATION_5_6).build()
+            KarateTrainingDatabase.MIGRATION_5_6, KarateTrainingDatabase.MIGRATION_6_7,
+            KarateTrainingDatabase.MIGRATION_7_8, KarateTrainingDatabase.MIGRATION_8_9).build()
         try {
             database.openHelper.readableDatabase.query("SELECT userId FROM TrainingUser").use { cursor ->
                 cursor.moveToFirst()
@@ -87,8 +93,9 @@ class TrainingSchemaTest {
             execSQL("INSERT INTO MasterRecording(recordingId,sessionId,filePath,createdAtMs,sourceState) VALUES ('media','session','recordings/legacy.mp4',10,'AVAILABLE')")
             close()
         }
-        helper.runMigrationsAndValidate(name, 6, true, KarateTrainingDatabase.MIGRATION_4_5,
-            KarateTrainingDatabase.MIGRATION_5_6).use { db ->
+        helper.runMigrationsAndValidate(name, 9, true, KarateTrainingDatabase.MIGRATION_4_5,
+            KarateTrainingDatabase.MIGRATION_5_6, KarateTrainingDatabase.MIGRATION_6_7,
+            KarateTrainingDatabase.MIGRATION_7_8, KarateTrainingDatabase.MIGRATION_8_9).use { db ->
             db.query("SELECT captureType,mimeType FROM MasterRecording WHERE recordingId='media'").use {
                 org.junit.Assert.assertTrue(it.moveToFirst())
                 assertEquals("VIDEO", it.getString(0)); assertEquals("video/mp4", it.getString(1))
@@ -96,6 +103,78 @@ class TrainingSchemaTest {
             db.query("SELECT callerId,parentId,captureTrigger,cueMode,requestedView,completionPrompt,captureOutcome FROM RecordingSession WHERE sessionId='session'").use {
                 org.junit.Assert.assertTrue(it.moveToFirst())
                 (0..6).forEach { column -> org.junit.Assert.assertTrue(it.isNull(column)) }
+            }
+        }
+    }
+
+    @Test fun versionSixMigratesToVersionSevenWithProcessingRunAndMovementColumns() {
+        val name = "version-6-to-7-migration"
+        helper.createDatabase(name, 6).apply {
+            execSQL("INSERT INTO TrainingUser(userId,createdAtMs) VALUES ('user',10)")
+            execSQL("INSERT INTO RecordingSession(sessionId,userId,startedAtMs,guided,state) VALUES ('session','user',10,0,'RECORDED')")
+            execSQL("INSERT INTO MasterRecording(recordingId,sessionId,filePath,createdAtMs,sourceState,captureType) VALUES ('media','session','recordings/legacy.mp4',10,'AVAILABLE','VIDEO')")
+            execSQL("INSERT INTO RecordingProcessing(sessionId,state,phase,planKey,planVersion,segmentationVersion,queuedAtMs,manual) VALUES ('session','READY','READY','straight_punch_segments',1,'1',10,0)")
+            execSQL("INSERT INTO SessionMovement(movementId,sessionId,startUs,endUs,playbackStartUs,playbackEndUs,segmentationSource,segmentationVersion,state) VALUES ('mov1','session',100,200,50,250,'seg','1','DETECTED')")
+            close()
+        }
+        helper.runMigrationsAndValidate(name, 9, true, KarateTrainingDatabase.MIGRATION_6_7,
+            KarateTrainingDatabase.MIGRATION_7_8, KarateTrainingDatabase.MIGRATION_8_9).use { db ->
+            db.query("SELECT runId,sessionId,mode,state,planKey,planVersion,isCurrent FROM ProcessingRun WHERE sessionId='session'").use {
+                assertEquals(1, it.count)
+                org.junit.Assert.assertTrue(it.moveToFirst())
+                val runId = it.getString(0)
+                assertEquals("session-initial-run", runId)
+                assertEquals("session", it.getString(1))
+                assertEquals("INITIAL", it.getString(2))
+                assertEquals("COMPLETED", it.getString(3))
+                assertEquals("straight_punch_segments", it.getString(4))
+                assertEquals(1, it.getInt(5))
+                assertEquals(1, it.getInt(6))
+            }
+            db.query("SELECT runId,analysisFrameUs FROM SessionMovement WHERE movementId='mov1'").use {
+                org.junit.Assert.assertTrue(it.moveToFirst())
+                val movementRunId = it.getString(0)
+                assertEquals("session-initial-run", movementRunId)
+                org.junit.Assert.assertTrue(it.isNull(1))
+            }
+        }
+    }
+
+    @Test fun versionSevenMigratesToVersionEightWithAudioCuePackageVersionId() {
+        val name = "version-7-to-8-migration"
+        helper.createDatabase(name, 7).apply {
+            execSQL("INSERT INTO TrainingUser(userId,createdAtMs) VALUES ('user',10)")
+            execSQL("INSERT INTO RecordingSession(sessionId,userId,startedAtMs,guided,state) VALUES ('session','user',10,0,'RECORDED')")
+            close()
+        }
+        helper.runMigrationsAndValidate(name, 8, true, KarateTrainingDatabase.MIGRATION_7_8).use { db ->
+            db.query("SELECT sessionId,audioCuePackageVersionId FROM RecordingSession WHERE sessionId='session'").use {
+                assertEquals(1, it.count)
+                org.junit.Assert.assertTrue(it.moveToFirst())
+                assertEquals("session", it.getString(0))
+                org.junit.Assert.assertTrue(it.isNull(1))
+            }
+        }
+    }
+
+    @Test fun versionEightMigratesToVersionNineWithGeometryJson() {
+        val name = "version-8-to-9-migration"
+        helper.createDatabase(name, 8).apply {
+            execSQL("INSERT INTO TrainingUser(userId,createdAtMs) VALUES ('user',10)")
+            execSQL("INSERT INTO RecordingSession(sessionId,userId,startedAtMs,guided,state) VALUES ('session','user',10,0,'RECORDED')")
+            execSQL("INSERT INTO MasterRecording(recordingId,sessionId,filePath,createdAtMs,sourceState,captureType) VALUES ('media','session','recordings/legacy.mp4',10,'AVAILABLE','VIDEO')")
+            execSQL("INSERT INTO LandmarkTrack(landmarkTrackId,recordingId,pipelineKey,pipelineVersion,configuration,filePath,createdAtMs,state,sourceState) VALUES ('track','media','pose','1','conf','file.pose',10,'COMPLETED','AVAILABLE')")
+            execSQL("INSERT INTO SessionMovement(movementId,sessionId,startUs,endUs,playbackStartUs,playbackEndUs,segmentationSource,segmentationVersion,state) VALUES ('mov1','session',100,200,50,250,'seg','1','DETECTED')")
+            execSQL("INSERT INTO MovementAnalysis(analysisId,movementId,analyzerKey,analyzerVersion,landmarkTrackId,state,createdAtMs,reason) VALUES ('a1','mov1','straight_punch_target','1','track','COMPLETED',10,'ok')")
+            close()
+        }
+        helper.runMigrationsAndValidate(name, 9, true, KarateTrainingDatabase.MIGRATION_8_9).use { db ->
+            db.query("SELECT analysisId,analyzerKey,geometryJson FROM MovementAnalysis WHERE analysisId='a1'").use {
+                assertEquals(1, it.count)
+                org.junit.Assert.assertTrue(it.moveToFirst())
+                assertEquals("a1", it.getString(0))
+                assertEquals("straight_punch_target", it.getString(1))
+                org.junit.Assert.assertTrue(it.isNull(2))
             }
         }
     }

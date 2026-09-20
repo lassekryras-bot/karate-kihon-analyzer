@@ -35,11 +35,13 @@ class LearnScreenView(
     private val karateBasics: DraftLearningPathDefinition,
     private val onPathSelected: (LearningPath) -> Unit,
     private val onKarateBasicsSelected: () -> Unit,
-    onHome: () -> Unit,
-    onTrain: () -> Unit,
-    onProgress: () -> Unit,
-    onSettings: () -> Unit,
+    onHome: () -> Unit = {},
+    onTrain: () -> Unit = {},
+    onProgress: () -> Unit = {},
+    onSettings: () -> Unit = {},
 ) : FrameLayout(context) {
+    val destination: AppDestination = AppDestination.LEARNING
+
     private val red = ContextCompat.getColor(context, R.color.app_accent)
     private val ink = ContextCompat.getColor(context, R.color.app_text_primary)
     private val muted = ContextCompat.getColor(context, R.color.app_text_secondary)
@@ -67,20 +69,6 @@ class LearnScreenView(
             topContentPaddingDp = 16,
             bottomContentClearanceDp = AppBottomNavigationView.CONTENT_CLEARANCE_DP,
         ), LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT))
-
-        val navigation = AppBottomNavigationView(
-            context = context,
-            selectedDestination = AppDestination.TRAIN,
-            onHome = onHome,
-            onTrain = onTrain,
-            onProgress = onProgress,
-            onSettings = onSettings,
-        )
-        addView(navigation, LayoutParams(
-            LayoutParams.MATCH_PARENT,
-            AppBottomNavigationView.BASE_HEIGHT_DP.dp(),
-            Gravity.BOTTOM,
-        ))
 
     }
 

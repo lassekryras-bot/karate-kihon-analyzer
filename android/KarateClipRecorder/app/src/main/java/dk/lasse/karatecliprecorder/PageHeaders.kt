@@ -5,6 +5,7 @@ import android.content.res.ColorStateList
 import android.graphics.Typeface
 import android.graphics.drawable.ColorDrawable
 import android.graphics.drawable.LayerDrawable
+import android.text.TextUtils
 import android.view.Gravity
 import android.view.View
 import android.view.ViewGroup
@@ -16,6 +17,8 @@ import android.widget.TextView
 import androidx.core.content.ContextCompat
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
+import dk.lasse.karatecliprecorder.profile.ProfileAvatarButton
+import dk.lasse.karatecliprecorder.profile.ProfileAvatarState
 import dk.lasse.karatecliprecorder.recordings.QueueManagerTrayView
 
 internal object AppChromeStyle {
@@ -31,152 +34,202 @@ internal object AppChromeStyle {
     }
 }
 
-/** Sticky header for the four primary bottom-navigation destinations. */
+sealed interface HeaderLeadingAction {
+    data object None : HeaderLeadingAction
+    data class Back(val contentDescription: String = "Back", val onBack: () -> Unit) : HeaderLeadingAction
+    data class Custom(val view: View) : HeaderLeadingAction
+}
+
+sealed interface HeaderTrailingAction {
+    data object None : HeaderTrailingAction
+    data class ProfileShortcut(val state: ProfileAvatarState, val onClick: () -> Unit) : HeaderTrailingAction
+    data class Custom(val view: View) : HeaderTrailingAction
+}
+
+enum class HeaderAttentionTarget {
+    NONE,
+    LEADING,
+    TRAILING_PROFILE,
+}
+
+data class AppHeaderState(
+    val title: String,
+    val subtitle: String? = null,
+    val leadingAction: HeaderLeadingAction = HeaderLeadingAction.None,
+    val trailingAction: HeaderTrailingAction = HeaderTrailingAction.None,
+    val attentionTarget: HeaderAttentionTarget? = null,
+)
+
+/**
+ * Unified state-driven header with stable center/title geometry independent of leading/trailing controls.
+ */
+open class AppHeaderView @JvmOverloads constructor(
+    context: Context,
+    attrs: android.util.AttributeSet? = null,
+) : FrameLayout(context, attrs) {
+
+    private val titleView = TextView(context).apply {
+        textSize = 21f
+        typeface = Typeface.create("sans-serif", Typeface.BOLD)
+        setTextColor(ContextCompat.getColor(context, R.color.app_text_primary))
+        gravity = Gravity.CENTER
+        ellipsize = TextUtils.TruncateAt.END
+        maxLines = 1
+        ViewCompat.setAccessibilityHeading(this, true)
+    }
+
+    private val subtitleView = TextView(context).apply {
+        textSize = 14f
+        typeface = Typeface.create("sans-serif", Typeface.NORMAL)
+        setTextColor(ContextCompat.getColor(context, R.color.app_text_secondary))
+        gravity = Gravity.CENTER
+        ellipsize = TextUtils.TruncateAt.END
+        maxLines = 1
+        visibility = View.GONE
+    }
+
+    private val leadingHost = FrameLayout(context)
+    private val trailingHost = FrameLayout(context)
+    private val titleContainer = LinearLayout(context).apply {
+        orientation = LinearLayout.VERTICAL
+        gravity = Gravity.CENTER
+        addView(titleView, LinearLayout.LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT))
+        addView(subtitleView, LinearLayout.LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT).apply {
+            topMargin = context.pageDp(1)
+        })
+    }
+
+    init {
+        background = AppChromeStyle.background(context, Gravity.BOTTOM)
+        elevation = context.pageDp(AppChromeStyle.ELEVATION_DP).toFloat()
+        minimumHeight = context.pageDp(56)
+
+        // Symmetrically reserved gutters (56dp start and 56dp end) ensure title geometry never shifts horizontally
+        addView(titleContainer, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT, Gravity.CENTER).apply {
+            marginStart = context.pageDp(56)
+            marginEnd = context.pageDp(56)
+        })
+
+        addView(leadingHost, LayoutParams(context.pageDp(48), context.pageDp(48), Gravity.START or Gravity.CENTER_VERTICAL))
+        addView(trailingHost, LayoutParams(context.pageDp(48), context.pageDp(48), Gravity.END or Gravity.CENTER_VERTICAL))
+
+        installStatusBarInsets(horizontalDp = 16, topDp = 8, bottomDp = 8)
+    }
+
+    fun setHeaderState(state: AppHeaderState) {
+        setTitle(state.title)
+        setSubtitle(state.subtitle)
+        setLeadingAction(state.leadingAction)
+        setTrailingAction(state.trailingAction, state.attentionTarget)
+    }
+
+    fun setTitle(title: String) {
+        titleView.text = title
+        titleView.textSize = if (title.length > 20) 19f else 22f
+    }
+
+    fun setSubtitle(subtitle: String?) {
+        subtitleView.text = subtitle.orEmpty()
+        subtitleView.visibility = if (subtitle.isNullOrBlank()) View.GONE else View.VISIBLE
+    }
+
+    fun setLeadingAction(action: HeaderLeadingAction) {
+        leadingHost.removeAllViews()
+        when (action) {
+            HeaderLeadingAction.None -> leadingHost.visibility = View.GONE
+            is HeaderLeadingAction.Back -> {
+                leadingHost.visibility = View.VISIBLE
+                leadingHost.addView(createBackButton(action.contentDescription, action.onBack), LayoutParams(
+                    context.pageDp(48),
+                    context.pageDp(48),
+                    Gravity.CENTER,
+                ))
+            }
+            is HeaderLeadingAction.Custom -> {
+                leadingHost.visibility = View.VISIBLE
+                (action.view.parent as? ViewGroup)?.removeView(action.view)
+                leadingHost.addView(action.view, LayoutParams(
+                    LayoutParams.WRAP_CONTENT,
+                    LayoutParams.WRAP_CONTENT,
+                    Gravity.CENTER,
+                ))
+            }
+        }
+    }
+
+    fun setTrailingAction(action: HeaderTrailingAction, attention: HeaderAttentionTarget? = null) {
+        trailingHost.removeAllViews()
+        when (action) {
+            HeaderTrailingAction.None -> trailingHost.visibility = View.GONE
+            is HeaderTrailingAction.ProfileShortcut -> {
+                trailingHost.visibility = View.VISIBLE
+                val button = ProfileAvatarButton(context, action.state, action.onClick)
+                trailingHost.addView(button, LayoutParams(
+                    context.pageDp(48),
+                    context.pageDp(48),
+                    Gravity.CENTER,
+                ))
+                if (attention == HeaderAttentionTarget.TRAILING_PROFILE) {
+                    button.pulseAttention()
+                }
+            }
+            is HeaderTrailingAction.Custom -> {
+                trailingHost.visibility = View.VISIBLE
+                (action.view.parent as? ViewGroup)?.removeView(action.view)
+                trailingHost.addView(action.view, LayoutParams(
+                    LayoutParams.WRAP_CONTENT,
+                    LayoutParams.WRAP_CONTENT,
+                    Gravity.CENTER,
+                ))
+            }
+        }
+    }
+
+    fun setTrailingSlot(slot: View?) {
+        if (slot == null) {
+            setTrailingAction(HeaderTrailingAction.None)
+        } else {
+            setTrailingAction(HeaderTrailingAction.Custom(slot))
+        }
+    }
+
+    private fun createBackButton(description: String, onBack: () -> Unit) = ImageButton(context).apply {
+        setImageResource(R.drawable.ic_tabler_arrow_left)
+        imageTintList = ColorStateList.valueOf(ContextCompat.getColor(context, R.color.app_text_primary))
+        background = null
+        contentDescription = description
+        setPadding(context.pageDp(12), context.pageDp(12), context.pageDp(12), context.pageDp(12))
+        setOnClickListener { onBack() }
+    }
+}
+
+/** Sticky header for primary top-level destinations. */
 class MainPageHeader(
     context: Context,
     title: String,
     subtitle: String? = null,
     trailingSlot: View? = null,
-) : LinearLayout(context) {
-    private val titleView = headerText(title, if (title.length > 20) 25f else 29f, Typeface.BOLD).apply {
-        // Reserve the same title row even when a long app name uses smaller type.
-        minimumHeight = kotlin.math.ceil(29f * resources.displayMetrics.scaledDensity * 1.4f).toInt()
-        gravity = Gravity.CENTER_VERTICAL
-    }
-    private val subtitleView = headerText(subtitle.orEmpty(), 15f, Typeface.NORMAL).apply {
-        setTextColor(ContextCompat.getColor(context, R.color.app_text_secondary))
-        visibility = if (subtitle.isNullOrBlank()) View.GONE else View.VISIBLE
-    }
-    private val trailingHost = FrameLayout(context)
-
+) : AppHeaderView(context) {
     init {
-        orientation = HORIZONTAL
-        gravity = Gravity.CENTER_VERTICAL
-        background = AppChromeStyle.background(context, Gravity.BOTTOM)
-        elevation = context.pageDp(AppChromeStyle.ELEVATION_DP).toFloat()
-
-        addView(LinearLayout(context).apply {
-            orientation = VERTICAL
-            gravity = Gravity.CENTER_VERTICAL
-            addView(titleView)
-            addView(subtitleView, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT).apply {
-                topMargin = context.pageDp(2)
-            })
-        }, LayoutParams(0, LayoutParams.WRAP_CONTENT, 1f))
-        addView(trailingHost, LayoutParams(LayoutParams.WRAP_CONTENT, LayoutParams.WRAP_CONTENT).apply {
-            marginStart = context.pageDp(12)
-        })
+        setTitle(title)
+        setSubtitle(subtitle)
         setTrailingSlot(trailingSlot)
-        installStatusBarInsets(horizontalDp = 20, topDp = 12, bottomDp = 12)
-    }
-
-    fun setTitle(title: String) {
-        titleView.text = title
-        titleView.textSize = if (title.length > 20) 25f else 29f
-    }
-
-    fun setSubtitle(subtitle: String?) {
-        subtitleView.text = subtitle.orEmpty()
-        subtitleView.visibility = if (subtitle.isNullOrBlank()) View.GONE else View.VISIBLE
-    }
-
-    fun setTrailingSlot(slot: View?) {
-        trailingHost.removeAllViews()
-        if (slot == null) {
-            trailingHost.visibility = View.GONE
-        } else {
-            trailingHost.visibility = View.VISIBLE
-            (slot.parent as? ViewGroup)?.removeView(slot)
-            trailingHost.addView(slot, FrameLayout.LayoutParams(
-                context.pageDp(48),
-                context.pageDp(48),
-                Gravity.CENTER,
-            ))
-        }
-    }
-
-    private fun headerText(copy: String, size: Float, style: Int) = TextView(context).apply {
-        text = copy
-        textSize = size
-        typeface = Typeface.create("sans-serif", style)
-        setTextColor(ContextCompat.getColor(context, R.color.app_text_primary))
-        if (style == Typeface.BOLD) ViewCompat.setAccessibilityHeading(this, true)
     }
 }
 
-/** Sticky back/title header for activities, details, and settings/profile subsections. */
+/** Sticky back/title header for activities, details, and subsections. */
 class SubPageHeader(
     context: Context,
     title: String,
     subtitle: String? = null,
-    onBack: () -> Unit,
+    onBack: () -> Unit = {},
     trailingSlot: View? = null,
-) : FrameLayout(context) {
-    private val titleView = headerText(title, 21f, Typeface.BOLD, Gravity.CENTER)
-    private val subtitleView = headerText(subtitle.orEmpty(), 14f, Typeface.NORMAL, Gravity.CENTER).apply {
-        setTextColor(ContextCompat.getColor(context, R.color.app_text_secondary))
-        visibility = if (subtitle.isNullOrBlank()) View.GONE else View.VISIBLE
-    }
-    private val trailingHost = FrameLayout(context)
-
+) : AppHeaderView(context) {
     init {
-        background = AppChromeStyle.background(context, Gravity.BOTTOM)
-        elevation = context.pageDp(AppChromeStyle.ELEVATION_DP).toFloat()
-
-        addView(ImageButton(context).apply {
-            setImageResource(R.drawable.ic_tabler_arrow_left)
-            imageTintList = ColorStateList.valueOf(ContextCompat.getColor(context, R.color.app_text_primary))
-            background = null
-            contentDescription = "Back"
-            setPadding(context.pageDp(12), context.pageDp(12), context.pageDp(12), context.pageDp(12))
-            setOnClickListener { onBack() }
-        }, LayoutParams(context.pageDp(48), context.pageDp(48), Gravity.START or Gravity.CENTER_VERTICAL))
-
-        addView(LinearLayout(context).apply {
-            orientation = LinearLayout.VERTICAL
-            gravity = Gravity.CENTER
-            addView(titleView, LinearLayout.LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT))
-            addView(subtitleView, LinearLayout.LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT).apply {
-                topMargin = context.pageDp(1)
-            })
-        }, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT, Gravity.CENTER).apply {
-            marginStart = context.pageDp(58)
-            marginEnd = context.pageDp(58)
-        })
-
-        addView(trailingHost, LayoutParams(LayoutParams.WRAP_CONTENT, LayoutParams.WRAP_CONTENT, Gravity.END or Gravity.CENTER_VERTICAL))
+        setTitle(title)
+        setSubtitle(subtitle)
+        setLeadingAction(HeaderLeadingAction.Back("Back", onBack))
         setTrailingSlot(trailingSlot)
-        minimumHeight = context.pageDp(56)
-        installStatusBarInsets(horizontalDp = 16, topDp = 8, bottomDp = 8)
-    }
-
-    fun setTitle(title: String) {
-        titleView.text = title
-    }
-
-    fun setSubtitle(subtitle: String?) {
-        subtitleView.text = subtitle.orEmpty()
-        subtitleView.visibility = if (subtitle.isNullOrBlank()) View.GONE else View.VISIBLE
-    }
-
-    fun setTrailingSlot(slot: View?) {
-        trailingHost.removeAllViews()
-        if (slot == null) {
-            trailingHost.visibility = View.GONE
-        } else {
-            trailingHost.visibility = View.VISIBLE
-            (slot.parent as? ViewGroup)?.removeView(slot)
-            trailingHost.addView(slot)
-        }
-    }
-
-    private fun headerText(copy: String, size: Float, style: Int, gravity: Int) = TextView(context).apply {
-        text = copy
-        textSize = size
-        typeface = Typeface.create("sans-serif", style)
-        setTextColor(ContextCompat.getColor(context, R.color.app_text_primary))
-        this.gravity = gravity
-        if (style == Typeface.BOLD) ViewCompat.setAccessibilityHeading(this, true)
     }
 }
 
