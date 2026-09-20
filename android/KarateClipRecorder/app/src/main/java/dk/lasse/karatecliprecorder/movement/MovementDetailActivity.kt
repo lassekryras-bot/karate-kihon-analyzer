@@ -44,6 +44,7 @@ class MovementDetailActivity : AppCompatActivity() {
     internal var presentationData: MovementPresentationData? = null
     internal var videoFile: File? = null
     internal var loadedFrames: List<PoseFrame> = emptyList()
+    internal var verticalBounds: VerticalBounds = VerticalBounds.FULL
     private var active = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -213,6 +214,8 @@ class MovementDetailActivity : AppCompatActivity() {
             initialPlotKey = savedPlotKey ?: data.plotDefinitions.keys.firstOrNull(),
             knownSampleTimestampsUs = data.knownSampleTimestampsUs,
             namedEvents = data.namedEvents,
+            canonicalImpactUs = data.canonicalImpactUs,
+            replayStartUs = data.debugData.playbackStartUs,
         )
         timelineState!!.setPlaybackRate(savedPlaybackRate)
 
@@ -222,7 +225,14 @@ class MovementDetailActivity : AppCompatActivity() {
             else -> BodySide.UNKNOWN
         }
 
+        verticalBounds = MovementVerticalViewportCalculator.computeVerticalBounds(
+            frames = loadedFrames,
+            startUs = data.debugData.playbackStartUs,
+            endUs = data.debugData.playbackEndUs,
+        )
+
         playerView = MovementPresentationPlayerView(this, timelineState!!, videoFile).apply {
+            this.verticalBounds = this@MovementDetailActivity.verticalBounds
             overlayView.overlayDefinition = data.overlayDefinition
             overlayView.frames = loadedFrames
             overlayView.activeSide = activeSide
@@ -468,6 +478,7 @@ class MovementDetailActivity : AppCompatActivity() {
             else -> BodySide.UNKNOWN
         }
         expandedDialog = MovementExpandedInspectionDialog(this, state, videoFile, data).also { dialog ->
+            dialog.verticalBounds = verticalBounds
             dialog.overlayView.frames = loadedFrames
             dialog.overlayView.activeSide = activeSide
             dialog.setOnDismissListener {

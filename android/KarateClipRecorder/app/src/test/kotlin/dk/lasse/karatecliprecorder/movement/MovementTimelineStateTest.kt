@@ -164,4 +164,109 @@ class MovementTimelineStateTest {
         assertEquals("speed", state.selectedPlotKey)
         assertEquals("speed", notifiedKey)
     }
+
+    @Test
+    fun opensPausedAtCanonicalImpactShowingReplayState() {
+        val state = MovementTimelineState(
+            playbackStartUs = 100_000L,
+            playbackEndUs = 900_000L,
+            initialTimestampUs = 600_000L,
+            canonicalImpactUs = 600_000L,
+            replayStartUs = 100_000L,
+        )
+
+        assertEquals(600_000L, state.currentTimestampUs)
+        assertFalse(state.isPlaying)
+        assertEquals(PlaybackControlState.PAUSED_REPLAY, state.playbackControlState)
+    }
+
+    @Test
+    fun clickingReplayAtOrBeyondImpactSeeksToStartAndPlaysForward() {
+        val state = MovementTimelineState(
+            playbackStartUs = 100_000L,
+            playbackEndUs = 900_000L,
+            initialTimestampUs = 600_000L,
+            canonicalImpactUs = 600_000L,
+            replayStartUs = 100_000L,
+        )
+
+        assertEquals(PlaybackControlState.PAUSED_REPLAY, state.playbackControlState)
+
+        // Toggle play or replay
+        state.togglePlayOrReplay()
+
+        // Should seek to replayStartUs (100_000L) and start playing
+        assertEquals(100_000L, state.currentTimestampUs)
+        assertTrue(state.isPlaying)
+        assertEquals(PlaybackControlState.PLAYING, state.playbackControlState)
+    }
+
+    @Test
+    fun playbackHaltsAtCanonicalImpactTimestamp() {
+        val state = MovementTimelineState(
+            playbackStartUs = 100_000L,
+            playbackEndUs = 900_000L,
+            initialTimestampUs = 100_000L,
+            canonicalImpactUs = 600_000L,
+            replayStartUs = 100_000L,
+        )
+
+        state.setPlaying(true)
+        assertTrue(state.isPlaying)
+
+        // Advance before impact
+        state.updatePlaybackPositionUs(400_000L)
+        assertTrue(state.isPlaying)
+        assertEquals(400_000L, state.currentTimestampUs)
+
+        // Advance to or past canonical impact
+        state.updatePlaybackPositionUs(650_000L)
+        assertFalse(state.isPlaying)
+        assertEquals(600_000L, state.currentTimestampUs)
+        assertEquals(PlaybackControlState.PAUSED_REPLAY, state.playbackControlState)
+    }
+
+    @Test
+    fun postImpactIntervalCanBeManuallyInspected() {
+        val state = MovementTimelineState(
+            playbackStartUs = 100_000L,
+            playbackEndUs = 900_000L,
+            initialTimestampUs = 600_000L,
+            canonicalImpactUs = 600_000L,
+            replayStartUs = 100_000L,
+        )
+
+        // Manual seek past canonical impact
+        state.seekUs(750_000L)
+        assertEquals(750_000L, state.currentTimestampUs)
+        assertFalse(state.isPlaying)
+        assertEquals(PlaybackControlState.PAUSED_REPLAY, state.playbackControlState)
+
+        // Clicking replay rewinds back to replayStartUs
+        state.togglePlayOrReplay()
+        assertEquals(100_000L, state.currentTimestampUs)
+        assertTrue(state.isPlaying)
+    }
+
+    @Test
+    fun missingCanonicalImpactFallsBackToFullRange() {
+        val state = MovementTimelineState(
+            playbackStartUs = 100_000L,
+            playbackEndUs = 900_000L,
+            initialTimestampUs = 100_000L,
+            canonicalImpactUs = null,
+        )
+
+        assertEquals(PlaybackControlState.PAUSED_PLAY, state.playbackControlState)
+
+        state.setPlaying(true)
+        state.updatePlaybackPositionUs(500_000L)
+        assertTrue(state.isPlaying)
+
+        // Plays all the way to playbackEndUs
+        state.updatePlaybackPositionUs(900_000L)
+        assertFalse(state.isPlaying)
+        assertEquals(900_000L, state.currentTimestampUs)
+        assertEquals(PlaybackControlState.PAUSED_REPLAY, state.playbackControlState)
+    }
 }

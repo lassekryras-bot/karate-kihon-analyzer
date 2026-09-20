@@ -28,6 +28,7 @@ class TrainingSessionProcessor(
                 ).segment(recordingId, path, frames, cues)
             }
         },
+    private val trackConfiguration: String = "tasks-vision=0.10.26;CPU;VIDEO;numPoses=1;detection=0.5;presence=0.5;tracking=0.5;decoder=sequential-v1;timestamps=source-PTS-ms",
 ) {
     /** Landmark-only entry point retained for diagnostics/tests; queued recordings call [process]. */
     fun ensureLandmarks(sessionId: String, onProgress: (Float, Long) -> Unit = { _, _ -> }): LandmarkTrack {
@@ -43,11 +44,12 @@ class TrainingSessionProcessor(
     }
 
     private fun loadLandmarks(sessionId: String, onProgress: (Float, Long) -> Unit,
-                              requiredTrackId: String? = null): Pair<LandmarkTrack, List<PoseFrame>> {
+                              requiredTrackId: String? = null, forceNew: Boolean = false): Pair<LandmarkTrack, List<PoseFrame>> {
         checkActive()
         val recording = requireNotNull(repository.recording(sessionId))
         val tracks = repository.tracks(recording.recordingId)
-        val existing = if (requiredTrackId != null) tracks.firstOrNull { it.landmarkTrackId == requiredTrackId }
+        val existing = if (forceNew) null
+            else if (requiredTrackId != null) tracks.firstOrNull { it.landmarkTrackId == requiredTrackId }
             else tracks.firstOrNull { it.pipelineVersion == modelVersion && it.state == ProcessingState.COMPLETED && it.sourceState == SourceState.AVAILABLE }
                 ?: tracks.firstOrNull { it.pipelineVersion == modelVersion && it.state == ProcessingState.PROCESSING && repository.file(it.filePath).isFile }
         if (existing != null) {
@@ -77,7 +79,7 @@ class TrainingSessionProcessor(
         }
         val id = trainingId()
         var track = LandmarkTrack(id, recording.recordingId, "mediapipe_pose_video", modelVersion,
-            "tasks-vision=0.10.26;CPU;VIDEO;numPoses=1;detection=0.5;presence=0.5;tracking=0.5;decoder=sequential-v1;timestamps=source-PTS-ms",
+            trackConfiguration,
             repository.fileReference(File(landmarkDirectory, "$id.mls")), state = ProcessingState.PROCESSING,
             formatId = LandmarkFiles.FORMAT_ID, formatVersion = LandmarkFiles.VERSION)
         repository.addTrack(track)
@@ -102,16 +104,21 @@ class TrainingSessionProcessor(
     }
 
     fun process(sessionId: String, onProgress: (Float, Long) -> Unit = { _, _ -> }): Int {
-        return processInternal(sessionId, reanalysisRunId = null, onProgress = onProgress)
+        return processInternal(sessionId, reanalysisRunId = null, forceNewLandmarks = false, onProgress = onProgress)
     }
 
     fun processReanalysis(sessionId: String, runId: String, onProgress: (Float, Long) -> Unit = { _, _ -> }): Int {
-        return processInternal(sessionId, reanalysisRunId = runId, onProgress = onProgress)
+        return processInternal(sessionId, reanalysisRunId = runId, forceNewLandmarks = false, onProgress = onProgress)
+    }
+
+    fun processLandmarkReprocess(sessionId: String, runId: String, onProgress: (Float, Long) -> Unit = { _, _ -> }): Int {
+        return processInternal(sessionId, reanalysisRunId = runId, forceNewLandmarks = true, onProgress = onProgress)
     }
 
     private fun processInternal(
         sessionId: String,
         reanalysisRunId: String?,
+        forceNewLandmarks: Boolean = false,
         onProgress: (Float, Long) -> Unit,
     ): Int {
         val isReanalysis = reanalysisRunId != null
@@ -126,7 +133,22 @@ class TrainingSessionProcessor(
         }
 
         try {
-            val (source, frames) = if (isReanalysis) {
+            val (source, frames) = if (forceNewLandmarks) {
+                updateJob(sessionId) { it.copy(phase = ProcessingPhase.LANDMARKS, planKey = plan.key, planVersion = plan.version) }
+                repository.setSessionState(sessionId, SessionState.LANDMARKS_PROCESSING)
+                val landmarkStarted = elapsedRealtimeMs()
+                val pair = loadLandmarks(sessionId, onProgress, forceNew = true)
+                val landmarkDuration = (elapsedRealtimeMs() - landmarkStarted).coerceAtLeast(0)
+                android.util.Log.i("RecordingProcessing", "session=$sessionId phase=landmarks durationMs=$landmarkDuration track=${pair.first.landmarkTrackId} (force-new)")
+                updateJob(sessionId) { it.copy(landmarkDurationMs = landmarkDuration, sourceLandmarkTrackId = pair.first.landmarkTrackId) }
+                repository.setSessionState(sessionId, SessionState.LANDMARKS_READY)
+                if (currentRun != null) {
+                    val updated = currentRun.copy(sourceLandmarkTrackId = pair.first.landmarkTrackId, landmarkDurationMs = landmarkDuration)
+                    repository.updateRun(updated)
+                    currentRun = updated
+                }
+                pair
+            } else if (isReanalysis) {
                 checkNotNull(currentRun?.sourceLandmarkTrackId) { "Source landmark track ID missing for reanalysis" }
                 updateJob(sessionId) { it.copy(phase = ProcessingPhase.SEGMENTATION, planKey = plan.key, planVersion = plan.version) }
                 repository.setSessionState(sessionId, SessionState.SEGMENTING)
@@ -230,7 +252,13 @@ class TrainingSessionProcessor(
                         StraightPunchMovementAdapter.policy.analyzerKey -> {
                             if (repository.preferredAnalysis(movement.movementId, StraightPunchMovementAdapter.policy) == null) {
                                 val output = runCatching {
-                                    StraightPunchMovementAdapter.analyze(movement, source.landmarkTrackId, frames)
+                                    StraightPunchMovementAdapter.analyze(
+                                        movement = movement,
+                                        trackId = source.landmarkTrackId,
+                                        frames = frames,
+                                        videoWidth = recording.width,
+                                        videoHeight = recording.height,
+                                    )
                                 }.getOrElse { error ->
                                     hadFailure = true
                                     MovementAnalysis(

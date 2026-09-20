@@ -3,6 +3,7 @@ package dk.lasse.karatecliprecorder.movement
 import android.content.Context
 import android.content.res.ColorStateList
 import android.graphics.Color
+import android.graphics.RectF
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
 import android.os.Handler
@@ -42,6 +43,7 @@ class MovementPresentationPlayerView(
     }
 
     private val videoContainer = FrameLayout(context)
+    internal val cropContainer = FrameLayout(context)
 
     // Controls
     private val modeSwitcher = LinearLayout(context)
@@ -79,6 +81,13 @@ class MovementPresentationPlayerView(
             updateModeViews(timelineState.currentMode)
         }
 
+    var verticalBounds: VerticalBounds = VerticalBounds.FULL
+        set(value) {
+            field = value
+            applyViewport()
+            overlayView.invalidate()
+        }
+
     var isPlaybackActive: Boolean = true
         private set
 
@@ -94,8 +103,9 @@ class MovementPresentationPlayerView(
                     onVideoPosition(videoView.currentPosition)
                 } else if (timelineState.currentMode == PlayerMode.GRAPH || videoFile?.isFile != true) {
                     val nextUs = timelineState.currentTimestampUs + (elapsedUs * timelineState.playbackRate).toLong()
-                    if (nextUs >= timelineState.playbackEndUs) {
-                        timelineState.updatePlaybackPositionUs(timelineState.playbackEndUs)
+                    val targetLimit = timelineState.canonicalImpactUs ?: timelineState.playbackEndUs
+                    if (nextUs >= targetLimit) {
+                        timelineState.updatePlaybackPositionUs(targetLimit)
                         timelineState.setPlaying(false)
                     } else {
                         timelineState.updatePlaybackPositionUs(nextUs)
@@ -113,7 +123,8 @@ class MovementPresentationPlayerView(
         setupSurface()
         setupControls()
 
-        bindMovementVideoViewport(videoView, overlayView, videoFile?.isFile == true) { mediaPlayer }
+        bindMovementVideoViewport(cropContainer, videoView, overlayView, videoFile?.isFile == true, { verticalBounds }) { mediaPlayer }
+        videoContainer.addOnLayoutChangeListener { _, _, _, _, _, _, _, _, _ -> applyViewport() }
 
         if (videoFile != null && videoFile.isFile) {
             videoView.setVideoPath(videoFile.absolutePath)
@@ -128,6 +139,21 @@ class MovementPresentationPlayerView(
         updateModeViews(timelineState.currentMode)
         updateTimelineProgress(timelineState.progress)
         updatePlaybackState(timelineState.isPlaying)
+    }
+
+    private fun applyViewport() {
+        val mp = mediaPlayer ?: return
+        if (videoContainer.width > 0 && videoContainer.height > 0) {
+            applyMovementVideoViewport(
+                cropContainer = cropContainer,
+                video = videoView,
+                overlay = overlayView,
+                viewBounds = RectF(0f, 0f, videoContainer.width.toFloat(), videoContainer.height.toFloat()),
+                videoWidth = mp.videoWidth,
+                videoHeight = mp.videoHeight,
+                verticalBounds = verticalBounds,
+            )
+        }
     }
 
     fun setPlaybackActive(active: Boolean) {
@@ -146,6 +172,7 @@ class MovementPresentationPlayerView(
 
     internal fun onVideoPrepared(mp: android.media.MediaPlayer) {
         mediaPlayer = mp
+        applyViewport()
         videoSeeking.onPrepared(mp)
         overlayView.invalidate()
         if (timelineState.currentMode != PlayerMode.GRAPH) videoSeeking.seekToUs(timelineState.currentTimestampUs)
@@ -160,6 +187,13 @@ class MovementPresentationPlayerView(
 
     private fun setupSurface() {
         val surfaceHeight = (220 * density).roundToInt()
+        cropContainer.apply {
+            clipChildren = true
+            clipToOutline = true
+            outlineProvider = android.view.ViewOutlineProvider.BOUNDS
+            addView(videoView, FrameLayout.LayoutParams(-1, -1, Gravity.CENTER))
+            addView(overlayView, FrameLayout.LayoutParams(-1, -1))
+        }
         videoContainer.apply {
             background = GradientDrawable().apply {
                 setColor(ContextCompat.getColor(context, R.color.profile_avatar_background))
@@ -168,8 +202,7 @@ class MovementPresentationPlayerView(
             }
             clipToOutline = true
 
-            addView(videoView, FrameLayout.LayoutParams(-1, -1, Gravity.CENTER))
-            addView(overlayView, FrameLayout.LayoutParams(-1, -1))
+            addView(cropContainer, FrameLayout.LayoutParams(-1, -1))
             addView(graphView, FrameLayout.LayoutParams(-1, -1))
             addView(unavailableLabel, FrameLayout.LayoutParams(-1, -1, Gravity.CENTER))
         }
@@ -243,13 +276,12 @@ class MovementPresentationPlayerView(
         }
 
         playButton.apply {
-            contentDescription = "Play"
-            setImageResource(R.drawable.ic_player_play)
+            updatePlayButtonIcon(timelineState.playbackControlState)
             setBackgroundColor(Color.TRANSPARENT)
             imageTintList = ColorStateList.valueOf(ContextCompat.getColor(context, R.color.app_accent))
             minimumHeight = 48.dp()
             minimumWidth = 48.dp()
-            setOnClickListener { timelineState.setPlaying(!timelineState.isPlaying) }
+            setOnClickListener { timelineState.togglePlayOrReplay() }
         }
 
         nextStepButton.apply {
@@ -294,8 +326,9 @@ class MovementPresentationPlayerView(
     internal fun onVideoPosition(positionMs: Int) {
         if (!isPlaybackActive || videoSeeking.isPending || !timelineState.isPlaying || timelineState.currentMode == PlayerMode.GRAPH) return
         val positionUs = positionMs * 1000L
+        val targetLimit = timelineState.canonicalImpactUs ?: timelineState.playbackEndUs
         timelineState.updatePlaybackPositionUs(positionUs)
-        if (positionUs >= timelineState.playbackEndUs) timelineState.setPlaying(false)
+        if (positionUs >= targetLimit) timelineState.setPlaying(false)
     }
 
     override fun onModeChanged(mode: PlayerMode) {
@@ -312,10 +345,14 @@ class MovementPresentationPlayerView(
 
     override fun onPlaybackStateChanged(isPlaying: Boolean) {
         if (!isPlaybackActive) {
-            playButton.setImageResource(if (isPlaying) R.drawable.ic_player_pause else R.drawable.ic_player_play)
+            updatePlayButtonIcon(timelineState.playbackControlState)
             return
         }
         updatePlaybackState(isPlaying)
+    }
+
+    override fun onPlaybackControlStateChanged(controlState: PlaybackControlState) {
+        updatePlayButtonIcon(controlState)
     }
 
     override fun onPlaybackRateChanged(rate: Double) {
@@ -364,11 +401,13 @@ class MovementPresentationPlayerView(
         unavailableLabel.setPadding(8.dp(), 8.dp(), 8.dp(), 8.dp())
         when (mode) {
             PlayerMode.VIDEO -> {
+                cropContainer.visibility = if (hasVideo) View.VISIBLE else View.GONE
                 videoView.visibility = if (hasVideo) View.VISIBLE else View.GONE
                 overlayView.visibility = View.GONE
                 graphView.visibility = View.GONE
             }
             PlayerMode.ANALYSIS -> {
+                cropContainer.visibility = View.VISIBLE
                 videoView.visibility = if (hasVideo) View.VISIBLE else View.GONE
                 overlayView.visibility = View.VISIBLE
                 graphView.visibility = View.GONE
@@ -376,11 +415,13 @@ class MovementPresentationPlayerView(
             PlayerMode.GRAPH -> {
                 videoView.pause()
                 runCatching { mediaPlayer?.let { if (it.isPlaying) it.pause() } }
+                cropContainer.visibility = View.GONE
                 videoView.visibility = View.GONE
                 overlayView.visibility = View.GONE
                 graphView.visibility = View.VISIBLE
             }
             PlayerMode.POSE -> {
+                cropContainer.visibility = View.GONE
                 videoView.visibility = View.GONE
                 overlayView.visibility = View.GONE
                 graphView.visibility = View.GONE
@@ -396,10 +437,9 @@ class MovementPresentationPlayerView(
     }
 
     private fun updatePlaybackState(playing: Boolean) {
+        updatePlayButtonIcon(timelineState.playbackControlState)
         if (playing) {
-            playButton.setImageResource(R.drawable.ic_player_pause)
             onPlaybackRateChanged(timelineState.playbackRate)
-            playButton.contentDescription = "Pause"
             if (timelineState.currentMode != PlayerMode.GRAPH && videoFile?.isFile == true && !videoView.isPlaying) {
                 videoView.start()
             }
@@ -407,11 +447,26 @@ class MovementPresentationPlayerView(
             lastTickMs = SystemClock.uptimeMillis()
             handler.post(playbackTick)
         } else {
-            playButton.setImageResource(R.drawable.ic_player_play)
-            playButton.contentDescription = "Play"
             videoView.pause()
             runCatching { mediaPlayer?.let { if (it.isPlaying) it.pause() } }
             handler.removeCallbacks(playbackTick)
+        }
+    }
+
+    private fun updatePlayButtonIcon(controlState: PlaybackControlState) {
+        when (controlState) {
+            PlaybackControlState.PLAYING -> {
+                playButton.setImageResource(R.drawable.ic_player_pause)
+                playButton.contentDescription = "Pause"
+            }
+            PlaybackControlState.PAUSED_PLAY -> {
+                playButton.setImageResource(R.drawable.ic_player_play)
+                playButton.contentDescription = "Play"
+            }
+            PlaybackControlState.PAUSED_REPLAY -> {
+                playButton.setImageResource(R.drawable.ic_player_replay)
+                playButton.contentDescription = "Replay"
+            }
         }
     }
 

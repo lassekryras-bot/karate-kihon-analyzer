@@ -17,7 +17,7 @@ enum class ValueType { NUMERIC, CATEGORICAL }
 enum class ObservedView { FRONT, LEFT_SIDE, RIGHT_SIDE, OTHER, UNKNOWN }
 enum class BodySide { LEFT, RIGHT, BILATERAL, WHOLE_BODY, UNKNOWN }
 
-enum class RunMode { INITIAL, REANALYSIS }
+enum class RunMode { INITIAL, REANALYSIS, LANDMARK_REPROCESS }
 enum class RunState { PENDING, PROCESSING, COMPLETED, PARTIAL, FAILED }
 
 data class ProcessingRun(

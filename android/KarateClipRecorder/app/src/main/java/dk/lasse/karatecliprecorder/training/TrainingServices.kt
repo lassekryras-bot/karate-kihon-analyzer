@@ -82,11 +82,27 @@ class TrainingServices private constructor(context: Context) {
         }) { result -> result.exceptionOrNull()?.let { android.util.Log.e("TrainingStorage", "Profile evidence archive failed", it) } }
     }
 
+    fun offlinePoseConfig(): dk.lasse.karatecliprecorder.mediapipeposeadapter.PoseLandmarkerConfig {
+        return dk.lasse.karatecliprecorder.mediapipeposeadapter.PoseLandmarkerConfig.offlineDefault { path ->
+            runCatching { app.assets.open(path).use { }; true }.getOrDefault(false)
+        }
+    }
+
     /** Call on a worker. Completed MediaPipe files can be reused even if the MP4 has been removed. */
     fun processor(checkActive: () -> Unit = {}, publication: (() -> Unit) -> Unit = { it() }): TrainingSessionProcessor {
-        val hash = app.assets.open("mediapipe/pose_landmarker_full.task").use(LandmarkFiles::sha256)
-        return TrainingSessionProcessor(repository, File(app.filesDir, "training/landmarks"),
-            SequentialVideoPoseDecoder(app), "pose_full_sha256:$hash;decoder=1;tasks=0.10.26;CPU;settings=1", checkActive, publication)
+        val config = offlinePoseConfig()
+        val hash = app.assets.open(config.assetPath).use(LandmarkFiles::sha256)
+        val pipelineIdentity = config.pipelineIdentity(hash)
+        val trackConfig = config.trackConfiguration()
+        return TrainingSessionProcessor(
+            repository,
+            File(app.filesDir, "training/landmarks"),
+            SequentialVideoPoseDecoder(app, config.delegate, config.assetPath),
+            pipelineIdentity,
+            checkActive,
+            publication,
+            trackConfiguration = trackConfig,
+        )
     }
 
     fun reanalyze(sessionId: String, completed: (Result<ProcessingRun>) -> Unit = {}) {
@@ -103,6 +119,26 @@ class TrainingServices private constructor(context: Context) {
                     }
                 )
                 proc.processReanalysis(sessionId, run.runId)
+                requireNotNull(repository.run(run.runId))
+            }
+            main.post { completed(result) }
+        }
+    }
+
+    fun reprocessLandmarksAndReanalyze(sessionId: String, completed: (Result<ProcessingRun>) -> Unit = {}) {
+        processingExecutor.execute {
+            val result = runCatching {
+                val run = repository.prepareLandmarkReprocessRun(sessionId)
+                val proc = processor(
+                    checkActive = {
+                        val currentJob = repository.job(sessionId)
+                        check(currentJob == null || currentJob.state != QueueState.DELETING) { "Cancelled" }
+                    },
+                    publication = { op ->
+                        synchronized(ProcessingCoordinator.publication) { op() }
+                    }
+                )
+                proc.processLandmarkReprocess(sessionId, run.runId)
                 requireNotNull(repository.run(run.runId))
             }
             main.post { completed(result) }

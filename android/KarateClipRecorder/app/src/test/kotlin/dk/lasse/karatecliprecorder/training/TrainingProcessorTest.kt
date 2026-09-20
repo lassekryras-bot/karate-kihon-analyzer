@@ -25,34 +25,52 @@ class TrainingProcessorTest {
         verifyPersistence(PoseReplayJson.decode(fixtureFile.readText()).frames, null, assisted = false)
     }
 
-    @Test fun syntheticContinuousTenPunchSessionPersistsExactlyTenMovements() {
-        val frames = (0..620).map { index ->
+    private fun buildSyntheticTenPunchFrames(): List<PoseFrame> {
+        // 3000 ms of still side-view initialization (120 frames at 25ms)
+        // followed by 10 punch cycles (each 1500 ms = 60 frames), total 740 frames (18,500 ms)
+        return (0..740).map { index ->
             val t = index * 25L
-            val cycle = (t - 500).floorDiv(1500)
-            val phase = (t - 500).mod(1500) / 1000.0
+            val cycle = (t - 3000L).floorDiv(1500)
+            val phase = (t - 3000L).mod(1500) / 1000.0
             val reach = if (cycle in 0..9 && phase < 0.5) kotlin.math.sin(phase * 2 * Math.PI).toFloat() * 0.35f else 0f
-            fun sample(x: Float, y: Float) = PoseLandmarkSample(
-                position = Point3(x, y, 0f),
-                worldPosition = Point3(x, y, 0f),
-                visibility = 0.9f,
-                presence = 0.9f,
+
+            fun sample(x: Float, y: Float, z: Float = 0f) = PoseLandmarkSample(
+                position = Point3(x, y, z),
+                worldPosition = Point3(x, y, z),
+                visibility = 0.95f,
+                presence = 0.95f,
                 source = LandmarkSource.OBSERVED,
             )
-            val leftWrist = sample(0.4f - reach, 0.6f)
-            val rightWrist = sample(0.6f + reach, 0.6f)
-            val leftElbow = sample(0.4f - reach * 0.5f, 0.5f)
-            val rightElbow = sample(0.6f + reach * 0.5f, 0.5f)
+
+            val leftWrist = sample(0.48f - reach, 0.50f, -0.10f)
+            val rightWrist = sample(0.52f + reach, 0.50f, 0.10f)
+            val leftElbow = sample(0.48f - reach * 0.5f, 0.45f, -0.10f)
+            val rightElbow = sample(0.52f + reach * 0.5f, 0.45f, 0.10f)
+
             PoseFrame(t, mapOf(
-                PoseLandmarkId.NOSE to sample(0.5f, 0.15f),
-                PoseLandmarkId.MOUTH_LEFT to sample(0.48f, 0.20f), PoseLandmarkId.MOUTH_RIGHT to sample(0.52f, 0.20f),
-                PoseLandmarkId.LEFT_SHOULDER to sample(0.4f, 0.3f), PoseLandmarkId.RIGHT_SHOULDER to sample(0.6f, 0.3f),
-                PoseLandmarkId.LEFT_ELBOW to leftElbow, PoseLandmarkId.RIGHT_ELBOW to rightElbow,
-                PoseLandmarkId.LEFT_WRIST to leftWrist, PoseLandmarkId.RIGHT_WRIST to rightWrist,
-                PoseLandmarkId.LEFT_INDEX to leftWrist, PoseLandmarkId.RIGHT_INDEX to rightWrist,
-                PoseLandmarkId.LEFT_THUMB to leftWrist, PoseLandmarkId.RIGHT_THUMB to rightWrist,
-                PoseLandmarkId.LEFT_PINKY to leftWrist, PoseLandmarkId.RIGHT_PINKY to rightWrist,
-                PoseLandmarkId.LEFT_HIP to sample(0.4f, 0.6f), PoseLandmarkId.RIGHT_HIP to sample(0.6f, 0.6f)))
+                PoseLandmarkId.NOSE to sample(0.48f, 0.20f, -0.10f),
+                PoseLandmarkId.MOUTH_LEFT to sample(0.47f, 0.24f, -0.10f),
+                PoseLandmarkId.MOUTH_RIGHT to sample(0.49f, 0.24f, 0.10f),
+                PoseLandmarkId.LEFT_SHOULDER to sample(0.48f, 0.35f, -0.10f),
+                PoseLandmarkId.RIGHT_SHOULDER to sample(0.52f, 0.35f, 0.10f),
+                PoseLandmarkId.LEFT_ELBOW to leftElbow,
+                PoseLandmarkId.RIGHT_ELBOW to rightElbow,
+                PoseLandmarkId.LEFT_WRIST to leftWrist,
+                PoseLandmarkId.RIGHT_WRIST to rightWrist,
+                PoseLandmarkId.LEFT_INDEX to leftWrist,
+                PoseLandmarkId.RIGHT_INDEX to rightWrist,
+                PoseLandmarkId.LEFT_THUMB to leftWrist,
+                PoseLandmarkId.RIGHT_THUMB to rightWrist,
+                PoseLandmarkId.LEFT_PINKY to leftWrist,
+                PoseLandmarkId.RIGHT_PINKY to rightWrist,
+                PoseLandmarkId.LEFT_HIP to sample(0.48f, 0.65f, -0.10f),
+                PoseLandmarkId.RIGHT_HIP to sample(0.52f, 0.65f, 0.10f),
+            ))
         }
+    }
+
+    @Test fun syntheticContinuousTenPunchSessionPersistsExactlyTenMovements() {
+        val frames = buildSyntheticTenPunchFrames()
         verifyPersistence(frames, 10, assisted = true)
     }
 
@@ -124,31 +142,7 @@ class TrainingProcessorTest {
     }
 
     @Test fun reanalysisReusesMlsCreatesFreshMovementsAndPublishesOnSuccess() {
-        val frames = (0..620).map { index ->
-            val t = index * 25L
-            val cycle = (t - 500).floorDiv(1500)
-            val phase = (t - 500).mod(1500) / 1000.0
-            val reach = if (cycle in 0..9 && phase < 0.5) kotlin.math.sin(phase * 2 * Math.PI).toFloat() * 0.35f else 0f
-            fun sample(x: Float, y: Float) = PoseLandmarkSample(
-                position = Point3(x, y, 0f),
-                worldPosition = Point3(x, y, 0f),
-                visibility = 0.9f,
-                presence = 0.9f,
-                source = LandmarkSource.OBSERVED,
-            )
-            val leftWrist = sample(0.4f - reach, 0.6f)
-            val rightWrist = sample(0.6f + reach, 0.6f)
-            val leftElbow = sample(0.4f - reach * 0.5f, 0.5f)
-            val rightElbow = sample(0.6f + reach * 0.5f, 0.5f)
-            PoseFrame(t, mapOf(
-                PoseLandmarkId.LEFT_SHOULDER to sample(0.4f, 0.3f), PoseLandmarkId.RIGHT_SHOULDER to sample(0.6f, 0.3f),
-                PoseLandmarkId.LEFT_ELBOW to leftElbow, PoseLandmarkId.RIGHT_ELBOW to rightElbow,
-                PoseLandmarkId.LEFT_WRIST to leftWrist, PoseLandmarkId.RIGHT_WRIST to rightWrist,
-                PoseLandmarkId.LEFT_INDEX to leftWrist, PoseLandmarkId.RIGHT_INDEX to rightWrist,
-                PoseLandmarkId.LEFT_THUMB to leftWrist, PoseLandmarkId.RIGHT_THUMB to rightWrist,
-                PoseLandmarkId.LEFT_PINKY to leftWrist, PoseLandmarkId.RIGHT_PINKY to rightWrist,
-                PoseLandmarkId.LEFT_HIP to sample(0.4f, 0.6f), PoseLandmarkId.RIGHT_HIP to sample(0.6f, 0.6f)))
-        }
+        val frames = buildSyntheticTenPunchFrames()
 
         val context = ApplicationProvider.getApplicationContext<Context>()
         val databaseName = "reanalysis-${trainingId()}"
@@ -341,6 +335,139 @@ class TrainingProcessorTest {
         } finally {
             db.close()
             context.deleteDatabase(databaseName)
+            directory.deleteRecursively()
+        }
+    }
+
+    @Test fun landmarkReprocessGeneratesNewLandmarkTrackAndPublishesRun() {
+        val frames = (0..200).map { index ->
+            val t = index * 25L
+            fun sample(x: Float, y: Float) = PoseLandmarkSample(Point3(x, y, 0f), Point3(x, y, 0f), 0.9f, 0.9f, LandmarkSource.OBSERVED)
+            PoseFrame(t, mapOf(
+                PoseLandmarkId.LEFT_SHOULDER to sample(0.4f, 0.3f), PoseLandmarkId.RIGHT_SHOULDER to sample(0.6f, 0.3f),
+                PoseLandmarkId.LEFT_ELBOW to sample(0.4f, 0.5f), PoseLandmarkId.RIGHT_ELBOW to sample(0.6f, 0.5f),
+                PoseLandmarkId.LEFT_WRIST to sample(0.4f, 0.6f), PoseLandmarkId.RIGHT_WRIST to sample(0.6f, 0.6f),
+                PoseLandmarkId.LEFT_HIP to sample(0.4f, 0.6f), PoseLandmarkId.RIGHT_HIP to sample(0.6f, 0.6f)))
+        }
+
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val directory = kotlin.io.path.createTempDirectory("landmark-reprocess-test").toFile()
+        val db = Room.inMemoryDatabaseBuilder(context, KarateTrainingDatabase::class.java).allowMainThreadQueries().build()
+        try {
+            val repository = TrainingRepository(db)
+            val user = TrainingUser()
+            repository.createUser(user)
+            val session = RecordingSession(userId = user.userId, startedAtMs = 1000,
+                activityKey = AssistedCaptureSetup.ACTIVITY_KEY, guided = false, expectedRepetitions = 5)
+            val source = File(directory, "master.mp4").apply { writeText("fake-video-content") }
+            repository.beginSession(session, MasterRecording(sessionId = session.sessionId, filePath = source.path, createdAtMs = 1000))
+            repository.finishRecording(session.sessionId, frames.last().timestampMs * 1000)
+
+            var decodeCount = 0
+            val decoder = object : VideoPoseProcessor {
+                override fun processVideo(videoFile: File, onProgress: (Float, Long) -> Unit): List<PoseFrame> {
+                    decodeCount++
+                    return frames
+                }
+            }
+
+            // 1. Initial processing
+            val processor1 = TrainingSessionProcessor(repository, directory, decoder, "fixture-v1", trackConfiguration = "full_v1")
+            processor1.process(session.sessionId)
+            assertEquals(1, decodeCount)
+
+            val initialRun = assertNotNull(repository.currentRun(session.sessionId))
+            assertEquals(RunMode.INITIAL, initialRun.mode)
+            val initialTrackId = initialRun.sourceLandmarkTrackId
+            assertNotNull(initialTrackId)
+
+            assertTrue(repository.canReprocessLandmarks(session.sessionId))
+
+            // 2. Prepare and execute landmark reprocess
+            val reprocessRun = repository.prepareLandmarkReprocessRun(session.sessionId)
+            assertEquals(RunMode.LANDMARK_REPROCESS, reprocessRun.mode)
+            assertEquals(RunState.PROCESSING, reprocessRun.state)
+
+            val processor2 = TrainingSessionProcessor(repository, directory, decoder, "fixture-v2", trackConfiguration = "heavy_v1")
+            processor2.processLandmarkReprocess(session.sessionId, reprocessRun.runId)
+            assertEquals(2, decodeCount, "Reprocess landmarks must invoke pose decoder")
+
+            val currentRun = assertNotNull(repository.currentRun(session.sessionId))
+            assertEquals(reprocessRun.runId, currentRun.runId)
+            assertEquals(RunState.COMPLETED, currentRun.state)
+            assertTrue(currentRun.isCurrent)
+            assertNotNull(currentRun.sourceLandmarkTrackId)
+            assertNotEquals(initialTrackId, currentRun.sourceLandmarkTrackId, "New landmark track must be generated")
+
+            // Original initial run and track must be retained
+            val oldRun = assertNotNull(repository.run(initialRun.runId))
+            assertFalse(oldRun.isCurrent)
+            val recording = requireNotNull(repository.recording(session.sessionId))
+            val tracks = repository.tracks(recording.recordingId)
+            assertNotNull(tracks.firstOrNull { it.landmarkTrackId == initialTrackId })
+            assertNotNull(tracks.firstOrNull { it.landmarkTrackId == currentRun.sourceLandmarkTrackId })
+        } finally {
+            db.close()
+            directory.deleteRecursively()
+        }
+    }
+
+    @Test fun landmarkReprocessFailurePreservesPreviousRunAndRetainsNewMLS() {
+        val frames = (0..100).map { index ->
+            val t = index * 25L
+            fun sample(x: Float, y: Float) = PoseLandmarkSample(Point3(x, y, 0f), Point3(x, y, 0f), 0.9f, 0.9f, LandmarkSource.OBSERVED)
+            PoseFrame(t, mapOf(
+                PoseLandmarkId.LEFT_SHOULDER to sample(0.4f, 0.3f), PoseLandmarkId.RIGHT_SHOULDER to sample(0.6f, 0.3f)))
+        }
+
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val directory = kotlin.io.path.createTempDirectory("landmark-reprocess-fail-test").toFile()
+        val db = Room.inMemoryDatabaseBuilder(context, KarateTrainingDatabase::class.java).allowMainThreadQueries().build()
+        try {
+            val repository = TrainingRepository(db)
+            val user = TrainingUser()
+            repository.createUser(user)
+            val session = RecordingSession(userId = user.userId, startedAtMs = 1000,
+                activityKey = AssistedCaptureSetup.ACTIVITY_KEY, guided = false, expectedRepetitions = 5)
+            val source = File(directory, "master.mp4").apply { writeText("fake-video-content") }
+            repository.beginSession(session, MasterRecording(sessionId = session.sessionId, filePath = source.path, createdAtMs = 1000))
+            repository.finishRecording(session.sessionId, frames.last().timestampMs * 1000)
+
+            val decoder = object : VideoPoseProcessor {
+                override fun processVideo(videoFile: File, onProgress: (Float, Long) -> Unit): List<PoseFrame> = frames
+            }
+            val processor1 = TrainingSessionProcessor(repository, directory, decoder, "fixture-v1", trackConfiguration = "full_v1")
+            processor1.process(session.sessionId)
+
+            val initialRun = assertNotNull(repository.currentRun(session.sessionId))
+            val reprocessRun = repository.prepareLandmarkReprocessRun(session.sessionId)
+
+            val failingProcessor = TrainingSessionProcessor(
+                repository, directory, decoder, "fixture-v2", trackConfiguration = "heavy_v1",
+                segment = { _, _, _, _ -> throw RuntimeException("Simulated segmentation crash after landmark extraction") }
+            )
+
+            assertFailsWith<RuntimeException> {
+                failingProcessor.processLandmarkReprocess(session.sessionId, reprocessRun.runId)
+            }
+
+            // Previous run remains current
+            val currentRun = assertNotNull(repository.currentRun(session.sessionId))
+            assertEquals(initialRun.runId, currentRun.runId)
+            assertTrue(currentRun.isCurrent)
+
+            // Failed run is marked failed
+            val failedRun = assertNotNull(repository.run(reprocessRun.runId))
+            assertEquals(RunState.FAILED, failedRun.state)
+            assertFalse(failedRun.isCurrent)
+
+            // The landmark track created by the reprocess step must be preserved!
+            assertNotNull(failedRun.sourceLandmarkTrackId)
+            val recording = requireNotNull(repository.recording(session.sessionId))
+            val tracks = repository.tracks(recording.recordingId)
+            assertNotNull(tracks.firstOrNull { it.landmarkTrackId == failedRun.sourceLandmarkTrackId })
+        } finally {
+            db.close()
             directory.deleteRecursively()
         }
     }

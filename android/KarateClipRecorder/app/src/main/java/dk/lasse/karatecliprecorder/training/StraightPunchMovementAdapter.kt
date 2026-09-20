@@ -10,6 +10,8 @@ object StraightPunchMovementAdapter {
         trackId: String,
         frames: List<PoseFrame>,
         explicitGedanTarget: TargetId? = null,
+        videoWidth: Int? = null,
+        videoHeight: Int? = null,
     ): Pair<MovementAnalysis, List<MeasurementResult>> {
         val resolved = CanonicalAnalysisFrameSelector.resolve(movement.startUs, movement.endUs, movement.analysisFrameUs, frames)
         val canonicalResult = resolved?.first
@@ -34,7 +36,7 @@ object StraightPunchMovementAdapter {
             if (!setupReady) setupReady = punchHeightAnalyzer.processSetup(f).usable
             else if (!initialized) initialized = punchHeightAnalyzer.processBodyInitialization(f, multiplier).bodyReference != null
         }
-        val bodyReference = punchHeightAnalyzer.currentBodyReference() ?: estimateBodyReference(frame)
+        val bodyReference = punchHeightAnalyzer.currentBodyReference()
         if (bodyReference == null) {
             val analysis = MovementAnalysis(
                 movementId = movement.movementId,
@@ -42,7 +44,7 @@ object StraightPunchMovementAdapter {
                 analyzerVersion = "1",
                 landmarkTrackId = trackId,
                 state = AnalysisState.ABSTAINED,
-                reason = "body_reference_unavailable",
+                reason = "neutral_body_reference_unavailable",
             )
             return analysis to emptyList()
         }
@@ -56,8 +58,33 @@ object StraightPunchMovementAdapter {
             activeArm = selectActiveArm(frame)
         }
 
-        val calculator = StraightPunchTargetCalculator(explicitGedanTarget = explicitGedanTarget)
-        val eval = calculator.evaluate(frame, bodyReference, activeArm, multiplier, explicitGedanTarget)
+        val aspectRatio = if (videoWidth != null && videoHeight != null && videoHeight > 0) {
+            videoWidth.toFloat() / videoHeight.toFloat()
+        } else {
+            1.0f
+        }
+
+        val stableArmReach = computeStableArmReach(
+            frames = frames,
+            startUs = movement.startUs,
+            impactUs = canonicalResult.timestampUs,
+            activeArm = activeArm,
+            aspectRatio = aspectRatio,
+        )
+
+        val calculator = StraightPunchTargetCalculator(
+            explicitGedanTarget = explicitGedanTarget,
+            aspectRatio = aspectRatio,
+        )
+        val eval = calculator.evaluate(
+            frame = frame,
+            bodyReference = bodyReference,
+            activeArm = activeArm,
+            chinProjectionMultiplier = multiplier,
+            explicitGedanTarget = explicitGedanTarget,
+            stableArmReachRadius = stableArmReach,
+            stableArmReachProvenance = if (stableArmReach != null) StraightPunchTargetEvaluation.MULTI_FRAME_REACH_PROVENANCE else null,
+        )
 
         val analysisState = when (eval.state) {
             TargetRayState.VALID -> AnalysisState.COMPLETED
@@ -292,5 +319,60 @@ object StraightPunchMovementAdapter {
             rightReach > leftReach && rightReach > 0f -> ActiveArm.RIGHT
             else -> ActiveArm.NONE
         }
+    }
+
+    fun computeStableArmReach(
+        frames: List<PoseFrame>,
+        startUs: Long,
+        impactUs: Long,
+        activeArm: ActiveArm,
+        aspectRatio: Float,
+    ): Float? {
+        if (activeArm == ActiveArm.NONE) return null
+        val shoulderId = if (activeArm == ActiveArm.LEFT) PoseLandmarkId.LEFT_SHOULDER else PoseLandmarkId.RIGHT_SHOULDER
+        val elbowId = if (activeArm == ActiveArm.LEFT) PoseLandmarkId.LEFT_ELBOW else PoseLandmarkId.RIGHT_ELBOW
+        val wristId = if (activeArm == ActiveArm.LEFT) PoseLandmarkId.LEFT_WRIST else PoseLandmarkId.RIGHT_WRIST
+
+        val startMs = startUs / 1000L
+        val impactMs = impactUs / 1000L
+
+        val upperLengths = mutableListOf<Float>()
+        val foreLengths = mutableListOf<Float>()
+
+        frames.asSequence()
+            .filter { it.timestampMs in startMs..impactMs }
+            .forEach { f ->
+                val s = f.landmarks[shoulderId]?.takeIf { it.isObserved() }?.position
+                val e = f.landmarks[elbowId]?.takeIf { it.isObserved() }?.position
+                val w = f.landmarks[wristId]?.takeIf { it.isObserved() }?.position
+
+                if (s != null && e != null) {
+                    val dx = (e.x - s.x) * aspectRatio
+                    val dy = e.y - s.y
+                    val len = kotlin.math.sqrt(dx * dx + dy * dy)
+                    if (len > 0.01f) upperLengths.add(len)
+                }
+                if (e != null && w != null) {
+                    val dx = (w.x - e.x) * aspectRatio
+                    val dy = w.y - e.y
+                    val len = kotlin.math.sqrt(dx * dx + dy * dy)
+                    if (len > 0.01f) foreLengths.add(len)
+                }
+            }
+
+        if (upperLengths.size < 3 || foreLengths.size < 3) return null
+
+        upperLengths.sort()
+        foreLengths.sort()
+
+        fun percentile80(list: List<Float>): Float {
+            val idx = ((list.size - 1) * 0.80f).toInt().coerceIn(0, list.size - 1)
+            return list[idx]
+        }
+
+        val stableUpper = percentile80(upperLengths)
+        val stableFore = percentile80(foreLengths)
+        val stableReach = stableUpper + stableFore
+        return if (stableReach > 0.05f) stableReach else null
     }
 }

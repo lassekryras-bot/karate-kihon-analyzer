@@ -4,6 +4,7 @@ import android.app.Dialog
 import android.content.Context
 import android.content.res.ColorStateList
 import android.graphics.Color
+import android.graphics.RectF
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
 import android.os.Handler
@@ -31,6 +32,8 @@ class MovementExpandedInspectionDialog(
 
     private val density = context.resources.displayMetrics.density
 
+    internal val cropContainer = FrameLayout(context)
+    private val surface = FrameLayout(context)
     internal val videoView = VideoView(context)
     internal var mediaPlayer: android.media.MediaPlayer? = null
     private val videoSeeking = MovementVideoSeeking()
@@ -66,6 +69,13 @@ class MovementExpandedInspectionDialog(
 
     private val playButton = ImageButton(context)
 
+    var verticalBounds: VerticalBounds = VerticalBounds.FULL
+        set(value) {
+            field = value
+            applyViewport()
+            overlayView.invalidate()
+        }
+
     private var lastTickMs = 0L
     private val handler = Handler(Looper.getMainLooper())
     private val playbackTick = object : Runnable {
@@ -78,8 +88,9 @@ class MovementExpandedInspectionDialog(
                     onVideoPosition(videoView.currentPosition)
                 } else if (timelineState.currentMode == PlayerMode.GRAPH || videoFile?.isFile != true) {
                     val nextUs = timelineState.currentTimestampUs + (elapsedUs * timelineState.playbackRate).toLong()
-                    if (nextUs >= timelineState.playbackEndUs) {
-                        timelineState.updatePlaybackPositionUs(timelineState.playbackEndUs)
+                    val targetLimit = timelineState.canonicalImpactUs ?: timelineState.playbackEndUs
+                    if (nextUs >= targetLimit) {
+                        timelineState.updatePlaybackPositionUs(targetLimit)
                         timelineState.setPlaying(false)
                     } else {
                         timelineState.updatePlaybackPositionUs(nextUs)
@@ -92,7 +103,8 @@ class MovementExpandedInspectionDialog(
 
     init {
         timelineState.addListener(this)
-        bindMovementVideoViewport(videoView, overlayView, videoFile?.isFile == true) { mediaPlayer }
+        bindMovementVideoViewport(cropContainer, videoView, overlayView, videoFile?.isFile == true, { verticalBounds }) { mediaPlayer }
+        surface.addOnLayoutChangeListener { _, _, _, _, _, _, _, _, _ -> applyViewport() }
 
         val root = LinearLayout(context).apply {
             orientation = LinearLayout.VERTICAL
@@ -146,15 +158,21 @@ class MovementExpandedInspectionDialog(
         root.addView(modeRow)
 
         // Main Surface
-        val surface = FrameLayout(context).apply {
+        cropContainer.apply {
+            clipChildren = true
+            clipToOutline = true
+            outlineProvider = android.view.ViewOutlineProvider.BOUNDS
+            addView(videoView, FrameLayout.LayoutParams(-1, -1, Gravity.CENTER))
+            addView(overlayView, FrameLayout.LayoutParams(-1, -1))
+        }
+        surface.apply {
             background = GradientDrawable().apply {
                 setColor(ContextCompat.getColor(context, R.color.profile_avatar_background))
                 cornerRadius = 12f * density
                 setStroke(1.dp(), ContextCompat.getColor(context, R.color.app_border))
             }
             clipToOutline = true
-            addView(videoView, FrameLayout.LayoutParams(-1, -1, Gravity.CENTER))
-            addView(overlayView, FrameLayout.LayoutParams(-1, -1))
+            addView(cropContainer, FrameLayout.LayoutParams(-1, -1))
             addView(graphView, FrameLayout.LayoutParams(-1, -1))
             addView(unavailableLabel, FrameLayout.LayoutParams(-1, -1))
         }
@@ -193,12 +211,12 @@ class MovementExpandedInspectionDialog(
             setOnClickListener { timelineState.setPlaying(false); timelineState.stepPreviousSample() }
         }
         playButton.apply {
-            setImageResource(R.drawable.ic_player_play)
+            updatePlayButtonIcon(timelineState.playbackControlState)
             setBackgroundColor(Color.TRANSPARENT)
             imageTintList = ColorStateList.valueOf(ContextCompat.getColor(context, R.color.app_accent))
             minimumHeight = 48.dp()
             minimumWidth = 48.dp()
-            setOnClickListener { timelineState.setPlaying(!timelineState.isPlaying) }
+            setOnClickListener { timelineState.togglePlayOrReplay() }
         }
         val nextBtn = Button(context).apply {
             contentDescription = "Next frame sample"
@@ -264,8 +282,24 @@ class MovementExpandedInspectionDialog(
         updatePlaybackState(timelineState.isPlaying)
     }
 
+    private fun applyViewport() {
+        val mp = mediaPlayer ?: return
+        if (surface.width > 0 && surface.height > 0) {
+            applyMovementVideoViewport(
+                cropContainer = cropContainer,
+                video = videoView,
+                overlay = overlayView,
+                viewBounds = RectF(0f, 0f, surface.width.toFloat(), surface.height.toFloat()),
+                videoWidth = mp.videoWidth,
+                videoHeight = mp.videoHeight,
+                verticalBounds = verticalBounds,
+            )
+        }
+    }
+
     internal fun onVideoPrepared(mp: android.media.MediaPlayer) {
         mediaPlayer = mp
+        applyViewport()
         videoSeeking.onPrepared(mp)
         overlayView.invalidate()
         if (timelineState.currentMode != PlayerMode.GRAPH) videoSeeking.seekToUs(timelineState.currentTimestampUs)
@@ -318,8 +352,9 @@ class MovementExpandedInspectionDialog(
     internal fun onVideoPosition(positionMs: Int) {
         if (cleanedUp || videoSeeking.isPending || !timelineState.isPlaying || timelineState.currentMode == PlayerMode.GRAPH) return
         val positionUs = positionMs * 1000L
+        val targetLimit = timelineState.canonicalImpactUs ?: timelineState.playbackEndUs
         timelineState.updatePlaybackPositionUs(positionUs)
-        if (positionUs >= timelineState.playbackEndUs) timelineState.setPlaying(false)
+        if (positionUs >= targetLimit) timelineState.setPlaying(false)
     }
 
     override fun onModeChanged(mode: PlayerMode) {
@@ -336,6 +371,10 @@ class MovementExpandedInspectionDialog(
 
     override fun onPlaybackStateChanged(isPlaying: Boolean) {
         updatePlaybackState(isPlaying)
+    }
+
+    override fun onPlaybackControlStateChanged(controlState: PlaybackControlState) {
+        updatePlayButtonIcon(controlState)
     }
 
     override fun onPlaybackRateChanged(rate: Double) {
@@ -373,11 +412,13 @@ class MovementExpandedInspectionDialog(
         unavailableLabel.setPadding(8.dp(), 8.dp(), 8.dp(), 8.dp())
         when (mode) {
             PlayerMode.VIDEO -> {
+                cropContainer.visibility = if (hasVideo) View.VISIBLE else View.GONE
                 videoView.visibility = if (hasVideo) View.VISIBLE else View.GONE
                 overlayView.visibility = View.GONE
                 graphView.visibility = View.GONE
             }
             PlayerMode.ANALYSIS -> {
+                cropContainer.visibility = View.VISIBLE
                 videoView.visibility = if (hasVideo) View.VISIBLE else View.GONE
                 overlayView.visibility = View.VISIBLE
                 graphView.visibility = View.GONE
@@ -385,11 +426,13 @@ class MovementExpandedInspectionDialog(
             PlayerMode.GRAPH -> {
                 videoView.pause()
                 runCatching { mediaPlayer?.let { if (it.isPlaying) it.pause() } }
+                cropContainer.visibility = View.GONE
                 videoView.visibility = View.GONE
                 overlayView.visibility = View.GONE
                 graphView.visibility = View.VISIBLE
             }
             PlayerMode.POSE -> {
+                cropContainer.visibility = View.GONE
                 videoView.visibility = View.GONE
                 overlayView.visibility = View.GONE
                 graphView.visibility = View.GONE
@@ -406,9 +449,8 @@ class MovementExpandedInspectionDialog(
 
     private fun updatePlaybackState(playing: Boolean) {
         if (cleanedUp) return
+        updatePlayButtonIcon(timelineState.playbackControlState)
         if (playing) {
-            playButton.setImageResource(R.drawable.ic_player_pause)
-            playButton.contentDescription = "Pause"
             onPlaybackRateChanged(timelineState.playbackRate)
             if (timelineState.currentMode != PlayerMode.GRAPH && videoFile?.isFile == true && !videoView.isPlaying) {
                 videoView.start()
@@ -417,11 +459,26 @@ class MovementExpandedInspectionDialog(
             lastTickMs = SystemClock.uptimeMillis()
             handler.post(playbackTick)
         } else {
-            playButton.setImageResource(R.drawable.ic_player_play)
-            playButton.contentDescription = "Play"
             videoView.pause()
             runCatching { mediaPlayer?.let { if (it.isPlaying) it.pause() } }
             handler.removeCallbacks(playbackTick)
+        }
+    }
+
+    private fun updatePlayButtonIcon(controlState: PlaybackControlState) {
+        when (controlState) {
+            PlaybackControlState.PLAYING -> {
+                playButton.setImageResource(R.drawable.ic_player_pause)
+                playButton.contentDescription = "Pause"
+            }
+            PlaybackControlState.PAUSED_PLAY -> {
+                playButton.setImageResource(R.drawable.ic_player_play)
+                playButton.contentDescription = "Play"
+            }
+            PlaybackControlState.PAUSED_REPLAY -> {
+                playButton.setImageResource(R.drawable.ic_player_replay)
+                playButton.contentDescription = "Replay"
+            }
         }
     }
 

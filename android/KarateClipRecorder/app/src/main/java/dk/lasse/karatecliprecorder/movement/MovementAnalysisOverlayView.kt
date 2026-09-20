@@ -50,6 +50,12 @@ class MovementAnalysisOverlayView(
             invalidate()
         }
 
+    var showAllRays: Boolean = false
+        set(value) {
+            field = value
+            invalidate()
+        }
+
     var videoBoundsProvider: () -> RectF? = { RectF(0f, 0f, width.toFloat(), height.toFloat()) }
 
     init {
@@ -133,8 +139,9 @@ class MovementAnalysisOverlayView(
             canvas.drawCircle(wr.x, wr.y, 7f * density, paint)
         }
 
-        // Draw target rays
-        overlay.rays.forEach { ray ->
+        // Draw target rays (render only closest ray by default to avoid visual clutter)
+        val raysToDraw = if (showAllRays) overlay.rays else overlay.rays.filter { it.isClosest }
+        raysToDraw.forEach { ray ->
             val orig = toPx(ray.origin)
             val tgt = ray.targetPoint?.let { toPx(it) }
 

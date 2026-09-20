@@ -44,16 +44,18 @@ data class StraightPunchTargetEvaluation(
 ) {
     companion object {
         const val ARM_REACH_PROVENANCE = "anatomical_segment_sum_v1"
+        const val MULTI_FRAME_REACH_PROVENANCE = "multi_frame_stable_segment_sum_v1"
     }
 }
 
 /**
  * Evaluates terminal arm ray direction against ideal Jōdan, Chūdan, and Gedan target rays
- * in a shoulder-centered body-relative coordinate frame.
+ * in a shoulder-centered body-relative coordinate frame using aspect-correct Euclidean geometry.
  */
 class StraightPunchTargetCalculator(
     private val chinEstimator: SideViewChinEstimator = SideViewChinEstimator(),
     private val explicitGedanTarget: TargetId? = null,
+    val aspectRatio: Float = 1.0f,
 ) {
     private val jodanModel = JodanTargetModel(chinEstimator)
     private val chudanModel = ChudanTargetModel()
@@ -65,9 +67,19 @@ class StraightPunchTargetCalculator(
         activeArm: ActiveArm,
         chinProjectionMultiplier: Float = PunchHeightAnalyzer.DEFAULT_CHIN_PROJECTION_MULTIPLIER,
         explicitGedanTarget: TargetId? = this.explicitGedanTarget,
+        stableArmReachRadius: Float? = null,
+        stableArmReachProvenance: String? = null,
     ): StraightPunchTargetEvaluation {
         val tracked = TrackedPoseFrame(frame.timestampMs, frame.landmarks)
-        return evaluate(tracked, bodyReference, activeArm, chinProjectionMultiplier, explicitGedanTarget)
+        return evaluate(
+            tracked,
+            bodyReference,
+            activeArm,
+            chinProjectionMultiplier,
+            explicitGedanTarget,
+            stableArmReachRadius,
+            stableArmReachProvenance,
+        )
     }
 
     fun evaluate(
@@ -76,6 +88,8 @@ class StraightPunchTargetCalculator(
         activeArm: ActiveArm,
         chinProjectionMultiplier: Float = PunchHeightAnalyzer.DEFAULT_CHIN_PROJECTION_MULTIPLIER,
         explicitGedanTarget: TargetId? = this.explicitGedanTarget,
+        stableArmReachRadius: Float? = null,
+        stableArmReachProvenance: String? = null,
     ): StraightPunchTargetEvaluation {
         val timestampMs = frame.timestampMs
 
@@ -138,12 +152,28 @@ class StraightPunchTargetCalculator(
             wrist
         }
 
-        // Full anatomical arm reach radius R: upper arm + forearm/fist segments
-        val upperArmLength = (elbow - shoulder).length2d()
-        val forearmLength = (fist - elbow).length2d()
-        val armReach = upperArmLength + forearmLength
+        fun toAspect(pt: Point3): Point3 = Point3(pt.x * aspectRatio, pt.y, pt.z)
+        fun toNorm(pt: Point3): Point3 = Point3(pt.x / aspectRatio, pt.y, pt.z)
 
-        if (armReach <= 0.001f || upperArmLength <= 0.0005f || forearmLength <= 0.0005f) {
+        val shoulderA = toAspect(shoulder)
+        val elbowA = toAspect(elbow)
+        val wristA = toAspect(wrist)
+        val fistA = toAspect(fist)
+
+        val upperArmLengthA = (elbowA - shoulderA).length2d()
+        val forearmLengthA = (fistA - elbowA).length2d()
+        val armReach = if (stableArmReachRadius != null && stableArmReachRadius > 0.001f) {
+            stableArmReachRadius
+        } else {
+            upperArmLengthA + forearmLengthA
+        }
+        val reachProvenance = if (stableArmReachRadius != null && stableArmReachRadius > 0.001f) {
+            stableArmReachProvenance ?: "stable_arm_reach_v1"
+        } else {
+            StraightPunchTargetEvaluation.ARM_REACH_PROVENANCE
+        }
+
+        if (armReach <= 0.001f || upperArmLengthA <= 0.0005f || forearmLengthA <= 0.0005f) {
             return StraightPunchTargetEvaluation(
                 state = TargetRayState.ABSTAINED,
                 activeArm = activeArm,
@@ -153,13 +183,14 @@ class StraightPunchTargetCalculator(
                 elbowPoint = elbow,
                 wristPoint = wrist,
                 armReachRadius = armReach,
+                armReachProvenance = reachProvenance,
                 reason = "degenerate_arm_reach_radius",
             )
         }
 
-        val actualRay = fist - shoulder
-        val actualDistance = actualRay.length2d()
-        if (actualDistance <= 0.0005f) {
+        val actualRayA = fistA - shoulderA
+        val actualDistanceA = actualRayA.length2d()
+        if (actualDistanceA <= 0.0005f) {
             return StraightPunchTargetEvaluation(
                 state = TargetRayState.ABSTAINED,
                 activeArm = activeArm,
@@ -169,27 +200,60 @@ class StraightPunchTargetCalculator(
                 elbowPoint = elbow,
                 wristPoint = wrist,
                 armReachRadius = armReach,
+                armReachProvenance = reachProvenance,
                 reason = "zero_arm_extension_ray",
             )
         }
 
-        // Orthonormal body coordinate frame: (u_forward, u_up)
-        // torsoAxis points from shoulder to hip (downwards).
-        val uDown = bodyReference.torsoAxis
+        // Orthonormal body coordinate frame in aspect-corrected space: (uForward, uUp)
+        // Locked neutral vertical axis derived from BodyReference torsoAxis (pointing downwards).
+        val refTorsoA = Point3(bodyReference.torsoAxis.x * aspectRatio, bodyReference.torsoAxis.y, 0f)
+        val refTorsoLenA = refTorsoA.length2d()
+        val uDown = if (refTorsoLenA > 0.0001f) refTorsoA * (1f / refTorsoLenA) else Point3(0f, 1f, 0f)
         val uUp = Point3(-uDown.x, -uDown.y, 0f)
 
-        // The two unit vectors perpendicular to torsoAxis in 2D:
         val p1 = Point3(-uDown.y, uDown.x, 0f)
         val p2 = Point3(uDown.y, -uDown.x, 0f)
-        val uForward = if (actualRay.dot2d(p1) >= actualRay.dot2d(p2)) p1 else p2
+        val uForward = if (actualRayA.dot2d(p1) >= actualRayA.dot2d(p2)) p1 else p2
 
-        val actualForward = actualRay.dot2d(uForward)
-        val actualUp = actualRay.dot2d(uUp)
+        val actualForward = actualRayA.dot2d(uForward)
+        val actualUp = actualRayA.dot2d(uUp)
         val actualAngleDeg = Math.toDegrees(atan2(actualUp.toDouble(), actualForward.toDouble())).toFloat()
-        val elbowAngle = angleDegrees(shoulder, elbow, wrist)
+        val elbowAngle = angleDegrees(shoulderA, elbowA, wristA)
+
+        // Retrieve stable current body origin from impact frame (bilateral hip midpoint)
+        val leftHipSample = frame.landmarks[PoseLandmarkId.LEFT_HIP]
+        val rightHipSample = frame.landmarks[PoseLandmarkId.RIGHT_HIP]
+        val leftHip = leftHipSample?.takeIf { it.isObserved() }?.position ?: leftHipSample?.position
+        val rightHip = rightHipSample?.takeIf { it.isObserved() }?.position ?: rightHipSample?.position
+
+        val currentBodyOrigin = when {
+            leftHip != null && rightHip != null -> Point3((leftHip.x + rightHip.x) * 0.5f, (leftHip.y + rightHip.y) * 0.5f, (leftHip.z + rightHip.z) * 0.5f)
+            leftHip != null -> leftHip
+            rightHip != null -> rightHip
+            else -> null
+        }
+
+        if (currentBodyOrigin == null) {
+            return StraightPunchTargetEvaluation(
+                state = TargetRayState.ABSTAINED,
+                activeArm = activeArm,
+                analysisFrameTimestampMs = timestampMs,
+                shoulderPoint = shoulder,
+                fistPoint = fist,
+                elbowPoint = elbow,
+                wristPoint = wrist,
+                armReachRadius = armReach,
+                armReachProvenance = reachProvenance,
+                reason = "missing_body_origin_landmarks",
+            )
+        }
+
+        val currentBodyOriginA = toAspect(currentBodyOrigin)
+        val neutralBodyOriginA = toAspect(bodyReference.hipPoint)
+        val bodyTranslationA = currentBodyOriginA - neutralBodyOriginA
 
         val effectiveGedanModel = if (explicitGedanTarget != this.explicitGedanTarget) GedanTargetModel(explicitGedanTarget) else gedanModel
-        // Evaluate all three targets: JODAN, CHUDAN, GEDAN
         val targets = listOf(
             PunchHeightTargetType.JODAN to jodanModel.evaluate(frame, bodyReference, chinProjectionMultiplier),
             PunchHeightTargetType.CHUDAN to chudanModel.evaluate(frame, bodyReference, chinProjectionMultiplier),
@@ -211,9 +275,13 @@ class StraightPunchTargetCalculator(
                 continue
             }
 
-            val targetPoint = target.targetPoint
-            val delta = targetPoint - shoulder
-            val hT = delta.dot2d(uUp)
+            // Transport neutral anatomical target point with stable body origin translation
+            val neutralTargetPointA = toAspect(target.targetPoint)
+            val currentAnatomicalTargetA = neutralTargetPointA + bodyTranslationA
+            val currentAnatomicalTargetNorm = toNorm(currentAnatomicalTargetA)
+
+            // Signed vertical offset along locked neutral vertical axis uUp from striking shoulder
+            val hT = (currentAnatomicalTargetA - shoulderA).dot2d(uUp)
 
             val xSq = armReach * armReach - hT * hT
             if (xSq < 0f) {
@@ -221,18 +289,18 @@ class StraightPunchTargetCalculator(
                     targetType = targetType,
                     state = TargetRayState.UNREACHABLE,
                     concreteTargetId = target.targetId,
-                    targetPoint = targetPoint,
+                    targetPoint = currentAnatomicalTargetNorm,
                     reason = "target_outside_reach_circle",
                 )
                 continue
             }
 
             val xForward = sqrt(xSq)
-            val idealRay = uForward * xForward + uUp * hT
-            val idealEndpoint = shoulder + idealRay
+            val idealRayA = uForward * xForward + uUp * hT
+            val idealEndpointA = shoulderA + idealRayA
+            val idealEndpointNorm = toNorm(idealEndpointA)
             val idealAngleDeg = Math.toDegrees(atan2(hT.toDouble(), xForward.toDouble())).toFloat()
 
-            // Signed error convention: positive = actual direction above ideal target, negative = below
             val errorDeg = actualAngleDeg - idealAngleDeg
 
             targetResults[targetType] = TargetRayEvaluation(
@@ -241,8 +309,8 @@ class StraightPunchTargetCalculator(
                 concreteTargetId = target.targetId,
                 idealAngleDeg = idealAngleDeg,
                 errorDeg = errorDeg,
-                targetPoint = targetPoint,
-                idealEndpoint = idealEndpoint,
+                targetPoint = currentAnatomicalTargetNorm,
+                idealEndpoint = idealEndpointNorm,
             )
         }
 
@@ -259,6 +327,7 @@ class StraightPunchTargetCalculator(
                 wristPoint = wrist,
                 actualAngleDeg = actualAngleDeg,
                 armReachRadius = armReach,
+                armReachProvenance = reachProvenance,
                 elbowAngleDeg = elbowAngle,
                 targetResults = targetResults,
                 reason = "no_valid_target_geometry",
@@ -283,6 +352,7 @@ class StraightPunchTargetCalculator(
             wristPoint = wrist,
             actualAngleDeg = actualAngleDeg,
             armReachRadius = armReach,
+            armReachProvenance = reachProvenance,
             elbowAngleDeg = elbowAngle,
             closestTarget = closest.targetType,
             closestConcreteTargetId = closest.concreteTargetId,

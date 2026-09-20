@@ -160,6 +160,14 @@ class TrainingRepository(private val database: KarateTrainingDatabase, val stora
         return completedTrack != null
     }
 
+    fun canReprocessLandmarks(sessionId: String): Boolean {
+        val rec = recording(sessionId) ?: return false
+        if (rec.sourceState != SourceState.AVAILABLE || !file(rec.filePath).isFile) return false
+        val currentJob = job(sessionId)
+        if (currentJob?.state in setOf(QueueState.PROCESSING, QueueState.DELETING)) return false
+        return true
+    }
+
     fun prepareReanalysisRun(sessionId: String): Pair<ProcessingRun, LandmarkTrack> = atomic {
         check(canReanalyze(sessionId)) { "Reanalysis cannot proceed: valid landmark evidence is not available" }
         val rec = requireNotNull(recording(sessionId))
@@ -182,6 +190,26 @@ class TrainingRepository(private val database: KarateTrainingDatabase, val stora
         )
         dao.insert(ProcessingRunRow(run))
         run to track
+    }
+
+    fun prepareLandmarkReprocessRun(sessionId: String): ProcessingRun = atomic {
+        check(canReprocessLandmarks(sessionId)) { "Landmark reprocessing cannot proceed: master video is unavailable" }
+        val session = requireNotNull(session(sessionId))
+        val plan = RecordingProcessingPlans.forSession(session)
+        val run = ProcessingRun(
+            sessionId = sessionId,
+            mode = RunMode.LANDMARK_REPROCESS,
+            sourceLandmarkTrackId = null,
+            planKey = plan.key,
+            planVersion = plan.version,
+            segmenterVersion = TrainingSessionProcessor.SEGMENTATION_VERSION,
+            analyzerKey = plan.analyzers.firstOrNull(),
+            analyzerVersion = "1",
+            state = RunState.PROCESSING,
+            isCurrent = false,
+        )
+        dao.insert(ProcessingRunRow(run))
+        run
     }
 
     /** Idempotent checkpoint. Never replace already identified physical movements on retry. */

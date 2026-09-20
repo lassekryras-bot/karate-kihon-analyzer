@@ -122,7 +122,9 @@ class RecordingsActivity : AppCompatActivity() {
                     val results = preferred?.let { a -> repo.resultsForAnalysis(a.analysisId) } ?: emptyList()
                     MovementItem(m, preferred, results)
                 }
-                SegmentData(items, currentRun, repo.canReanalyze(id))
+                val rec = repo.recording(id)
+                val tracks = rec?.let { repo.tracks(it.recordingId) } ?: emptyList()
+                SegmentData(items, currentRun, repo.canReanalyze(id), repo.canReprocessLandmarks(id), tracks)
             })
         }) { result ->
             loading = false
@@ -303,12 +305,19 @@ class RecordingsActivity : AppCompatActivity() {
 
             val currentRun = segmentData?.currentRun ?: row.currentRun
             if (currentRun != null) {
-                val trackLabel = if (currentRun.mode == RunMode.REANALYSIS) {
-                    "Landmarks: ${currentRun.sourceLandmarkTrackId ?: "none"} (reused existing MLS)"
-                } else {
-                    "Landmarks: ${currentRun.sourceLandmarkTrackId ?: "none"}"
+                val trackLabel = when (currentRun.mode) {
+                    RunMode.REANALYSIS -> "Landmarks: ${currentRun.sourceLandmarkTrackId ?: "none"} (reused existing MLS)"
+                    RunMode.LANDMARK_REPROCESS -> "Landmarks: ${currentRun.sourceLandmarkTrackId ?: "none"} (generated new MLS from master video)"
+                    RunMode.INITIAL -> "Landmarks: ${currentRun.sourceLandmarkTrackId ?: "none"}"
                 }
                 detailsBox.addView(label(trackLabel, 13f))
+                val track = segmentData?.tracks?.firstOrNull { it.landmarkTrackId == currentRun.sourceLandmarkTrackId }
+                val modelVariant = if (track?.pipelineVersion?.contains("pose_heavy") == true) "Heavy"
+                    else if (track?.pipelineVersion?.contains("pose_full") == true) "Full"
+                    else null
+                if (modelVariant != null) {
+                    detailsBox.addView(label("Pose model: $modelVariant", 13f))
+                }
                 currentRun.segmenterVersion?.let { detailsBox.addView(label("Segmentation: $it", 13f)) }
                 val analyzerStr = listOfNotNull(currentRun.analyzerKey, currentRun.analyzerVersion?.let { "v$it" }).joinToString(" ")
                 if (analyzerStr.isNotEmpty()) detailsBox.addView(label("Analysis: $analyzerStr", 13f))
@@ -341,28 +350,47 @@ class RecordingsActivity : AppCompatActivity() {
                     }
                 }.apply { (layoutParams as? ViewGroup.MarginLayoutParams)?.topMargin = dp(6) })
             }
-            if (AppPreferences(this@RecordingsActivity).developerMode && segmentData?.canReanalyze == true &&
-                row.processing?.state != QueueState.PROCESSING) {
-                utils.addView(button("Reanalyze with current pipeline") {
-                    AlertDialog.Builder(this@RecordingsActivity)
-                        .setTitle("Reanalyze recording?")
-                        .setMessage("Reuse the existing landmark stream and run the current segmentation and analysis again. The original video and previous successful result will not be changed unless the new run completes successfully.")
-                        .setNegativeButton("Cancel", null)
-                        .setPositiveButton("Reanalyze") { _, _ ->
-                            toast("Reanalysis started…")
-                            training.reanalyze(row.session.sessionId) { result ->
-                                result.onSuccess {
-                                    toast("Reanalysis complete")
-                                }.onFailure { err ->
-                                    toast("Reanalysis failed: ${err.message}")
+            if (AppPreferences(this@RecordingsActivity).developerMode && row.processing?.state != QueueState.PROCESSING) {
+                if (segmentData?.canReanalyze == true) {
+                    utils.addView(button("Reanalyze with current pipeline") {
+                        AlertDialog.Builder(this@RecordingsActivity)
+                            .setTitle("Reanalyze recording?")
+                            .setMessage("Reuse the existing landmark stream and run the current segmentation and analysis again. The original video and previous successful result will not be changed unless the new run completes successfully.")
+                            .setNegativeButton("Cancel", null)
+                            .setPositiveButton("Reanalyze") { _, _ ->
+                                toast("Reanalysis started…")
+                                training.reanalyze(row.session.sessionId) { result ->
+                                    result.onSuccess {
+                                        toast("Reanalysis complete")
+                                    }.onFailure { err ->
+                                        toast("Reanalysis failed: ${err.message}")
+                                    }
+                                    load()
                                 }
-                                load()
                             }
-                        }
-                        .show()
-                }.apply {
-                    (layoutParams as? ViewGroup.MarginLayoutParams)?.topMargin = dp(6)
-                })
+                            .show()
+                    }.apply { (layoutParams as? ViewGroup.MarginLayoutParams)?.topMargin = dp(6) })
+                }
+                if (segmentData?.canReprocessLandmarks == true) {
+                    utils.addView(button("Reprocess landmarks & reanalyze") {
+                        AlertDialog.Builder(this@RecordingsActivity)
+                            .setTitle("Reprocess landmarks and analysis?")
+                            .setMessage("Run the current pose model again on the original video, create a new landmark stream, then rerun segmentation and analysis. Existing landmark streams and successful results will be preserved.")
+                            .setNegativeButton("Cancel", null)
+                            .setPositiveButton("Reprocess") { _, _ ->
+                                toast("Landmark reprocessing started…")
+                                training.reprocessLandmarksAndReanalyze(row.session.sessionId) { result ->
+                                    result.onSuccess {
+                                        toast("Landmark reprocessing complete")
+                                    }.onFailure { err ->
+                                        toast("Landmark reprocessing failed: ${err.message}")
+                                    }
+                                    load()
+                                }
+                            }
+                            .show()
+                    }.apply { (layoutParams as? ViewGroup.MarginLayoutParams)?.topMargin = dp(6) })
+                }
             }
             utils.addView(button("Delete recording") {
                 AlertDialog.Builder(this@RecordingsActivity).setTitle("Delete recording?")
@@ -741,6 +769,8 @@ private data class SegmentData(
     val movements: List<MovementItem>,
     val currentRun: ProcessingRun?,
     val canReanalyze: Boolean,
+    val canReprocessLandmarks: Boolean = false,
+    val tracks: List<LandmarkTrack> = emptyList(),
 )
 private data class BrowserLoad(val summaries: List<RecordingSummary>, val segments: SegmentData?)
 

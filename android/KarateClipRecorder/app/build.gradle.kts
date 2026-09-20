@@ -30,6 +30,7 @@ android {
     }
     // Robolectric loads the tested variant's assets; release APKs do not include schemas.
     sourceSets.getByName("debug").assets.srcDir("schemas")
+    sourceSets.getByName("main").assets.srcDir(file("../../../input/models"))
 }
 
 room { schemaDirectory("$projectDir/schemas") }

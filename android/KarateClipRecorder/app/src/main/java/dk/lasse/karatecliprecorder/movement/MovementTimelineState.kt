@@ -9,6 +9,12 @@ enum class PlayerMode {
     POSE,
 }
 
+enum class PlaybackControlState {
+    PLAYING,
+    PAUSED_PLAY,
+    PAUSED_REPLAY,
+}
+
 data class NamedEvent(
     val name: String,
     val timestampUs: Long,
@@ -26,6 +32,8 @@ class MovementTimelineState(
     initialPlotKey: String? = null,
     val knownSampleTimestampsUs: List<Long> = emptyList(),
     val namedEvents: List<NamedEvent> = emptyList(),
+    val canonicalImpactUs: Long? = null,
+    val replayStartUs: Long = playbackStartUs,
 ) {
     init {
         require(playbackStartUs >= 0) { "playbackStartUs must be non-negative" }
@@ -56,6 +64,24 @@ class MovementTimelineState(
             (currentTimestampUs - playbackStartUs).toDouble() / durationUs.toDouble()
         } else 0.0
 
+    val playbackControlState: PlaybackControlState
+        get() = when {
+            isPlaying -> PlaybackControlState.PLAYING
+            canonicalImpactUs != null && currentTimestampUs >= canonicalImpactUs -> PlaybackControlState.PAUSED_REPLAY
+            currentTimestampUs >= playbackEndUs -> PlaybackControlState.PAUSED_REPLAY
+            else -> PlaybackControlState.PAUSED_PLAY
+        }
+
+    private var lastControlState: PlaybackControlState = playbackControlState
+
+    private fun checkControlStateChange() {
+        val newState = playbackControlState
+        if (newState != lastControlState) {
+            lastControlState = newState
+            listeners.forEach { it.onPlaybackControlStateChanged(newState) }
+        }
+    }
+
     private val listeners = CopyOnWriteArrayList<TimelineListener>()
 
     interface TimelineListener {
@@ -64,6 +90,7 @@ class MovementTimelineState(
         fun onModeChanged(mode: PlayerMode) {}
         fun onSelectedPlotKeyChanged(key: String?) {}
         fun onPlaybackStateChanged(isPlaying: Boolean) {}
+        fun onPlaybackControlStateChanged(controlState: PlaybackControlState) {}
         fun onPlaybackRateChanged(rate: Double) {}
     }
 
@@ -84,14 +111,35 @@ class MovementTimelineState(
             listeners.forEach { it.onTimestampChanged(clamped, p) }
             listeners.forEach { it.onSeekRequested(clamped) }
         }
+        checkControlStateChange()
     }
 
     /** Observing playback must never send a seek back to the decoder. */
     fun updatePlaybackPositionUs(timestampUs: Long) {
+        val targetLimit = canonicalImpactUs ?: playbackEndUs
         val clamped = timestampUs.coerceIn(playbackStartUs, playbackEndUs)
+        if (isPlaying && clamped >= targetLimit) {
+            currentTimestampUs = targetLimit
+            val p = progress
+            listeners.forEach { it.onTimestampChanged(targetLimit, p) }
+            setPlaying(false)
+            return
+        }
         currentTimestampUs = clamped
         val p = progress
         listeners.forEach { it.onTimestampChanged(clamped, p) }
+        checkControlStateChange()
+    }
+
+    fun togglePlayOrReplay() {
+        if (isPlaying) {
+            setPlaying(false)
+        } else {
+            if (playbackControlState == PlaybackControlState.PAUSED_REPLAY) {
+                seekUs(replayStartUs)
+            }
+            setPlaying(true)
+        }
     }
 
     fun seekProgress(progress: Double) {
@@ -114,11 +162,13 @@ class MovementTimelineState(
 
     fun setPlaying(playing: Boolean) {
         if (isPlaying == playing) return
-        if (playing && currentTimestampUs >= playbackEndUs) {
-            seekUs(playbackStartUs)
+        val targetLimit = canonicalImpactUs ?: playbackEndUs
+        if (playing && currentTimestampUs >= targetLimit) {
+            seekUs(replayStartUs)
         }
         isPlaying = playing
         listeners.forEach { it.onPlaybackStateChanged(playing) }
+        checkControlStateChange()
     }
 
     fun setPlaybackRate(rate: Double) {

@@ -43,29 +43,35 @@ class StraightPunchTargetCalculatorTest {
         mouth: Point3 = Point3(0.45f, 0.20f, 0f),
         activeArm: ActiveArm = ActiveArm.LEFT,
         missingLandmark: PoseLandmarkId? = null,
+        includeFingers: Boolean = true,
+        hip: Point3? = null,
     ): PoseFrame {
         val landmarks = mutableMapOf<PoseLandmarkId, PoseLandmarkSample>()
 
+        val hipPt = hip ?: Point3(shoulder.x, shoulder.y + 0.4f, shoulder.z)
         landmarks[PoseLandmarkId.LEFT_SHOULDER] = landmarkSample(shoulder.x, shoulder.y, shoulder.z)
         landmarks[PoseLandmarkId.RIGHT_SHOULDER] = landmarkSample(shoulder.x, shoulder.y, shoulder.z + 0.1f)
-        landmarks[PoseLandmarkId.LEFT_HIP] = landmarkSample(shoulder.x, shoulder.y + 0.4f, shoulder.z)
-        landmarks[PoseLandmarkId.RIGHT_HIP] = landmarkSample(shoulder.x, shoulder.y + 0.4f, shoulder.z + 0.1f)
+        landmarks[PoseLandmarkId.LEFT_HIP] = landmarkSample(hipPt.x, hipPt.y, hipPt.z)
+        landmarks[PoseLandmarkId.RIGHT_HIP] = landmarkSample(hipPt.x, hipPt.y, hipPt.z + 0.1f)
 
         landmarks[PoseLandmarkId.NOSE] = landmarkSample(nose.x, nose.y)
         landmarks[PoseLandmarkId.MOUTH_LEFT] = landmarkSample(mouth.x, mouth.y)
         landmarks[PoseLandmarkId.MOUTH_RIGHT] = landmarkSample(mouth.x, mouth.y)
 
-        val prefix = if (activeArm == ActiveArm.LEFT) "LEFT" else "RIGHT"
         if (activeArm == ActiveArm.LEFT) {
             landmarks[PoseLandmarkId.LEFT_ELBOW] = landmarkSample(elbow.x, elbow.y)
             landmarks[PoseLandmarkId.LEFT_WRIST] = landmarkSample(fist.x, fist.y)
-            landmarks[PoseLandmarkId.LEFT_INDEX] = landmarkSample(fist.x - 0.02f, fist.y)
-            landmarks[PoseLandmarkId.LEFT_PINKY] = landmarkSample(fist.x - 0.02f, fist.y + 0.01f)
+            if (includeFingers) {
+                landmarks[PoseLandmarkId.LEFT_INDEX] = landmarkSample(fist.x - 0.02f, fist.y)
+                landmarks[PoseLandmarkId.LEFT_PINKY] = landmarkSample(fist.x - 0.02f, fist.y + 0.01f)
+            }
         } else {
             landmarks[PoseLandmarkId.RIGHT_ELBOW] = landmarkSample(elbow.x, elbow.y)
             landmarks[PoseLandmarkId.RIGHT_WRIST] = landmarkSample(fist.x, fist.y)
-            landmarks[PoseLandmarkId.RIGHT_INDEX] = landmarkSample(fist.x - 0.02f, fist.y)
-            landmarks[PoseLandmarkId.RIGHT_PINKY] = landmarkSample(fist.x - 0.02f, fist.y + 0.01f)
+            if (includeFingers) {
+                landmarks[PoseLandmarkId.RIGHT_INDEX] = landmarkSample(fist.x - 0.02f, fist.y)
+                landmarks[PoseLandmarkId.RIGHT_PINKY] = landmarkSample(fist.x - 0.02f, fist.y + 0.01f)
+            }
         }
 
         if (missingLandmark != null) {
@@ -297,5 +303,210 @@ class StraightPunchTargetCalculatorTest {
         assertTrue(result.targetResults.containsKey(PunchHeightTargetType.JODAN))
         assertTrue(result.targetResults.containsKey(PunchHeightTargetType.CHUDAN))
         assertTrue(result.targetResults.containsKey(PunchHeightTargetType.GEDAN))
+    }
+
+    @Test
+    fun aspectRatioCorrectionProducesEquivalentAnglesAcrossDimensions() {
+        // Physical coordinates in meters (athlete facing left, punching Chūdan)
+        // Torso length = 0.60 m. Shoulder at (0.80, 0.50), Hip at (0.80, 1.10).
+        // Chūdan height offset hT = -0.45 * 0.60 = -0.27 m.
+        // Arm reach R = 0.60 m. xForward = sqrt(0.60^2 - 0.27^2) = sqrt(0.2871) ≈ 0.5358 m.
+        // Fist at (0.80 - 0.5358, 0.77).
+        val physShoulder = Point3(0.80f, 0.50f, 0f)
+        val physHip = Point3(0.80f, 1.10f, 0f)
+        val physFist = Point3(0.80f - 0.5358f, 0.77f, 0f)
+        val physElbow = Point3(0.80f - 0.27f, 0.63f, 0f)
+
+        // 1. Portrait camera (1080 x 1920)
+        val wPort = 1080f
+        val hPort = 1920f
+        val aspectPort = wPort / hPort
+        fun toPort(p: Point3) = Point3(p.x / wPort * 1000f, p.y / hPort * 1000f, 0f)
+
+        val portShoulder = toPort(physShoulder)
+        val portHip = toPort(physHip)
+        val portFist = toPort(physFist)
+        val portElbow = toPort(physElbow)
+
+        val bodyPort = testBodyReference(shoulder = portShoulder, hip = portHip)
+        val framePort = buildFrame(fist = portFist, elbow = portElbow, shoulder = portShoulder, hip = portHip, includeFingers = false)
+        val calcPort = StraightPunchTargetCalculator(aspectRatio = aspectPort)
+        val resultPort = calcPort.evaluate(framePort, bodyPort, ActiveArm.LEFT)
+
+        // 2. Landscape camera (1920 x 1080)
+        val wLand = 1920f
+        val hLand = 1080f
+        val aspectLand = wLand / hLand
+        fun toLand(p: Point3) = Point3(p.x / wLand * 1000f, p.y / hLand * 1000f, 0f)
+
+        val landShoulder = toLand(physShoulder)
+        val landHip = toLand(physHip)
+        val landFist = toLand(physFist)
+        val landElbow = toLand(physElbow)
+
+        val bodyLand = testBodyReference(shoulder = landShoulder, hip = landHip)
+        val frameLand = buildFrame(fist = landFist, elbow = landElbow, shoulder = landShoulder, hip = landHip, includeFingers = false)
+        val calcLand = StraightPunchTargetCalculator(aspectRatio = aspectLand)
+        val resultLand = calcLand.evaluate(frameLand, bodyLand, ActiveArm.LEFT)
+
+        assertEquals(PunchHeightTargetType.CHUDAN, resultPort.closestTarget)
+        assertEquals(PunchHeightTargetType.CHUDAN, resultLand.closestTarget)
+
+        assertNotNull(resultPort.actualAngleDeg)
+        assertNotNull(resultLand.actualAngleDeg)
+        assertTrue(
+            "Actual angle in portrait (${resultPort.actualAngleDeg}) should match landscape (${resultLand.actualAngleDeg})",
+            abs(resultPort.actualAngleDeg!! - resultLand.actualAngleDeg!!) < 0.1f,
+        )
+
+        val idealPort = resultPort.targetResults[PunchHeightTargetType.CHUDAN]?.idealAngleDeg
+        val idealLand = resultLand.targetResults[PunchHeightTargetType.CHUDAN]?.idealAngleDeg
+        assertNotNull(idealPort)
+        assertNotNull(idealLand)
+        assertTrue(
+            "Ideal angle in portrait ($idealPort) should match landscape ($idealLand)",
+            abs(idealPort!! - idealLand!!) < 0.1f,
+        )
+
+        assertNotNull(resultPort.targetAngleErrorDeg)
+        assertNotNull(resultLand.targetAngleErrorDeg)
+        assertTrue(
+            "Target angle error in portrait (${resultPort.targetAngleErrorDeg}) should match landscape (${resultLand.targetAngleErrorDeg})",
+            abs(resultPort.targetAngleErrorDeg!! - resultLand.targetAngleErrorDeg!!) < 0.1f,
+        )
+    }
+
+    @Test
+    fun bodyTranslationPreservesTargetClassificationAndAngularError() {
+        val calculator = StraightPunchTargetCalculator()
+        val body = testBodyReference()
+
+        val baseFist = Point3(0.5f - 0.3572f, 0.48f, 0f)
+        val baseElbow = Point3(0.5f - 0.18f, 0.39f, 0f)
+        val baseFrame = buildFrame(fist = baseFist, elbow = baseElbow)
+        val baseResult = calculator.evaluate(baseFrame, body, ActiveArm.LEFT)
+
+        // Translate the entire practitioner by (+0.15, -0.08) in normalized coordinates
+        val dx = 0.15f
+        val dy = -0.08f
+        val shiftedFist = Point3(baseFist.x + dx, baseFist.y + dy, 0f)
+        val shiftedElbow = Point3(baseElbow.x + dx, baseElbow.y + dy, 0f)
+        val shiftedShoulder = Point3(0.5f + dx, 0.3f + dy, 0f)
+        val shiftedFrame = buildFrame(fist = shiftedFist, elbow = shiftedElbow, shoulder = shiftedShoulder)
+
+        val translatedResult = calculator.evaluate(shiftedFrame, body, ActiveArm.LEFT)
+
+        assertEquals(baseResult.closestTarget, translatedResult.closestTarget)
+        assertEquals(baseResult.closestConcreteTargetId, translatedResult.closestConcreteTargetId)
+        assertNotNull(baseResult.targetAngleErrorDeg)
+        assertNotNull(translatedResult.targetAngleErrorDeg)
+        assertTrue(
+            "Target angle error should remain unchanged under body translation (base=${baseResult.targetAngleErrorDeg}, translated=${translatedResult.targetAngleErrorDeg})",
+            abs(baseResult.targetAngleErrorDeg!! - translatedResult.targetAngleErrorDeg!!) < 0.05f,
+        )
+    }
+
+    @Test
+    fun instantaneousTorsoLeanAtImpactDoesNotRotateLockedTargetAxis() {
+        val calculator = StraightPunchTargetCalculator()
+        val body = testBodyReference() // locked neutral vertical axis along down (0, 1)
+
+        val idealFist = Point3(0.5f - 0.3572f, 0.48f, 0f)
+        val elbow = Point3(0.5f - 0.18f, 0.39f, 0f)
+        // Impact frame where athlete leans forward (hip shifts backward/forward)
+        val leaningFrame = buildFrame(fist = idealFist, elbow = elbow)
+        // Lean hip by +0.10 in X in the impact frame
+        val mutatedLandmarks = leaningFrame.landmarks.toMutableMap()
+        mutatedLandmarks[PoseLandmarkId.LEFT_HIP] = landmarkSample(0.60f, 0.70f, 0f)
+        val frameWithLean = PoseFrame(leaningFrame.timestampMs, mutatedLandmarks)
+
+        val resultBaseline = calculator.evaluate(leaningFrame, body, ActiveArm.LEFT)
+        val resultWithLean = calculator.evaluate(frameWithLean, body, ActiveArm.LEFT)
+
+        // With locked BodyReference, the neutral vertical axis remains upright; Chūdan ideal ray does not tilt
+        assertEquals(PunchHeightTargetType.CHUDAN, resultWithLean.closestTarget)
+        val chudanRayBaseline = resultBaseline.targetResults[PunchHeightTargetType.CHUDAN]
+        val chudanRayWithLean = resultWithLean.targetResults[PunchHeightTargetType.CHUDAN]
+        assertNotNull(chudanRayBaseline?.idealAngleDeg)
+        assertNotNull(chudanRayWithLean?.idealAngleDeg)
+        assertEquals(chudanRayBaseline!!.idealAngleDeg, chudanRayWithLean!!.idealAngleDeg)
+        assertEquals(resultBaseline.actualAngleDeg, resultWithLean.actualAngleDeg)
+    }
+
+    @Test
+    fun stableArmReachOverridesNoisyImpactFrameReach() {
+        val calculator = StraightPunchTargetCalculator()
+        val body = testBodyReference()
+
+        val idealFist = Point3(0.5f - 0.3572f, 0.48f, 0f)
+        // Noisy impact frame where elbow is misplaced, giving distorted single-frame reach
+        val noisyElbow = Point3(0.40f, 0.33f, 0f)
+        val noisyFrame = buildFrame(fist = idealFist, elbow = noisyElbow)
+
+        // When stable reach R = 0.40f is provided, ideal endpoint should use R = 0.40f
+        val result = calculator.evaluate(
+            frame = noisyFrame,
+            bodyReference = body,
+            activeArm = ActiveArm.LEFT,
+            stableArmReachRadius = 0.40f,
+            stableArmReachProvenance = StraightPunchTargetEvaluation.MULTI_FRAME_REACH_PROVENANCE,
+        )
+
+        assertEquals(0.40f, result.armReachRadius)
+        assertEquals(StraightPunchTargetEvaluation.MULTI_FRAME_REACH_PROVENANCE, result.armReachProvenance)
+        val chudanRay = result.targetResults[PunchHeightTargetType.CHUDAN]
+        assertNotNull(chudanRay?.idealEndpoint)
+        // Expected endpoint with S=(0.5, 0.3), R=0.40, hT=-0.18 is (0.5 - 0.3572, 0.48) = (0.1428, 0.48)
+        assertTrue(abs(chudanRay!!.idealEndpoint!!.x - 0.1428f) < 0.01f)
+        assertTrue(abs(chudanRay.idealEndpoint!!.y - 0.48f) < 0.01f)
+    }
+
+    @Test
+    fun fixedHipsWithRaisedStrikingShoulderLeavesTransportedChudanTargetHeightUnchanged() {
+        val calculator = StraightPunchTargetCalculator()
+        val body = testBodyReference() // shoulder at (0.5, 0.3), hip at (0.5, 0.7)
+
+        val neutralFist = Point3(0.5f - 0.3572f, 0.48f, 0f)
+        val baselineFrame = buildFrame(
+            fist = neutralFist,
+            shoulder = Point3(0.5f, 0.3f, 0f),
+            hip = Point3(0.5f, 0.7f, 0f),
+        )
+
+        // Raised striking shoulder: y = 0.25 (up 0.05 from 0.30), but hips remain fixed at y = 0.70
+        val raisedShoulderFrame = buildFrame(
+            fist = neutralFist,
+            shoulder = Point3(0.5f, 0.25f, 0f),
+            hip = Point3(0.5f, 0.7f, 0f),
+        )
+
+        val baselineEval = calculator.evaluate(baselineFrame, body, ActiveArm.LEFT)
+        val raisedEval = calculator.evaluate(raisedShoulderFrame, body, ActiveArm.LEFT)
+
+        val baselineChudan = baselineEval.targetResults[PunchHeightTargetType.CHUDAN]!!
+        val raisedChudan = raisedEval.targetResults[PunchHeightTargetType.CHUDAN]!!
+
+        // The transported Chūdan anatomical target height must be completely unchanged!
+        assertEquals(baselineChudan.targetPoint!!.y, raisedChudan.targetPoint!!.y, 1e-4f)
+
+        // But because the shoulder origin is higher (y = 0.25 vs 0.30), the ideal ray angles downward more
+        assertTrue(raisedChudan.idealAngleDeg!! < baselineChudan.idealAngleDeg!!)
+    }
+
+    @Test
+    fun missingHipLandmarksAbstainsFromTargetEvaluation() {
+        val calculator = StraightPunchTargetCalculator()
+        val body = testBodyReference()
+
+        val frame = buildFrame(fist = Point3(0.14f, 0.48f, 0f))
+        // Remove both hips
+        val missingHipsFrame = PoseFrame(
+            frame.timestampMs,
+            frame.landmarks.filterKeys { it != PoseLandmarkId.LEFT_HIP && it != PoseLandmarkId.RIGHT_HIP }
+        )
+
+        val eval = calculator.evaluate(missingHipsFrame, body, ActiveArm.LEFT)
+        assertEquals(TargetRayState.ABSTAINED, eval.state)
+        assertEquals("missing_body_origin_landmarks", eval.reason)
     }
 }
