@@ -56,6 +56,7 @@ class StraightPunchTargetCalculator(
     private val chinEstimator: SideViewChinEstimator = SideViewChinEstimator(),
     private val explicitGedanTarget: TargetId? = null,
     val aspectRatio: Float = 1.0f,
+    private var neutralChinPoint: Point3? = null,
 ) {
     private val jodanModel = JodanTargetModel(chinEstimator)
     private val chudanModel = ChudanTargetModel()
@@ -224,8 +225,8 @@ class StraightPunchTargetCalculator(
         // Retrieve stable current body origin from impact frame (bilateral hip midpoint)
         val leftHipSample = frame.landmarks[PoseLandmarkId.LEFT_HIP]
         val rightHipSample = frame.landmarks[PoseLandmarkId.RIGHT_HIP]
-        val leftHip = leftHipSample?.takeIf { it.isObserved() }?.position ?: leftHipSample?.position
-        val rightHip = rightHipSample?.takeIf { it.isObserved() }?.position ?: rightHipSample?.position
+        val leftHip = leftHipSample?.takeIf { it.isObserved() }?.position
+        val rightHip = rightHipSample?.takeIf { it.isObserved() }?.position
 
         val currentBodyOrigin = when {
             leftHip != null && rightHip != null -> Point3((leftHip.x + rightHip.x) * 0.5f, (leftHip.y + rightHip.y) * 0.5f, (leftHip.z + rightHip.z) * 0.5f)
@@ -254,8 +255,36 @@ class StraightPunchTargetCalculator(
         val bodyTranslationA = currentBodyOriginA - neutralBodyOriginA
 
         val effectiveGedanModel = if (explicitGedanTarget != this.explicitGedanTarget) GedanTargetModel(explicitGedanTarget) else gedanModel
+
+        val chinPt = bodyReference.chinPoint ?: neutralChinPoint ?: run {
+            val rawTarget = jodanModel.evaluate(frame, bodyReference, chinProjectionMultiplier)
+            if (rawTarget != null) {
+                val translation = currentBodyOrigin - bodyReference.hipPoint
+                val pt = rawTarget.targetPoint - translation
+                neutralChinPoint = pt
+                pt
+            } else null
+        }
+
+        val jodanTarget = if (chinPt != null) {
+            val mouthId = if (bodyReference.visibleSide == VisibleSide.LEFT) PoseLandmarkId.MOUTH_LEFT else PoseLandmarkId.MOUTH_RIGHT
+            val scalar = (chinPt - bodyReference.shoulderPoint).dot2d(bodyReference.torsoAxis) / bodyReference.torsoLength
+            PunchHeightTarget(
+                type = PunchHeightTargetType.JODAN,
+                targetPoint = chinPt,
+                torsoScalar = scalar,
+                tolerance = 0.055f,
+                confidence = bodyReference.confidence,
+                sourceLandmarks = setOf(PoseLandmarkId.NOSE, mouthId),
+                calculationStrategy = "neutral body reference stored chin",
+                explanation = "Jodan is aligned with your stored neutral chin height.",
+                captureEligible = true,
+                targetId = TargetId.JODAN_CHIN,
+            )
+        } else null
+
         val targets = listOf(
-            PunchHeightTargetType.JODAN to jodanModel.evaluate(frame, bodyReference, chinProjectionMultiplier),
+            PunchHeightTargetType.JODAN to jodanTarget,
             PunchHeightTargetType.CHUDAN to chudanModel.evaluate(frame, bodyReference, chinProjectionMultiplier),
             PunchHeightTargetType.GEDAN to effectiveGedanModel.evaluate(frame, bodyReference, chinProjectionMultiplier),
         )

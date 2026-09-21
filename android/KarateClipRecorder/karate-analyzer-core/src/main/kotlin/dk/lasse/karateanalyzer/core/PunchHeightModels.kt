@@ -62,6 +62,7 @@ data class BodyReference(
     val torsoAxis: Point3,
     val torsoLength: Float,
     val confidence: Float,
+    val chinPoint: Point3? = null,
 )
 
 enum class ChinTrackingSource {

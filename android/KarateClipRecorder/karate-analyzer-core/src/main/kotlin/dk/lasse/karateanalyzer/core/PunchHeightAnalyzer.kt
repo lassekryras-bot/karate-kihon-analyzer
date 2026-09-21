@@ -21,11 +21,19 @@ class PunchHeightAnalyzer(explicitGedanTarget: TargetId? = null) {
     private val stabilitySamples = ArrayDeque<StabilitySample>()
     private var holdStartedAtMs: Long? = null
     private var captureEmitted = false
+    private var setupHoldStartedAtMs: Long? = null
+    private var initializationHoldStartedAtMs: Long? = null
+    private var lastSetupTimestampMs: Long? = null
+    private var lastInitializationTimestampMs: Long? = null
 
     fun reset() {
         tracker.reset()
         setupSamples.clear()
         initializationSamples.clear()
+        setupHoldStartedAtMs = null
+        initializationHoldStartedAtMs = null
+        lastSetupTimestampMs = null
+        lastInitializationTimestampMs = null
         bodyReference = null
         chinEstimator.reset()
         resetTarget()
@@ -33,10 +41,14 @@ class PunchHeightAnalyzer(explicitGedanTarget: TargetId? = null) {
 
     fun resetSetup() {
         setupSamples.clear()
+        setupHoldStartedAtMs = null
+        lastSetupTimestampMs = null
     }
 
     fun resetBodyInitialization() {
         initializationSamples.clear()
+        initializationHoldStartedAtMs = null
+        lastInitializationTimestampMs = null
         bodyReference = null
         chinEstimator.reset()
     }
@@ -54,6 +66,13 @@ class PunchHeightAnalyzer(explicitGedanTarget: TargetId? = null) {
     fun currentBodyReference(): BodyReference? = bodyReference
 
     fun processSetup(rawFrame: PoseFrame): SetupEvaluation {
+        val gap = lastSetupTimestampMs?.let { rawFrame.timestampMs - it } ?: 0L
+        if (lastSetupTimestampMs != null && gap > MAX_FRAME_GAP_MS) {
+            setupSamples.clear()
+            setupHoldStartedAtMs = null
+        }
+        lastSetupTimestampMs = rawFrame.timestampMs
+
         val frame = tracker.track(rawFrame)
         val candidate = referenceCandidate(frame)
             ?: return setupFailure(rawFrame.timestampMs, SetupGuidance.NO_BODY)
@@ -76,11 +95,20 @@ class PunchHeightAnalyzer(explicitGedanTarget: TargetId? = null) {
         }
         setupSamples += rawFrame.timestampMs to candidate
         setupSamples.removeAll { rawFrame.timestampMs - it.first > SETUP_HOLD_MS }
-        val elapsed = setupSamples.firstOrNull()?.let { rawFrame.timestampMs - it.first } ?: 0L
         val stable = setupSamples.size >= SETUP_MIN_SAMPLES && referenceJitter(setupSamples) <= MAX_REFERENCE_JITTER
-        val progress = minOf(elapsed.toFloat() / SETUP_HOLD_MS, setupSamples.size.toFloat() / SETUP_MIN_SAMPLES)
-            .coerceIn(0f, 1f)
-        return if (stable && elapsed >= SETUP_HOLD_MS) {
+        if (stable) {
+            if (setupHoldStartedAtMs == null) {
+                setupHoldStartedAtMs = setupSamples.first().first
+            }
+        } else {
+            setupHoldStartedAtMs = null
+        }
+        val stableDurationMs = setupHoldStartedAtMs?.let { rawFrame.timestampMs - it }?.coerceAtLeast(0L) ?: 0L
+        val progress = minOf(
+            stableDurationMs.toFloat() / SETUP_HOLD_MS,
+            setupSamples.size.toFloat() / SETUP_MIN_SAMPLES,
+        ).coerceIn(0f, 1f)
+        return if (stable && stableDurationMs >= SETUP_HOLD_MS) {
             SetupEvaluation(SetupGuidance.CAMERA_READY, 1f, true, candidate.torsoLength)
         } else {
             SetupEvaluation(SetupGuidance.HOLD_STILL, progress, false, candidate.torsoLength)
@@ -88,19 +116,39 @@ class PunchHeightAnalyzer(explicitGedanTarget: TargetId? = null) {
     }
 
     fun processBodyInitialization(rawFrame: PoseFrame, chinProjectionMultiplier: Float): BodyInitializationEvaluation {
+        val gap = lastInitializationTimestampMs?.let { rawFrame.timestampMs - it } ?: 0L
+        if (lastInitializationTimestampMs != null && gap > MAX_FRAME_GAP_MS) {
+            initializationSamples.clear()
+            initializationHoldStartedAtMs = null
+        }
+        lastInitializationTimestampMs = rawFrame.timestampMs
+
         val frame = tracker.track(rawFrame)
-        val candidate = referenceCandidate(frame) ?: return BodyInitializationEvaluation(0f, null)
+        val candidate = referenceCandidate(frame)
+        if (candidate == null) {
+            initializationSamples.clear()
+            initializationHoldStartedAtMs = null
+            return BodyInitializationEvaluation(0f, null)
+        }
         initializationSamples += rawFrame.timestampMs to candidate
         initializationSamples.removeAll { rawFrame.timestampMs - it.first > INITIALIZATION_WINDOW_MS }
-        val elapsed = initializationSamples.firstOrNull()?.let { rawFrame.timestampMs - it.first } ?: 0L
+        val isStable = initializationSamples.size >= INITIALIZATION_MIN_SAMPLES &&
+            referenceJitter(initializationSamples) <= MAX_REFERENCE_JITTER
+        if (isStable) {
+            if (initializationHoldStartedAtMs == null) {
+                initializationHoldStartedAtMs = initializationSamples.first().first
+            }
+        } else {
+            initializationHoldStartedAtMs = null
+        }
+        val stableDurationMs = initializationHoldStartedAtMs?.let { rawFrame.timestampMs - it }?.coerceAtLeast(0L) ?: 0L
         val progress = minOf(
-            elapsed.toFloat() / INITIALIZATION_WINDOW_MS,
+            stableDurationMs.toFloat() / INITIALIZATION_WINDOW_MS,
             initializationSamples.size.toFloat() / INITIALIZATION_MIN_SAMPLES,
         ).coerceIn(0f, 1f)
         if (
-            elapsed < INITIALIZATION_WINDOW_MS ||
-            initializationSamples.size < INITIALIZATION_MIN_SAMPLES ||
-            referenceJitter(initializationSamples) > MAX_REFERENCE_JITTER
+            stableDurationMs < INITIALIZATION_WINDOW_MS ||
+            !isStable
         ) return BodyInitializationEvaluation(progress, null)
 
         val leftWins = initializationSamples.count { it.second.preferredSide == VisibleSide.LEFT }
@@ -116,7 +164,7 @@ class PunchHeightAnalyzer(explicitGedanTarget: TargetId? = null) {
         val torsoVector = hip - shoulder
         val torsoLength = torsoVector.length2d()
         if (torsoLength <= 0f) return BodyInitializationEvaluation(progress, null)
-        val reference = BodyReference(
+        val baseReference = BodyReference(
             visibleSide = side,
             shoulderPoint = shoulder,
             hipPoint = hip,
@@ -124,6 +172,8 @@ class PunchHeightAnalyzer(explicitGedanTarget: TargetId? = null) {
             torsoLength = torsoLength,
             confidence = initializationSamples.map { it.second.confidence }.average().toFloat().coerceIn(0f, 1f),
         )
+        val chinEstimate = chinEstimator.estimate(frame, baseReference, chinProjectionMultiplier)
+        val reference = baseReference.copy(chinPoint = chinEstimate.smoothedPoint)
         bodyReference = reference
         chinEstimator.initialize(frame, reference, chinProjectionMultiplier)
         return BodyInitializationEvaluation(1f, reference)
@@ -219,8 +269,9 @@ class PunchHeightAnalyzer(explicitGedanTarget: TargetId? = null) {
     }
 
     private fun setupFailure(timestampMs: Long, guidance: SetupGuidance, torsoLength: Float? = null): SetupEvaluation {
-        setupSamples.removeAll { timestampMs - it.first > SETUP_HOLD_MS }
         setupSamples.clear()
+        setupHoldStartedAtMs = null
+        lastSetupTimestampMs = null
         return SetupEvaluation(guidance, 0f, false, torsoLength)
     }
 
@@ -397,6 +448,7 @@ class PunchHeightAnalyzer(explicitGedanTarget: TargetId? = null) {
         const val MIN_CHIN_PROJECTION_MULTIPLIER = 0.70f
         const val MAX_CHIN_PROJECTION_MULTIPLIER = 1.50f
         const val CHIN_PROJECTION_STEP = 0.05f
+        private const val MAX_FRAME_GAP_MS = 500L
         private const val FRAME_MARGIN = 0.04f
         private const val MIN_SETUP_TORSO_LENGTH = 0.18f
         private const val MAX_SETUP_TORSO_LENGTH = 0.55f

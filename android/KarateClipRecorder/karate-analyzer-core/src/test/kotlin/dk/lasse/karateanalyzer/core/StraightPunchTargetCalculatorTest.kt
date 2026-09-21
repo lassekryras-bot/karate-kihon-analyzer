@@ -509,4 +509,59 @@ class StraightPunchTargetCalculatorTest {
         assertEquals(TargetRayState.ABSTAINED, eval.state)
         assertEquals("missing_body_origin_landmarks", eval.reason)
     }
+
+    @Test
+    fun bodyTranslationPreservesJodanTargetIdealAngle() {
+        val calculator = StraightPunchTargetCalculator()
+        val body = testBodyReference()
+
+        val idealFist = Point3(0.5f - 0.3923f, 0.222f, 0f)
+        val elbow = Point3(0.5f - 0.20f, 0.26f, 0f)
+        val baseFrame = buildFrame(fist = idealFist, elbow = elbow)
+
+        val baseEval = calculator.evaluate(baseFrame, body, ActiveArm.LEFT)
+        val baseJodan = baseEval.targetResults[PunchHeightTargetType.JODAN]!!
+        assertEquals(TargetRayState.VALID, baseJodan.state)
+        val baseIdealAngle = baseJodan.idealAngleDeg!!
+
+        // Translate the whole practitioner by (+0.15, +0.10) in normalized space
+        val dx = 0.15f
+        val dy = 0.10f
+        val shiftedFrame = buildFrame(
+            fist = Point3(idealFist.x + dx, idealFist.y + dy, 0f),
+            elbow = Point3(elbow.x + dx, elbow.y + dy, 0f),
+            shoulder = Point3(0.5f + dx, 0.3f + dy, 0f),
+            hip = Point3(0.5f + dx, 0.7f + dy, 0f),
+            nose = Point3(0.45f + dx, 0.18f + dy, 0f),
+            mouth = Point3(0.45f + dx, 0.20f + dy, 0f),
+        )
+
+        val shiftedEval = calculator.evaluate(shiftedFrame, body, ActiveArm.LEFT)
+        val shiftedJodan = shiftedEval.targetResults[PunchHeightTargetType.JODAN]!!
+
+        assertEquals(TargetRayState.VALID, shiftedJodan.state)
+        // Jōdan anatomical target must be translated by exactly dy (+0.10), NOT +0.20!
+        assertEquals(baseJodan.targetPoint!!.y + dy, shiftedJodan.targetPoint!!.y, 1e-4f)
+        assertEquals(baseJodan.targetPoint!!.x + dx, shiftedJodan.targetPoint!!.x, 1e-4f)
+
+        // The ideal ray angle from the striking shoulder must be identical under whole-body translation
+        assertEquals(baseIdealAngle, shiftedJodan.idealAngleDeg!!, 0.1f)
+    }
+
+    @Test
+    fun lowConfidenceHipsAbstainsWithMissingBodyOrigin() {
+        val calculator = StraightPunchTargetCalculator()
+        val body = testBodyReference()
+
+        val baseFrame = buildFrame(fist = Point3(0.14f, 0.48f, 0f))
+        val lowConfLandmarks = baseFrame.landmarks.toMutableMap()
+        // Set both hips to 0.10f confidence (below minimum 0.55f)
+        lowConfLandmarks[PoseLandmarkId.LEFT_HIP] = landmarkSample(0.5f, 0.7f, confidence = 0.10f)
+        lowConfLandmarks[PoseLandmarkId.RIGHT_HIP] = landmarkSample(0.5f, 0.7f, confidence = 0.10f)
+        val frame = PoseFrame(baseFrame.timestampMs, lowConfLandmarks)
+
+        val eval = calculator.evaluate(frame, body, ActiveArm.LEFT)
+        assertEquals(TargetRayState.ABSTAINED, eval.state)
+        assertEquals("missing_body_origin_landmarks", eval.reason)
+    }
 }

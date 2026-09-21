@@ -126,6 +126,28 @@ class PunchHeightAnalyzerTest {
         assertFalse(expired.captureEligible)
     }
 
+    @Test fun bodyInitializationSucceedsAtThirtyThreeMillisecondCadence() {
+        val analyzer = PunchHeightAnalyzer()
+        // Setup over ~1300ms at 33ms interval (0L..1320L step 33L)
+        var setupResult: SetupEvaluation? = null
+        for (time in 0L..1_320L step 33L) {
+            setupResult = analyzer.processSetup(poseFrame(time))
+        }
+        assertTrue(assertNotNull(setupResult).usable)
+        assertEquals(SetupGuidance.CAMERA_READY, setupResult?.guidance)
+
+        // Continuous stable body initialization over 6 seconds at 33ms interval
+        var reference: BodyReference? = null
+        for (time in 1_353L..6_000L step 33L) {
+            reference = analyzer.processBodyInitialization(poseFrame(time), 1.1f).bodyReference ?: reference
+        }
+
+        assertNotNull(reference)
+        assertEquals(VisibleSide.LEFT, reference?.visibleSide)
+        assertNotNull(reference?.chinPoint)
+        assertEquals(0.30f, reference?.torsoLength ?: 0f, 0.005f)
+    }
+
     private fun initializedAnalyzer(): PunchHeightAnalyzer = PunchHeightAnalyzer().also { analyzer ->
         for (time in 0L..1_300L step 100L) analyzer.processSetup(poseFrame(time))
         var reference: BodyReference? = null
