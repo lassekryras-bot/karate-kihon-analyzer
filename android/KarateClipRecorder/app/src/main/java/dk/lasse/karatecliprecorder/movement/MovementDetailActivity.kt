@@ -463,6 +463,71 @@ class MovementDetailActivity : AppCompatActivity() {
         debugRow("  Segmenter", debug.segmenterVersion ?: "none")
         debugRow("  Track ID", debug.landmarkTrackId ?: "none")
         debugRow("  Run ID", debug.runId ?: "none")
+
+        debug.bodyHeightDebug?.let { bh ->
+            addView(TextView(this@MovementDetailActivity).apply {
+                text = "Body Height Model:"
+                textSize = 12f
+                typeface = Typeface.create("sans-serif", Typeface.BOLD)
+                setTextColor(ContextCompat.getColor(this@MovementDetailActivity, R.color.app_text_primary))
+                setPadding(0, 6.dp(), 0, 2.dp())
+            })
+            debugRow("  Config ID", bh.configId)
+            debugRow("  Evaluation time", "${"%.3f".format(bh.selectedTimestampUs / 1_000_000.0)} s (radius: ${bh.requestedRadius})", bh.selectedTimestampUs)
+            debugRow("  Torso evidence", "${bh.torsoUsableCount} contributing, state: ${bh.torsoWindowState}")
+            if (bh.torsoContributingTimestampsUs.isNotEmpty()) {
+                bh.torsoContributingTimestampsUs.forEachIndexed { idx, ts ->
+                    debugRow("    Torso sample #${idx + 1}", "${"%.3f".format(ts / 1_000_000.0)}s (tap to seek)", ts)
+                }
+            }
+            if (bh.torsoExclusionReasons.isNotEmpty()) {
+                bh.torsoExclusionReasons.forEach { (ts, reason) ->
+                    debugRow("    Torso excluded @ ${"%.3f".format(ts / 1_000_000.0)}s", reason, ts)
+                }
+            }
+            bh.torsoDisagreementMetric?.let { debugRow("  Torso disagreement", "%.4f (aspect-corr)".format(it)) }
+
+            debugRow("  Head evidence", "${bh.headUsableCount} contributing, state: ${bh.headWindowState}")
+            if (bh.headContributingTimestampsUs.isNotEmpty()) {
+                bh.headContributingTimestampsUs.forEachIndexed { idx, ts ->
+                    debugRow("    Head sample #${idx + 1}", "${"%.3f".format(ts / 1_000_000.0)}s (tap to seek)", ts)
+                }
+            }
+            if (bh.headExclusionReasons.isNotEmpty()) {
+                bh.headExclusionReasons.forEach { (ts, reason) ->
+                    debugRow("    Head excluded @ ${"%.3f".format(ts / 1_000_000.0)}s", reason, ts)
+                }
+            }
+            bh.headDisagreementMetric?.let { debugRow("  Head disagreement", "%.4f (aspect-corr)".format(it)) }
+
+            bh.shoulderCenter?.let { debugRow("  Shoulder center", "(${ "%.3f".format(it.x) }, ${ "%.3f".format(it.y) })") }
+            bh.hipCenter?.let { debugRow("  Hip center", "(${ "%.3f".format(it.x) }, ${ "%.3f".format(it.y) })") }
+            bh.torsoCenter?.let { debugRow("  Torso center", "(${ "%.3f".format(it.x) }, ${ "%.3f".format(it.y) })") }
+            bh.headAnchor?.let { debugRow("  Head anchor", "(${ "%.3f".format(it.x) }, ${ "%.3f".format(it.y) })") }
+            bh.currentTorsoLength?.let { debugRow("  Torso length", "%.3f".format(it)) }
+            bh.currentBodyUp?.let { debugRow("  Body up (aspect-corr)", "(${ "%.3f".format(it.x) }, ${ "%.3f".format(it.y) })") }
+
+            if (bh.perSampleObservations.isNotEmpty()) {
+                addView(TextView(this@MovementDetailActivity).apply {
+                    text = "  Per-sample anchors:"
+                    textSize = 11f
+                    typeface = Typeface.create("sans-serif", Typeface.BOLD)
+                    setTextColor(ContextCompat.getColor(this@MovementDetailActivity, R.color.app_text_secondary))
+                    setPadding(0, 4.dp(), 0, 1.dp())
+                })
+                bh.perSampleObservations.forEach { s ->
+                    val sStr = s.shoulderCenter?.let { "S:(${ "%.2f".format(it.x) },${ "%.2f".format(it.y) })" } ?: "S:none"
+                    val hStr = s.hipCenter?.let { "H:(${ "%.2f".format(it.x) },${ "%.2f".format(it.y) })" } ?: "H:none"
+                    val headStr = s.headAnchor?.let { "Head:(${ "%.2f".format(it.x) },${ "%.2f".format(it.y) })" } ?: "Head:none"
+                    val trackStr = s.trackId?.let { " [$it]" } ?: ""
+                    debugRow("    @ ${"%.3f".format(s.timestampUs / 1_000_000.0)}s", "$sStr $hStr $headStr$trackStr", s.timestampUs)
+                }
+            }
+
+            debugRow("  Chūdan target [${bh.chudanEstimatorId}]", "${bh.chudanStatus}: ${bh.chudanTarget?.let { "(${ "%.3f".format(it.x) }, ${ "%.3f".format(it.y) })" } ?: "none"}")
+            debugRow("  Gedan target [${bh.gedanEstimatorId}]", "${bh.gedanStatus}: ${bh.gedanTarget?.let { "(${ "%.3f".format(it.x) }, ${ "%.3f".format(it.y) })" } ?: "none"}")
+            bh.jodanStatus?.let { debugRow("  Jōdan target [${bh.jodanEstimatorId}]", "$it: ${bh.jodanTarget?.let { pt -> "(${ "%.3f".format(pt.x) }, ${ "%.3f".format(pt.y) })" } ?: "none"}") }
+        }
     }
 
     private fun showExpandedInspection() {

@@ -2,6 +2,7 @@ package dk.lasse.karatecliprecorder.movement
 
 import android.graphics.PointF
 import dk.lasse.karateanalyzer.core.*
+import dk.lasse.karateanalyzer.geometry.FrameGeometry
 import dk.lasse.karatecliprecorder.training.*
 import kotlin.math.abs
 
@@ -59,6 +60,51 @@ data class MovementOverlayDefinition(
     val rays: List<OverlayRay> = emptyList(),
     val arm: OverlayArm? = null,
     val canonicalImpactUs: Long? = null,
+    val frameGeometry: FrameGeometry = FrameGeometry(1080, 1920),
+)
+
+data class PerSampleDebugAnchors(
+    val timestampUs: Long,
+    val shoulderCenter: PointF?,
+    val hipCenter: PointF?,
+    val headAnchor: PointF?,
+    val isTorsoValid: Boolean,
+    val isHeadValid: Boolean,
+    val trackId: String?,
+)
+
+data class BodyHeightDebugData(
+    val selectedTimestampUs: Long,
+    val requestedRadius: Int,
+    val configId: String,
+    val shoulderCenter: PointF?,
+    val hipCenter: PointF?,
+    val torsoCenter: PointF?,
+    val headAnchor: PointF?,
+    val currentTorsoLength: Float?,
+    val currentBodyUp: PointF?,
+    val torsoUsableCount: Int,
+    val torsoWindowState: String,
+    val torsoContributingTimestampsUs: List<Long> = emptyList(),
+    val torsoExcludedTimestampsUs: List<Long> = emptyList(),
+    val torsoExclusionReasons: Map<Long, String> = emptyMap(),
+    val torsoDisagreementMetric: Float? = null,
+    val headUsableCount: Int,
+    val headWindowState: String,
+    val headContributingTimestampsUs: List<Long> = emptyList(),
+    val headExcludedTimestampsUs: List<Long> = emptyList(),
+    val headExclusionReasons: Map<Long, String> = emptyMap(),
+    val headDisagreementMetric: Float? = null,
+    val chudanTarget: PointF?,
+    val chudanStatus: String,
+    val chudanEstimatorId: String = dk.lasse.karateanalyzer.height.TargetHeightEstimator.CHUDAN_RATIO_045_ID,
+    val gedanTarget: PointF?,
+    val gedanStatus: String,
+    val gedanEstimatorId: String = dk.lasse.karateanalyzer.height.TargetHeightEstimator.GEDAN_RATIO_080_ID,
+    val jodanTarget: PointF? = null,
+    val jodanStatus: String? = null,
+    val jodanEstimatorId: String = dk.lasse.karateanalyzer.height.TargetHeightEstimator.JODAN_MOUTH_NOSE_110_ID,
+    val perSampleObservations: List<PerSampleDebugAnchors> = emptyList(),
 )
 
 data class MovementDebugData(
@@ -83,6 +129,7 @@ data class MovementDebugData(
     val analysisId: String? = null,
     val analysisState: AnalysisState? = null,
     val evidenceReason: String? = null,
+    val bodyHeightDebug: BodyHeightDebugData? = null,
 )
 
 data class MovementPresentationData(
@@ -230,11 +277,72 @@ object MovementPresentationMapper {
         // In the absence of classified technique faults from the analyzer, findings remains empty.
         val findings = emptyList<FindingItem>()
 
+        val resolvedFrameGeometry = resolveCanonicalFrameGeometry(evidence.recording, frames)
+
         // Overlay definition: renders persisted analyzer geometry and active arm
-        val overlayDefinition = buildOverlayDefinition(geometry, frames, side, canonicalUs)
+        val overlayDefinition = buildOverlayDefinition(geometry, frames, side, canonicalUs, resolvedFrameGeometry)
 
         // Debug Data
         val frameIdx = geometry?.frameIndex ?: analysisResults.firstNotNullOfOrNull { it.frameIndex }
+        val bodyHeightDebug = if (frames.isNotEmpty() && canonicalUs != null) {
+            val observed = dk.lasse.karateanalyzer.height.BodyHeightModel.evaluate(
+                selectedTimestampUs = canonicalUs,
+                frames = frames,
+                frameGeometry = resolvedFrameGeometry,
+                radius = 1,
+            )
+            val chudan = dk.lasse.karateanalyzer.height.TargetHeightEstimator.estimateChudanTorsoRatio045(observed)
+            val gedan = dk.lasse.karateanalyzer.height.TargetHeightEstimator.estimateGedanTorsoRatio080(observed)
+            val jodan = dk.lasse.karateanalyzer.height.TargetHeightEstimator.estimateJodanMouthNose110(
+                selectedTimestampUs = canonicalUs,
+                frames = frames,
+                radius = 1,
+            )
+            BodyHeightDebugData(
+                selectedTimestampUs = observed.selectedTimestampUs,
+                requestedRadius = observed.requestedRadius,
+                configId = observed.configId,
+                shoulderCenter = observed.shoulderCenter?.let { PointF(it.x, it.y) },
+                hipCenter = observed.hipCenter?.let { PointF(it.x, it.y) },
+                torsoCenter = observed.torsoCenter?.let { PointF(it.x, it.y) },
+                headAnchor = observed.headAnchor?.let { PointF(it.x, it.y) },
+                currentTorsoLength = observed.currentTorsoLength,
+                currentBodyUp = observed.currentBodyUp?.let { PointF(it.x, it.y) },
+                torsoUsableCount = observed.torsoEvidence.usableCount,
+                torsoWindowState = observed.torsoEvidence.windowState.name,
+                torsoContributingTimestampsUs = observed.torsoEvidence.contributingTimestampsUs,
+                torsoExcludedTimestampsUs = observed.torsoEvidence.excludedTimestampsUs,
+                torsoExclusionReasons = observed.torsoEvidence.exclusionReasons,
+                torsoDisagreementMetric = observed.torsoEvidence.disagreementMetric,
+                headUsableCount = observed.headEvidence.usableCount,
+                headWindowState = observed.headEvidence.windowState.name,
+                headContributingTimestampsUs = observed.headEvidence.contributingTimestampsUs,
+                headExcludedTimestampsUs = observed.headEvidence.excludedTimestampsUs,
+                headExclusionReasons = observed.headEvidence.exclusionReasons,
+                headDisagreementMetric = observed.headEvidence.disagreementMetric,
+                chudanTarget = chudan.point?.let { PointF(it.x, it.y) },
+                chudanStatus = chudan.status.name,
+                chudanEstimatorId = chudan.targetId,
+                gedanTarget = gedan.point?.let { PointF(it.x, it.y) },
+                gedanStatus = gedan.status.name,
+                gedanEstimatorId = gedan.targetId,
+                jodanTarget = jodan.point?.let { PointF(it.x, it.y) },
+                jodanStatus = jodan.status.name,
+                jodanEstimatorId = jodan.targetId,
+                perSampleObservations = observed.perSampleObservations.map { s ->
+                    PerSampleDebugAnchors(
+                        timestampUs = s.timestampUs,
+                        shoulderCenter = s.shoulderCenter?.let { PointF(it.x, it.y) },
+                        hipCenter = s.hipCenter?.let { PointF(it.x, it.y) },
+                        headAnchor = s.headAnchor?.let { PointF(it.x, it.y) },
+                        isTorsoValid = s.isTorsoValid,
+                        isHeadValid = s.isHeadValid,
+                        trackId = s.trackId,
+                    )
+                },
+            )
+        } else null
+
         val debugData = MovementDebugData(
             movementId = movement.movementId,
             sessionId = movement.sessionId,
@@ -260,6 +368,7 @@ object MovementPresentationMapper {
                 "referenced_landmark_track_unavailable".takeIf { frames.isEmpty() },
                 "target_geometry_unavailable_or_unsupported".takeIf { geometry == null },
             ).joinToString("; ").ifEmpty { null },
+            bodyHeightDebug = bodyHeightDebug,
         )
 
         val preferredInitialMode = if (overlayDefinition != null) {
@@ -295,6 +404,7 @@ object MovementPresentationMapper {
         frames: List<PoseFrame>,
         side: BodySide,
         canonicalImpactUs: Long?,
+        frameGeometry: FrameGeometry = FrameGeometry(1080, 1920),
     ): MovementOverlayDefinition? {
         val impactFrame = if (frames.isNotEmpty() && canonicalImpactUs != null && side in setOf(BodySide.LEFT, BodySide.RIGHT)) {
             frames.minByOrNull { abs(it.timestampMs * 1000L - canonicalImpactUs) }
@@ -341,6 +451,43 @@ object MovementPresentationMapper {
             rays = rays,
             arm = arm,
             canonicalImpactUs = canonicalImpactUs,
+            frameGeometry = frameGeometry,
         )
+    }
+
+    internal fun resolveCanonicalFrameGeometry(
+        recording: MasterRecording,
+        frames: List<PoseFrame> = emptyList(),
+    ): FrameGeometry {
+        val width = recording.width ?: 0
+        val height = recording.height ?: 0
+        if (width <= 0 || height <= 0) {
+            return FrameGeometry(1080, 1920)
+        }
+        val rotation = recording.rotation ?: runCatching {
+            if (recording.filePath.isNotBlank()) {
+                val file = java.io.File(recording.filePath)
+                if (file.isFile && file.length() > 0) {
+                    val retriever = android.media.MediaMetadataRetriever()
+                    try {
+                        retriever.setDataSource(file.absolutePath)
+                        retriever.extractMetadata(android.media.MediaMetadataRetriever.METADATA_KEY_VIDEO_ROTATION)?.toIntOrNull() ?: 0
+                    } finally {
+                        retriever.release()
+                    }
+                } else 0
+            } else 0
+        }.getOrDefault(0)
+
+        val isRotated = rotation == 90 || rotation == 270
+        return if (isRotated) {
+            if (width > height) {
+                FrameGeometry(sourceWidth = height, sourceHeight = width)
+            } else {
+                FrameGeometry(sourceWidth = width, sourceHeight = height)
+            }
+        } else {
+            FrameGeometry(sourceWidth = width, sourceHeight = height)
+        }
     }
 }

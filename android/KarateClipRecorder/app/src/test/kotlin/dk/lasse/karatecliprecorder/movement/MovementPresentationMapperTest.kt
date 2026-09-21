@@ -383,4 +383,323 @@ class MovementPresentationMapperTest {
         val presentation = MovementPresentationMapper.map(evidence, displayedNumber = 1)
         assertNull(presentation.overlayDefinition)
     }
+
+    @Test
+    fun landscapeRecordingRespectsCanonicalAspectRatioAndEmitsCompleteDiagnostics() {
+        val movement = SessionMovement(
+            sessionId = "session_landscape",
+            startUs = 1_000_000L,
+            endUs = 2_000_000L,
+            playbackStartUs = 800_000L,
+            playbackEndUs = 2_200_000L,
+            segmentationSource = "qom_segmenter",
+            segmentationVersion = "2.1",
+            analysisFrameUs = 1_500_000L,
+        )
+        // Canonical landscape recording dimensions: 1920x1080
+        val recording = MasterRecording(
+            sessionId = "session_landscape",
+            filePath = "recordings/landscape.mp4",
+            createdAtMs = 1000L,
+            width = 1920,
+            height = 1080,
+        )
+        val analysis = MovementAnalysis(
+            movementId = movement.movementId,
+            analyzerKey = "straight_punch_target",
+            analyzerVersion = "1",
+            landmarkTrackId = "track_landscape",
+            state = AnalysisState.COMPLETED,
+        )
+        val measurements = listOf(
+            MeasurementResult(
+                analysisId = analysis.analysisId,
+                measurementKey = TrainingMeasurements.PUNCH_CLOSEST_TARGET,
+                calculationVersion = "1",
+                valueType = ValueType.CATEGORICAL,
+                categoricalValue = "CHUDAN",
+                side = BodySide.RIGHT,
+                state = ResultState.VALID,
+                occurrenceUs = 1_500_000L,
+            )
+        )
+        val evidence = MovementEvidence(
+            movement = movement,
+            recording = recording,
+            observation = ObservationContext(movement.movementId, nearerSide = BodySide.RIGHT),
+            labels = emptyList(),
+            events = emptyList(),
+            analyses = listOf(analysis),
+            measurements = measurements,
+            landmarkTracks = emptyList(),
+        )
+
+        // Torso with dx = 0.3, dy = 0.4:
+        // In landscape (16/9), dx_aspect = 0.3 * (16/9) = 0.5333, dy = 0.4 -> length = sqrt(0.5333^2 + 0.4^2) = 0.6667
+        // If mistakenly evaluated with portrait (9/16), length would be 0.4341
+        val frame = PoseFrame(
+            timestampMs = 1500L,
+            landmarks = mapOf(
+                PoseLandmarkId.LEFT_SHOULDER to PoseLandmarkSample(position = Point3(0.45f, 0.2f, 0f), visibility = 0.95f, presence = 0.95f),
+                PoseLandmarkId.RIGHT_SHOULDER to PoseLandmarkSample(position = Point3(0.55f, 0.2f, 0f), visibility = 0.95f, presence = 0.95f),
+                PoseLandmarkId.LEFT_HIP to PoseLandmarkSample(position = Point3(0.15f, 0.6f, 0f), visibility = 0.95f, presence = 0.95f),
+                PoseLandmarkId.RIGHT_HIP to PoseLandmarkSample(position = Point3(0.25f, 0.6f, 0f), visibility = 0.95f, presence = 0.95f),
+                PoseLandmarkId.LEFT_EAR to PoseLandmarkSample(position = Point3(0.48f, 0.1f, 0f), visibility = 0.95f, presence = 0.95f),
+                PoseLandmarkId.RIGHT_EAR to PoseLandmarkSample(position = Point3(0.52f, 0.1f, 0f), visibility = 0.95f, presence = 0.95f),
+                PoseLandmarkId.NOSE to PoseLandmarkSample(position = Point3(0.5f, 0.12f, 0f), visibility = 0.95f, presence = 0.95f),
+                PoseLandmarkId.MOUTH_LEFT to PoseLandmarkSample(position = Point3(0.48f, 0.15f, 0f), visibility = 0.95f, presence = 0.95f),
+                PoseLandmarkId.MOUTH_RIGHT to PoseLandmarkSample(position = Point3(0.52f, 0.15f, 0f), visibility = 0.95f, presence = 0.95f),
+                PoseLandmarkId.RIGHT_ELBOW to PoseLandmarkSample(position = Point3(0.6f, 0.3f, 0f), visibility = 0.95f, presence = 0.95f),
+                PoseLandmarkId.RIGHT_WRIST to PoseLandmarkSample(position = Point3(0.7f, 0.35f, 0f), visibility = 0.95f, presence = 0.95f),
+            ),
+        )
+
+        val presentation = MovementPresentationMapper.map(
+            evidence = evidence,
+            displayedNumber = 1,
+            frames = listOf(frame),
+        )
+
+        val debug = presentation.debugData
+        val bh = debug.bodyHeightDebug
+        assertNotNull(bh)
+
+        // Verify aspect ratio calculation: torso length must be 0.6667, NOT 0.4341
+        assertEquals(0.6667f, bh.currentTorsoLength ?: 0f, 0.002f)
+
+        // Verify Section 48 diagnostic items
+        assertEquals(1_500_000L, bh.selectedTimestampUs)
+        assertEquals(1, bh.requestedRadius)
+        assertEquals(listOf(1_500_000L), bh.torsoContributingTimestampsUs)
+        assertEquals(listOf(1_500_000L), bh.headContributingTimestampsUs)
+        assertEquals(1, bh.torsoUsableCount)
+        assertEquals(1, bh.headUsableCount)
+        assertEquals("VALID", bh.chudanStatus)
+        assertEquals("VALID", bh.gedanStatus)
+        assertEquals("VALID", bh.jodanStatus)
+        assertEquals("CHUDAN_TORSO_RATIO_045_V1", bh.chudanEstimatorId)
+        assertEquals("GEDAN_TORSO_RATIO_080_V1", bh.gedanEstimatorId)
+        assertEquals("JODAN_MOUTH_NOSE_110_V1", bh.jodanEstimatorId)
+        assertEquals(1, bh.perSampleObservations.size)
+        assertEquals(1_500_000L, bh.perSampleObservations[0].timestampUs)
+        assertTrue(bh.perSampleObservations[0].isTorsoValid)
+        assertTrue(bh.perSampleObservations[0].isHeadValid)
+
+        // Verify overlay frame geometry matches recording
+        val overlay = presentation.overlayDefinition
+        assertNotNull(overlay)
+        assertEquals(1920, overlay.frameGeometry.sourceWidth)
+        assertEquals(1080, overlay.frameGeometry.sourceHeight)
+    }
+
+    @Test
+    fun straightPunchTargetAnalysisRotated90DegreesAppliesPersistedRotation() {
+        val movement = SessionMovement(
+            sessionId = "session_rot_90",
+            startUs = 1_000_000L,
+            endUs = 2_000_000L,
+            playbackStartUs = 800_000L,
+            playbackEndUs = 2_200_000L,
+            segmentationSource = "qom_segmenter",
+            segmentationVersion = "2.1",
+            analysisFrameUs = 1_500_000L,
+            runId = "run_90",
+        )
+        // Stored encoded dimensions 1920x1080 tagged 90 degrees
+        val recording = MasterRecording(
+            sessionId = "session_rot_90",
+            filePath = "recordings/video_90.mp4",
+            createdAtMs = 1000L,
+            width = 1920,
+            height = 1080,
+            rotation = 90,
+        )
+        val analysis = MovementAnalysis(
+            movementId = movement.movementId,
+            analyzerKey = StraightPunchMovementAdapter.policy.analyzerKey,
+            analyzerVersion = "1",
+            landmarkTrackId = "track_90",
+            state = AnalysisState.COMPLETED,
+        )
+        val measurements = listOf(
+            MeasurementResult(
+                analysisId = analysis.analysisId,
+                measurementKey = TrainingMeasurements.PUNCH_CLOSEST_TARGET,
+                calculationVersion = "1",
+                valueType = ValueType.CATEGORICAL,
+                categoricalValue = "CHUDAN",
+                side = BodySide.RIGHT,
+                state = ResultState.VALID,
+                occurrenceUs = 1_500_000L,
+            )
+        )
+        val evidence = MovementEvidence(
+            movement = movement,
+            recording = recording,
+            observation = ObservationContext(movement.movementId, nearerSide = BodySide.RIGHT),
+            labels = emptyList(),
+            events = emptyList(),
+            analyses = listOf(analysis),
+            measurements = measurements,
+            landmarkTracks = emptyList(),
+        )
+
+        // Torso with dx = 0.3, dy = 0.4:
+        // When rotated 90 degrees, canonical geometry is 1080x1920 (aspect 9/16 = 0.5625)
+        // dx_aspect = 0.3 * (9/16) = 0.16875, dy = 0.4 -> length = sqrt(0.16875^2 + 0.4^2) = 0.4341
+        // Without rotation correction, it would mistakenly calculate landscape 0.6667
+        val frame = PoseFrame(
+            timestampMs = 1500L,
+            landmarks = mapOf(
+                PoseLandmarkId.LEFT_SHOULDER to PoseLandmarkSample(position = Point3(0.45f, 0.2f, 0f), visibility = 0.95f, presence = 0.95f),
+                PoseLandmarkId.RIGHT_SHOULDER to PoseLandmarkSample(position = Point3(0.55f, 0.2f, 0f), visibility = 0.95f, presence = 0.95f),
+                PoseLandmarkId.LEFT_HIP to PoseLandmarkSample(position = Point3(0.15f, 0.6f, 0f), visibility = 0.95f, presence = 0.95f),
+                PoseLandmarkId.RIGHT_HIP to PoseLandmarkSample(position = Point3(0.25f, 0.6f, 0f), visibility = 0.95f, presence = 0.95f),
+                PoseLandmarkId.LEFT_EAR to PoseLandmarkSample(position = Point3(0.48f, 0.1f, 0f), visibility = 0.95f, presence = 0.95f),
+                PoseLandmarkId.RIGHT_EAR to PoseLandmarkSample(position = Point3(0.52f, 0.1f, 0f), visibility = 0.95f, presence = 0.95f),
+                PoseLandmarkId.NOSE to PoseLandmarkSample(position = Point3(0.5f, 0.12f, 0f), visibility = 0.95f, presence = 0.95f),
+                PoseLandmarkId.MOUTH_LEFT to PoseLandmarkSample(position = Point3(0.48f, 0.15f, 0f), visibility = 0.95f, presence = 0.95f),
+                PoseLandmarkId.MOUTH_RIGHT to PoseLandmarkSample(position = Point3(0.52f, 0.15f, 0f), visibility = 0.95f, presence = 0.95f),
+                PoseLandmarkId.RIGHT_ELBOW to PoseLandmarkSample(position = Point3(0.6f, 0.3f, 0f), visibility = 0.95f, presence = 0.95f),
+                PoseLandmarkId.RIGHT_WRIST to PoseLandmarkSample(position = Point3(0.7f, 0.35f, 0f), visibility = 0.95f, presence = 0.95f),
+            ),
+        )
+
+        val presentation = MovementPresentationMapper.map(
+            evidence = evidence,
+            displayedNumber = 1,
+            frames = listOf(frame),
+        )
+
+        val debug = presentation.debugData
+        val bh = debug.bodyHeightDebug
+        assertNotNull(bh)
+
+        // Torso length must be 0.4341 (portrait aspect corrected), NOT 0.6667 (landscape)
+        assertEquals(0.4341f, bh.currentTorsoLength ?: 0f, 0.002f)
+
+        // Overlay frame geometry must be canonical 1080x1920
+        val overlay = presentation.overlayDefinition
+        assertNotNull(overlay)
+        assertEquals(1080, overlay.frameGeometry.sourceWidth)
+        assertEquals(1920, overlay.frameGeometry.sourceHeight)
+    }
+
+    @Test
+    fun straightPunchTargetAnalysisRotated270DegreesAppliesPersistedRotation() {
+        val movement = SessionMovement(
+            sessionId = "session_rot_270",
+            startUs = 1_000_000L,
+            endUs = 2_000_000L,
+            playbackStartUs = 800_000L,
+            playbackEndUs = 2_200_000L,
+            segmentationSource = "qom_segmenter",
+            segmentationVersion = "2.1",
+            analysisFrameUs = 1_500_000L,
+            runId = "run_270",
+        )
+        // Stored encoded dimensions 1920x1080 tagged 270 degrees
+        val recording = MasterRecording(
+            sessionId = "session_rot_270",
+            filePath = "recordings/video_270.mp4",
+            createdAtMs = 1000L,
+            width = 1920,
+            height = 1080,
+            rotation = 270,
+        )
+        val analysis = MovementAnalysis(
+            movementId = movement.movementId,
+            analyzerKey = StraightPunchMovementAdapter.policy.analyzerKey,
+            analyzerVersion = "1",
+            landmarkTrackId = "track_270",
+            state = AnalysisState.COMPLETED,
+        )
+        val measurements = listOf(
+            MeasurementResult(
+                analysisId = analysis.analysisId,
+                measurementKey = TrainingMeasurements.PUNCH_CLOSEST_TARGET,
+                calculationVersion = "1",
+                valueType = ValueType.CATEGORICAL,
+                categoricalValue = "CHUDAN",
+                side = BodySide.RIGHT,
+                state = ResultState.VALID,
+                occurrenceUs = 1_500_000L,
+            )
+        )
+        val evidence = MovementEvidence(
+            movement = movement,
+            recording = recording,
+            observation = ObservationContext(movement.movementId, nearerSide = BodySide.RIGHT),
+            labels = emptyList(),
+            events = emptyList(),
+            analyses = listOf(analysis),
+            measurements = measurements,
+            landmarkTracks = emptyList(),
+        )
+
+        val frame = PoseFrame(
+            timestampMs = 1500L,
+            landmarks = mapOf(
+                PoseLandmarkId.LEFT_SHOULDER to PoseLandmarkSample(position = Point3(0.45f, 0.2f, 0f), visibility = 0.95f, presence = 0.95f),
+                PoseLandmarkId.RIGHT_SHOULDER to PoseLandmarkSample(position = Point3(0.55f, 0.2f, 0f), visibility = 0.95f, presence = 0.95f),
+                PoseLandmarkId.LEFT_HIP to PoseLandmarkSample(position = Point3(0.15f, 0.6f, 0f), visibility = 0.95f, presence = 0.95f),
+                PoseLandmarkId.RIGHT_HIP to PoseLandmarkSample(position = Point3(0.25f, 0.6f, 0f), visibility = 0.95f, presence = 0.95f),
+                PoseLandmarkId.LEFT_EAR to PoseLandmarkSample(position = Point3(0.48f, 0.1f, 0f), visibility = 0.95f, presence = 0.95f),
+                PoseLandmarkId.RIGHT_EAR to PoseLandmarkSample(position = Point3(0.52f, 0.1f, 0f), visibility = 0.95f, presence = 0.95f),
+                PoseLandmarkId.NOSE to PoseLandmarkSample(position = Point3(0.5f, 0.12f, 0f), visibility = 0.95f, presence = 0.95f),
+                PoseLandmarkId.MOUTH_LEFT to PoseLandmarkSample(position = Point3(0.48f, 0.15f, 0f), visibility = 0.95f, presence = 0.95f),
+                PoseLandmarkId.MOUTH_RIGHT to PoseLandmarkSample(position = Point3(0.52f, 0.15f, 0f), visibility = 0.95f, presence = 0.95f),
+                PoseLandmarkId.RIGHT_ELBOW to PoseLandmarkSample(position = Point3(0.6f, 0.3f, 0f), visibility = 0.95f, presence = 0.95f),
+                PoseLandmarkId.RIGHT_WRIST to PoseLandmarkSample(position = Point3(0.7f, 0.35f, 0f), visibility = 0.95f, presence = 0.95f),
+            ),
+        )
+
+        val presentation = MovementPresentationMapper.map(
+            evidence = evidence,
+            displayedNumber = 1,
+            frames = listOf(frame),
+        )
+
+        val debug = presentation.debugData
+        val bh = debug.bodyHeightDebug
+        assertNotNull(bh)
+
+        assertEquals(0.4341f, bh.currentTorsoLength ?: 0f, 0.002f)
+
+        val overlay = presentation.overlayDefinition
+        assertNotNull(overlay)
+        assertEquals(1080, overlay.frameGeometry.sourceWidth)
+        assertEquals(1920, overlay.frameGeometry.sourceHeight)
+    }
+
+    @Test
+    fun resolveCanonicalFrameGeometryMatrix() {
+        // Encoded 1920x1080 tagged 90 degrees -> 1080x1920
+        val g90 = MovementPresentationMapper.resolveCanonicalFrameGeometry(
+            MasterRecording(sessionId = "s", filePath = "", createdAtMs = 0, width = 1920, height = 1080, rotation = 90)
+        )
+        assertEquals(1080, g90.sourceWidth)
+        assertEquals(1920, g90.sourceHeight)
+
+        // Encoded 1920x1080 tagged 270 degrees -> 1080x1920
+        val g270 = MovementPresentationMapper.resolveCanonicalFrameGeometry(
+            MasterRecording(sessionId = "s", filePath = "", createdAtMs = 0, width = 1920, height = 1080, rotation = 270)
+        )
+        assertEquals(1080, g270.sourceWidth)
+        assertEquals(1920, g270.sourceHeight)
+
+        // Unrotated 1920x1080 tagged 0 degrees -> 1920x1080
+        val g0 = MovementPresentationMapper.resolveCanonicalFrameGeometry(
+            MasterRecording(sessionId = "s", filePath = "", createdAtMs = 0, width = 1920, height = 1080, rotation = 0)
+        )
+        assertEquals(1920, g0.sourceWidth)
+        assertEquals(1080, g0.sourceHeight)
+
+        // Already canonical portrait 1080x1920 tagged 90 degrees -> remains 1080x1920
+        val gAlreadyPortrait = MovementPresentationMapper.resolveCanonicalFrameGeometry(
+            MasterRecording(sessionId = "s", filePath = "", createdAtMs = 0, width = 1080, height = 1920, rotation = 90)
+        )
+        assertEquals(1080, gAlreadyPortrait.sourceWidth)
+        assertEquals(1920, gAlreadyPortrait.sourceHeight)
+    }
 }

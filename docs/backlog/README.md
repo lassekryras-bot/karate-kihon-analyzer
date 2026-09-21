@@ -34,6 +34,9 @@ When starting work on a task, first verify the current implementation. Do not as
 
 ## Open tasks
 
+- [Overlay Coordinate Transformer v2.1](overlay-coordinate-transformer-v2.1.md) — IN PROGRESS; canonical source-to-canvas coordinate transformer, aspect-correct Euclidean math, deterministic pixel crop mapping, presentation-mode scaling (Fit/Crop/Alignment/ZoomPan), unclamped mathematical inverse, separate hit-testing (InsideImage, OutsideImage letterbox, OutsideViewport); addressing 6 review gaps, app call sites, and MLS validation.
+- [Body Height Model v2.1](body-height-model-v2.1.md) — IN PROGRESS; shared observed body-height geometry utility over canonical pose streams with configurable temporal window radius (±N), outward continuity validation, shared-evidence bilateral shoulder+hip torso aggregation, independent HeadAnchor strategies, compatibility target estimators; addressing 6 review gaps, app call sites, and MLS validation.
+
 - [Movement Detail + Target Height + Pose Heavy Reprocessing — Corrective Pass](movement-detail-target-height-heavy-reprocessing-corrective-pass.md) — IN PROGRESS; addressing 3 remaining acceptance blockers: remove impact-frame neutral fallback in adapter, transport anatomical target via stable body origin (hip midpoint) in target calculator, and enforce clipping viewport container in movement player.
 
 - [Movement Detail Page v1](movement-detail-page-v1.md) — local review remediation: consistent analysis provenance, validated persisted target geometry, playback ownership/rate fixes, explicit unavailable states and regression coverage; manual device acceptance pending. Analyzer plots, recording speed/deviation metrics and structured technique findings remain deferred.

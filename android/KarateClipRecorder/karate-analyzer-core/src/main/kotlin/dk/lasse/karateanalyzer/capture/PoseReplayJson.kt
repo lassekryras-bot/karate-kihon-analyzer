@@ -12,6 +12,8 @@ object PoseReplayJson {
         append('{')
         field("schema_version", fixture.schemaVersion); append(',')
         field("sequence_id", fixture.sequenceId); append(',')
+        nullableNumber("source_width", fixture.sourceWidth?.toLong()); append(',')
+        nullableNumber("source_height", fixture.sourceHeight?.toLong()); append(',')
         nullableNumber("arm_timestamp_ms", fixture.armTimestampMs); append(',')
         nullableNumber("cue_timestamp_ms", fixture.cueTimestampMs); append(',')
         nullableNumber("activity_deadline_ms", fixture.activityDeadlineMs); append(',')
@@ -41,6 +43,8 @@ object PoseReplayJson {
         return PoseReplayFixture(
             schemaVersion = root.string("schema_version"),
             sequenceId = root.string("sequence_id"),
+            sourceWidth = root.intOrNull("source_width"),
+            sourceHeight = root.intOrNull("source_height"),
             frames = root.array("frames").map { value ->
                 val frame = value.asObject()
                 PoseFrame(
@@ -131,10 +135,11 @@ private fun Map<String, JsonValue>.string(key: String) = getValue(key).asString(
 private fun Map<String, JsonValue>.array(key: String) = (getValue(key) as JsonValue.Array).value
 private fun Map<String, JsonValue>.double(key: String) = (getValue(key) as JsonValue.Number).value
 private fun Map<String, JsonValue>.long(key: String) = double(key).toLong()
-private fun Map<String, JsonValue>.longOrNull(key: String) = getValue(key).let { if (it == JsonValue.Null) null else (it as JsonValue.Number).value.toLong() }
+private fun Map<String, JsonValue>.longOrNull(key: String) = this[key]?.let { if (it == JsonValue.Null) null else (it as JsonValue.Number).value.toLong() }
+private fun Map<String, JsonValue>.intOrNull(key: String) = this[key]?.let { if (it == JsonValue.Null) null else (it as JsonValue.Number).value.toInt() }
 private fun Map<String, JsonValue>.boolean(key: String) = (getValue(key) as JsonValue.BooleanValue).value
-private fun Map<String, JsonValue>.objOrNull(key: String) = getValue(key).let { if (it == JsonValue.Null) null else it.asObject() }
-private fun Map<String, JsonValue>.pointOrNull(key: String): Point3? = getValue(key).let { value -> if (value == JsonValue.Null) null else (value as JsonValue.Array).value.map { (it as JsonValue.Number).value }.let { Point3(it[0].toFloat(), it[1].toFloat(), it[2].toFloat()) } }
-private fun Map<String, JsonValue>.intervalOrNull(key: String): ReplayInterval? = getValue(key).let { if (it == JsonValue.Null) null else it.toInterval() }
-private fun Map<String, JsonValue>.intervals(key: String) = array(key).map { it.toInterval() }
+private fun Map<String, JsonValue>.objOrNull(key: String) = this[key]?.let { if (it == JsonValue.Null) null else it.asObject() }
+private fun Map<String, JsonValue>.pointOrNull(key: String): Point3? = this[key]?.let { value -> if (value == JsonValue.Null) null else (value as JsonValue.Array).value.map { (it as JsonValue.Number).value }.let { Point3(it[0].toFloat(), it[1].toFloat(), it[2].toFloat()) } }
+private fun Map<String, JsonValue>.intervalOrNull(key: String): ReplayInterval? = this[key]?.let { if (it == JsonValue.Null) null else it.toInterval() }
+private fun Map<String, JsonValue>.intervals(key: String) = this[key]?.let { if (it == JsonValue.Null) emptyList() else (it as JsonValue.Array).value.map { item -> item.toInterval() } } ?: emptyList()
 private fun JsonValue.toInterval() = (this as JsonValue.Array).value.map { (it as JsonValue.Number).value.toLong() }.let { ReplayInterval(it[0], it[1]) }

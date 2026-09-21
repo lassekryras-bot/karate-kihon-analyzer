@@ -111,7 +111,21 @@ data class MasterRecording(
     val width: Int? = null, val height: Int? = null, val device: String? = null,
     val camera: String? = null, val sourceState: SourceState = SourceState.PENDING,
     val captureType: CaptureType = CaptureType.VIDEO, val mimeType: String? = "video/mp4",
-)
+) {
+    @androidx.room.Ignore
+    var rotation: Int? = null
+
+    constructor(
+        recordingId: String = trainingId(), sessionId: String, filePath: String,
+        createdAtMs: Long, durationUs: Long? = null, frameRate: Double? = null,
+        width: Int? = null, height: Int? = null, device: String? = null,
+        camera: String? = null, sourceState: SourceState = SourceState.PENDING,
+        captureType: CaptureType = CaptureType.VIDEO, mimeType: String? = "video/mp4",
+        rotation: Int?,
+    ) : this(recordingId, sessionId, filePath, createdAtMs, durationUs, frameRate, width, height, device, camera, sourceState, captureType, mimeType) {
+        this.rotation = rotation
+    }
+}
 data class LandmarkTrack(
     val landmarkTrackId: String = trainingId(), val recordingId: String,
     val pipelineKey: String, val pipelineVersion: String, val configuration: String,

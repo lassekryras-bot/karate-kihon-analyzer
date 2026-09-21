@@ -6,6 +6,16 @@ import android.view.View
 import androidx.core.content.ContextCompat
 import dk.lasse.karateanalyzer.core.PoseFrame
 import dk.lasse.karateanalyzer.core.PoseLandmarkId
+import dk.lasse.karateanalyzer.geometry.Alignment
+import dk.lasse.karateanalyzer.geometry.AppliedPixelCrop
+import dk.lasse.karateanalyzer.geometry.CanvasRect
+import dk.lasse.karateanalyzer.geometry.ContentScaleMode
+import dk.lasse.karateanalyzer.geometry.FrameGeometry
+import dk.lasse.karateanalyzer.geometry.NormalizedCrop
+import dk.lasse.karateanalyzer.geometry.OverlayCoordinateTransformer
+import dk.lasse.karateanalyzer.geometry.ResolvedDisplayTransform
+import dk.lasse.karateanalyzer.geometry.SourceNormalizedPoint
+import dk.lasse.karateanalyzer.geometry.ZoomPan
 import dk.lasse.karatecliprecorder.R
 import dk.lasse.karatecliprecorder.training.BodySide
 import kotlin.math.abs
@@ -80,7 +90,33 @@ class MovementAnalysisOverlayView(
 
         val rect = videoBoundsProvider() ?: return
         if (rect.width() <= 0f || rect.height() <= 0f) return
-        fun toPx(pt: PointF): PointF = PointF(rect.left + pt.x * rect.width(), rect.top + pt.y * rect.height())
+
+        val frameGeom = overlay.frameGeometry
+        val imageBounds = CanvasRect(rect.left, rect.top, rect.right, rect.bottom)
+        val viewportBounds = CanvasRect(0f, 0f, w, h)
+        val displayTransform = ResolvedDisplayTransform(
+            viewportBounds = viewportBounds,
+            displayedImageBounds = imageBounds,
+            contentClippingBounds = imageBounds.intersect(viewportBounds),
+            scaleX = rect.width() / frameGeom.sourceWidth.toFloat(),
+            scaleY = rect.height() / frameGeom.sourceHeight.toFloat(),
+            selectedCrop = NormalizedCrop.FULL,
+            appliedPixelCrop = AppliedPixelCrop(0, 0, frameGeom.sourceWidth, frameGeom.sourceHeight),
+            contentScaleMode = ContentScaleMode.FIT,
+            alignment = Alignment.CENTER,
+            zoomPan = ZoomPan(),
+            frameGeometry = frameGeom,
+        )
+        fun toPx(pt: PointF): PointF {
+            val canvasPt = OverlayCoordinateTransformer.sourceToCanvas(
+                SourceNormalizedPoint(pt.x, pt.y),
+                displayTransform,
+            )
+            return PointF(canvasPt.x, canvasPt.y)
+        }
+
+        canvas.save()
+        canvas.clipRect(rect)
 
         // Draw arm segments matching current timeline timestamp
         val curArm: OverlayArm? = if (frames.isNotEmpty() && activeSide != BodySide.UNKNOWN) {
@@ -171,6 +207,7 @@ class MovementAnalysisOverlayView(
                 canvas.drawText(label, tgt.x + 4f * density, tgt.y + 4f * density, textPaint)
             }
         }
+        canvas.restore()
 
         // Canonical impact frame indicator badge
         val impactUs = overlay.canonicalImpactUs

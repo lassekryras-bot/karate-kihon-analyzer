@@ -70,6 +70,8 @@ data class PoseReplayFixture(
     val expectedEndPoseRelationship: EndPoseRelationship = EndPoseRelationship.SAME_AS_START,
     val labels: PoseSequenceLabels? = null,
     val notes: List<String> = emptyList(),
+    val sourceWidth: Int? = null,
+    val sourceHeight: Int? = null,
 ) {
     init {
         require(schemaVersion == SCHEMA_VERSION)
