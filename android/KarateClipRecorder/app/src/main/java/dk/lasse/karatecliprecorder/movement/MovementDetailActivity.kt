@@ -133,7 +133,7 @@ class MovementDetailActivity : AppCompatActivity() {
         })
 
         training.submit({ repo ->
-            val evidence = repo.movementEvidence(mId) ?: return@submit null
+            var evidence = repo.movementEvidence(mId) ?: return@submit null
             val dispNum = repo.movementDisplayedNumber(mId)
             val rec = repo.recording(evidence.movement.sessionId)
             val video = rec?.let { repo.file(it.filePath) }
@@ -141,7 +141,7 @@ class MovementDetailActivity : AppCompatActivity() {
             // Resolve exact landmark track matching analysis provenance
             val preferredAnalysis = evidence.presentationAnalysis()
             val preferredTrackId = preferredAnalysis?.landmarkTrackId ?: evidence.movement.segmentationTrackId
-            val track = if (preferredTrackId != null) {
+            var track = if (preferredTrackId != null) {
                 evidence.landmarkTracks.firstOrNull {
                     it.landmarkTrackId == preferredTrackId && it.state == ProcessingState.COMPLETED && it.sourceState == SourceState.AVAILABLE
                 }
@@ -151,6 +151,30 @@ class MovementDetailActivity : AppCompatActivity() {
                     LandmarkFiles.read(repo.file(track.filePath), track.sha256, track.formatId)
                 }.getOrDefault(emptyList())
             } else emptyList()
+
+            // Resolve and persist canonical geometry outside UI thread using storage-resolved file reference
+            if (rec != null) {
+                CanonicalGeometryStorageAdapter.resolveTrackGeometry(
+                    recording = rec,
+                    track = track,
+                    fileResolver = { repo.file(it) },
+                    onPersistDescriptor = { updatedTrack, updatedRecording, _ ->
+                        if (updatedTrack != null) {
+                            repo.updateTrack(updatedTrack)
+                            track = updatedTrack
+                        }
+                        repo.updateRecording(updatedRecording)
+                        evidence = evidence.copy(
+                            recording = updatedRecording,
+                            landmarkTracks = if (updatedTrack != null) {
+                                evidence.landmarkTracks.map {
+                                    if (it.landmarkTrackId == updatedTrack.landmarkTrackId) updatedTrack else it
+                                }
+                            } else evidence.landmarkTracks,
+                        )
+                    }
+                )
+            }
 
             Triple(evidence, dispNum to video, frames)
         }) { result ->

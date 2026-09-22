@@ -3,10 +3,7 @@ package dk.lasse.karateanalyzer.height
 import dk.lasse.karateanalyzer.core.PoseFrame
 import dk.lasse.karateanalyzer.core.PoseLandmarkId
 import dk.lasse.karateanalyzer.core.PoseLandmarkSample
-import dk.lasse.karateanalyzer.geometry.AspectCorrectPoint
-import dk.lasse.karateanalyzer.geometry.FrameGeometry
-import dk.lasse.karateanalyzer.geometry.FrameGeometryMath
-import dk.lasse.karateanalyzer.geometry.SourceNormalizedPoint
+import dk.lasse.karateanalyzer.geometry.*
 import kotlin.math.abs
 
 /**
@@ -76,85 +73,55 @@ object BodyHeightModel {
             return emptyGeometry(selectedTimestampUs, radius, effectiveConfigId, recordingId)
         }
 
-        // 1. Locate selected sample closest to evaluation timestamp
-        val selectedIdx = frames.indices.minByOrNull {
+        val policy = LandmarkEvidenceWindow.legacyBodyHeightModelWindowPolicy(
+            radius = radius,
+            maxTimestampGapUs = config.maxTimestampGapUs,
+        )
+
+        fun resolveTrackId(f: PoseFrame): String? =
+            trackIdProvider(f)
+                ?: frameTrackIds[f.timestampMs]
+                ?: frameTrackIds[f.timestampMs * 1000L]
+                ?: trackId
+
+        val initialAnchor = frames.indices.minByOrNull {
             abs(frames[it].timestampMs * 1000L - selectedTimestampUs)
-        } ?: return emptyGeometry(selectedTimestampUs, radius, effectiveConfigId, recordingId)
+        }?.let { frames[it] } ?: return emptyGeometry(selectedTimestampUs, radius, effectiveConfigId, recordingId)
 
-        val selectedFrame = frames[selectedIdx]
-        val targetTrackId = trackId
-            ?: trackIdProvider(selectedFrame)
-            ?: frameTrackIds[selectedFrame.timestampMs]
-            ?: frameTrackIds[selectedFrame.timestampMs * 1000L]
+        val targetTrackId = trackId ?: resolveTrackId(initialAnchor)
 
-        // 2. Select requested window before filtering (never backfill from farther away)
+        // Delegate temporal window selection to LandmarkEvidenceWindow with legacy window policy
+        val windowResult = LandmarkEvidenceWindow.selectWindow(
+            evaluationTimestampUs = selectedTimestampUs,
+            samples = frames,
+            timestampExtractor = { it.timestampMs * 1000L },
+            trackIdExtractor = { resolveTrackId(it) },
+            expectedTrackId = targetTrackId,
+            policy = policy,
+        )
+
+        val selectedFrame = windowResult.selectedSample ?: return emptyGeometry(selectedTimestampUs, radius, effectiveConfigId, recordingId)
+        val selectedIdx = frames.indexOf(selectedFrame)
         val minIdx = (selectedIdx - radius).coerceAtLeast(0)
         val maxIdx = (selectedIdx + radius).coerceAtMost(frames.size - 1)
         val requestedFrames = (minIdx..maxIdx).map { frames[it] }
         val requestedTimestamps = requestedFrames.map { it.timestampMs * 1000L }
         val missingBoundaryNeighbors = requestedFrames.size < (2 * radius + 1)
 
-        // 3. Temporal continuity validation anchored to selected frame
-        val temporallyConnectedIndices = mutableSetOf(selectedIdx)
-        val continuityExclusions = mutableMapOf<Long, String>()
-
-        // Backward continuity: selected -> prev1 -> prev2...
-        var prevTimestamp = selectedFrame.timestampMs * 1000L
-        for (i in (selectedIdx - 1) downTo minIdx) {
-            val currTimestamp = frames[i].timestampMs * 1000L
-            val gap = prevTimestamp - currTimestamp
-            if (gap > config.maxTimestampGapUs) {
-                // Exclude this sample and all farther samples on this side
-                for (j in i downTo minIdx) {
-                    val ts = frames[j].timestampMs * 1000L
-                    continuityExclusions[ts] = "timestamp_gap_exceeded: ${gap}us > ${config.maxTimestampGapUs}us"
-                }
-                break
-            } else {
-                temporallyConnectedIndices.add(i)
-                prevTimestamp = currTimestamp
-            }
-        }
-
-        // Forward continuity: selected -> next1 -> next2...
-        prevTimestamp = selectedFrame.timestampMs * 1000L
-        for (i in (selectedIdx + 1)..maxIdx) {
-            val currTimestamp = frames[i].timestampMs * 1000L
-            val gap = currTimestamp - prevTimestamp
-            if (gap > config.maxTimestampGapUs) {
-                // Exclude this sample and all farther samples on this side
-                for (j in i..maxIdx) {
-                    val ts = frames[j].timestampMs * 1000L
-                    continuityExclusions[ts] = "timestamp_gap_exceeded: ${gap}us > ${config.maxTimestampGapUs}us"
-                }
-                break
-            } else {
-                temporallyConnectedIndices.add(i)
-                prevTimestamp = currTimestamp
-            }
-        }
-
         // 4. Per-sample anchor extraction
         val perSampleObservations = mutableListOf<PerSampleAnchors>()
         val torsoSampleReasons = mutableMapOf<Long, String>()
         val headSampleReasons = mutableMapOf<Long, String>()
 
-        val distinctKnownTracks = requestedFrames.mapNotNull { f ->
-            trackIdProvider(f)
-                ?: frameTrackIds[f.timestampMs]
-                ?: frameTrackIds[f.timestampMs * 1000L]
-                ?: trackId
-        }.distinct()
-
+        val distinctKnownTracks = requestedFrames.mapNotNull { resolveTrackId(it) }.distinct()
         val hasConflictingKnownTracksWithoutTarget = targetTrackId == null && distinctKnownTracks.size > 1
+
+        val windowContributingSet = windowResult.contributingSamples.toSet()
 
         for (idx in minIdx..maxIdx) {
             val f = frames[idx]
             val ts = f.timestampMs * 1000L
-            val sampleTrackId = trackIdProvider(f)
-                ?: frameTrackIds[f.timestampMs]
-                ?: frameTrackIds[f.timestampMs * 1000L]
-                ?: trackId
+            val sampleTrackId = resolveTrackId(f)
 
             val isTrackMatch = if (hasConflictingKnownTracksWithoutTarget) {
                 // Unknown identity must not permit conflicting known identities to mix
@@ -187,9 +154,9 @@ object BodyHeightModel {
                 continue
             }
 
-            val isConnected = idx in temporallyConnectedIndices
+            val isConnected = f in windowContributingSet
             if (!isConnected) {
-                val reason = continuityExclusions[ts] ?: "disconnected_from_evaluation_sample"
+                val reason = windowResult.diagnostics.exclusionReasons[ts] ?: "disconnected_from_evaluation_sample"
                 torsoSampleReasons[ts] = reason
                 headSampleReasons[ts] = reason
                 perSampleObservations.add(
@@ -206,33 +173,10 @@ object BodyHeightModel {
                 continue
             }
 
-            // Bilateral shoulders
-            val ls = f.landmarks[PoseLandmarkId.LEFT_SHOULDER]
-            val rs = f.landmarks[PoseLandmarkId.RIGHT_SHOULDER]
-            val hasLs = isLandmarkValid(ls, config)
-            val hasRs = isLandmarkValid(rs, config)
-            val shoulderCenter = if (hasLs && hasRs) {
-                SourceNormalizedPoint(
-                    (ls!!.position!!.x + rs!!.position!!.x) * 0.5f,
-                    (ls.position!!.y + rs.position!!.y) * 0.5f,
-                )
-            } else {
-                null
-            }
-
-            // Bilateral hips
-            val lh = f.landmarks[PoseLandmarkId.LEFT_HIP]
-            val rh = f.landmarks[PoseLandmarkId.RIGHT_HIP]
-            val hasLh = isLandmarkValid(lh, config)
-            val hasRh = isLandmarkValid(rh, config)
-            val hipCenter = if (hasLh && hasRh) {
-                SourceNormalizedPoint(
-                    (lh!!.position!!.x + rh!!.position!!.x) * 0.5f,
-                    (lh.position!!.y + rh.position!!.y) * 0.5f,
-                )
-            } else {
-                null
-            }
+            // Bilateral shoulders & hips via shared LandmarkAnchors
+            val torsoSample = LandmarkAnchors.extractTorsoAnchors(f, config.landmarkValidityThreshold)
+            val shoulderCenter = torsoSample.shoulderCenter
+            val hipCenter = torsoSample.hipCenter
 
             // Per-sample torso length check
             val torsoLengthSample = if (shoulderCenter != null && hipCenter != null) {
@@ -246,15 +190,14 @@ object BodyHeightModel {
 
             if (!torsoValid) {
                 val reason = when {
-                    !hasLs || !hasRs -> "missing_shoulder_landmarks"
-                    !hasLh || !hasRh -> "missing_hip_landmarks"
+                    torsoSample.failureReason != null -> torsoSample.failureReason
                     torsoDegenerate -> "degenerate_torso_length: ${torsoLengthSample} < ${config.minimumTorsoLength}"
                     else -> "insufficient_landmark_confidence"
                 }
                 torsoSampleReasons[ts] = reason
             }
 
-            // Head anchor based on configured strategy
+            // Head anchor based on configured strategy via shared LandmarkAnchors
             val headAnchor = extractHeadAnchor(f, config)
             val headValid = headAnchor != null
             if (!headValid) {
@@ -283,29 +226,29 @@ object BodyHeightModel {
             torsoSampleReasons[ts] ?: "not_contributing_to_torso"
         }
 
-        val torsoWindowStateInitial = resolveWindowState(
+        val torsoWindowStateInitial = LandmarkEvidenceWindow.resolveWindowState(
+            mode = WindowMode.CENTERED_SAMPLES,
             radius = radius,
             usableCount = torsoContributing.size,
-            requestedCount = requestedFrames.size,
-            fullWindowCount = 2 * radius + 1,
+            fullRequestedCount = 2 * radius + 1,
             missingBoundary = missingBoundaryNeighbors,
         )
 
         val (aggShoulder, aggHip, torsoCenter, currentBodyUp, torsoLength, torsoDisagreement, torsoWindowState) =
             if (torsoContributing.isNotEmpty()) {
-                val sX = median(torsoContributing.map { it.shoulderCenter!!.x })
-                val sY = median(torsoContributing.map { it.shoulderCenter!!.y })
-                val hX = median(torsoContributing.map { it.hipCenter!!.x })
-                val hY = median(torsoContributing.map { it.hipCenter!!.y })
+                val shoulder = LandmarkAnchors.aggregateTemporalMedian(torsoContributing.map { it.shoulderCenter!! })!!
+                val hip = LandmarkAnchors.aggregateTemporalMedian(torsoContributing.map { it.hipCenter!! })!!
 
-                val shoulder = SourceNormalizedPoint(sX, sY)
-                val hip = SourceNormalizedPoint(hX, hY)
-                val tc = SourceNormalizedPoint((sX + hX) * 0.5f, (sY + hY) * 0.5f)
+                val frameResult = BodyFrameGeometry.constructFromAnchors(
+                    shoulderCenter = shoulder,
+                    hipCenter = hip,
+                    frameGeometry = frameGeometry,
+                    timestampUs = selectedTimestampUs,
+                    minimumTorsoLength = config.minimumTorsoLength,
+                )
 
                 val shoulderA = FrameGeometryMath.sourceToAspectCorrect(shoulder, frameGeometry)
                 val hipA = FrameGeometryMath.sourceToAspectCorrect(hip, frameGeometry)
-                val torsoVecA = shoulderA - hipA // Direction: Hip -> Shoulder (Upward)
-                val len = torsoVecA.length()
 
                 val shoulderDisagreements = torsoContributing.map {
                     FrameGeometryMath.distance(
@@ -321,11 +264,17 @@ object BodyHeightModel {
                 }
                 val maxDisagreement = (shoulderDisagreements + hipDisagreements).maxOrNull() ?: 0f
 
-                if (len < config.minimumTorsoLength) {
+                val snapshot = frameResult.snapshot
+                if (snapshot == null) {
                     // Degenerate aggregate torso
                     TorsoAggregateResult(null, null, null, null, null, maxDisagreement, WindowState.UNAVAILABLE)
                 } else {
-                    val up = torsoVecA.normalized()
+                    val tc = snapshot.torsoCenterSource ?: SourceNormalizedPoint(
+                        (shoulder.x + hip.x) * 0.5f,
+                        (shoulder.y + hip.y) * 0.5f,
+                    )
+                    val up = snapshot.upAxis.toAspectCorrectPoint()
+                    val len = snapshot.torsoLength
                     TorsoAggregateResult(shoulder, hip, tc, up, len, maxDisagreement, torsoWindowStateInitial)
                 }
             } else {
@@ -341,18 +290,16 @@ object BodyHeightModel {
             headSampleReasons[ts] ?: "not_contributing_to_head"
         }
 
-        val headWindowState = resolveWindowState(
+        val headWindowState = LandmarkEvidenceWindow.resolveWindowState(
+            mode = WindowMode.CENTERED_SAMPLES,
             radius = radius,
             usableCount = headContributing.size,
-            requestedCount = requestedFrames.size,
-            fullWindowCount = 2 * radius + 1,
+            fullRequestedCount = 2 * radius + 1,
             missingBoundary = missingBoundaryNeighbors,
         )
 
         val (aggHead, headDisagreement) = if (headContributing.isNotEmpty()) {
-            val headX = median(headContributing.map { it.headAnchor!!.x })
-            val headY = median(headContributing.map { it.headAnchor!!.y })
-            val headPt = SourceNormalizedPoint(headX, headY)
+            val headPt = LandmarkAnchors.aggregateTemporalMedian(headContributing.map { it.headAnchor!! })!!
             val headA = FrameGeometryMath.sourceToAspectCorrect(headPt, frameGeometry)
             val disagreements = headContributing.map {
                 FrameGeometryMath.distance(
@@ -425,55 +372,11 @@ object BodyHeightModel {
     private fun extractHeadAnchor(frame: PoseFrame, config: BodyHeightModelConfig): SourceNormalizedPoint? {
         return when (config.headAnchorStrategy) {
             HeadAnchorStrategyId.EAR_MIDPOINT_V1 -> {
-                val le = frame.landmarks[PoseLandmarkId.LEFT_EAR]
-                val re = frame.landmarks[PoseLandmarkId.RIGHT_EAR]
-                if (isLandmarkValid(le, config) && isLandmarkValid(re, config)) {
-                    SourceNormalizedPoint(
-                        (le!!.position!!.x + re!!.position!!.x) * 0.5f,
-                        (le.position!!.y + re.position!!.y) * 0.5f,
-                    )
-                } else null
+                LandmarkAnchors.extractHeadEarMidpointV1(frame, config.landmarkValidityThreshold)
             }
             HeadAnchorStrategyId.EYES_EARS_COMPOSITE_V1 -> {
-                val le = frame.landmarks[PoseLandmarkId.LEFT_EAR]
-                val re = frame.landmarks[PoseLandmarkId.RIGHT_EAR]
-                val ley = frame.landmarks[PoseLandmarkId.LEFT_EYE]
-                val rey = frame.landmarks[PoseLandmarkId.RIGHT_EYE]
-                if (isLandmarkValid(le, config) && isLandmarkValid(re, config) &&
-                    isLandmarkValid(ley, config) && isLandmarkValid(rey, config)) {
-                    SourceNormalizedPoint(
-                        (le!!.position!!.x + re!!.position!!.x + ley!!.position!!.x + rey!!.position!!.x) * 0.25f,
-                        (le.position!!.y + re.position!!.y + ley.position!!.y + rey.position!!.y) * 0.25f,
-                    )
-                } else null
+                LandmarkAnchors.extractHeadEyesEarsCompositeV1(frame, config.landmarkValidityThreshold)
             }
-        }
-    }
-
-    private fun resolveWindowState(
-        radius: Int,
-        usableCount: Int,
-        requestedCount: Int,
-        fullWindowCount: Int,
-        missingBoundary: Boolean,
-    ): WindowState {
-        return when {
-            usableCount == 0 -> WindowState.UNAVAILABLE
-            radius == 0 && usableCount == 1 -> WindowState.SINGLE_FRAME_REQUEST
-            radius > 0 && usableCount == 1 -> WindowState.SINGLE_FRAME_FALLBACK
-            usableCount == fullWindowCount && !missingBoundary -> WindowState.FULL_REQUESTED_WINDOW
-            else -> WindowState.REDUCED_WINDOW
-        }
-    }
-
-    private fun median(values: List<Float>): Float {
-        require(values.isNotEmpty()) { "Cannot compute median of empty list" }
-        val sorted = values.sorted()
-        val n = sorted.size
-        return if (n % 2 == 1) {
-            sorted[n / 2]
-        } else {
-            (sorted[n / 2 - 1] + sorted[n / 2]) * 0.5f
         }
     }
 

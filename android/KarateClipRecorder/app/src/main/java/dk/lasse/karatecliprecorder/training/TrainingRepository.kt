@@ -121,6 +121,7 @@ class TrainingRepository(private val database: KarateTrainingDatabase, val stora
     }
     fun addTrack(track: LandmarkTrack) = dao.insert(LandmarkTrackRow(track))
     fun updateTrack(track: LandmarkTrack) = dao.update(LandmarkTrackRow(track))
+    fun updateRecording(recording: MasterRecording) = dao.update(MasterRecordingRow(recording))
 
     fun createRun(run: ProcessingRun) = atomic { dao.insert(ProcessingRunRow(run)) }
     fun updateRun(run: ProcessingRun) = atomic { dao.update(ProcessingRunRow(run)) }

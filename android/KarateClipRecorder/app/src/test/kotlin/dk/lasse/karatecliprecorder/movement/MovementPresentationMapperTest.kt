@@ -1,7 +1,13 @@
 package dk.lasse.karatecliprecorder.movement
 
 import dk.lasse.karateanalyzer.core.*
+import dk.lasse.karateanalyzer.geometry.CanonicalGeometryCodec
+import dk.lasse.karateanalyzer.geometry.CanonicalGeometryDescriptor
+import dk.lasse.karateanalyzer.geometry.CanonicalOrientation
+import dk.lasse.karateanalyzer.geometry.SourceToCanonicalTransform
+import dk.lasse.karateanalyzer.geometry.TransformOrder
 import dk.lasse.karatecliprecorder.training.*
+import dk.lasse.karatecliprecorder.training.LandmarkTrack
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
@@ -11,6 +17,28 @@ import kotlin.test.*
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [28])
 class MovementPresentationMapperTest {
+
+    private fun portraitDescriptor(recordingId: String, trackId: String? = null) =
+        CanonicalGeometryDescriptor(
+            geometryId = "geom_$recordingId",
+            recordingId = recordingId,
+            landmarkTrackId = trackId,
+            canonicalWidth = 1080,
+            canonicalHeight = 1920,
+            canonicalOrientation = CanonicalOrientation.UPRIGHT_UNMIRRORED,
+            sourceToCanonicalTransform = SourceToCanonicalTransform(0, false, order = TransformOrder.ROTATION_THEN_MIRROR),
+        )
+
+    private fun landscapeDescriptor(recordingId: String, trackId: String? = null) =
+        CanonicalGeometryDescriptor(
+            geometryId = "geom_$recordingId",
+            recordingId = recordingId,
+            landmarkTrackId = trackId,
+            canonicalWidth = 1920,
+            canonicalHeight = 1080,
+            canonicalOrientation = CanonicalOrientation.UPRIGHT_UNMIRRORED,
+            sourceToCanonicalTransform = SourceToCanonicalTransform(0, false, order = TransformOrder.ROTATION_THEN_MIRROR),
+        )
 
     @Test
     fun straightPunchTargetAnalysisMapsToKeyResultsAndDebugData() {
@@ -259,6 +287,7 @@ class MovementPresentationMapperTest {
             sessionId = "session_123",
             filePath = "recordings/video.mp4",
             createdAtMs = 1000L,
+            canonicalGeometryJson = CanonicalGeometryCodec.encode(portraitDescriptor("session_123")),
         )
         val geometryJson = """
             {
@@ -403,6 +432,7 @@ class MovementPresentationMapperTest {
             createdAtMs = 1000L,
             width = 1920,
             height = 1080,
+            canonicalGeometryJson = CanonicalGeometryCodec.encode(landscapeDescriptor("session_landscape")),
         )
         val analysis = MovementAnalysis(
             movementId = movement.movementId,
@@ -506,6 +536,17 @@ class MovementPresentationMapperTest {
             runId = "run_90",
         )
         // Stored encoded dimensions 1920x1080 tagged 90 degrees
+        val desc90 = CanonicalGeometryDescriptor(
+            geometryId = "geom_90",
+            recordingId = "session_rot_90",
+            canonicalWidth = 1080,
+            canonicalHeight = 1920,
+            canonicalOrientation = CanonicalOrientation.UPRIGHT_UNMIRRORED,
+            sourceToCanonicalTransform = SourceToCanonicalTransform(90, false, order = TransformOrder.ROTATION_THEN_MIRROR),
+            encodedWidth = 1920,
+            encodedHeight = 1080,
+            containerRotation = 90,
+        )
         val recording = MasterRecording(
             sessionId = "session_rot_90",
             filePath = "recordings/video_90.mp4",
@@ -513,6 +554,7 @@ class MovementPresentationMapperTest {
             width = 1920,
             height = 1080,
             rotation = 90,
+            canonicalGeometryJson = CanonicalGeometryCodec.encode(desc90),
         )
         val analysis = MovementAnalysis(
             movementId = movement.movementId,
@@ -599,6 +641,17 @@ class MovementPresentationMapperTest {
             runId = "run_270",
         )
         // Stored encoded dimensions 1920x1080 tagged 270 degrees
+        val desc270 = CanonicalGeometryDescriptor(
+            geometryId = "geom_270",
+            recordingId = "session_rot_270",
+            canonicalWidth = 1080,
+            canonicalHeight = 1920,
+            canonicalOrientation = CanonicalOrientation.UPRIGHT_UNMIRRORED,
+            sourceToCanonicalTransform = SourceToCanonicalTransform(270, false, order = TransformOrder.ROTATION_THEN_MIRROR),
+            encodedWidth = 1920,
+            encodedHeight = 1080,
+            containerRotation = 270,
+        )
         val recording = MasterRecording(
             sessionId = "session_rot_270",
             filePath = "recordings/video_270.mp4",
@@ -606,6 +659,7 @@ class MovementPresentationMapperTest {
             width = 1920,
             height = 1080,
             rotation = 270,
+            canonicalGeometryJson = CanonicalGeometryCodec.encode(desc270),
         )
         val analysis = MovementAnalysis(
             movementId = movement.movementId,
@@ -674,32 +728,92 @@ class MovementPresentationMapperTest {
 
     @Test
     fun resolveCanonicalFrameGeometryMatrix() {
-        // Encoded 1920x1080 tagged 90 degrees -> 1080x1920
-        val g90 = MovementPresentationMapper.resolveCanonicalFrameGeometry(
-            MasterRecording(sessionId = "s", filePath = "", createdAtMs = 0, width = 1920, height = 1080, rotation = 90)
+        // Track descriptor with 90 degrees rotation -> 1080x1920
+        val trackDesc90 = CanonicalGeometryDescriptor(
+            geometryId = "geom_track_90",
+            recordingId = "rec_matrix",
+            landmarkTrackId = "track_90",
+            canonicalWidth = 1080,
+            canonicalHeight = 1920,
+            sourceToCanonicalTransform = SourceToCanonicalTransform(90, false, order = TransformOrder.ROTATION_THEN_MIRROR),
         )
+        val track90 = LandmarkTrack(
+            landmarkTrackId = "track_90",
+            recordingId = "rec_matrix",
+            pipelineKey = "pipe",
+            pipelineVersion = "1",
+            configuration = "cfg",
+            filePath = "tracks/90.mls",
+            canonicalGeometryJson = CanonicalGeometryCodec.encode(trackDesc90),
+        )
+        val recording = MasterRecording(
+            recordingId = "rec_matrix",
+            sessionId = "s_matrix",
+            filePath = "",
+            createdAtMs = 0,
+        )
+        val g90 = MovementPresentationMapper.resolveCanonicalFrameGeometry(
+            recording = recording,
+            track = track90,
+        )
+        assertNotNull(g90)
         assertEquals(1080, g90.sourceWidth)
         assertEquals(1920, g90.sourceHeight)
 
-        // Encoded 1920x1080 tagged 270 degrees -> 1080x1920
-        val g270 = MovementPresentationMapper.resolveCanonicalFrameGeometry(
-            MasterRecording(sessionId = "s", filePath = "", createdAtMs = 0, width = 1920, height = 1080, rotation = 270)
+        // Recording descriptor with 270 degrees rotation -> 1080x1920
+        val recDesc270 = CanonicalGeometryDescriptor(
+            geometryId = "geom_rec_270",
+            recordingId = "rec_270",
+            canonicalWidth = 1080,
+            canonicalHeight = 1920,
+            sourceToCanonicalTransform = SourceToCanonicalTransform(270, false, order = TransformOrder.ROTATION_THEN_MIRROR),
         )
+        val g270 = MovementPresentationMapper.resolveCanonicalFrameGeometry(
+            recording = MasterRecording(
+                recordingId = "rec_270",
+                sessionId = "s_270",
+                filePath = "",
+                createdAtMs = 0,
+                canonicalGeometryJson = CanonicalGeometryCodec.encode(recDesc270),
+            ),
+        )
+        assertNotNull(g270)
         assertEquals(1080, g270.sourceWidth)
         assertEquals(1920, g270.sourceHeight)
 
-        // Unrotated 1920x1080 tagged 0 degrees -> 1920x1080
-        val g0 = MovementPresentationMapper.resolveCanonicalFrameGeometry(
-            MasterRecording(sessionId = "s", filePath = "", createdAtMs = 0, width = 1920, height = 1080, rotation = 0)
+        // Recording descriptor with 0 degrees rotation (landscape) -> 1920x1080
+        val recDesc0 = CanonicalGeometryDescriptor(
+            geometryId = "geom_rec_0",
+            recordingId = "rec_0",
+            canonicalWidth = 1920,
+            canonicalHeight = 1080,
+            sourceToCanonicalTransform = SourceToCanonicalTransform(0, false, order = TransformOrder.ROTATION_THEN_MIRROR),
         )
+        val g0 = MovementPresentationMapper.resolveCanonicalFrameGeometry(
+            recording = MasterRecording(
+                recordingId = "rec_0",
+                sessionId = "s_0",
+                filePath = "",
+                createdAtMs = 0,
+                canonicalGeometryJson = CanonicalGeometryCodec.encode(recDesc0),
+            ),
+        )
+        assertNotNull(g0)
         assertEquals(1920, g0.sourceWidth)
         assertEquals(1080, g0.sourceHeight)
 
-        // Already canonical portrait 1080x1920 tagged 90 degrees -> remains 1080x1920
-        val gAlreadyPortrait = MovementPresentationMapper.resolveCanonicalFrameGeometry(
-            MasterRecording(sessionId = "s", filePath = "", createdAtMs = 0, width = 1080, height = 1920, rotation = 90)
+        // Without descriptor and without video file, returns null (UNKNOWN_GEOMETRY without guessing)
+        val gUnknown = MovementPresentationMapper.resolveCanonicalFrameGeometry(
+            recording = MasterRecording(
+                recordingId = "rec_unknown",
+                sessionId = "s_unknown",
+                filePath = "",
+                createdAtMs = 0,
+                width = 1080,
+                height = 1920,
+                rotation = 90,
+            ),
         )
-        assertEquals(1080, gAlreadyPortrait.sourceWidth)
-        assertEquals(1920, gAlreadyPortrait.sourceHeight)
+        assertNull(gUnknown, "Must return null without inventing 1080x1920 or guessing orientation")
     }
 }

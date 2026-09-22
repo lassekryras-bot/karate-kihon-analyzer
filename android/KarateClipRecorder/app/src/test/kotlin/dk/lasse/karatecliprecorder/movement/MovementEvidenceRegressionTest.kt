@@ -1,6 +1,9 @@
 package dk.lasse.karatecliprecorder.movement
 
 import dk.lasse.karateanalyzer.core.*
+import dk.lasse.karateanalyzer.geometry.CanonicalGeometryCodec
+import dk.lasse.karateanalyzer.geometry.CanonicalGeometryDescriptor
+import dk.lasse.karateanalyzer.geometry.CanonicalOrientation
 import dk.lasse.karatecliprecorder.training.*
 import org.json.JSONObject
 import org.junit.Test
@@ -15,12 +18,21 @@ class MovementEvidenceRegressionTest {
     private val movement = SessionMovement(sessionId = "s", startUs = 0L, endUs = 1_000_000L,
         playbackStartUs = 0L, playbackEndUs = 1_000_000L, analysisFrameUs = 400_000L,
         segmentationSource = "fixture", segmentationVersion = "1")
+    private val defaultGeometryJson = CanonicalGeometryCodec.encode(
+        CanonicalGeometryDescriptor(
+            geometryId = "geom_default",
+            recordingId = "s",
+            canonicalWidth = 1080,
+            canonicalHeight = 1920,
+            canonicalOrientation = CanonicalOrientation.UPRIGHT_UNMIRRORED,
+        )
+    )
     private fun analysis(id: String, state: AnalysisState = AnalysisState.COMPLETED, geometry: String? = null) =
         MovementAnalysis(analysisId = id, movementId = movement.movementId,
             analyzerKey = StraightPunchMovementAdapter.policy.analyzerKey, analyzerVersion = "1",
             landmarkTrackId = "track-$id", state = state, geometryJson = geometry)
     private fun evidence(analyses: List<MovementAnalysis>, measurements: List<MeasurementResult> = emptyList()) =
-        MovementEvidence(movement, MasterRecording(sessionId = "s", filePath = "unused.mp4", createdAtMs = 0),
+        MovementEvidence(movement, MasterRecording(sessionId = "s", filePath = "unused.mp4", createdAtMs = 0, canonicalGeometryJson = defaultGeometryJson),
             null, emptyList(), emptyList(), analyses, measurements, emptyList())
 
     private fun geometry(): String = assertNotNull(StraightPunchGeometryCodec.encode(

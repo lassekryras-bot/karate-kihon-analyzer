@@ -4,6 +4,7 @@ import android.graphics.PointF
 import dk.lasse.karateanalyzer.core.*
 import dk.lasse.karateanalyzer.geometry.FrameGeometry
 import dk.lasse.karatecliprecorder.training.*
+import dk.lasse.karatecliprecorder.training.LandmarkTrack
 import kotlin.math.abs
 
 data class KeyResultItem(
@@ -154,6 +155,7 @@ object MovementPresentationMapper {
         evidence: MovementEvidence,
         displayedNumber: Int,
         frames: List<PoseFrame> = emptyList(),
+        fileResolver: (String) -> java.io.File? = { java.io.File(it) },
     ): MovementPresentationData {
         val movement = evidence.movement
         val preferredAnalysis = evidence.presentationAnalysis()
@@ -277,14 +279,21 @@ object MovementPresentationMapper {
         // In the absence of classified technique faults from the analyzer, findings remains empty.
         val findings = emptyList<FindingItem>()
 
-        val resolvedFrameGeometry = resolveCanonicalFrameGeometry(evidence.recording, frames)
+        val selectedTrack = preferredAnalysis?.landmarkTrackId?.let { trackId ->
+            evidence.landmarkTracks.find { it.landmarkTrackId == trackId }
+        } ?: evidence.landmarkTracks.find { it.landmarkTrackId == movement.segmentationTrackId }
+        ?: evidence.landmarkTracks.firstOrNull()
+
+        val resolvedFrameGeometry = resolveCanonicalFrameGeometry(evidence.recording, selectedTrack, frames, fileResolver)
 
         // Overlay definition: renders persisted analyzer geometry and active arm
-        val overlayDefinition = buildOverlayDefinition(geometry, frames, side, canonicalUs, resolvedFrameGeometry)
+        val overlayDefinition = if (resolvedFrameGeometry != null) {
+            buildOverlayDefinition(geometry, frames, side, canonicalUs, resolvedFrameGeometry)
+        } else null
 
         // Debug Data
         val frameIdx = geometry?.frameIndex ?: analysisResults.firstNotNullOfOrNull { it.frameIndex }
-        val bodyHeightDebug = if (frames.isNotEmpty() && canonicalUs != null) {
+        val bodyHeightDebug = if (frames.isNotEmpty() && canonicalUs != null && resolvedFrameGeometry != null) {
             val observed = dk.lasse.karateanalyzer.height.BodyHeightModel.evaluate(
                 selectedTimestampUs = canonicalUs,
                 frames = frames,
@@ -457,37 +466,22 @@ object MovementPresentationMapper {
 
     internal fun resolveCanonicalFrameGeometry(
         recording: MasterRecording,
+        track: LandmarkTrack? = null,
         frames: List<PoseFrame> = emptyList(),
-    ): FrameGeometry {
-        val width = recording.width ?: 0
-        val height = recording.height ?: 0
-        if (width <= 0 || height <= 0) {
-            return FrameGeometry(1080, 1920)
+        fileResolver: (String) -> java.io.File? = { java.io.File(it) },
+    ): FrameGeometry? {
+        val descriptor = CanonicalGeometryStorageAdapter.resolveTrackGeometry(
+            recording = recording,
+            track = track,
+            fileResolver = fileResolver,
+        )
+        if (!descriptor.isAvailable) {
+            return null
         }
-        val rotation = recording.rotation ?: runCatching {
-            if (recording.filePath.isNotBlank()) {
-                val file = java.io.File(recording.filePath)
-                if (file.isFile && file.length() > 0) {
-                    val retriever = android.media.MediaMetadataRetriever()
-                    try {
-                        retriever.setDataSource(file.absolutePath)
-                        retriever.extractMetadata(android.media.MediaMetadataRetriever.METADATA_KEY_VIDEO_ROTATION)?.toIntOrNull() ?: 0
-                    } finally {
-                        retriever.release()
-                    }
-                } else 0
-            } else 0
-        }.getOrDefault(0)
-
-        val isRotated = rotation == 90 || rotation == 270
-        return if (isRotated) {
-            if (width > height) {
-                FrameGeometry(sourceWidth = height, sourceHeight = width)
-            } else {
-                FrameGeometry(sourceWidth = width, sourceHeight = height)
-            }
-        } else {
-            FrameGeometry(sourceWidth = width, sourceHeight = height)
-        }
+        return FrameGeometry(
+            sourceWidth = descriptor.canonicalWidth,
+            sourceHeight = descriptor.canonicalHeight,
+            canonicalOrientation = descriptor.canonicalOrientation,
+        )
     }
 }

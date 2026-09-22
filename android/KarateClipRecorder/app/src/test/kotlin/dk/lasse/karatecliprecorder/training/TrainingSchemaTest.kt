@@ -60,17 +60,18 @@ class TrainingSchemaTest {
             execSQL("INSERT INTO LandmarkTrack(landmarkTrackId,recordingId,pipelineKey,pipelineVersion,configuration,filePath,createdAtMs,state,sourceState) VALUES ('track','recording','pose','legacy','fixture','/legacy/track.pose',10,'COMPLETED','AVAILABLE')")
             close()
         }
-        helper.runMigrationsAndValidate(name, 9, true, KarateTrainingDatabase.MIGRATION_1_2,
+        helper.runMigrationsAndValidate(name, 10, true, KarateTrainingDatabase.MIGRATION_1_2,
             KarateTrainingDatabase.MIGRATION_2_3, KarateTrainingDatabase.MIGRATION_3_4,
             KarateTrainingDatabase.MIGRATION_4_5, KarateTrainingDatabase.MIGRATION_5_6,
             KarateTrainingDatabase.MIGRATION_6_7, KarateTrainingDatabase.MIGRATION_7_8,
-            KarateTrainingDatabase.MIGRATION_8_9).close()
+            KarateTrainingDatabase.MIGRATION_8_9, KarateTrainingDatabase.MIGRATION_9_10).close()
         val context = InstrumentationRegistry.getInstrumentation().targetContext
         val database = Room.databaseBuilder(context, KarateTrainingDatabase::class.java, name).addMigrations(
             KarateTrainingDatabase.MIGRATION_1_2, KarateTrainingDatabase.MIGRATION_2_3,
             KarateTrainingDatabase.MIGRATION_3_4, KarateTrainingDatabase.MIGRATION_4_5,
             KarateTrainingDatabase.MIGRATION_5_6, KarateTrainingDatabase.MIGRATION_6_7,
-            KarateTrainingDatabase.MIGRATION_7_8, KarateTrainingDatabase.MIGRATION_8_9).build()
+            KarateTrainingDatabase.MIGRATION_7_8, KarateTrainingDatabase.MIGRATION_8_9,
+            KarateTrainingDatabase.MIGRATION_9_10).build()
         try {
             database.openHelper.readableDatabase.query("SELECT userId FROM TrainingUser").use { cursor ->
                 cursor.moveToFirst()
@@ -175,6 +176,32 @@ class TrainingSchemaTest {
                 assertEquals("a1", it.getString(0))
                 assertEquals("straight_punch_target", it.getString(1))
                 org.junit.Assert.assertTrue(it.isNull(2))
+            }
+        }
+    }
+
+    @Test fun versionNineMigratesToVersionTenWithCanonicalGeometryAndRotation() {
+        val name = "version-9-to-10-migration"
+        helper.createDatabase(name, 9).apply {
+            execSQL("INSERT INTO TrainingUser(userId,createdAtMs) VALUES ('user',10)")
+            execSQL("INSERT INTO RecordingSession(sessionId,userId,startedAtMs,guided,state) VALUES ('session','user',10,0,'RECORDED')")
+            execSQL("INSERT INTO MasterRecording(recordingId,sessionId,filePath,createdAtMs,sourceState,captureType) VALUES ('media','session','recordings/legacy.mp4',10,'AVAILABLE','VIDEO')")
+            execSQL("INSERT INTO LandmarkTrack(landmarkTrackId,recordingId,pipelineKey,pipelineVersion,configuration,filePath,createdAtMs,state,sourceState) VALUES ('track','media','pose','1','conf','file.pose',10,'COMPLETED','AVAILABLE')")
+            close()
+        }
+        helper.runMigrationsAndValidate(name, 10, true, KarateTrainingDatabase.MIGRATION_9_10).use { db ->
+            db.query("SELECT recordingId,rotation,canonicalGeometryJson FROM MasterRecording WHERE recordingId='media'").use {
+                assertEquals(1, it.count)
+                org.junit.Assert.assertTrue(it.moveToFirst())
+                assertEquals("media", it.getString(0))
+                org.junit.Assert.assertTrue(it.isNull(1))
+                org.junit.Assert.assertTrue(it.isNull(2))
+            }
+            db.query("SELECT landmarkTrackId,canonicalGeometryJson FROM LandmarkTrack WHERE landmarkTrackId='track'").use {
+                assertEquals(1, it.count)
+                org.junit.Assert.assertTrue(it.moveToFirst())
+                assertEquals("track", it.getString(0))
+                org.junit.Assert.assertTrue(it.isNull(1))
             }
         }
     }

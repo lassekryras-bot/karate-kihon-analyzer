@@ -34,6 +34,8 @@ When starting work on a task, first verify the current implementation. Do not as
 
 ## Open tasks
 
+- [Landmark Geometry Core — specification v2](landmark-geometry-core-v2-spec.md) — IN PROGRESS; overall shared geometry architecture, canonical evidence/persistence first, BodyHeightModel compatibility, explicit reference/window contracts, existing wrist-path/speed method preservation, and staged straight-punch consumer integration. Supersedes the [v1 draft](landmark-geometry-core-v1-spec.md); Stages A, B, and C are completed and verified via automated test suites in `:karate-analyzer-core` and `:app`; Stages D (straight-punch consumer integration) and E (production routing and migration) remain OPEN / OUTSTANDING.
+
 - [Overlay Coordinate Transformer v2.1](overlay-coordinate-transformer-v2.1.md) — IN PROGRESS; canonical source-to-canvas coordinate transformer, aspect-correct Euclidean math, deterministic pixel crop mapping, presentation-mode scaling (Fit/Crop/Alignment/ZoomPan), unclamped mathematical inverse, separate hit-testing (InsideImage, OutsideImage letterbox, OutsideViewport); addressing 6 review gaps, app call sites, and MLS validation.
 - [Body Height Model v2.1](body-height-model-v2.1.md) — IN PROGRESS; shared observed body-height geometry utility over canonical pose streams with configurable temporal window radius (±N), outward continuity validation, shared-evidence bilateral shoulder+hip torso aggregation, independent HeadAnchor strategies, compatibility target estimators; addressing 6 review gaps, app call sites, and MLS validation.
 

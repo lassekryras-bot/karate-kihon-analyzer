@@ -3,6 +3,7 @@ package dk.lasse.karatecliprecorder.training
 import dk.lasse.karateanalyzer.capture.qom.MotionBodyProfile
 import dk.lasse.karateanalyzer.capture.retrospective.*
 import dk.lasse.karateanalyzer.core.*
+import dk.lasse.karateanalyzer.geometry.CanonicalGeometryCodec
 import java.io.File
 
 /** Reuses persisted landmarks and movement identities after process loss or when rerunning an analyzer. */
@@ -57,8 +58,23 @@ class TrainingSessionProcessor(
                 val file = repository.file(existing.filePath)
                 check(existing.formatVersion == null || existing.formatVersion == LandmarkFiles.VERSION)
                 val frames = LandmarkFiles.read(file, existing.sha256, existing.formatId)
-                val recovered = existing.copy(state = ProcessingState.COMPLETED, sourceState = SourceState.AVAILABLE,
-                    sha256 = existing.sha256 ?: LandmarkFiles.sha256(file))
+                var resolvedGeometryJson = existing.canonicalGeometryJson
+                if (resolvedGeometryJson.isNullOrBlank()) {
+                    val resolvedDescriptor = CanonicalGeometryStorageAdapter.resolveTrackGeometry(
+                        recording = recording,
+                        track = existing,
+                        fileResolver = { repository.file(it) },
+                    )
+                    if (resolvedDescriptor.isAvailable) {
+                        resolvedGeometryJson = CanonicalGeometryCodec.encode(resolvedDescriptor)
+                    }
+                }
+                val recovered = existing.copy(
+                    state = ProcessingState.COMPLETED,
+                    sourceState = SourceState.AVAILABLE,
+                    sha256 = existing.sha256 ?: LandmarkFiles.sha256(file),
+                    canonicalGeometryJson = resolvedGeometryJson,
+                )
                 publication { checkActive(); repository.updateTrack(recovered) }
                 return recovered to frames
             } catch (error: Exception) {
@@ -78,10 +94,35 @@ class TrainingSessionProcessor(
                 quality = "Interrupted unpublished stream; retry uses a new UUID"))
         }
         val id = trainingId()
-        var track = LandmarkTrack(id, recording.recordingId, "mediapipe_pose_video", modelVersion,
-            trackConfiguration,
-            repository.fileReference(File(landmarkDirectory, "$id.mls")), state = ProcessingState.PROCESSING,
-            formatId = LandmarkFiles.FORMAT_ID, formatVersion = LandmarkFiles.VERSION)
+        val geometryDescriptor = CanonicalGeometryStorageAdapter.resolveTrackGeometry(
+            recording = recording,
+            track = null,
+            fileResolver = { repository.file(it) },
+        )
+        val geometryJson = if (geometryDescriptor.isAvailable) {
+            CanonicalGeometryCodec.encode(geometryDescriptor.copy(landmarkTrackId = id))
+        } else null
+
+        if (geometryDescriptor.isAvailable && recording.canonicalGeometryJson == null) {
+            val updatedRecording = recording.copy(
+                rotation = geometryDescriptor.sourceToCanonicalTransform.rotationDegrees,
+                canonicalGeometryJson = CanonicalGeometryCodec.encode(geometryDescriptor.copy(landmarkTrackId = null)),
+            )
+            repository.updateRecording(updatedRecording)
+        }
+
+        var track = LandmarkTrack(
+            landmarkTrackId = id,
+            recordingId = recording.recordingId,
+            pipelineKey = "mediapipe_pose_video",
+            pipelineVersion = modelVersion,
+            configuration = trackConfiguration,
+            filePath = repository.fileReference(File(landmarkDirectory, "$id.mls")),
+            state = ProcessingState.PROCESSING,
+            formatId = LandmarkFiles.FORMAT_ID,
+            formatVersion = LandmarkFiles.VERSION,
+            canonicalGeometryJson = geometryJson,
+        )
         repository.addTrack(track)
         try {
             val frames = poseProcessor.processVideo(repository.file(recording.filePath)) { progress, time ->

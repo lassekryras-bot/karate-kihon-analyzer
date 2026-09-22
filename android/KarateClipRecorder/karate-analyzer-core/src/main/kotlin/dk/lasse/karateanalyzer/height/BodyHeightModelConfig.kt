@@ -11,13 +11,12 @@ enum class HeadAnchorStrategyId {
 /**
  * Window evidence state describing completeness of contributing observations.
  */
-enum class WindowState {
-    UNAVAILABLE,
-    SINGLE_FRAME_REQUEST,
-    SINGLE_FRAME_FALLBACK,
-    FULL_REQUESTED_WINDOW,
-    REDUCED_WINDOW,
-}
+typealias WindowState = dk.lasse.karateanalyzer.geometry.WindowState
+
+/**
+ * Standard legacy window policy for BodyHeightModel.
+ */
+val LegacyBodyHeightModelWindowPolicy = dk.lasse.karateanalyzer.geometry.LandmarkEvidenceWindow.LegacyBodyHeightModelWindowPolicy
 
 /**
  * Immutable configuration for BodyHeightModel.
