@@ -54,6 +54,8 @@ Use repository skills when their activation criteria match:
 - `ponytail` for simplicity and avoidance of unnecessary machinery; and
 - `adaptive-interviewing` for material intent or semantic uncertainty that evidence cannot resolve.
 
+When engineering exposes a material architecture, domain, ownership, terminology, or invariant question that cannot be resolved from focused repository evidence and current project knowledge, use `architecture-escalation` rather than guessing.
+
 Prefer one stable term for one domain concept. Before adding a concept or abstraction, check whether the current model or an existing capability can express the requirement cleanly.
 
 Ask only when unresolved intent, semantics, product direction, or architectural meaning materially affects the task. Batch closely related questions and record durable answers.
