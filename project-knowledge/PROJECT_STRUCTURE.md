@@ -19,7 +19,14 @@ For each non-obvious entry, include enough evidence to recheck it: a repository-
 
 ## Verified map
 
-_Populate progressively through real work._
+### Android training/evidence persistence
+
+**Status: OBSERVED — verified 2026-09-23**
+
+- Maintained data-model reference: [Room database logical model](../docs/app-training-database-logical-model.md). This owns the schema overview, entity catalog, relationships, and repository invariant descriptions; other documents link to it.
+- Implementation: `android/KarateClipRecorder/app/src/main/java/dk/lasse/karatecliprecorder/training/`. `KarateTrainingDatabase.kt` registers the database and migrations; `TrainingRows.kt` defines Room constraints; `TrainingModels.kt` defines persisted fields; `TrainingDao.kt` defines queries; `TrainingRepository.kt` provides transactional operations and validation.
+- Exported schemas: `android/KarateClipRecorder/app/schemas/dk.lasse.karatecliprecorder.training.KarateTrainingDatabase/`. These and the source provide recheckable implementation evidence for the model.
+- These classes currently live in the Android `app` module. Their location and database relationships do not establish shared-platform persistence ownership or domain aggregate boundaries.
 
 ## Material conflicts
 

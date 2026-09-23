@@ -1,62 +1,19 @@
 # Android training evidence database
 
-Status: implemented in local source; physical-device acceptance is pending. See the
-[implementation backlog](backlog/karate-training-database.md) for the remaining checks.
+The maintained [Room data model](app-training-database-logical-model.md) is the
+single reference for the current schema, entity relationships, and persistence
+invariants. Start there when reviewing or changing the data model.
 
-## Storage boundary
+Status of the operational notes below: **DOCUMENTED** — retained implementation
+and validation context from the earlier database foundation. They have not been
+fully revalidated for the current pipeline. In particular, the segmentation-only
+plan and legacy analyzer descriptions describe that earlier implementation.
+Use current source for runtime behavior and the linked model for persistence.
+Historical acceptance evidence is in the
+[validation record](validation/training-database-v1.md) and
+[implementation backlog](backlog/karate-training-database.md).
 
-`training/KarateTrainingDatabase` is the authoritative structured store for new
-CameraX recording sessions. Its file is `karate-training.db`, Room schema version
-**6**. Exported schemas v1–v6 are retained under `app/schemas/`.
-The explicit v1→v2 migration adds nullable session cadence/counting/delay
-snapshots and landmark format ID/version; existing evidence is preserved.
-The v2→v3 migration adds expected activity/category and interruption reason;
-v3→v4 adds the durable processing queue and backfills saved assisted recordings.
-The v4→v5 migration adds shared capture request/result fields and media type, so
-video and photo evidence use the same durable identity model. The v5→v6 migration
-adds the recording processing-plan snapshot, current phase, landmark/segmentation
-durations, and source landmark/segmenter provenance.
-
-The existing project uses Kotlin 2.0.21, AGP 8.7.3, Java 17, minSdk 26 and native
-Android Views (no Compose dependency). Room 2.7.2 with KSP 2.0.21-1.0.28 fits that
-toolchain without a Kotlin/AGP upgrade. Room 2.7 requires Kotlin 2.0 or newer;
-see the [official release notes](https://developer.android.com/jetpack/androidx/releases/room#2.7.2).
-
-Production never enables main-thread queries or destructive migration fallback.
-Future schema changes must increment the database version, retain all older
-exported schemas, supply explicit migrations in the production builder, and extend
-`TrainingMigrationTest` and `TrainingSchemaTest`. Version 1 has a schema/opening
-baseline, not an invented migration from a nonexistent Room version 0.
-The baseline test must actually reopen a database created from the exported
-schema: a stale incremental schema export was caught this way during authoring.
-Rerun `:app:kspDebugKotlin --rerun` when validating an export. Never replace a
-previously shipped schema to conceal a version change.
-
-```mermaid
-erDiagram
-    TrainingUser ||--o{ RecordingSession : owns
-    RecordingSession ||--|| MasterRecording : captures
-    RecordingSession ||--o| RecordingProcessing : queues
-    MasterRecording ||--o{ LandmarkTrack : produces
-    RecordingSession ||--o{ SessionMovement : contains
-    SessionMovement ||--|| ObservationContext : observed_as
-    RecordingSession ||--o{ SessionEvent : contains
-    SessionMovement ||--o{ MovementSessionEvent : associates
-    SessionEvent ||--o{ MovementSessionEvent : associates
-    SessionMovement ||--o{ MovementLabel : has
-    Label ||--o{ MovementLabel : classifies
-    SessionMovement ||--o{ MovementAnalysis : analyzed_by
-    LandmarkTrack ||--o{ MovementAnalysis : supplies
-    MovementAnalysis ||--o{ MeasurementResult : produces
-    TrainingUser ||--o{ UserBodyMeasurement : measured_at
-    TrainingUser ||--o{ UserCalibration : calibrated_at
-```
-
-`AnalysisBodyMeasurement`, `AnalysisCalibration`, and `SessionBodyMeasurement`
-retain exact physical-reference IDs. These are relationships, not mutable current
-calibration pointers. No derived movement counts, sequence numbers, rolling
-history buckets, coverage cache, measurement-definition table, or dense
-per-frame landmark rows are stored.
+## Storage integration
 
 Room entities and DAO are internal. `TrainingRepository` accepts/returns domain
 models and owns transactions, ownership checks and history selection.
