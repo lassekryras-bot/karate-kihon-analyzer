@@ -1,119 +1,73 @@
-# Repository task guides
+# AGENTS.md
 
-For work on measurement wiki entries, explanatory animations, graphs, or their
-presentation contracts, read these before editing:
+## Purpose
 
-1. `docs/measurement-wiki-authoring-guide.md` — page structure, wording, architecture,
-   example selection, and validation.
-2. `docs/app-measurement-wiki.md` — current native implementation and known limits.
-3. `docs/measurement-presentation-contract.md` — analyzer-to-app data contract.
+This repository uses Codex Desktop as its primary development environment.
 
-A reusable task prompt is in `docs/prompts/new-measurement-wiki-entry.md`.
-Keep the guide aligned when implementation changes these conventions. It records
-the current baseline and distinguishes planned capabilities from implemented ones.
+Work from the current task, discover the repository as needed, and improve durable project knowledge through real work. This file is the repository-level operating constitution; keep detailed procedures in focused skills and durable facts or decisions in `project-knowledge/`.
 
-## Movement detector and segmentation
+## Current product priority
 
-For work on movement detection, movement segmentation, `BaseMovementSegmenter`,
-`PoseMotionObservationExtractor`, retrospective segmentation, movement-boundary
-math, or activity-specific body selection, read these first:
+Build these together first:
 
-1. `docs/motion-detector-math.md` — normative activity-aware Quantity-of-Motion
-   signal, filtering, block definitions, rolling area and hysteresis math.
-2. `docs/motion-detector-implementation-guide.md` — migration contract for
-   replacing the current Top-2/translation/angular detector paths with the QoM
-   detector while preserving persistence, cue association and logical/retained
-   interval semantics.
-3. `docs/validation/task5/archive/README.md` — historical detector experiments and
-   the rule against rebuilding multi-safeguard complexity without real-recording
-   evidence.
+1. the shared Karate Analysis Platform backend; and
+2. the free/lightweight Karate Kihon Analyzer application.
 
-Treat the QoM documents as the preferred production direction. Historical Top-2,
-angular, displacement, pose-similarity and coverage-gating methods may remain as
-analysis/diagnostic research, but must not be reintroduced as competing production
-movement gates without a concrete validation recording and an explicit detector
-version change. Activity metadata selects the movement body profile: punch uses
-left arm + right arm + torso; kick uses left leg + right leg + torso; head is
-excluded. Keep logical movement boundaries separate from pre/post-roll playback
-padding.
+Kihon Analyzer is a real product and the first production consumer and proving ground for the shared platform. Karate Coach is a later, richer, paid product built on the proven platform.
 
-## Outstanding development tasks
+Solve current backend and Kihon Analyzer requirements cleanly. Do not add abstractions, services, configuration, extension points, or other machinery solely for hypothetical future Coach needs.
 
-Small agreed requirements that are not yet implemented or verified live in
-`docs/backlog/`. Check `docs/backlog/README.md` when asked for outstanding work,
-to pick a task, or to continue a short design/debug chat as implementation work.
-Verify the current implementation before changing code and update the task status
-when the work is completed.
+## Architectural direction
 
-## Learning activity authoring
+Karate and movement-analysis knowledge belongs in the shared analytical platform. Product experience belongs in applications.
 
-For work on learning activities, `ActivityShellView`, learning-path activity
-routes, or activity progress, read these before editing:
+Maintain one authoritative implementation of analytical concepts. Applications may present and use results differently, but must not create competing movement-analysis calculations.
 
-1. `docs/activity-shell-authoring-guide.md` — learning objectives, activity
-   selection, page patterns, wording, accessibility, and authoring workflow.
-2. `docs/activity-shell-contract.md` — normative shell/runner ownership,
-   lifecycle, navigation, progress, permission, recovery, and cleanup rules.
-3. `docs/app-activity-shell.md` — current Android implementation, concrete
-   activities, placeholder behavior, integration points, and known limits.
+Keep code dependencies directed from consumers toward the reusable capabilities they use. Applications consume shared analytical results; the analytical core must not depend on product UI, coaching, learning, or workflow logic. Information flows toward products, while code dependencies point toward shared capabilities.
 
-Use `docs/prompts/new-learning-activity.md` to start a net-new activity. Begin
-with the Karate Basics template, state the learning objective and evidence, and
-record every intentional deviation from the default lifecycle. Prefer deviations
-inside the activity presentation model or runner. Do not add Japanese counting,
-voice, camera, MediaPipe, analysis, or technique-specific behavior to the shared
-shell.
+Treat this as intended architecture. Verify the repository before assuming the current implementation follows it.
 
-The repository-owned Codex skill is
-`.codex/skills/karate-activity-authoring/SKILL.md`. Use it when an installed
-Codex environment supports skills; the documents above remain authoritative.
+## Knowledge policy
 
-Keep passive and Ready pages hardware-off. Microphone, camera, recording,
-recognition, and analysis may start only after an explicit learner action. Keep
-pathway position, activity progress, completion, assessment result, mastery,
-voice verification, and device verification distinct. Error is a recoverable
-branch, not a mandatory learning stage. Update `docs/app-activity-shell.md` when
-implemented behavior changes, and add transition, navigation, lifecycle,
-permission, accessibility, and architecture-boundary tests as applicable.
+This repository is starting a fresh knowledge layer. Old documentation and existing code are evidence, not automatic architectural authority. Do not import old assumptions merely because they are documented or implemented.
 
-## Karate technique icon SVG cleanup
+Use these states when they clarify a claim:
 
-For work on SVG assets converted from approved karate technique/stance artwork,
-read `docs/technique-icon-svg-cleanup-guide.md` before editing. This cleanup stage
-starts after raster-to-vector conversion and must preserve the approved pose rather
-than silently correcting karate technique or redrawing anatomy.
+- `OBSERVED` — confirmed from current repository or runtime evidence.
+- `DOCUMENTED` — stated in existing material but not revalidated.
+- `DECIDED` — explicitly established as current intent.
+- `INFERRED` — a reasoned interpretation, not authority.
+- `UNKNOWN` — not established.
 
-The repository-owned cleanup skill is
-`.codex/skills/karate-technique-icon-svg-cleanup/SKILL.md`. Use it for cleaning,
-normalizing, renaming, validating, and previewing converted SVG technique icons.
-The app technique-icon red is `#EF4444`; use transparent negative space for the
-white relief/cutout details and keep the standardized 1024 x 1024 viewBox unless a
-future documented asset contract replaces it.
+Implementation existence does not make a design `DECIDED`. Surface material conflicts instead of silently reconciling them.
 
-## Wiki authoring decisions
+Use `project-knowledge/` as the durable knowledge layer. Load only what is relevant to the current task. Update the appropriate file when work establishes durable product, domain, architecture, terminology, decision, or structural knowledge.
 
-- Write for a person training, not a technical reviewer. Keep animation and graph
-  captions short; the optional calculation explanation can go slightly deeper.
-- Keep camera setup, calibration, arm-length and general estimation explanations
-  out of measurement pages. These belong in separate learning content. Preserve
-  accurate units and provenance in data; do not relabel existing values.
-- Extend an existing page when related measurements share the same movement,
-  reference and graph. RMS and maximum wrist deviation belong on one wrist-path
-  page, with separate values, not a combined score.
-- For this wrist-path page, use fixed-camera wrist positions for BOTH RMS and
-  maximum. Keep the camera transform, dashed start-to-end reference, and already
-  recorded trail points fixed during playback. Do not drag past positions with
-  the current shoulder. Other measurements must explicitly choose their own
-  appropriate coordinate reference; this is not a universal camera-frame rule.
-- A coordinate-reference change changes the measurement. Update computation,
-  both summaries, graph, markers, assets, existing wiki renderer and documentation
-  together. A corrected chat preview alone does not update the app.
-- For visual iteration, provide a playable in-chat preview and a concise account
-  of what changed. Automated tests do not replace visual review with the user.
-- Track agreed behavior separately from shipped behavior. The grouped RMS/maximum
-  page and fixed-camera calculation are now implemented in local source. Native
-  compilation and device checks remain blocked/unverified; do not claim deployment.
-- In the body animation, reveal a maximum marker only when the wrist reaches
-  that sample. Keep it afterwards; hide it on earlier scrubbing/restart. The
-  graph may show its maximum throughout. Explain speed smoothing briefly in
-  the calculation page, never by altering the displayed motion.
+## Working approach
+
+Discover repository facts instead of asking the user for information that can be reliably established from the repository. Keep discovery proportional to the task.
+
+Use repository skills when their activation criteria match:
+
+- `project-discovery` for focused repository facts and implementation relationships;
+- `ddd-architect` for domain meaning, ownership, boundaries, terminology, and invariants;
+- `ponytail` for simplicity and avoidance of unnecessary machinery; and
+- `adaptive-interviewing` for material intent or semantic uncertainty that evidence cannot resolve.
+
+Prefer one stable term for one domain concept. Before adding a concept or abstraction, check whether the current model or an existing capability can express the requirement cleanly.
+
+Ask only when unresolved intent, semantics, product direction, or architectural meaning materially affects the task. Batch closely related questions and record durable answers.
+
+Validate work in proportion to its risk. Do not claim checks that were not performed. Update the authoritative owner of changed behavior, contracts, architecture, or durable knowledge instead of duplicating the same rule.
+
+## Governing principles
+
+- Discover before asking.
+- Retrieve before restating.
+- Meaning before machinery.
+- Existing capability before new abstraction.
+- Unknown is better than invented.
+- Current implementation is evidence, not automatic authority.
+- Build the shared backend and Kihon Analyzer first.
+- Do not let future Coach requirements drive speculative complexity.
+- Preserve one authoritative analytical core.
