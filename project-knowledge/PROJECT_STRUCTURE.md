@@ -19,6 +19,17 @@ For each non-obvious entry, include enough evidence to recheck it: a repository-
 
 ## Verified map
 
+### Shared Android analytical core
+
+**Status: OBSERVED — verified 2026-09-24**
+
+- Pure Kotlin shared analysis code is in `android/KarateClipRecorder/karate-analyzer-core/src/main/kotlin/dk/lasse/karateanalyzer/`; its Gradle entry point is `android/KarateClipRecorder/karate-analyzer-core/build.gradle.kts` and the module targets JVM 17.
+- Canonical pose/MLS sample models are in `core/PunchHeightModels.kt`; canonical frame geometry and provenance are in `geometry/FrameGeometry.kt` and `geometry/CanonicalGeometry.kt`.
+- Production retrospective movement bounds and QoM evidence are owned by `capture/retrospective/RetrospectiveSessionSegmenter.kt` and `capture/qom/`. `RetrospectiveSessionResult.qomTimeline` exposes the production QoM timeline used by downstream analysis.
+- Shared aspect-correct geometry and wrapped-angle operations are owned by `geometry/FrameGeometryMath.kt`. The reusable causal median→mean timestamped motion filter is `motion/CausalCoordinateMotionFilter.kt`; production QoM and impact analysis both consume it.
+- Terminal-event analysis contracts and implementation are in `impact/ImpactAnalysisModels.kt` and `impact/ImpactAnalyzer.kt`. The result carries authoritative per-sample debug evidence, abstention, calibration, and source/version provenance.
+- `app/.../training/StraightPunchMovementAdapter.kt` accepts an `ImpactAnalysisResult`: completed results select the stable representative MLS sample, while impact abstention is preserved. Existing production callers currently omit this input; production activation is blocked on authoritative image-plane body-scale evidence.
+
 ### Android training/evidence persistence
 
 **Status: OBSERVED — verified 2026-09-23**

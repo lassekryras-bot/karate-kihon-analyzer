@@ -1,6 +1,8 @@
 package dk.lasse.karatecliprecorder.training
 
 import dk.lasse.karateanalyzer.core.*
+import dk.lasse.karateanalyzer.impact.ImpactAnalysisResult
+import dk.lasse.karateanalyzer.impact.ImpactAnalysisStatus
 
 object StraightPunchMovementAdapter {
     val policy = AnalyzerPolicy("straight_punch_target", listOf("1"))
@@ -12,8 +14,34 @@ object StraightPunchMovementAdapter {
         explicitGedanTarget: TargetId? = null,
         videoWidth: Int? = null,
         videoHeight: Int? = null,
+        impactResult: ImpactAnalysisResult? = null,
     ): Pair<MovementAnalysis, List<MeasurementResult>> {
-        val resolved = CanonicalAnalysisFrameSelector.resolve(movement.startUs, movement.endUs, movement.analysisFrameUs, frames)
+        val impactAbstentionReason = when {
+            impactResult == null -> null
+            impactResult.status != ImpactAnalysisStatus.COMPLETED ->
+                "impact_analysis_${impactResult.abstentionReason?.name ?: "abstained"}"
+            impactResult.stableRepresentativeTimestampUs == null ->
+                "impact_analysis_representative_unavailable"
+            else -> null
+        }
+        if (impactAbstentionReason != null) {
+            val analysis = MovementAnalysis(
+                movementId = movement.movementId,
+                analyzerKey = policy.analyzerKey,
+                analyzerVersion = "1",
+                landmarkTrackId = trackId,
+                state = AnalysisState.ABSTAINED,
+                reason = impactAbstentionReason,
+            )
+            return analysis to emptyList()
+        }
+        val impactRepresentativeUs = impactResult?.stableRepresentativeTimestampUs
+        val resolved = CanonicalAnalysisFrameSelector.resolve(
+            movement.startUs,
+            movement.endUs,
+            impactRepresentativeUs ?: movement.analysisFrameUs,
+            frames,
+        )
         val canonicalResult = resolved?.first
         val frame = resolved?.second
         if (canonicalResult == null || frame == null) {

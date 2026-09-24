@@ -83,6 +83,19 @@ object FrameGeometryMath {
         return Math.toDegrees(atan2(v.y.toDouble(), v.x.toDouble())).toFloat()
     }
 
+    /** Normalizes an angle to [-180, 180], preserving the shortest circular representation. */
+    fun wrapAngleDeg(angleDeg: Double): Double {
+        require(angleDeg.isFinite()) { "Angle must be finite, was $angleDeg" }
+        var wrapped = angleDeg % 360.0
+        if (wrapped > 180.0) wrapped -= 360.0
+        if (wrapped < -180.0) wrapped += 360.0
+        return wrapped
+    }
+
+    /** Signed shortest difference from [fromDeg] to [toDeg]. */
+    fun wrappedAngleDifferenceDeg(toDeg: Double, fromDeg: Double): Double =
+        wrapAngleDeg(toDeg - fromDeg)
+
     /**
      * Scalar projection of [point] onto the axis defined by [axisOrigin] and unit direction [axisDirectionUnit].
      */
@@ -154,4 +167,3 @@ object FrameGeometryMath {
         return Pair(radius / frameGeometry.aspectRatio, radius)
     }
 }
-

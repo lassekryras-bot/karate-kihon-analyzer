@@ -29,6 +29,21 @@ These are intended domain responsibilities, not claims about current modules or 
 - Evidence is not interpretation.
 - Existing code structure is not automatically the intended domain model.
 
+## Impact-analysis body scale
+
+**Status: DECIDED — 2026-09-24**
+
+The spatial deadband used by terminal-event analysis consumes explicit body-scale evidence expressed
+in the same aspect-correct source-frame-height units as weapon travel. The upstream shared body-scale
+provider owns how that evidence is derived and versions its meaning; `ImpactAnalyzer` does not derive
+or approximate it.
+
+Physical stature (for example centimeters), current torso length, source-frame height, and observed
+image-plane body height are distinct concepts and are not interchangeable. Until an authoritative
+provider is available, missing compatible scale evidence produces `BODY_SCALE_UNAVAILABLE`.
+
 ## Unknowns
 
 Exact bounded-context names, module boundaries, aggregates, persistence ownership, APIs, and integration mechanisms remain `UNKNOWN` until a task requires them to be discovered or decided.
+
+The production provider for aspect-correct image-plane body-scale evidence remains `UNKNOWN`.

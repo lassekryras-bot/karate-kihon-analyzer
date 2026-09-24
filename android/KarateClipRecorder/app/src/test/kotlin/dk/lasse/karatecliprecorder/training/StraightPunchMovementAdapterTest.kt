@@ -1,6 +1,8 @@
 package dk.lasse.karatecliprecorder.training
 
 import dk.lasse.karateanalyzer.core.*
+import dk.lasse.karateanalyzer.capture.LateralSide
+import dk.lasse.karateanalyzer.impact.*
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
@@ -83,5 +85,53 @@ class StraightPunchMovementAdapterTest {
         assertEquals(AnalysisState.ABSTAINED, analysis.state)
         assertEquals("neutral_body_reference_unavailable", analysis.reason)
         assertTrue(results.isEmpty(), "No measurements should be published without stable neutral reference")
+    }
+
+    @Test
+    fun impactAbstentionIsPreservedInsteadOfFallingBackToLegacyFrameSelection() {
+        val movement = SessionMovement(
+            sessionId = "test-session",
+            startUs = 800_000L,
+            endUs = 1_200_000L,
+            playbackStartUs = 600_000L,
+            playbackEndUs = 1_400_000L,
+            segmentationSource = "test",
+            segmentationVersion = "1.0",
+            analysisFrameUs = 1_000_000L,
+        )
+        val impact = ImpactAnalysisResult(
+            status = ImpactAnalysisStatus.ABSTAINED,
+            movementId = movement.movementId,
+            weaponId = WeaponPointDefinition.COMPOSITE_HAND,
+            side = LateralSide.LEFT,
+            limbFamily = ImpactLimbFamily.UPPER_LIMB,
+            viewProfile = "approved-side",
+            quality = ImpactQualityDiagnostics(1, 0, 0.0, null, null, null),
+            provenance = ImpactAnalysisProvenance(
+                landmarkTrackId = "test-track",
+                recordingId = "recording",
+                frameGeometryId = "geometry",
+                frameGeometryContractVersion = "v1",
+                sourceHash = null,
+                trackHash = null,
+                segmenterVersion = "segmenter-v1",
+                bodyScaleSourceId = null,
+                bodyScaleSourceVersion = null,
+                analyzerVersion = ImpactAnalyzer.ANALYZER_VERSION,
+                configurationVersion = ImpactAnalysisProfile.DEFAULT_CONFIG_VERSION,
+            ),
+            abstentionReason = ImpactAbstentionReason.BODY_SCALE_UNAVAILABLE,
+        )
+
+        val (analysis, results) = StraightPunchMovementAdapter.analyze(
+            movement = movement,
+            trackId = "test-track",
+            frames = listOf(buildNeutralFrame(900L), buildImpactFrame(1_000L)),
+            impactResult = impact,
+        )
+
+        assertEquals(AnalysisState.ABSTAINED, analysis.state)
+        assertEquals("impact_analysis_BODY_SCALE_UNAVAILABLE", analysis.reason)
+        assertTrue(results.isEmpty())
     }
 }

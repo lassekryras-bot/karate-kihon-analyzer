@@ -3,6 +3,7 @@ package dk.lasse.karateanalyzer.capture.qom
 import dk.lasse.karateanalyzer.core.Point3
 import dk.lasse.karateanalyzer.core.PoseFrame
 import dk.lasse.karateanalyzer.core.PoseLandmarkId
+import dk.lasse.karateanalyzer.motion.CausalCoordinateMotionFilter
 import kotlin.math.sqrt
 
 /**
@@ -19,19 +20,7 @@ class QomMotionEvidenceExtractor(
 ) {
     private var previousTimestampMs: Long? = null
 
-    // Per-point filter buffers
-    private class PointHistory {
-        val rawPositions = mutableListOf<Point3>()
-        val rawConfidences = mutableListOf<Double>()
-        val medianPositions = mutableListOf<Point3>()
-        val medianConfidences = mutableListOf<Double>()
-        var smoothedPosition: Point3? = null
-        var smoothedConfidence: Double = 0.0
-        var previousSmoothedPosition: Point3? = null
-        var previousSmoothedConfidence: Double = 0.0
-    }
-
-    private val pointHistories = mutableMapOf<String, PointHistory>()
+    private val pointFilters = mutableMapOf<String, CausalCoordinateMotionFilter>()
 
     // QoM time series for trailing trapezoidal area: list of Pair(timestampSec, qomValue)
     private data class QomSample(val timestampSec: Double, val qom: Double)
@@ -42,7 +31,7 @@ class QomMotionEvidenceExtractor(
      */
     fun reset() {
         previousTimestampMs = null
-        pointHistories.clear()
+        pointFilters.clear()
         qomHistory.clear()
     }
 
@@ -104,49 +93,28 @@ class QomMotionEvidenceExtractor(
         // 3. Apply causal 3-sample median then 3-sample mean filtering
         val currentSmoothed = mutableMapOf<String, Point3>()
         val currentConfidences = mutableMapOf<String, Double>()
+        val filterOutputs = mutableMapOf<String, CausalCoordinateMotionFilter.Output>()
 
         for ((ptId, sample) in effectivePoints) {
-            val history = pointHistories.getOrPut(ptId) { PointHistory() }
-
-            // Stage A: Trailing 3-sample coordinate-wise median
-            history.rawPositions.add(sample.position)
-            if (history.rawPositions.size > config.positionMedianSamples) {
-                history.rawPositions.removeAt(0)
+            val filter = pointFilters.getOrPut(ptId) {
+                CausalCoordinateMotionFilter(
+                    coordinateCount = 3,
+                    medianSamples = config.positionMedianSamples,
+                    meanSamples = config.positionMeanSamples,
+                )
             }
-            history.rawConfidences.add(sample.confidence)
-            if (history.rawConfidences.size > config.positionMedianSamples) {
-                history.rawConfidences.removeAt(0)
-            }
-
-            val medX = medianOf(history.rawPositions.map { it.x })
-            val medY = medianOf(history.rawPositions.map { it.y })
-            val medZ = medianOf(history.rawPositions.map { it.z })
-            val medPos = Point3(medX, medY, medZ)
-            val medConf = medianOf(history.rawConfidences.map { it.toFloat() }).toDouble()
-
-            history.medianPositions.add(medPos)
-            if (history.medianPositions.size > config.positionMeanSamples) {
-                history.medianPositions.removeAt(0)
-            }
-            history.medianConfidences.add(medConf)
-            if (history.medianConfidences.size > config.positionMeanSamples) {
-                history.medianConfidences.removeAt(0)
-            }
-
-            // Stage B: Trailing 3-sample arithmetic mean
-            val nPos = history.medianPositions.size.toFloat()
-            val meanX = history.medianPositions.sumOf { it.x.toDouble() }.toFloat() / nPos
-            val meanY = history.medianPositions.sumOf { it.y.toDouble() }.toFloat() / nPos
-            val meanZ = history.medianPositions.sumOf { it.z.toDouble() }.toFloat() / nPos
-            val meanConf = history.medianConfidences.average()
-
-            history.previousSmoothedPosition = history.smoothedPosition
-            history.previousSmoothedConfidence = history.smoothedConfidence
-            history.smoothedPosition = Point3(meanX, meanY, meanZ)
-            history.smoothedConfidence = meanConf
-
-            currentSmoothed[ptId] = Point3(meanX, meanY, meanZ)
-            currentConfidences[ptId] = meanConf
+            val output = filter.accept(
+                timestampUs = currentMs * 1000L,
+                coordinates = listOf(sample.position.x.toDouble(), sample.position.y.toDouble(), sample.position.z.toDouble()),
+                confidence = sample.confidence,
+            )
+            filterOutputs[ptId] = output
+            currentSmoothed[ptId] = Point3(
+                output.coordinates[0].toFloat(),
+                output.coordinates[1].toFloat(),
+                output.coordinates[2].toFloat(),
+            )
+            currentConfidences[ptId] = output.confidence
         }
 
         // 4. Point velocities and weights
@@ -186,13 +154,14 @@ class QomMotionEvidenceExtractor(
         val pointWeights = mutableMapOf<String, Double>()
 
         for ((ptId, currPos) in currentSmoothed) {
-            val hist = pointHistories[ptId] ?: continue
-            val prevPos = hist.previousSmoothedPosition ?: continue
+            val output = filterOutputs[ptId] ?: continue
+            val previous = output.previousCoordinates ?: continue
+            val prevPos = Point3(previous[0].toFloat(), previous[1].toFloat(), previous[2].toFloat())
             val dx = (currPos.x - prevPos.x).toDouble()
             val dy = (currPos.y - prevPos.y).toDouble()
             val dz = (currPos.z - prevPos.z).toDouble()
             val speed = sqrt(dx * dx + dy * dy + dz * dz) / dt
-            val weight = minOf(hist.smoothedConfidence, hist.previousSmoothedConfidence)
+            val weight = minOf(output.confidence, output.previousConfidence ?: 0.0)
 
             pointSpeeds[ptId] = speed
             pointWeights[ptId] = weight
@@ -349,18 +318,5 @@ class QomMotionEvidenceExtractor(
         return area
     }
 
-    companion object {
-        private fun medianOf(values: List<Float>): Float {
-            if (values.isEmpty()) return 0f
-            if (values.size == 1) return values[0]
-            val sorted = values.sorted()
-            val mid = sorted.size / 2
-            return if (sorted.size % 2 == 1) {
-                sorted[mid]
-            } else {
-                (sorted[mid - 1] + sorted[mid]) * 0.5f
-            }
-        }
-    }
 }
 

@@ -4,6 +4,7 @@ import dk.lasse.karateanalyzer.core.Point3
 import dk.lasse.karateanalyzer.core.PoseFrame
 import dk.lasse.karateanalyzer.core.PoseLandmarkId
 import dk.lasse.karateanalyzer.core.PoseLandmarkSample
+import dk.lasse.karateanalyzer.geometry.SourceNormalizedPoint
 
 /**
  * Identifiers for physical body blocks participating in Quantity of Motion aggregation.
@@ -87,6 +88,12 @@ data class EffectivePointSample(
  */
 object ExtremityPointComposer {
 
+    data class SourceCompositePoint(
+        val point: SourceNormalizedPoint,
+        val confidence: Double,
+        val contributingLandmarks: Set<PoseLandmarkId>,
+    )
+
     fun landmarkConfidence(sample: PoseLandmarkSample?): Double {
         if (sample == null) return 0.0
         val p = sample.worldPosition ?: sample.position ?: return 0.0
@@ -145,6 +152,44 @@ object ExtremityPointComposer {
         val avgConfidence = constituentIds.sumOf { id -> landmarkConfidence(frame.landmarks[id]) } / totalConstituents
 
         return Pair(center, avgConfidence)
+    }
+
+    /**
+     * Confidence-weighted composite in canonical source-image coordinates.
+     * Unlike [compositePoint], this intentionally never substitutes world coordinates.
+     */
+    fun compositeSourcePoint(
+        frame: PoseFrame,
+        constituentIds: List<PoseLandmarkId>,
+    ): SourceCompositePoint? {
+        val validSamples = constituentIds.mapNotNull { id ->
+            val sample = frame.landmarks[id]
+            val point = sample?.position
+            if (point != null && point.x.isFinite() && point.y.isFinite()) {
+                Triple(id, point, landmarkConfidence(sample))
+            } else {
+                null
+            }
+        }
+        if (validSamples.isEmpty()) return null
+
+        val sumConfidence = validSamples.sumOf { it.third }
+        val x: Double
+        val y: Double
+        if (sumConfidence > 1e-9) {
+            x = validSamples.sumOf { it.second.x * it.third } / sumConfidence
+            y = validSamples.sumOf { it.second.y * it.third } / sumConfidence
+        } else {
+            x = validSamples.map { it.second.x.toDouble() }.average()
+            y = validSamples.map { it.second.y.toDouble() }.average()
+        }
+        val averageConfidence = constituentIds.sumOf { id -> landmarkConfidence(frame.landmarks[id]) } /
+            constituentIds.size.toDouble()
+        return SourceCompositePoint(
+            point = SourceNormalizedPoint(x.toFloat(), y.toFloat()),
+            confidence = averageConfidence,
+            contributingLandmarks = validSamples.map { it.first }.toSet(),
+        )
     }
 }
 
