@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
 import dk.lasse.karateanalyzer.capture.PoseReplayJson
+import dk.lasse.karateanalyzer.capture.qom.MotionBodyProfile
 import dk.lasse.karateanalyzer.capture.retrospective.*
 import dk.lasse.karateanalyzer.core.*
 import org.junit.Test
@@ -16,6 +17,23 @@ import kotlin.test.*
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [28])
 class TrainingProcessorTest {
+    @Test fun targetAnalyzerFailureRecordsApprovedV2Provenance() {
+        val movement = SessionMovement(sessionId = "session", startUs = 0, endUs = 1,
+            playbackStartUs = 0, playbackEndUs = 1, segmentationSource = "test", segmentationVersion = "test")
+        val failure = runCatching { error("forced target analyzer failure") }
+            .exceptionOrNull()!!.let { straightPunchFailureAnalysis(movement, "track", it) }
+        assertEquals(StraightPunchMovementAdapter.policy.analyzerKey, failure.analyzerKey)
+        assertEquals("2", failure.analyzerVersion)
+        assertEquals(AnalysisState.FAILED, failure.state)
+        assertEquals("forced target analyzer failure", failure.reason)
+    }
+
+    @Test fun unknownLegacyContextKeepsPunchSegmentationFallbackWithoutActivitySemantics() {
+        val session = RecordingSession(userId = "user", startedAtMs = 1)
+        assertEquals(MotionBodyProfile.PUNCH, RecordingProcessingPlans.forSession(session).movementProfile)
+        assertNull(MotionActivityPlans.context(null))
+    }
+
     @Test fun recordedTenPunchFixturePersistsAndReopensWithoutRerunningMediaPipe() {
         var root: File? = File(".").canonicalFile
         while (root != null && !File(root, "AGENTS.md").exists()) root = root.parentFile
@@ -172,6 +190,7 @@ class TrainingProcessorTest {
             val initialRun = assertNotNull(repository.currentRun(session.sessionId))
             assertEquals(RunMode.INITIAL, initialRun.mode)
             assertEquals(RunState.COMPLETED, initialRun.state)
+            assertEquals("2", initialRun.analyzerVersion)
             assertTrue(initialRun.isCurrent)
 
             val initialMovements = repository.movements(session.sessionId)
@@ -193,6 +212,7 @@ class TrainingProcessorTest {
             assertEquals(reanalysisRun.runId, currentRun.runId)
             assertEquals(RunMode.REANALYSIS, currentRun.mode)
             assertEquals(RunState.COMPLETED, currentRun.state)
+            assertEquals("2", currentRun.analyzerVersion)
             assertTrue(currentRun.isCurrent)
             assertEquals(TrainingSessionProcessor.SEGMENTATION_VERSION, currentRun.segmenterVersion)
 
@@ -216,6 +236,60 @@ class TrainingProcessorTest {
             assertNotNull(firstMovementEvidence.analyses.single { it.analyzerKey == MovementMotionAnalysis.policy.analyzerKey }.geometryJson)
             assertNotNull(repository.run(initialRun.runId), "Reanalysis retains historical run provenance")
 
+        } finally {
+            db.close()
+            context.deleteDatabase(databaseName)
+            directory.deleteRecursively()
+        }
+    }
+
+    @Test fun legacyKickMetadataKeepsKickSegmentationWithoutInferringAnalysisPlan() {
+        val frames = buildSyntheticTenPunchFrames()
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val databaseName = "legacy-kick-${trainingId()}"
+        val directory = kotlin.io.path.createTempDirectory("legacy-kick-test").toFile()
+        val db = Room.databaseBuilder(context, KarateTrainingDatabase::class.java, databaseName).allowMainThreadQueries().build()
+        try {
+            val repository = TrainingRepository(db)
+            val user = TrainingUser()
+            repository.createUser(user)
+            val session = RecordingSession(
+                userId = user.userId,
+                startedAtMs = 1000,
+                activityKey = AssistedCaptureSetup.ACTIVITY_KEY,
+                expectedActivity = "Front kicks",
+                expectedCategory = "Kicks",
+                guided = false,
+                expectedRepetitions = 10,
+            )
+            val source = File(directory, "master.mp4").apply { writeText("fixture") }
+            repository.beginSession(session, MasterRecording(sessionId = session.sessionId, filePath = source.path, createdAtMs = 1000))
+            repository.finishRecording(session.sessionId, frames.last().timestampMs * 1000)
+            repository.enqueue(session.sessionId)
+
+            var observedProfile: MotionBodyProfile? = null
+            val decoder = object : VideoPoseProcessor {
+                override fun processVideo(videoFile: File, onProgress: (Float, Long) -> Unit): List<PoseFrame> = frames
+            }
+            val processor = TrainingSessionProcessor(
+                repository,
+                directory,
+                decoder,
+                "fixture-v1",
+                segmentWithProfile = { recordingId, path, poseFrames, cues, profile ->
+                    observedProfile = profile
+                    RetrospectiveSessionSegmenter(
+                        RetrospectiveSegmenterConfig(profile = profile, cadence = RetrospectiveCadence.REPETITIONS)
+                    ).segment(recordingId, path, poseFrames, cues)
+                },
+            )
+
+            val movementCount = processor.process(session.sessionId)
+
+            assertEquals(MotionBodyProfile.KICK, observedProfile)
+            assertNull(MotionActivityPlans.fromEvents(repository.events(session.sessionId)))
+            assertEquals(0, movementCount, "Punch-shaped fixture need not produce movements under preserved kick segmentation")
+            assertTrue(repository.movements(session.sessionId).isEmpty())
         } finally {
             db.close()
             context.deleteDatabase(databaseName)

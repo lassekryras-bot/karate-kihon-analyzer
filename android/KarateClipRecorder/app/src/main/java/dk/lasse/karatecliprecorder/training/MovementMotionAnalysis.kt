@@ -26,27 +26,38 @@ object MovementMotionAnalysis {
         sequence: RepetitionSideValidation? = null,
         bodyScale: BodyScaleEvidence? = null,
         calibration: dk.lasse.karateanalyzer.geometry.ImageBodyScaleCalibration? = null,
+        viewApproval: ImpactViewApproval? = null,
     ): MovementMotionOutput {
         val side = context?.let { ActivityStartingSideResolver.resolve(limbs, it) }
         val resolvedSide = side?.side
-        val impact = if (resolvedSide != null) {
+        val scopedViewApproval = viewApproval?.takeIf { it.activityPlanId == context?.planId }
+        val impactProfile = if (resolvedSide != null && scopedViewApproval != null) {
             val punch = context!!.activity == LimbInterpretationActivity.STRAIGHT_PUNCH
+            ImpactAnalysisProfile(context.planId, resolvedSide,
+                if (punch) WeaponPointDefinition.COMPOSITE_HAND else WeaponPointDefinition.COMPOSITE_FOOT,
+                if (punch) ImpactLimbFamily.UPPER_LIMB else ImpactLimbFamily.LOWER_LIMB,
+                approvedViewProfile = scopedViewApproval.profileId)
+        } else null
+        val impact = impactProfile?.let { profile ->
             ImpactAnalyzer.analyze(ImpactMovementInput(
                 movementId = movement.movementId, logicalStartTimestampUs = movement.startUs, logicalEndTimestampUs = movement.endUs,
                 // Keep logical, evidence and playback intervals distinct. No new padding heuristic.
                 evidenceStartTimestampUs = movement.startUs, evidenceEndTimestampUs = movement.endUs,
                 frames = frames, qomTimeline = qom, segmenterVersion = movement.segmentationVersion,
                 landmarkTrackId = trackId, canonicalGeometry = geometry, bodyScale = bodyScale,
-                profile = ImpactAnalysisProfile(context.planId, resolvedSide,
-                    if (punch) WeaponPointDefinition.COMPOSITE_HAND else WeaponPointDefinition.COMPOSITE_FOOT,
-                    if (punch) ImpactLimbFamily.UPPER_LIMB else ImpactLimbFamily.LOWER_LIMB,
-                    approvedViewProfile = "operator_selected_provisional"),
+                profile = profile,
                 limbEvidence = limbs,
             ))
-        } else null
-        val reason = impact?.abstentionReason?.name ?: if (impact?.status == ImpactAnalysisStatus.COMPLETED) null
-            else if (context == null) "ACTIVITY_PLAN_UNAVAILABLE" else "SIDE_AMBIGUOUS"
-        val payload = encode(movement, limbs, side, sequence, impact, qom, reason, bodyScale, calibration)
+        }
+        val reason = when {
+            context == null -> "ACTIVITY_PLAN_UNAVAILABLE"
+            resolvedSide == null -> "SIDE_AMBIGUOUS"
+            scopedViewApproval == null -> ImpactAbstentionReason.UNSUPPORTED_ANALYSIS_PROFILE.name
+            impact?.abstentionReason != null -> impact.abstentionReason?.name
+            impact?.status == ImpactAnalysisStatus.COMPLETED -> null
+            else -> ImpactAbstentionReason.UNSUPPORTED_ANALYSIS_PROFILE.name
+        }
+        val payload = encode(movement, limbs, side, sequence, impactProfile, scopedViewApproval, impact, qom, reason, bodyScale, calibration)
         val analysis = MovementAnalysis(movementId = movement.movementId, analyzerKey = policy.analyzerKey,
             analyzerVersion = "1", landmarkTrackId = trackId,
             state = if (limbs.profiles.values.any { it.metrics != null }) AnalysisState.PARTIAL else AnalysisState.ABSTAINED,
@@ -59,7 +70,8 @@ object MovementMotionAnalysis {
             movement.startUs, movement.endUs, frames, geometry, segmenterVersion = movement.segmentationVersion))
 
     private fun encode(movement: SessionMovement, limbs: FourLimbMotionResult, side: ActivitySideResolution?,
-                       sequence: RepetitionSideValidation?, impact: ImpactAnalysisResult?, qom: List<QomFrameEvidence>, reason: String?, bodyScale: BodyScaleEvidence?,
+                       sequence: RepetitionSideValidation?, impactProfile: ImpactAnalysisProfile?, viewApproval: ImpactViewApproval?,
+                       impact: ImpactAnalysisResult?, qom: List<QomFrameEvidence>, reason: String?, bodyScale: BodyScaleEvidence?,
                        calibration: dk.lasse.karateanalyzer.geometry.ImageBodyScaleCalibration?): String {
         fun obj(vararg values: Pair<String, Any?>) = JSONObject().apply { values.forEach { (key, value) -> put(key, value ?: JSONObject.NULL) } }
         val profiles = JSONArray()
@@ -106,9 +118,11 @@ object MovementMotionAnalysis {
             "impactReason" to reason, "weapon" to impact?.weaponId?.name,
             "terminalUs" to impact?.terminalTransitionTimestampUs, "stableStartUs" to impact?.stableWindowStartTimestampUs,
             "stableEndUs" to impact?.stableWindowEndTimestampUs, "representativeUs" to impact?.stableRepresentativeTimestampUs,
-            "impactProvenance" to impact?.provenance?.toString(),
+            "impactEvidence" to if (impactProfile != null && viewApproval != null && impact != null)
+                ImpactAnalysisEvidenceCodec.encode(impactProfile, viewApproval, impact) else null,
             "calibration" to calibration?.let { JSONObject(ImageBodyScaleStore.encode(it)) },
-            "bodyScale" to bodyScale?.toString(),
+            "bodyScale" to bodyScale?.let { obj("heightAspectCorrect" to it.bodyHeightAspectCorrect,
+                "sourceId" to it.sourceId, "sourceVersion" to it.sourceVersion) },
             "impactSamples" to JSONArray(impact?.debugEvidence.orEmpty().map { obj("timeUs" to it.timestampUs,
                 "weaponX" to it.weaponPoint.x, "weaponY" to it.weaponPoint.y, "speed" to it.weaponSpeed,
                 "motionEnvelope" to it.motionEnvelope, "transitionScore" to it.terminalTransitionScore,

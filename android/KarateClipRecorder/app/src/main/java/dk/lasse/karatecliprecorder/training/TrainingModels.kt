@@ -80,8 +80,20 @@ object RecordingProcessingPlans {
         movementProfile = MotionBodyProfile.PUNCH,
     )
 
-    // New runs share the same target-evidence gate. Historical legacy results remain stored.
-    fun forSession(session: RecordingSession): RecordingProcessingPlan = STRAIGHT_PUNCH_TARGET_ANALYSIS
+    /** Legacy metadata preserves only the established segmentation body profile; it never supplies activity/side semantics. */
+    fun forSession(session: RecordingSession): RecordingProcessingPlan {
+        val legacyKickProfile = session.expectedCategory?.contains("kick", ignoreCase = true) == true ||
+            session.activityKey?.contains("kick", ignoreCase = true) == true
+        return STRAIGHT_PUNCH_TARGET_ANALYSIS.copy(
+            movementProfile = if (legacyKickProfile) MotionBodyProfile.KICK else MotionBodyProfile.PUNCH,
+        )
+    }
+
+    fun analyzerVersion(plan: RecordingProcessingPlan): String? = when (plan.analyzers.firstOrNull()) {
+        StraightPunchMovementAdapter.policy.analyzerKey -> StraightPunchMovementAdapter.policy.approvedVersions.first()
+        AndroidPunchMovementAnalyzer.policy.analyzerKey -> AndroidPunchMovementAnalyzer.policy.approvedVersions.first()
+        else -> null
+    }
 
 }
 data class RecordingSession(

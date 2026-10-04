@@ -54,9 +54,6 @@ Source: supplied [requirement](../docs/backlog/four-limb-motion-characterizer-re
 
 Exact bounded-context names, module boundaries, aggregates, persistence ownership, APIs, and integration mechanisms remain `UNKNOWN` until a task requires them to be discovered or decided.
 
-The production provider for aspect-correct image-plane body-scale evidence remains `UNKNOWN`.
-
-
 ### Confirmed image body-height calibration (2026-10-04)
 
 - **DECIDED (user):** Impact scale comes from an actual upright, fully visible frame at the performance position. The user confirms head top and floor at the feet. Facial landmarks and torso spans are not substitutes for full image body height.
@@ -64,3 +61,9 @@ The production provider for aspect-correct image-plane body-scale evidence remai
 - **DECIDED:** Percentage-of-body-height thresholds use the image reference. Existing profile stature is not sufficient to derive image scale and does not need another entry field.
 - **OBSERVED:** `ImageBodyScaleCalibration` binds endpoints, frame index/time, recording/track/canonical geometry, validity interval, confirmation and method version. The provider rejects identity/interval mismatches and returns aspect-correct source-frame-height units. App calibration/revocation events are append-only; analysis retains its calibration snapshot and source ID.
 - **OBSERVED:** New recording analyses use explicit capture-plan identifiers, never display-label inference. Missing plans retain generic limb evidence and abstain from activity/weapon/target interpretation. Historical results remain stored. Manual calibration currently requires Android 9+ and unchanged conditions across the entire recording.
+
+### Impact camera-view approval
+
+**Status: DECIDED precondition; supported mapping UNKNOWN — 2026-10-04 architectural review**
+
+Impact analysis requires explicit evidence that the known activity and capture view are supported. An observed view estimate, an operator-selected marker, and valid body-scale calibration do not establish measurement suitability. Until an activity/view approval mapping is explicitly accepted, production retains generic limb and observed-side evidence but abstains from impact and impact-dependent target output with `UNSUPPORTED_ANALYSIS_PROFILE`. Historical results remain stored.

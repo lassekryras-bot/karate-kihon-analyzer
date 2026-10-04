@@ -170,7 +170,10 @@ class TrainingSessionProcessor(
         val session = requireNotNull(repository.session(sessionId))
         val recording = requireNotNull(repository.recording(sessionId))
         val activityContext = MotionActivityPlans.fromEvents(repository.events(sessionId))
-        val plan = RecordingProcessingPlans.forSession(session).copy(movementProfile = MotionActivityPlans.profile(activityContext))
+        val basePlan = RecordingProcessingPlans.forSession(session)
+        val plan = activityContext?.let { context ->
+            basePlan.copy(movementProfile = MotionActivityPlans.profile(context))
+        } ?: basePlan
 
         var currentRun = if (isReanalysis) {
             requireNotNull(repository.run(reanalysisRunId))
@@ -223,7 +226,7 @@ class TrainingSessionProcessor(
                     planVersion = plan.version,
                     segmenterVersion = SEGMENTATION_VERSION,
                     analyzerKey = plan.analyzers.firstOrNull(),
-                    analyzerVersion = "1",
+                    analyzerVersion = RecordingProcessingPlans.analyzerVersion(plan),
                     state = RunState.PROCESSING,
                     isCurrent = true,
                 )
@@ -344,14 +347,7 @@ class TrainingSessionProcessor(
                                     )
                                 }.getOrElse { error ->
                                     hadFailure = true
-                                    MovementAnalysis(
-                                        movementId = movement.movementId,
-                                        analyzerKey = StraightPunchMovementAdapter.policy.analyzerKey,
-                                        analyzerVersion = "1",
-                                        landmarkTrackId = source.landmarkTrackId,
-                                        state = AnalysisState.FAILED,
-                                        reason = error.message ?: "Analyzer execution failed",
-                                    ) to emptyList()
+                                    straightPunchFailureAnalysis(movement, source.landmarkTrackId, error) to emptyList()
                                 }
                                 repository.saveAnalysis(output.first, output.second)
                             }
@@ -408,6 +404,19 @@ class TrainingSessionProcessor(
 
     companion object { const val SEGMENTATION_VERSION = "activity_qom_hysteresis_v1" }
 }
+
+internal fun straightPunchFailureAnalysis(
+    movement: SessionMovement,
+    landmarkTrackId: String,
+    error: Throwable,
+) = MovementAnalysis(
+    movementId = movement.movementId,
+    analyzerKey = StraightPunchMovementAdapter.policy.analyzerKey,
+    analyzerVersion = StraightPunchMovementAdapter.policy.approvedVersions.first(),
+    landmarkTrackId = landmarkTrackId,
+    state = AnalysisState.FAILED,
+    reason = error.message ?: "Analyzer execution failed",
+)
 
 /** Persisted session lifecycle events are not movement cues. Keep this allow-list deliberately narrow. */
 object SessionCueEvents {

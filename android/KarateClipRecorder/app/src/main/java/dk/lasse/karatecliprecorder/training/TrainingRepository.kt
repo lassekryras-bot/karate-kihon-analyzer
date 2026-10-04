@@ -185,7 +185,7 @@ class TrainingRepository(private val database: KarateTrainingDatabase, val stora
             planVersion = plan.version,
             segmenterVersion = TrainingSessionProcessor.SEGMENTATION_VERSION,
             analyzerKey = plan.analyzers.firstOrNull(),
-            analyzerVersion = "1",
+            analyzerVersion = RecordingProcessingPlans.analyzerVersion(plan),
             state = RunState.PROCESSING,
             isCurrent = false,
         )
@@ -205,7 +205,7 @@ class TrainingRepository(private val database: KarateTrainingDatabase, val stora
             planVersion = plan.version,
             segmenterVersion = TrainingSessionProcessor.SEGMENTATION_VERSION,
             analyzerKey = plan.analyzers.firstOrNull(),
-            analyzerVersion = "1",
+            analyzerVersion = RecordingProcessingPlans.analyzerVersion(plan),
             state = RunState.PROCESSING,
             isCurrent = false,
         )
