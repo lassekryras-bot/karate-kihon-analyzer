@@ -5,7 +5,8 @@ import android.content.Context
 data class AssistedCaptureSetup(val repetitions: Int = 10, val cadenceMs: Long = 1000,
                                 val spokenCounting: Boolean = true,
                                 val expectedActivity: String = "Alternating straight punches",
-                                val expectedCategory: String = "Punches") {
+                                val expectedCategory: String = "Punches",
+                                val analysisPlanKey: String? = MotionActivityPlans.ALTERNATING_PUNCH) {
     init {
         require(repetitions in 1..1000)
         require(cadenceMs in MIN_CADENCE_MS..10_000 && cadenceMs % 100 == 0L)

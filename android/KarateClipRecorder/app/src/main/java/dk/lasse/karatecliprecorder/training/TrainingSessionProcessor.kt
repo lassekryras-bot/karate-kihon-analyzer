@@ -4,6 +4,10 @@ import dk.lasse.karateanalyzer.capture.qom.MotionBodyProfile
 import dk.lasse.karateanalyzer.capture.retrospective.*
 import dk.lasse.karateanalyzer.core.*
 import dk.lasse.karateanalyzer.geometry.CanonicalGeometryCodec
+import dk.lasse.karateanalyzer.geometry.CanonicalGeometryDescriptor
+import dk.lasse.karateanalyzer.capture.qom.QomFrameEvidence
+import dk.lasse.karateanalyzer.capture.qom.QomMotionEvidenceExtractor
+import dk.lasse.karateanalyzer.impact.ImpactAnalysisStatus
 import java.io.File
 
 /** Reuses persisted landmarks and movement identities after process loss or when rerunning an analyzer. */
@@ -165,7 +169,8 @@ class TrainingSessionProcessor(
         val isReanalysis = reanalysisRunId != null
         val session = requireNotNull(repository.session(sessionId))
         val recording = requireNotNull(repository.recording(sessionId))
-        val plan = RecordingProcessingPlans.forSession(session)
+        val activityContext = MotionActivityPlans.fromEvents(repository.events(sessionId))
+        val plan = RecordingProcessingPlans.forSession(session).copy(movementProfile = MotionActivityPlans.profile(activityContext))
 
         var currentRun = if (isReanalysis) {
             requireNotNull(repository.run(reanalysisRunId))
@@ -230,12 +235,14 @@ class TrainingSessionProcessor(
             updateJob(sessionId) { it.copy(phase = ProcessingPhase.SEGMENTATION) }
             repository.setSessionState(sessionId, SessionState.SEGMENTING)
             val segmentationStarted = elapsedRealtimeMs()
+            var qomTimeline: List<QomFrameEvidence>? = null
 
             val existingMovements = if (isReanalysis) emptyList() else repository.movements(sessionId)
             if (existingMovements.isEmpty() && (isReanalysis || session.state !in setOf(SessionState.MOVEMENTS_AVAILABLE, SessionState.COMPLETED))) {
                 val events = repository.events(sessionId).filter(SessionCueEvents::isCue)
                 val cues = events.map { CueEvent(it.sessionEventId, it.data ?: it.type, 0, it.timestampUs / 1000) }
                 val retro = segmentWithProfile(recording.recordingId, recording.filePath, frames, CueTimeline(recording.recordingId, cues), plan.movementProfile)
+                qomTimeline = retro.qomTimeline
                 val movements = retro.movements.map { m ->
                     val canonical = CanonicalAnalysisFrameSelector.select(
                         m.logicalStartTimestampMs * 1000L,
@@ -287,18 +294,53 @@ class TrainingSessionProcessor(
             repository.setSessionState(sessionId, SessionState.ANALYZING)
             updateJob(sessionId) { it.copy(phase = ProcessingPhase.ANALYSIS) }
             var hadFailure = false
+            val geometry = CanonicalGeometryCodec.decode(source.canonicalGeometryJson) ?: CanonicalGeometryDescriptor.UNKNOWN
+            val calibration = ImageBodyScaleStore.current(repository.events(sessionId))
+            val limbResults = runMovements.associate { movement ->
+                checkActive()
+                movement.movementId to MovementMotionAnalysis.characterize(movement, source.landmarkTrackId, frames, geometry)
+            }
+            val indexedMovements = runMovements.mapNotNull { movement ->
+                // Spoken cue ordinal is one-based and retained even when a repetition was not detected.
+                val ordinals = repository.movementEvidence(movement.movementId)?.events.orEmpty()
+                    .filter { it.type == "spoken_count" }.mapNotNull { event ->
+                        Regex("(?:^|;)ordinal=(\\d+)(?:;|$)").find(event.data.orEmpty())?.groupValues?.get(1)?.toIntOrNull()
+                    }.distinct()
+                ordinals.singleOrNull()?.takeIf { it > 0 }?.let { IndexedLimbMovement(it - 1, limbResults.getValue(movement.movementId)) }
+            }
+            val sequenceByMovement = activityContext?.let { context ->
+                runCatching { ActivityStartingSideResolver.resolveSequence(indexedMovements, context).repetitions
+                    .associateBy { it.observed.evidence.movementId } }.getOrDefault(emptyMap())
+            }.orEmpty()
+            val motionQom = qomTimeline ?: QomMotionEvidenceExtractor(profile = plan.movementProfile).let { extractor -> frames.map(extractor::extract) }
             runMovements.forEach { movement ->
+                checkActive()
+                val motion = MovementMotionAnalysis.analyze(movement, source.landmarkTrackId, frames, geometry, activityContext,
+                    motionQom, limbResults.getValue(movement.movementId), sequenceByMovement[movement.movementId],
+                    dk.lasse.karateanalyzer.geometry.ImageBodyScaleProvider.evidence(calibration, geometry, movement.startUs, movement.endUs),
+                    calibration)
+                if (repository.preferredAnalysis(movement.movementId, MovementMotionAnalysis.policy) == null) {
+                    repository.saveAnalysis(motion.analysis, emptyList())
+                }
                 for (analyzerKey in plan.analyzers) {
                     when (analyzerKey) {
                         StraightPunchMovementAdapter.policy.analyzerKey -> {
                             if (repository.preferredAnalysis(movement.movementId, StraightPunchMovementAdapter.policy) == null) {
                                 val output = runCatching {
-                                    StraightPunchMovementAdapter.analyze(
+                                    if (activityContext?.activity != LimbInterpretationActivity.STRAIGHT_PUNCH ||
+                                        motion.impact?.status != ImpactAnalysisStatus.COMPLETED) {
+                                        MovementAnalysis(movementId = movement.movementId,
+                                            analyzerKey = StraightPunchMovementAdapter.policy.analyzerKey, analyzerVersion = "2",
+                                            landmarkTrackId = source.landmarkTrackId, state = AnalysisState.ABSTAINED,
+                                            reason = motion.analysis.reason ?: "TERMINAL_EVIDENCE_UNAVAILABLE") to emptyList()
+                                    } else StraightPunchMovementAdapter.analyze(
                                         movement = movement,
                                         trackId = source.landmarkTrackId,
                                         frames = frames,
                                         videoWidth = recording.width,
                                         videoHeight = recording.height,
+                                        impactResult = motion.impact,
+                                        resolvedSide = motion.side?.side,
                                     )
                                 }.getOrElse { error ->
                                     hadFailure = true

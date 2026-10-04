@@ -15,7 +15,7 @@ import kotlin.math.sqrt
 
 /** Offline terminal-event analyzer for one known, pre-segmented movement. */
 object ImpactAnalyzer {
-    const val ANALYZER_VERSION = "impact_analyzer_v1"
+    const val ANALYZER_VERSION = "impact_analyzer_v2"
 
     private data class ObservedSample(
         val timestampUs: Long,
@@ -71,6 +71,19 @@ object ImpactAnalyzer {
         )
 
         if (!input.canonicalGeometry.isAvailable) return abstain(ImpactAbstentionReason.FRAME_GEOMETRY_UNAVAILABLE)
+        val limbResult = input.limbEvidence
+        val selectedLimb = limbResult?.profiles?.get(when (input.profile.limbFamily) {
+            ImpactLimbFamily.UPPER_LIMB -> if (input.profile.side == LateralSide.LEFT) dk.lasse.karateanalyzer.motion.LimbId.LEFT_ARM else dk.lasse.karateanalyzer.motion.LimbId.RIGHT_ARM
+            ImpactLimbFamily.LOWER_LIMB -> if (input.profile.side == LateralSide.LEFT) dk.lasse.karateanalyzer.motion.LimbId.LEFT_LEG else dk.lasse.karateanalyzer.motion.LimbId.RIGHT_LEG
+        })
+        if (limbResult != null && (limbResult.movementId != input.movementId ||
+                limbResult.landmarkTrackId != input.landmarkTrackId || limbResult.canonicalGeometry != input.canonicalGeometry ||
+                limbResult.logicalStartTimestampUs != input.logicalStartTimestampUs || limbResult.logicalEndTimestampUs != input.logicalEndTimestampUs ||
+                selectedLimb?.metrics == null || selectedLimb.abstentionReason != null ||
+                dk.lasse.karateanalyzer.motion.LimbQualityFlag.GAPS in selectedLimb.qualityFlags)) {
+            return abstain(ImpactAbstentionReason.LIMB_EVIDENCE_UNAVAILABLE)
+        }
+        val sharedJointSamples = selectedLimb?.samples?.associateBy { it.timestampUs }
         val bodyScale = input.bodyScale?.takeIf(BodyScaleEvidence::isUsable)
             ?: return abstain(ImpactAbstentionReason.BODY_SCALE_UNAVAILABLE)
         if (!profileIsSupported(input.profile)) return abstain(ImpactAbstentionReason.UNSUPPORTED_ANALYSIS_PROFILE)
@@ -97,7 +110,9 @@ object ImpactAnalyzer {
         val observations = boundedFrames.mapNotNull { frame ->
             val weapon = weaponPoint(frame, input.profile)
             if (weapon != null) weaponAvailableCount++
-            val articulation = articulation(frame, input.profile, frameGeometry)
+            val sharedAngle = sharedJointSamples?.get(frame.timestampMs * 1000L)?.angleDeg
+            if (sharedJointSamples != null && sharedAngle == null) return@mapNotNull null
+            val articulation = articulation(frame, input.profile, frameGeometry, sharedAngle)
             if (articulation != null) limbAvailableCount++
             if (weapon == null || articulation == null) return@mapNotNull null
             ObservedSample(
@@ -114,6 +129,10 @@ object ImpactAnalyzer {
         if (observations.size < 3 || coverage < input.profile.minimumTrackingCoverage) {
             return abstain(ImpactAbstentionReason.TRACKING_QUALITY_INSUFFICIENT, observations.size)
         }
+        // Shared input must cover every analyzed edge; never invent joint quiet across a missing sample.
+        if (sharedJointSamples != null && (observations.size != boundedFrames.size || observations.drop(1).any {
+                sharedJointSamples[it.timestampUs]?.meaningfulDeltaDeg == null
+            })) return abstain(ImpactAbstentionReason.LIMB_EVIDENCE_UNAVAILABLE, observations.size)
 
         val spatialDeadband = input.profile.spatialDeadbandBodyHeightRatio * bodyScale.bodyHeightAspectCorrect
         val filter = CausalCoordinateMotionFilter(
@@ -145,7 +164,8 @@ object ImpactAnalyzer {
                 FrameGeometryMath.wrappedAngleDifferenceDeg(sample.jointAngleDeg, it.jointAngleDeg)
             } ?: 0.0
             val effectiveProximalDelta = if (kotlin.math.abs(proximalDelta) < input.profile.angularDeadbandDegPerSample) 0.0 else proximalDelta
-            val effectiveJointDelta = if (kotlin.math.abs(jointDelta) < input.profile.angularDeadbandDegPerSample) 0.0 else jointDelta
+            val effectiveJointDelta = sharedJointSamples?.get(sample.timestampUs)?.meaningfulDeltaDeg
+                ?: if (kotlin.math.abs(jointDelta) < input.profile.angularDeadbandDegPerSample) 0.0 else jointDelta
             val proximalVelocity = if (dt == null) 0.0 else kotlin.math.abs(effectiveProximalDelta) / dt
             val jointVelocity = if (dt == null) 0.0 else kotlin.math.abs(effectiveJointDelta) / dt
             CalculatedSample(
@@ -348,6 +368,7 @@ object ImpactAnalyzer {
         frame: PoseFrame,
         profile: ImpactAnalysisProfile,
         frameGeometry: dk.lasse.karateanalyzer.geometry.FrameGeometry,
+        sharedJointAngle: Double? = null,
     ): ImpactArticulationState? {
         val torso = LandmarkAnchors.extractTorsoAnchors(frame, profile.minimumLandmarkConfidence.toFloat())
         val shoulderCenter = torso.shoulderCenter ?: return null
@@ -375,7 +396,7 @@ object ImpactAnalyzer {
         return runCatching {
             ImpactArticulationState(
                 proximalAngleDeg = FrameGeometryMath.signedAngleDeg(bodyUp, proximal).toDouble(),
-                jointAngleDeg = FrameGeometryMath.absoluteAngleDeg(proximal, distal).toDouble(),
+                jointAngleDeg = sharedJointAngle ?: FrameGeometryMath.absoluteAngleDeg(proximal, distal).toDouble(),
             )
         }.getOrNull()
     }
@@ -476,5 +497,8 @@ object ImpactAnalyzer {
         movementLogicalEndTimestampUs = input.logicalEndTimestampUs,
         evidenceStartTimestampUs = input.evidenceStartTimestampUs,
         evidenceEndTimestampUs = input.evidenceEndTimestampUs,
+        limbAnalyzerVersion = input.limbEvidence?.analyzerVersion,
+        limbAngularPolicyVersion = input.limbEvidence?.angularPolicyVersion,
+        limbConfigurationVersion = input.limbEvidence?.config?.version,
     )
 }

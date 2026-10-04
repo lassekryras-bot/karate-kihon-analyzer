@@ -271,6 +271,15 @@ class MovementDetailActivity : AppCompatActivity() {
         contentLayout.addView(buildKeyResultsCard(data), LinearLayout.LayoutParams(-1, -2).apply { topMargin = 16.dp() })
 
         // 4. Needs Attention Card (only if findings exist)
+        if (data.motionInspectionRows.isNotEmpty()) {
+            contentLayout.addView(card().apply {
+                addView(TextView(this@MovementDetailActivity).apply { text = "Limb motion & terminal evidence"; textSize = 18f })
+                data.motionInspectionRows.forEach { row ->
+                    addView(TextView(this@MovementDetailActivity).apply { text = row; textSize = 14f; setPadding(0, 12.dp(), 0, 0) })
+                }
+            }, LinearLayout.LayoutParams(-1, -2).apply { topMargin = 12.dp() })
+        }
+
         if (data.findings.isNotEmpty()) {
             contentLayout.addView(buildNeedsAttentionCard(data), LinearLayout.LayoutParams(-1, -2).apply { topMargin = 12.dp() })
         }

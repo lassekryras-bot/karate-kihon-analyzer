@@ -20,6 +20,17 @@ dependencies {
     testImplementation(kotlin("test"))
 }
 
+tasks.register<JavaExec>("replayFourLimbMotion") {
+    group = "verification"
+    description = "Replay an explicit pose fixture through production QoM and four-limb characterization"
+    dependsOn(tasks.testClasses)
+    classpath = sourceSets["test"].runtimeClasspath
+    mainClass.set("dk.lasse.karateanalyzer.motion.FourLimbMotionReplayCli")
+    doFirst {
+        args(providers.gradleProperty("replayInput").get(), providers.gradleProperty("replayOutput").get())
+    }
+}
+
 tasks.register<JavaExec>("replayMotion") {
     group = "verification"
     description = "Replay a cached pose fixture with unchanged conservative-v1 parameters"

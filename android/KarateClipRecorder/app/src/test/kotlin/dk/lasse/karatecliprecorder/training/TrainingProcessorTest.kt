@@ -107,14 +107,15 @@ class TrainingProcessorTest {
             assertEquals(count, repository.movementCount(session.sessionId))
             val fifth = assertNotNull(repository.movementEvidence(session.sessionId, 5))
             assertEquals(1, fifth.landmarkTracks.size)
-            assertEquals(1, fifth.analyses.size)
-            assertEquals(if (assisted) 7 else 2, fifth.measurements.size)
+            assertEquals(2, fifth.analyses.size)
+            assertTrue(fifth.measurements.isEmpty(), "A recording without an explicit activity plan must not receive a guessed target result")
+            assertEquals(AnalysisState.ABSTAINED, fifth.analyses.single { it.analyzerKey == "straight_punch_target" }.state)
             assertNotNull(fifth.observation)
             assertEquals(if (assisted) emptySet() else setOf("straight_punch", "jodan"), fifth.labels.map { it.machineKey }.toSet())
             if (assisted) {
-                val geometry = assertNotNull(StraightPunchGeometryCodec.decode(fifth.analyses.single().geometryJson))
-                assertTrue(geometry.rays.isNotEmpty())
-                assertTrue(geometry.timestampUs in fifth.movement.playbackStartUs..fifth.movement.playbackEndUs)
+                val motion = fifth.analyses.single { it.analyzerKey == MovementMotionAnalysis.policy.analyzerKey }
+                assertNotNull(motion.geometryJson)
+                assertEquals("ACTIVITY_PLAN_UNAVAILABLE", motion.reason)
                 assertEquals(12, repository.session(session.sessionId)!!.expectedRepetitions)
                 assertEquals(count, repository.movementCount(session.sessionId))
                 assertEquals(SessionState.COMPLETED, repository.session(session.sessionId)!!.state)
@@ -206,20 +207,15 @@ class TrainingProcessorTest {
             assertTrue(newMovements.all { it.analysisFrameUs != null })
 
             val firstMovementEvidence = repository.movementEvidence(session.sessionId, 1)!!
-            assertEquals(1, firstMovementEvidence.analyses.size)
-            assertEquals("straight_punch_target", firstMovementEvidence.analyses.first().analyzerKey)
-            assertTrue(firstMovementEvidence.measurements.isNotEmpty())
+            assertEquals(2, firstMovementEvidence.analyses.size)
+            val target = firstMovementEvidence.analyses.single { it.analyzerKey == "straight_punch_target" }
+            assertEquals("2", target.analyzerVersion)
+            assertEquals(AnalysisState.ABSTAINED, target.state)
+            assertEquals("ACTIVITY_PLAN_UNAVAILABLE", target.reason)
+            assertTrue(firstMovementEvidence.measurements.isEmpty())
+            assertNotNull(firstMovementEvidence.analyses.single { it.analyzerKey == MovementMotionAnalysis.policy.analyzerKey }.geometryJson)
+            assertNotNull(repository.run(initialRun.runId), "Reanalysis retains historical run provenance")
 
-            val gedanMeasurement = firstMovementEvidence.measurements.firstOrNull { it.measurementKey == TrainingMeasurements.PUNCH_GEDAN_TARGET_ANGLE_ERROR_DEG }
-            assertNotNull(gedanMeasurement)
-            assertEquals(ResultState.ABSTAINED, gedanMeasurement.state)
-            assertEquals("provisional_gedan_target_unspecified", gedanMeasurement.reason)
-            assertNull(gedanMeasurement.numericValue)
-
-            val canonicalUs = newMovements.first().analysisFrameUs
-            assertNotNull(canonicalUs)
-            assertTrue(firstMovementEvidence.measurements.all { it.occurrenceUs == canonicalUs })
-            assertTrue(firstMovementEvidence.measurements.all { it.frameIndex != null })
         } finally {
             db.close()
             context.deleteDatabase(databaseName)

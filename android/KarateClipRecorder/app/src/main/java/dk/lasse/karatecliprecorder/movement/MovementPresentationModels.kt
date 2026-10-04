@@ -147,6 +147,7 @@ data class MovementPresentationData(
     val debugData: MovementDebugData,
     val knownSampleTimestampsUs: List<Long>,
     val analysisNotice: String? = null,
+    val motionInspectionRows: List<String> = emptyList(),
 )
 
 object MovementPresentationMapper {
@@ -158,6 +159,7 @@ object MovementPresentationMapper {
         fileResolver: (String) -> java.io.File? = { java.io.File(it) },
     ): MovementPresentationData {
         val movement = evidence.movement
+        val motion = MovementMotionInspection.read(evidence)
         val preferredAnalysis = evidence.presentationAnalysis()
         val analysisResults = evidence.measurements.filter { it.analysisId == preferredAnalysis?.analysisId }
         val measurements = analysisResults.filter { it.state == ResultState.VALID || it.state == ResultState.PARTIAL }
@@ -177,10 +179,15 @@ object MovementPresentationMapper {
             BodySide.UNKNOWN -> "Active arm"
         }
 
-        val activityTitle = "Straight punch"
-        val contextSubtitle = "$activityTitle · $sideLabel"
+        val activityTitle = when (motion?.optString("activity")) {
+            "STRAIGHT_PUNCH" -> "Straight punch"
+            "CHAMBER_EXTENSION_KICK" -> "Front kick"
+            null -> "Straight punch"
+            else -> "Movement"
+        }
+        val contextSubtitle = "$activityTitle · ${motion?.optString("side")?.takeUnless { it == "null" } ?: sideLabel}"
 
-        val canonicalUs = geometry?.timestampUs
+        val canonicalUs = motion?.takeUnless { it.isNull("representativeUs") }?.getLong("representativeUs") ?: geometry?.timestampUs
             ?: analysisResults.firstNotNullOfOrNull { it.occurrenceUs }
             ?: movement.analysisFrameUs
         val canonicalImpactUs = canonicalUs ?: movement.playbackStartUs
@@ -193,11 +200,14 @@ object MovementPresentationMapper {
         // Named events
         val namedEvents = mutableListOf<NamedEvent>()
         namedEvents.add(NamedEvent("Start", movement.startUs))
-        canonicalUs?.let { namedEvents.add(NamedEvent("Impact", it)) }
+        if (motion == null) canonicalUs?.let { namedEvents.add(NamedEvent("Impact", it)) }
+        else listOf("terminalUs" to "Terminal transition", "stableStartUs" to "Stable start", "stableEndUs" to "Stable end", "representativeUs" to "Measurement sample").forEach { (key, label) ->
+            if (!motion.isNull(key)) namedEvents.add(NamedEvent(label, motion.getLong(key)))
+        }
         namedEvents.add(NamedEvent("Finish", movement.endUs))
 
         // Continuous metric plots are not produced by the current recording analyzer.
-        val plotDefinitions = emptyMap<String, MovementPlotDefinition>()
+        val plotDefinitions = motion?.let(MovementMotionInspection::plots).orEmpty()
 
         // Key Results
         val keyResults = mutableListOf<KeyResultItem>()
@@ -399,6 +409,7 @@ object MovementPresentationMapper {
             overlayDefinition = overlayDefinition,
             debugData = debugData,
             knownSampleTimestampsUs = knownSampleTimestampsUs,
+            motionInspectionRows = motion?.let(MovementMotionInspection::rows).orEmpty(),
             analysisNotice = when {
                 overlayDefinition == null -> "Analysis evidence is unavailable for this movement."
                 frames.isEmpty() -> "Landmark playback is unavailable. Showing retained target geometry."

@@ -102,6 +102,9 @@ class AssistedCaptureActivity : AppCompatActivity() {
         val requestedReps = intent.getIntExtra(EXTRA_REPETITIONS, -1).takeIf { it > 0 }
         val baseSetup = preferences.read(profiles.activeProfile().id)
         setup = baseSetup.copy(
+            analysisPlanKey = if (savedInstanceState != null) savedInstanceState.getString("analysisPlanKey")
+                else if (intent.hasExtra(EXTRA_EXPECTED_ACTIVITY)) intent.getStringExtra(EXTRA_ANALYSIS_PLAN)
+                else dk.lasse.karatecliprecorder.training.MotionActivityPlans.ALTERNATING_PUNCH,
             expectedActivity = savedInstanceState?.getString("activity")
                 ?: intent.getStringExtra(EXTRA_EXPECTED_ACTIVITY)
                 ?: "Alternating straight punches",
@@ -228,6 +231,7 @@ class AssistedCaptureActivity : AppCompatActivity() {
                                     setup.repetitions,
                                     setup.cadenceMs,
                                     setup.spokenCounting,
+                                    setup.analysisPlanKey,
                                 )
                             )
                         }
@@ -324,10 +328,11 @@ class AssistedCaptureActivity : AppCompatActivity() {
                     ActivitySelectionSheet(
                         context = this@AssistedCaptureActivity,
                         selectedActivity = setup.expectedActivity,
-                        onActivitySelected = { name, category ->
+                        onActivitySelected = { name, category, planKey ->
                             setup = setup.copy(
                                 expectedActivity = name,
-                                expectedCategory = category
+                                expectedCategory = category,
+                                analysisPlanKey = planKey,
                             )
                             preferences.save(profiles.activeProfile().id, setup)
                             renderSetupCard()
@@ -764,6 +769,7 @@ class AssistedCaptureActivity : AppCompatActivity() {
 
     override fun onSaveInstanceState(outState: Bundle) {
         outState.putString("activity", setup.expectedActivity)
+        outState.putString("analysisPlanKey", setup.analysisPlanKey)
         outState.putString("category", setup.expectedCategory)
         super.onSaveInstanceState(outState)
     }
@@ -789,6 +795,7 @@ class AssistedCaptureActivity : AppCompatActivity() {
 
     companion object {
         const val EXTRA_EXPECTED_ACTIVITY = "expectedActivity"
+        const val EXTRA_ANALYSIS_PLAN = "analysisPlanKey"
         const val EXTRA_EXPECTED_CATEGORY = "expectedCategory"
         const val EXTRA_REPETITIONS = "repetitions"
 
@@ -797,8 +804,10 @@ class AssistedCaptureActivity : AppCompatActivity() {
             activity: String = "Alternating straight punches",
             category: String = "Punches",
             repetitions: Int? = null,
+            analysisPlanKey: String? = null,
         ): Intent = Intent(context, AssistedCaptureActivity::class.java).apply {
             putExtra(EXTRA_EXPECTED_ACTIVITY, activity)
+            putExtra(EXTRA_ANALYSIS_PLAN, analysisPlanKey)
             putExtra(EXTRA_EXPECTED_CATEGORY, category)
             if (repetitions != null && repetitions > 0) {
                 putExtra(EXTRA_REPETITIONS, repetitions)

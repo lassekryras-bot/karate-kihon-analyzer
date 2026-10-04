@@ -56,6 +56,7 @@ data class SharedCaptureRequest(
     val completionPrompt: CapturePrompt = CapturePrompt.FINISHED,
     val spokenMovementCues: Boolean = false,
     val operationalVoicePrompts: Boolean = true,
+    val analysisPlanKey: String? = null,
 ) {
     init {
         require(callerId.isNotBlank())
@@ -98,13 +99,14 @@ data class PersistedCaptureResult(
 
 object SharedCaptureRequests {
     fun recordAndAnalyze(activity: String, category: String, repetitions: Int, cadenceMs: Long,
-                         spokenCues: Boolean): SharedCaptureRequest = SharedCaptureRequest(
+                         spokenCues: Boolean, analysisPlanKey: String? = null): SharedCaptureRequest = SharedCaptureRequest(
         captureType = CaptureType.VIDEO,
         trigger = CaptureTrigger.STANDARD_TOUCH,
         callerId = "record_and_analyze",
         activityContextId = "record_and_analyze_assisted_v1",
         expectedActivity = activity,
         expectedCategory = category,
+        analysisPlanKey = analysisPlanKey,
         plannedRepetitions = repetitions,
         cueMode = CaptureCueMode.APP_CUED,
         cadenceMs = cadenceMs,

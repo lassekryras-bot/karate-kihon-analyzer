@@ -936,10 +936,10 @@ class AudioOutputChooserDialog(
 class ActivitySelectionSheet(
     context: Context,
     private val selectedActivity: String,
-    private val onActivitySelected: (name: String, category: String) -> Unit,
+    private val onActivitySelected: (name: String, category: String, planKey: String?) -> Unit,
 ) : DarkBottomSheetDialog(context) {
 
-    data class ActivityOption(val name: String, val category: String, val subtitle: String)
+    data class ActivityOption(val name: String, val category: String, val subtitle: String, val planKey: String? = null)
 
     init {
         // Title row
@@ -966,8 +966,8 @@ class ActivitySelectionSheet(
         })
 
         val options = listOf(
-            ActivityOption("Alternating straight punches", "Punches", "Kihon choku-zuki from heiko-dachi"),
-            ActivityOption("Front kicks", "Kicks", "Mae-geri repetitions from kamae"),
+            ActivityOption("Alternating straight punches", "Punches", "Kihon choku-zuki from heiko-dachi", dk.lasse.karatecliprecorder.training.MotionActivityPlans.ALTERNATING_PUNCH),
+            ActivityOption("Front kicks", "Kicks", "Mae-geri repetitions from kamae", dk.lasse.karatecliprecorder.training.MotionActivityPlans.FRONT_KICK),
             ActivityOption("Other karate movements", "Other", "General kihon or kata technique"),
         )
 
@@ -1013,7 +1013,7 @@ class ActivitySelectionSheet(
                 }
 
                 setOnClickListener {
-                    onActivitySelected(opt.name, opt.category)
+                    onActivitySelected(opt.name, opt.category, opt.planKey)
                     dismiss()
                 }
             }

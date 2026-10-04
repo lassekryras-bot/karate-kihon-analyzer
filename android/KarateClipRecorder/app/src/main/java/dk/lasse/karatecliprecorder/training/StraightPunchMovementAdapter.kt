@@ -5,7 +5,7 @@ import dk.lasse.karateanalyzer.impact.ImpactAnalysisResult
 import dk.lasse.karateanalyzer.impact.ImpactAnalysisStatus
 
 object StraightPunchMovementAdapter {
-    val policy = AnalyzerPolicy("straight_punch_target", listOf("1"))
+    val policy = AnalyzerPolicy("straight_punch_target", listOf("2", "1"))
 
     fun analyze(
         movement: SessionMovement,
@@ -15,6 +15,7 @@ object StraightPunchMovementAdapter {
         videoWidth: Int? = null,
         videoHeight: Int? = null,
         impactResult: ImpactAnalysisResult? = null,
+        resolvedSide: dk.lasse.karateanalyzer.capture.LateralSide? = null,
     ): Pair<MovementAnalysis, List<MeasurementResult>> {
         val impactAbstentionReason = when {
             impactResult == null -> null
@@ -28,7 +29,7 @@ object StraightPunchMovementAdapter {
             val analysis = MovementAnalysis(
                 movementId = movement.movementId,
                 analyzerKey = policy.analyzerKey,
-                analyzerVersion = "1",
+                analyzerVersion = if (impactResult != null) "2" else "1",
                 landmarkTrackId = trackId,
                 state = AnalysisState.ABSTAINED,
                 reason = impactAbstentionReason,
@@ -48,7 +49,7 @@ object StraightPunchMovementAdapter {
             val analysis = MovementAnalysis(
                 movementId = movement.movementId,
                 analyzerKey = policy.analyzerKey,
-                analyzerVersion = "1",
+                analyzerVersion = if (impactResult != null) "2" else "1",
                 landmarkTrackId = trackId,
                 state = AnalysisState.ABSTAINED,
                 reason = "canonical_analysis_frame_unavailable",
@@ -69,7 +70,7 @@ object StraightPunchMovementAdapter {
             val analysis = MovementAnalysis(
                 movementId = movement.movementId,
                 analyzerKey = policy.analyzerKey,
-                analyzerVersion = "1",
+                analyzerVersion = if (impactResult != null) "2" else "1",
                 landmarkTrackId = trackId,
                 state = AnalysisState.ABSTAINED,
                 reason = "neutral_body_reference_unavailable",
@@ -77,9 +78,13 @@ object StraightPunchMovementAdapter {
             return analysis to emptyList()
         }
 
-        var activeArm = ActiveArm.NONE
+        var activeArm = when (resolvedSide) {
+            dk.lasse.karateanalyzer.capture.LateralSide.LEFT -> ActiveArm.LEFT
+            dk.lasse.karateanalyzer.capture.LateralSide.RIGHT -> ActiveArm.RIGHT
+            null -> ActiveArm.NONE
+        }
         val targetEval = punchHeightAnalyzer.evaluateTarget(PunchHeightTargetType.CHUDAN, frame, multiplier)
-        if (targetEval?.activeArm != null && targetEval.activeArm != ActiveArm.NONE) {
+        if (resolvedSide == null && targetEval?.activeArm != null && targetEval.activeArm != ActiveArm.NONE) {
             activeArm = targetEval.activeArm
         }
         if (activeArm == ActiveArm.NONE) {
@@ -125,7 +130,7 @@ object StraightPunchMovementAdapter {
         val analysis = MovementAnalysis(
             movementId = movement.movementId,
             analyzerKey = policy.analyzerKey,
-            analyzerVersion = "1",
+            analyzerVersion = if (impactResult != null) "2" else "1",
             landmarkTrackId = trackId,
             state = analysisState,
             reason = eval.reason ?: "closest_target=${eval.closestTarget?.name};concrete=${eval.closestConcreteTargetId?.name};margin=${eval.classificationMarginDeg};frameIndex=${canonicalResult.frameIndex};strategy=${canonicalResult.strategy}",

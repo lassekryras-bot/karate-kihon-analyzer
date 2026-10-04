@@ -20,6 +20,7 @@ enum class ImpactAbstentionReason {
     NO_STABLE_TERMINAL_WINDOW,
     TRACKING_QUALITY_INSUFFICIENT,
     UNSUPPORTED_ANALYSIS_PROFILE,
+    LIMB_EVIDENCE_UNAVAILABLE,
 }
 
 enum class ImpactLimbFamily { UPPER_LIMB, LOWER_LIMB }
@@ -112,6 +113,7 @@ data class ImpactMovementInput(
     val canonicalGeometry: CanonicalGeometryDescriptor,
     val bodyScale: BodyScaleEvidence?,
     val profile: ImpactAnalysisProfile,
+    val limbEvidence: dk.lasse.karateanalyzer.motion.FourLimbMotionResult? = null,
 )
 
 data class ImpactArticulationState(
@@ -169,6 +171,9 @@ data class ImpactAnalysisProvenance(
     val movementLogicalEndTimestampUs: Long? = null,
     val evidenceStartTimestampUs: Long? = null,
     val evidenceEndTimestampUs: Long? = null,
+    val limbAnalyzerVersion: String? = null,
+    val limbAngularPolicyVersion: String? = null,
+    val limbConfigurationVersion: String? = null,
 )
 
 data class ImpactCalibrationProvenance(

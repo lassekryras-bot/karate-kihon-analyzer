@@ -139,7 +139,7 @@ class SharedCameraCaptureUiTest {
         val sheet = ActivitySelectionSheet(
             context = context,
             selectedActivity = "Alternating straight punches",
-            onActivitySelected = { name, category ->
+            onActivitySelected = { name, category, _ ->
                 selectedName = name
                 selectedCategory = category
             }
@@ -245,7 +245,7 @@ class SharedCameraCaptureUiTest {
         val sheet = ActivitySelectionSheet(
             context = context,
             selectedActivity = "Alternating straight punches",
-            onActivitySelected = { _, _ -> }
+            onActivitySelected = { _, _, _ -> }
         )
         sheet.show()
         assertTrue(sheet.isShowing)

@@ -16,6 +16,7 @@ class CapturePersistenceCoordinator(private val services: TrainingServices) {
     fun prepare(request: SharedCaptureRequest, userId: String, cameraProvenance: String?,
                 snapshot: BodyMeasurementSnapshot? = null, legacyFile: File? = null): PreparedCapture {
         request.startBlock()?.let { error(it.message) }
+        request.analysisPlanKey?.let { requireNotNull(MotionActivityPlans.context(it)) { "Unsupported analysis activity plan" } }
         val sessionId = trainingId()
         val captureId = trainingId()
         val file = legacyFile ?: services.storage.resolve(services.storage.capture(captureId, request.captureType))
@@ -53,6 +54,10 @@ class CapturePersistenceCoordinator(private val services: TrainingServices) {
         check(file.parentFile?.let { it.isDirectory || it.mkdirs() } != false) { "Capture storage unavailable" }
         check(!file.exists()) { "Capture filename already exists" }
         services.prepareRecording(session, recording, snapshot)
+        request.analysisPlanKey?.let { key ->
+            services.repository.addEvent(SessionEvent(sessionId = sessionId, type = MotionActivityPlans.EVENT_TYPE,
+                timestampUs = 0, data = key, timingSource = "capture_plan"))
+        }
         return PreparedCapture(request, session, recording, file)
     }
 

@@ -350,6 +350,24 @@ class RecordingsActivity : AppCompatActivity() {
                     }
                 }.apply { (layoutParams as? ViewGroup.MarginLayoutParams)?.topMargin = dp(6) })
             }
+            if (segmentData?.canReanalyze == true && row.processing?.state != QueueState.PROCESSING) {
+                utils.addView(button("Calibrate image height & reanalyze") {
+                    BodyScaleCalibrationDialog.show(this@RecordingsActivity, training, row.session.sessionId) { load() }
+                })
+                utils.addView(button("Invalidate image height calibration") {
+                    training.submit({ repo ->
+                        val calibration = ImageBodyScaleStore.current(repo.events(row.session.sessionId))
+                            ?: error("No current calibration to invalidate.")
+                        repo.addEvent(SessionEvent(sessionId = row.session.sessionId, type = ImageBodyScaleStore.REVOKED,
+                            timestampUs = calibration.frameTimestampUs, data = calibration.calibrationId))
+                    }) { result ->
+                        result.onSuccess { training.reanalyze(row.session.sessionId) { run ->
+                            toast(run.exceptionOrNull()?.message ?: "Calibration invalidated; reanalysis complete")
+                            load()
+                        } }.onFailure { toast(it.message ?: "Unable to invalidate calibration") }
+                    }
+                })
+            }
             if (AppPreferences(this@RecordingsActivity).developerMode && row.processing?.state != QueueState.PROCESSING) {
                 if (segmentData?.canReanalyze == true) {
                     utils.addView(button("Reanalyze with current pipeline") {

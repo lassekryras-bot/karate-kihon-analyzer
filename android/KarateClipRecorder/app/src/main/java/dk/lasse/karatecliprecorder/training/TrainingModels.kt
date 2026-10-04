@@ -73,23 +73,16 @@ object RecordingProcessingPlans {
 
     val STRAIGHT_PUNCH_TARGET_ANALYSIS = RecordingProcessingPlan(
         key = "straight_punch_target_analysis",
-        version = 1,
+        version = 2,
         requiresLandmarks = true,
         requiresSegmentation = true,
         analyzers = listOf("straight_punch_target"),
         movementProfile = MotionBodyProfile.PUNCH,
     )
 
-    fun forSession(session: RecordingSession): RecordingProcessingPlan {
-        val isKick = (session.expectedCategory?.contains("kick", ignoreCase = true) == true) ||
-            (session.activityKey?.contains("kick", ignoreCase = true) == true)
-        val profile = if (isKick) MotionBodyProfile.KICK else MotionBodyProfile.PUNCH
+    // New runs share the same target-evidence gate. Historical legacy results remain stored.
+    fun forSession(session: RecordingSession): RecordingProcessingPlan = STRAIGHT_PUNCH_TARGET_ANALYSIS
 
-        return when (session.activityKey) {
-            AssistedCaptureSetup.ACTIVITY_KEY -> STRAIGHT_PUNCH_TARGET_ANALYSIS.copy(movementProfile = profile)
-            else -> RecordingProcessingPlan("legacy_punch_analysis", 1, true, true, listOf("android_punch_height"), movementProfile = profile)
-        }
-    }
 }
 data class RecordingSession(
     val sessionId: String = trainingId(), val userId: String, val startedAtMs: Long,

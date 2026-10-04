@@ -39,6 +39,19 @@ For each non-obvious entry, include enough evidence to recheck it: a repository-
 - Exported schemas: `android/KarateClipRecorder/app/schemas/dk.lasse.karatecliprecorder.training.KarateTrainingDatabase/`. These and the source provide recheckable implementation evidence for the model.
 - These classes currently live in the Android `app` module. Their location and database relationships do not establish shared-platform persistence ownership or domain aggregate boundaries.
 
+### Four-limb characterization and side interpretation
+
+**Status: OBSERVED — 2026-10-04, initial implementation; acceptance incomplete**
+
+- Shared core `motion/FourLimbMotionCharacterizer.kt` consumes segmented canonical pose evidence; `FourLimbMotionModels.kt` retains per-limb profiles, trace samples, gaps, configuration and geometry provenance. `AngularMotionEvidence.kt` owns its provisional excursion-based angular hysteresis.
+- Shared core `core/ActivityStartingSideResolver.kt` interprets those profiles using an explicit known-activity context and validates indexed alternation. It does not infer the activity or replace ambiguous observations with expected sides. Production callers are not connected yet.
+- Validation state and unresolved measurement-policy details are owned by [four-limb implementation status](../docs/four-limb-motion-implementation-status.md). This initial implementation is not production-accepted.
+
 ## Material conflicts
 
 _Record observed implementation that conflicts with a `DECIDED` product, domain, or architecture direction. Do not resolve the conflict by rewriting the decision._
+
+- `geometry/ImageBodyScaleCalibration.kt`: shared manual image-height evidence contract and provider.
+- App `training/MovementMotionAnalysis.kt`, `MotionActivityPlans.kt`, `ImageBodyScaleStore.kt`: plan projection, pipeline adapter, retained evidence/calibration events.
+- App `recordings/BodyScaleCalibrationDialog.kt`: actual-frame head/floor selection with shared inverse display mapping.
+- App `movement/MovementMotionInspection.kt`: persisted limb plots, side/terminal reasons and calibration provenance in normal movement inspection.

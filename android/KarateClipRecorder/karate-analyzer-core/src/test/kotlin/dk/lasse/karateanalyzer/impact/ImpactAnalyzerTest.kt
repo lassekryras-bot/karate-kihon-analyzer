@@ -179,6 +179,20 @@ class ImpactAnalyzerTest {
         }
     }
 
+    @Test fun `shared limb articulation and manual scale preserve terminal ordering and reject cross track evidence`() {
+        val source = input()
+        val limbs = dk.lasse.karateanalyzer.motion.FourLimbMotionCharacterizer.characterize(
+            dk.lasse.karateanalyzer.motion.FourLimbMotionInput(source.movementId, source.landmarkTrackId,
+                source.logicalStartTimestampUs, source.logicalEndTimestampUs, source.frames, source.canonicalGeometry))
+        val result = ImpactAnalyzer.analyze(source.copy(limbEvidence = limbs))
+        assertEquals(ImpactAnalysisStatus.COMPLETED, result.status)
+        assertEquals(limbs.analyzerVersion, result.provenance.limbAnalyzerVersion)
+        assertTrue(result.terminalTransitionTimestampUs!! < result.stableWindowStartTimestampUs!!)
+        assertTrue(result.stableRepresentativeTimestampUs!! in result.stableWindowStartTimestampUs!!..result.stableWindowEndTimestampUs!!)
+        assertEquals(ImpactAbstentionReason.LIMB_EVIDENCE_UNAVAILABLE,
+            ImpactAnalyzer.analyze(source.copy(limbEvidence = limbs.copy(landmarkTrackId = "other"))).abstentionReason)
+    }
+
     private fun input(
         side: LateralSide = LateralSide.RIGHT,
         mirrored: Boolean = false,

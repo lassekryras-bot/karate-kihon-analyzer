@@ -1457,6 +1457,7 @@ class MainActivity : AppCompatActivity() {
             dk.lasse.karatecliprecorder.assisted.AssistedCaptureActivity.createIntent(
                 context = this,
                 repetitions = repetitions,
+                analysisPlanKey = dk.lasse.karatecliprecorder.training.MotionActivityPlans.ALTERNATING_PUNCH,
             )
         )
     }
