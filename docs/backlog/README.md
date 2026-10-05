@@ -2,7 +2,7 @@
 
 This folder stores small, concrete development requirements that came out of short design/debug chats and are **not yet implemented or verified**.
 
-Future work sessions should use this folder as the repository-owned list of outstanding development tasks.
+Future work sessions should use this folder as the repository-owned list of outstanding development tasks. Tasks explicitly selected for near-term implementation live in the ordered [Prioritized Development Backlog](prioritized/README.md).
 
 ## Task format
 
@@ -32,9 +32,12 @@ If a chat includes screenshots or mockups that should be retained, store them un
 
 When starting work on a task, first verify the current implementation. Do not assume the task is still missing simply because it is in the backlog. If already satisfied, document the verification and mark it `DONE`.
 
+## Prioritized backlog
+
+- [Prioritized Development Backlog](prioritized/README.md) — ordered implementation queue. Current #1: [Movement Debug Report and Activity Override](prioritized/001-movement-debug-report-activity-override.md).
+
 ## Open tasks
 
-- [Movement Debug Report and Activity Override](movement-debug-report-activity-override.md) — OPEN; debug-only activity prerequisite override plus structured per-section/complete clipboard diagnostics and Markdown debug-report export with explicit original/effective provenance.
 
 - [Four-Limb Motion Characterizer](four-limb-motion-characterizer-requirement-v1.md) — IN PROGRESS; initial shared characterizer and activity-aware starting-side resolver implemented. Compilation and partial automated checks only; one real-MLS test failed, further validation paused at user request. See [implementation status](../four-limb-motion-implementation-status.md).
 
