@@ -34,6 +34,8 @@ When starting work on a task, first verify the current implementation. Do not as
 
 ## Open tasks
 
+- [Movement Debug Report and Activity Override](movement-debug-report-activity-override.md) — OPEN; debug-only activity prerequisite override plus structured per-section/complete clipboard diagnostics and Markdown debug-report export with explicit original/effective provenance.
+
 - [Four-Limb Motion Characterizer](four-limb-motion-characterizer-requirement-v1.md) — IN PROGRESS; initial shared characterizer and activity-aware starting-side resolver implemented. Compilation and partial automated checks only; one real-MLS test failed, further validation paused at user request. See [implementation status](../four-limb-motion-implementation-status.md).
 
 - [Landmark Geometry Core — specification v2](landmark-geometry-core-v2-spec.md) — IN PROGRESS; overall shared geometry architecture, canonical evidence/persistence first, BodyHeightModel compatibility, explicit reference/window contracts, existing wrist-path/speed method preservation, and staged straight-punch consumer integration. Supersedes the [v1 draft](landmark-geometry-core-v1-spec.md); Stages A, B, and C are completed and verified via automated test suites in `:karate-analyzer-core` and `:app`; Stages D (straight-punch consumer integration) and E (production routing and migration) remain OPEN / OUTSTANDING.
