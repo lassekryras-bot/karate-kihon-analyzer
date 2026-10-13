@@ -206,17 +206,15 @@ class AppBottomNavigationView @JvmOverloads constructor(
                 holder.root.layoutParams = LayoutParams(
                     LayoutParams.WRAP_CONTENT,
                     LayoutParams.MATCH_PARENT,
-                ).apply {
-                    setPadding(16.dp(), 0, 16.dp(), 0)
-                }
+                )
+                holder.root.setPadding(16.dp(), 0, 16.dp(), 0)
             } else {
                 holder.root.layoutParams = LayoutParams(
                     0,
                     LayoutParams.MATCH_PARENT,
                     1f,
-                ).apply {
-                    setPadding(0, 0, 0, 0)
-                }
+                )
+                holder.root.setPadding(0, 0, 0, 0)
             }
 
             // Selection state
