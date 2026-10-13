@@ -89,6 +89,32 @@ class MovementMotionAnalysisTest {
         assertEquals("ACTIVITY_PLAN_UNAVAILABLE", result.analysis.reason)
     }
 
+    @Test fun `shared pipeline preserves production motion semantics for identical input`() {
+        val inputFrames = frames()
+        val limbs = MovementMotionAnalysis.characterize(movement, "t", inputFrames, geometry)
+        val context = MotionActivityPlans.context(MotionActivityPlans.ALTERNATING_PUNCH)
+        val direct = MovementMotionAnalysis.analyze(
+            movement, "t", inputFrames, geometry, context, emptyList(), limbs = limbs,
+        )
+        val throughPipeline = MovementAnalysisPipeline.evaluate(
+            movement = movement,
+            trackId = "t",
+            frames = inputFrames,
+            geometry = geometry,
+            activityContext = context,
+            qom = emptyList(),
+            limbs = limbs,
+            analyzers = emptyList(),
+        ).motion
+
+        assertEquals(direct.analysis.state, throughPipeline.analysis.state)
+        assertEquals(direct.analysis.reason, throughPipeline.analysis.reason)
+        assertEquals(direct.analysis.geometryJson, throughPipeline.analysis.geometryJson)
+        assertEquals(direct.side, throughPipeline.side)
+        assertEquals(direct.impact, throughPipeline.impact)
+        assertEquals(direct.limbs, throughPipeline.limbs)
+    }
+
     @Test fun `calibration round trips provenance and revoking latest never revives older reference`() {
         val c = ImageBodyScaleCalibration("c", geometry, 100_000, 10, SourceNormalizedPoint(.4f, .1f),
             SourceNormalizedPoint(.6f, .9f), 0, 2_000_000, true)

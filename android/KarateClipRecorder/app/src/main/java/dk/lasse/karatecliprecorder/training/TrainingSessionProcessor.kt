@@ -7,7 +7,6 @@ import dk.lasse.karateanalyzer.geometry.CanonicalGeometryCodec
 import dk.lasse.karateanalyzer.geometry.CanonicalGeometryDescriptor
 import dk.lasse.karateanalyzer.capture.qom.QomFrameEvidence
 import dk.lasse.karateanalyzer.capture.qom.QomMotionEvidenceExtractor
-import dk.lasse.karateanalyzer.impact.ImpactAnalysisStatus
 import java.io.File
 
 /** Reuses persisted landmarks and movement identities after process loss or when rerunning an analyzer. */
@@ -319,61 +318,40 @@ class TrainingSessionProcessor(
             val motionQom = qomTimeline ?: QomMotionEvidenceExtractor(profile = plan.movementProfile).let { extractor -> frames.map(extractor::extract) }
             runMovements.forEach { movement ->
                 checkActive()
-                val motion = MovementMotionAnalysis.analyze(movement, source.landmarkTrackId, frames, geometry, activityContext,
-                    motionQom, limbResults.getValue(movement.movementId), sequenceByMovement[movement.movementId],
-                    dk.lasse.karateanalyzer.geometry.ImageBodyScaleProvider.evidence(calibration, geometry, movement.startUs, movement.endUs),
-                    calibration, activityPlanEvidence = activityPlanEvidence)
-                if (repository.preferredAnalysis(movement.movementId, MovementMotionAnalysis.policy) == null) {
-                    repository.saveAnalysis(motion.analysis, emptyList())
-                }
-                for (analyzerKey in plan.analyzers) {
+                val analyzersToRun = plan.analyzers.filter { analyzerKey ->
                     when (analyzerKey) {
-                        StraightPunchMovementAdapter.policy.analyzerKey -> {
-                            if (repository.preferredAnalysis(movement.movementId, StraightPunchMovementAdapter.policy) == null) {
-                                val output = runCatching {
-                                    if (activityContext?.activity != LimbInterpretationActivity.STRAIGHT_PUNCH ||
-                                        motion.impact?.status != ImpactAnalysisStatus.COMPLETED) {
-                                        MovementAnalysis(movementId = movement.movementId,
-                                            analyzerKey = StraightPunchMovementAdapter.policy.analyzerKey, analyzerVersion = "2",
-                                            landmarkTrackId = source.landmarkTrackId, state = AnalysisState.ABSTAINED,
-                                            reason = motion.analysis.reason ?: "TERMINAL_EVIDENCE_UNAVAILABLE") to emptyList()
-                                    } else StraightPunchMovementAdapter.analyze(
-                                        movement = movement,
-                                        trackId = source.landmarkTrackId,
-                                        frames = frames,
-                                        videoWidth = recording.width,
-                                        videoHeight = recording.height,
-                                        impactResult = motion.impact,
-                                        resolvedSide = motion.side?.side,
-                                    )
-                                }.getOrElse { error ->
-                                    hadFailure = true
-                                    straightPunchFailureAnalysis(movement, source.landmarkTrackId, error) to emptyList()
-                                }
-                                repository.saveAnalysis(output.first, output.second)
-                            }
-                        }
-                        AndroidPunchMovementAnalyzer.policy.analyzerKey -> {
-                            if (repository.preferredAnalysis(movement.movementId, AndroidPunchMovementAnalyzer.policy) == null) {
-                                val output = runCatching {
-                                    AndroidPunchMovementAnalyzer.analyze(movement, source.landmarkTrackId, frames,
-                                        session.activityKey == "guided_jodan_session")
-                                }.getOrElse { error ->
-                                    hadFailure = true
-                                    MovementAnalysis(
-                                        movementId = movement.movementId,
-                                        analyzerKey = AndroidPunchMovementAnalyzer.policy.analyzerKey,
-                                        analyzerVersion = "1",
-                                        landmarkTrackId = source.landmarkTrackId,
-                                        state = AnalysisState.FAILED,
-                                        reason = error.message ?: "Analyzer execution failed",
-                                    ) to emptyList()
-                                }
-                                repository.saveAnalysis(output.first, output.second)
-                            }
-                        }
+                        StraightPunchMovementAdapter.policy.analyzerKey ->
+                            repository.preferredAnalysis(movement.movementId, StraightPunchMovementAdapter.policy) == null
+                        AndroidPunchMovementAnalyzer.policy.analyzerKey ->
+                            repository.preferredAnalysis(movement.movementId, AndroidPunchMovementAnalyzer.policy) == null
+                        else -> false
                     }
                 }
+                val evaluated = MovementAnalysisPipeline.evaluate(
+                    movement = movement,
+                    trackId = source.landmarkTrackId,
+                    frames = frames,
+                    geometry = geometry,
+                    activityContext = activityContext,
+                    qom = motionQom,
+                    limbs = limbResults.getValue(movement.movementId),
+                    sequence = sequenceByMovement[movement.movementId],
+                    bodyScale = dk.lasse.karateanalyzer.geometry.ImageBodyScaleProvider.evidence(
+                        calibration, geometry, movement.startUs, movement.endUs),
+                    calibration = calibration,
+                    activityPlanEvidence = activityPlanEvidence,
+                    analyzers = analyzersToRun,
+                    videoWidth = recording.width,
+                    videoHeight = recording.height,
+                    requestedJodan = session.activityKey == "guided_jodan_session",
+                )
+                if (repository.preferredAnalysis(movement.movementId, MovementMotionAnalysis.policy) == null) {
+                    repository.saveAnalysis(evaluated.motion.analysis, emptyList())
+                }
+                evaluated.downstream.forEach { output ->
+                    repository.saveAnalysis(output.analysis, output.measurements)
+                }
+                hadFailure = hadFailure || evaluated.hadFailure
             }
 
             if (hadFailure) {

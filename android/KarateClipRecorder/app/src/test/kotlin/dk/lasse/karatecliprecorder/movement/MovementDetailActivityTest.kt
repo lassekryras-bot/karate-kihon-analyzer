@@ -2,17 +2,27 @@ package dk.lasse.karatecliprecorder.movement
 
 import android.content.Context
 import android.content.Intent
+import android.content.ClipboardManager
+import android.app.Activity
+import android.net.Uri
 import android.os.Looper
 import android.view.View
 import android.view.ViewGroup
 import android.widget.TextView
-import dk.lasse.karateanalyzer.core.PoseFrame
+import android.widget.Button
+import dk.lasse.karateanalyzer.core.*
+import dk.lasse.karateanalyzer.geometry.CanonicalGeometryCodec
+import dk.lasse.karateanalyzer.geometry.CanonicalGeometryDescriptor
+import dk.lasse.karateanalyzer.motion.LimbId
 import java.time.Duration
+import java.io.File
 import androidx.test.core.app.ApplicationProvider
 import dk.lasse.karatecliprecorder.AppPreferences
 import dk.lasse.karatecliprecorder.profile.ProfileRepository
 import dk.lasse.karatecliprecorder.training.*
+import dk.lasse.karatecliprecorder.training.LandmarkTrack
 import org.junit.After
+import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.Robolectric
@@ -20,11 +30,18 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
 import kotlin.test.*
+import kotlin.math.cos
+import kotlin.math.sin
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [28])
 class MovementDetailActivityTest {
     private val context = ApplicationProvider.getApplicationContext<Context>()
+
+    @Before
+    fun resetStorageService() {
+        TrainingServices.closeForTests()
+    }
 
     @After
     fun close() {
@@ -42,6 +59,26 @@ class MovementDetailActivityTest {
 
     private fun views(view: View): List<View> = listOf(view) + if (view is ViewGroup)
         (0 until view.childCount).flatMap { views(view.getChildAt(it)) } else emptyList()
+
+    private fun motionFrames() = (0L..1000L step 10).map { time ->
+        val samples = mutableMapOf<PoseLandmarkId, PoseLandmarkSample>()
+        fun sample(x: Double, y: Double) = PoseLandmarkSample(
+            position = Point3(x.toFloat(), y.toFloat(), 0f),
+            visibility = .95f,
+            presence = .95f,
+            source = LandmarkSource.OBSERVED,
+        )
+        LimbId.entries.forEach { limb ->
+            val x = if (limb.ordinal % 2 == 0) .3 else .7
+            val y = if (limb.ordinal < 2) .3 else .7
+            val progress = ((time - 200) / 600.0).coerceIn(0.0, 1.0)
+            val angle = Math.toRadians(if (limb == LimbId.LEFT_ARM) 40 + 100 * progress else 150 - 100 * progress)
+            samples[limb.proximal] = sample(x + .1, y)
+            samples[limb.joint] = sample(x, y)
+            samples[limb.distal] = sample(x + .1 * cos(angle), y + .1 * sin(angle))
+        }
+        PoseFrame(time, samples)
+    }
 
     @Test
     fun movementDetailRendersHierarchyAndRespectsDeveloperMode() {
@@ -82,22 +119,41 @@ class MovementDetailActivityTest {
             training.storage.resolve(reference).apply { parentFile!!.mkdirs(); writeText("dummy video") }
             repo.beginSession(session, MasterRecording(recId, session.sessionId, reference, 1000L))
             repo.finishRecording(session.sessionId, 2_000_000L)
-            repo.recoverJobs()
 
             val observations = listOf(ObservationContext(movement.movementId, nearerSide = BodySide.LEFT))
             repo.saveSegmentation(session.sessionId, listOf(movement), observations)
 
             val rec = repo.recording(session.sessionId)!!
+            val trackId = trainingId()
+            val trackReference = training.storage.landmarks(trackId)
+            val trackFrames = motionFrames()
+            val geometry = CanonicalGeometryDescriptor(
+                geometryId = "fixture-geometry",
+                recordingId = rec.recordingId,
+                landmarkTrackId = trackId,
+                canonicalWidth = 1000,
+                canonicalHeight = 1000,
+            )
+            val trackHash = LandmarkFiles.write(training.storage.resolve(trackReference), trackFrames)
             val track = LandmarkTrack(
+                landmarkTrackId = trackId,
                 recordingId = rec.recordingId,
                 pipelineKey = "test_pipeline",
                 pipelineVersion = "1",
                 configuration = "default",
-                filePath = "test.mls",
+                filePath = trackReference,
                 state = ProcessingState.COMPLETED,
                 sourceState = SourceState.AVAILABLE,
+                sha256 = trackHash,
+                formatId = LandmarkFiles.FORMAT_ID,
+                formatVersion = LandmarkFiles.VERSION,
+                canonicalGeometryJson = CanonicalGeometryCodec.encode(geometry),
             )
             repo.addTrack(track)
+            repo.saveAnalysis(
+                MovementMotionAnalysis.analyze(movement, trackId, trackFrames, geometry, null, emptyList()).analysis,
+                emptyList(),
+            )
 
             val analysis = MovementAnalysis(
                 movementId = movement.movementId,
@@ -149,7 +205,7 @@ class MovementDetailActivityTest {
             drainUntil { texts().any { "Key Results" in it } }
 
             // Context subtitle
-            assertTrue(texts().any { "Straight punch · Left arm" in it })
+            assertTrue(texts().any { "Left arm" in it })
 
             // Player tabs
             assertTrue("Video" in texts())
@@ -172,20 +228,89 @@ class MovementDetailActivityTest {
 
         // Now test with developerMode = true
         AppPreferences(context).developerMode = true
+        var persistedBefore: Pair<Int, Int>? = null
+        training.submit({ repo ->
+            repo.events(session.sessionId).size to requireNotNull(repo.movementEvidence(movement.movementId)).analyses.size
+        }) { persistedBefore = it.getOrThrow() }
+        drainUntil { persistedBefore != null }
         val debugActivity = Robolectric.buildActivity(MovementDetailActivity::class.java, intent).setup()
         try {
             val root = debugActivity.get().findViewById<View>(android.R.id.content)
             fun texts() = views(root).filterIsInstance<TextView>().map { it.text.toString() }
+            fun button(label: String) = views(root).filterIsInstance<Button>().first { it.text.toString() == label }
 
             drainUntil { texts().any { "Key Results" in it } }
 
             // Analysis Debug must now be PRESENT
             assertTrue("Analysis Debug" in texts())
             assertTrue(texts().any { "Movement ID" in it })
-            assertTrue(texts().any { "Canonical frame" in it })
-            assertTrue(texts().any { "Provenance:" in it })
-            assertTrue(texts().any { "Analysis state: PARTIAL" in it })
-            assertTrue(texts().any { "Analysis reason: fixture_partial_analysis" in it })
+            assertTrue(texts().any { "Presentation canonical timestamp" in it })
+            assertTrue("Provenance" in texts())
+            assertTrue(texts().any { "Analysis state [analysis_state]: PARTIAL" in it })
+            assertTrue(texts().any { "Analysis reason [analysis_reason]: fixture_partial_analysis" in it })
+
+            val baseline = assertNotNull(debugActivity.get().currentDebugReportForTests()).toPlainText()
+            val report = assertNotNull(debugActivity.get().currentDebugReportForTests())
+            button("Copy debug report").performClick()
+            val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+            assertEquals(report.toPlainText(), clipboard.primaryClip!!.getItemAt(0).text.toString())
+
+            views(root).filterIsInstance<Button>().first { it.text.toString() == "Copy" }.performClick()
+            assertEquals(
+                report.orderedSections.first().toPlainText(),
+                clipboard.primaryClip!!.getItemAt(0).text.toString(),
+            )
+
+            val exported = File(context.cacheDir, "movement-debug-export-${System.nanoTime()}.md")
+            button("Export debug report").performClick()
+            val exportRequest = shadowOf(debugActivity.get()).nextStartedActivityForResult
+            shadowOf(debugActivity.get()).receiveResult(
+                exportRequest.intent,
+                Activity.RESULT_OK,
+                Intent().setData(Uri.fromFile(exported)),
+            )
+            assertEquals(report.toMarkdown(), exported.readText())
+
+            val cancelled = File(context.cacheDir, "movement-debug-cancelled-${System.nanoTime()}.md")
+            button("Export debug report").performClick()
+            val cancelledRequest = shadowOf(debugActivity.get()).nextStartedActivityForResult
+            shadowOf(debugActivity.get()).receiveResult(
+                cancelledRequest.intent,
+                Activity.RESULT_CANCELED,
+                Intent().setData(Uri.fromFile(cancelled)),
+            )
+            assertFalse(cancelled.exists())
+
+            button("Apply STRAIGHT_PUNCH override").performClick()
+            drainUntil { texts().any { "Override status [override_status]: EVALUATED" in it } }
+            val overridden = assertNotNull(debugActivity.get().currentDebugReportForTests())
+            assertTrue(overridden.toPlainText().contains("Activity source [activity_source]: DEBUG_OVERRIDE"))
+            assertTrue(overridden.toPlainText().contains("EPHEMERAL_NOT_PERSISTED_OR_PUBLISHED"))
+
+            button("Clear activity override").performClick()
+            drainUntil { debugActivity.get().currentDebugReportForTests()?.toPlainText() == baseline }
+
+            // A completion queued before clear must not repopulate the cleared report.
+            button("Apply STRAIGHT_PUNCH override").performClick()
+            button("Clear activity override").performClick()
+            Thread.sleep(100)
+            shadowOf(Looper.getMainLooper()).idle()
+            assertEquals(baseline, debugActivity.get().currentDebugReportForTests()?.toPlainText())
+
+            // Navigating away also invalidates a queued completion.
+            button("Apply STRAIGHT_PUNCH override").performClick()
+            debugActivity.pause().stop()
+            Thread.sleep(100)
+            shadowOf(Looper.getMainLooper()).idle()
+            assertEquals(baseline, debugActivity.get().currentDebugReportForTests()?.toPlainText())
+            debugActivity.start().resume()
+
+            var persistedAfter: Pair<Int, Int>? = null
+            training.submit({ repo ->
+                repo.events(session.sessionId).size to requireNotNull(repo.movementEvidence(movement.movementId)).analyses.size
+            }) { persistedAfter = it.getOrThrow() }
+            drainUntil { persistedAfter != null }
+            assertEquals(persistedBefore, persistedAfter)
         } finally {
             debugActivity.pause().stop().destroy()
             AppPreferences(context).developerMode = false

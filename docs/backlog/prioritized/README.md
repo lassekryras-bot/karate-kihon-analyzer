@@ -12,4 +12,4 @@ This folder contains the **ordered implementation queue** for backlog work that 
 
 ## Queue
 
-1. [Movement Debug Report and Activity Override](001-movement-debug-report-activity-override.md) — OPEN; debug-only activity prerequisite override plus structured clipboard diagnostics and Markdown debug-report export with explicit original/effective provenance.
+1. [Movement Debug Report and Activity Override](001-movement-debug-report-activity-override.md) — COMPLETED 2026-10-13; debug-only, non-persistent activity prerequisite override plus one structured diagnostic source for section copy, full copy, and Markdown export with explicit retained/presentation/effective provenance.

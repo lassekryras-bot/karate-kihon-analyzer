@@ -1,5 +1,8 @@
 package dk.lasse.karatecliprecorder.movement
 
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.Context
 import android.content.res.ColorStateList
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
@@ -10,10 +13,12 @@ import android.view.Gravity
 import android.view.View
 import android.view.ViewGroup
 import android.widget.*
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
 import dk.lasse.karateanalyzer.core.PoseFrame
 import dk.lasse.karatecliprecorder.AppPreferences
+import dk.lasse.karatecliprecorder.BuildConfig
 import dk.lasse.karatecliprecorder.R
 import dk.lasse.karatecliprecorder.SubPageHeader
 import dk.lasse.karatecliprecorder.training.*
@@ -42,6 +47,7 @@ class MovementDetailActivity : AppCompatActivity() {
     internal var expandedDialog: MovementExpandedInspectionDialog? = null
 
     internal var presentationData: MovementPresentationData? = null
+    internal fun currentDebugReportForTests(): MovementDebugReport? = debugReport
     internal var videoFile: File? = null
     internal var loadedFrames: List<PoseFrame> = emptyList()
     internal var verticalBounds: VerticalBounds = VerticalBounds.FULL
@@ -49,6 +55,28 @@ class MovementDetailActivity : AppCompatActivity() {
     private var activityPlanState = MotionActivityPlans.EventState.CONFLICT
     private var canRepairActivityPlan = false
     private var activityPlanRepairRunning = false
+    private var loadedEvidence: MovementEvidence? = null
+    private var loadedSessionEvents: List<SessionEvent> = emptyList()
+    private var loadedTrackId: String? = null
+    private var debugOverrideOutcome: MovementDebugOverrideOutcome? = null
+    private var debugReport: MovementDebugReport? = null
+    private val debugEvaluationGate = MovementDebugEvaluationGate()
+    private var debugEvaluationRunning = false
+    private val debugExportSnapshot = MovementDebugExportSnapshot()
+
+    private val exportDebugReport = registerForActivityResult(ActivityResultContracts.CreateDocument("text/markdown")) { uri ->
+        if (uri == null) {
+            debugExportSnapshot.cancel()
+            return@registerForActivityResult
+        }
+        val snapshot = debugExportSnapshot.consume() ?: return@registerForActivityResult
+        runCatching {
+            val stream = requireNotNull(contentResolver.openOutputStream(uri))
+            stream.bufferedWriter(Charsets.UTF_8).use { it.write(snapshot) }
+        }.onFailure { error ->
+            Toast.makeText(this, "Could not export debug report: ${error.message}", Toast.LENGTH_LONG).show()
+        }
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -103,12 +131,19 @@ class MovementDetailActivity : AppCompatActivity() {
 
     override fun onStop() {
         active = false
+        invalidateDebugEvaluation()
         playerView?.pause()
         playerView?.setPlaybackActive(false)
         val dialog = expandedDialog
         expandedDialog = null
         dialog?.dismiss()
         super.onStop()
+    }
+
+    override fun onDestroy() {
+        invalidateDebugEvaluation()
+        debugExportSnapshot.cancel()
+        super.onDestroy()
     }
 
     override fun onSaveInstanceState(outState: Bundle) {
@@ -127,6 +162,9 @@ class MovementDetailActivity : AppCompatActivity() {
 
     private fun loadData() {
         val mId = movementId ?: return
+        invalidateDebugEvaluation()
+        debugOverrideOutcome = null
+        debugReport = null
         contentLayout.removeAllViews()
         contentLayout.addView(TextView(this).apply {
             text = "Loading movement detail…"
@@ -179,12 +217,15 @@ class MovementDetailActivity : AppCompatActivity() {
                 )
             }
 
+            val sessionEvents = repo.events(evidence.movement.sessionId)
             LoadedMovement(
                 evidence = evidence,
                 displayedNumber = dispNum,
                 video = video,
                 frames = frames,
-                activityPlanState = MotionActivityPlans.eventState(repo.events(evidence.movement.sessionId)),
+                sessionEvents = sessionEvents,
+                loadedTrackId = track?.landmarkTrackId,
+                activityPlanState = MotionActivityPlans.eventState(sessionEvents),
                 canRepairActivityPlan = repo.canReanalyze(evidence.movement.sessionId),
             )
         }) { result ->
@@ -202,9 +243,15 @@ class MovementDetailActivity : AppCompatActivity() {
             displayedNumber = dispNum
             videoFile = video
             loadedFrames = frames
+            loadedEvidence = evidence
+            loadedSessionEvents = loaded.sessionEvents
+            loadedTrackId = loaded.loadedTrackId
             activityPlanState = loaded.activityPlanState
             canRepairActivityPlan = loaded.canRepairActivityPlan
             presentationData = MovementPresentationMapper.map(evidence, dispNum, frames)
+            debugReport = presentationData?.let {
+                MovementDebugReportFactory.create(evidence, loaded.sessionEvents, it)
+            }
             if (active) render()
         }
     }
@@ -300,9 +347,11 @@ class MovementDetailActivity : AppCompatActivity() {
             contentLayout.addView(buildNeedsAttentionCard(data), LinearLayout.LayoutParams(-1, -2).apply { topMargin = 12.dp() })
         }
 
-        // 5. Analysis Debug Card (only when developerMode is enabled)
-        if (preferences.developerMode) {
-            contentLayout.addView(buildAnalysisDebugCard(data.debugData), LinearLayout.LayoutParams(-1, -2).apply { topMargin = 12.dp() })
+        // 5. Analysis Debug Cards (debug build and explicit developer mode only)
+        if (MovementDebugToolPolicy.enabled(BuildConfig.DEBUG, preferences.developerMode)) {
+            buildDebugReportViews().forEach { view ->
+                contentLayout.addView(view, LinearLayout.LayoutParams(-1, -2).apply { topMargin = 12.dp() })
+            }
         }
 
         // Restore expanded dialog if needed
@@ -497,6 +546,133 @@ class MovementDetailActivity : AppCompatActivity() {
         }
     }
 
+    private fun buildDebugReportViews(): List<View> {
+        val report = debugReport ?: return emptyList()
+        val views = mutableListOf<View>()
+        views += card().apply {
+            addView(TextView(this@MovementDetailActivity).apply {
+                text = "Analysis Debug"
+                textSize = 16f
+                typeface = Typeface.create("sans-serif", Typeface.BOLD)
+                setTextColor(ContextCompat.getColor(this@MovementDetailActivity, R.color.app_text_primary))
+            })
+            addView(TextView(this@MovementDetailActivity).apply {
+                text = "Developer-only inspection. Activity overrides are ephemeral and are never saved or published."
+                textSize = 12f
+                setTextColor(ContextCompat.getColor(this@MovementDetailActivity, R.color.app_text_secondary))
+                setPadding(0, 6.dp(), 0, 8.dp())
+            })
+            addView(Button(this@MovementDetailActivity).apply {
+                text = if (debugEvaluationRunning) "Evaluating…" else "Apply STRAIGHT_PUNCH override"
+                isEnabled = !debugEvaluationRunning && debugOverrideOutcome == null
+                setOnClickListener { applyDebugActivityOverride() }
+            })
+            addView(Button(this@MovementDetailActivity).apply {
+                text = "Clear activity override"
+                isEnabled = debugOverrideOutcome != null || debugEvaluationRunning
+                setOnClickListener { clearDebugActivityOverride() }
+            })
+            addView(Button(this@MovementDetailActivity).apply {
+                text = "Copy debug report"
+                setOnClickListener { copyDebugText("Movement debug report", report.toPlainText()) }
+            })
+            addView(Button(this@MovementDetailActivity).apply {
+                text = "Export debug report"
+                setOnClickListener {
+                    debugExportSnapshot.begin(report)
+                    exportDebugReport.launch("movement-${report.identity ?: "unknown"}-debug-report.md")
+                }
+            })
+        }
+        report.orderedSections.forEach { section ->
+            views += card().apply {
+                val heading = LinearLayout(this@MovementDetailActivity).apply {
+                    orientation = LinearLayout.HORIZONTAL
+                    gravity = Gravity.CENTER_VERTICAL
+                }
+                heading.addView(TextView(this@MovementDetailActivity).apply {
+                    text = section.title
+                    textSize = 15f
+                    typeface = Typeface.create("sans-serif", Typeface.BOLD)
+                    setTextColor(ContextCompat.getColor(this@MovementDetailActivity, R.color.app_text_primary))
+                }, LinearLayout.LayoutParams(0, -2, 1f))
+                heading.addView(Button(this@MovementDetailActivity).apply {
+                    text = "Copy"
+                    isAllCaps = false
+                    setOnClickListener { copyDebugText(section.title, section.toPlainText()) }
+                }, LinearLayout.LayoutParams(-2, -2))
+                addView(heading)
+                section.orderedEntries.forEach { entry ->
+                    addView(TextView(this@MovementDetailActivity).apply {
+                        text = "${entry.label} [${entry.key}]: ${entry.value.asPlainText()}"
+                        textSize = 12f
+                        typeface = Typeface.MONOSPACE
+                        setTextColor(ContextCompat.getColor(this@MovementDetailActivity, R.color.app_text_secondary))
+                        setPadding(0, 2.dp(), 0, 2.dp())
+                    })
+                }
+            }
+        }
+        return views
+    }
+
+    private fun copyDebugText(label: String, text: String) {
+        val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+        clipboard.setPrimaryClip(ClipData.newPlainText(label, text))
+        Toast.makeText(this, "Copied $label", Toast.LENGTH_SHORT).show()
+    }
+
+    private fun applyDebugActivityOverride() {
+        if (!MovementDebugToolPolicy.enabled(BuildConfig.DEBUG, preferences.developerMode)) return
+        val evidence = loadedEvidence ?: return
+        val events = loadedSessionEvents.toList()
+        val frames = loadedFrames.toList()
+        val trackId = loadedTrackId
+        val generation = debugEvaluationGate.begin()
+        debugEvaluationRunning = true
+        render()
+        training.submit({
+            MovementDebugOverrideEvaluator.evaluate(
+                override = DebugActivityOverride.STRAIGHT_PUNCH,
+                evidence = evidence,
+                sessionEvents = events,
+                frames = frames,
+                loadedTrackId = trackId,
+            )
+        }) { result ->
+            if (isDestroyed || !debugEvaluationGate.accepts(generation)) return@submit
+            debugEvaluationRunning = false
+            debugOverrideOutcome = result.getOrElse { error ->
+                MovementDebugOverrideOutcome.Unavailable(error.message ?: "DEBUG_OVERRIDE_EVALUATION_FAILED")
+            }
+            rebuildDebugReport()
+            if (active) render()
+        }
+    }
+
+    private fun clearDebugActivityOverride() {
+        invalidateDebugEvaluation()
+        debugOverrideOutcome = null
+        rebuildDebugReport()
+        if (active) render()
+    }
+
+    private fun rebuildDebugReport() {
+        val evidence = loadedEvidence ?: return
+        val presentation = presentationData ?: return
+        debugReport = MovementDebugReportFactory.create(
+            evidence = evidence,
+            sessionEvents = loadedSessionEvents,
+            presentation = presentation,
+            overrideOutcome = debugOverrideOutcome,
+        )
+    }
+
+    private fun invalidateDebugEvaluation() {
+        debugEvaluationGate.invalidate()
+        debugEvaluationRunning = false
+    }
+
     private fun buildAnalysisDebugCard(debug: MovementDebugData): View = card().apply {
         addView(TextView(this@MovementDetailActivity).apply {
             text = "Analysis Debug"
@@ -684,6 +860,8 @@ class MovementDetailActivity : AppCompatActivity() {
         val displayedNumber: Int,
         val video: File?,
         val frames: List<PoseFrame>,
+        val sessionEvents: List<SessionEvent>,
+        val loadedTrackId: String?,
         val activityPlanState: MotionActivityPlans.EventState,
         val canRepairActivityPlan: Boolean,
     )

@@ -11,6 +11,10 @@ android {
     namespace = "dk.lasse.karatecliprecorder"
     compileSdk = 35
 
+    buildFeatures {
+        buildConfig = true
+    }
+
     defaultConfig {
         applicationId = "dk.lasse.karatecliprecorder"
         minSdk = 26

@@ -1,6 +1,6 @@
 # Movement Debug Report and Activity Override
 
-**Status:** OPEN  
+**Status:** COMPLETED
 **Source:** Movement Detail debug review, 2026-10-05  
 **Area:** Android app / Movement Detail / Analysis Debug
 
@@ -115,3 +115,15 @@ Start with Activity as the only analyzer prerequisite override. Additional overr
 ## Implementation note
 
 Before implementing, inspect the current Movement Detail analysis/debug models and reuse existing evidence/provenance types wherever possible. The report is an inspection/export representation of authoritative state, not a new analysis engine.
+
+## Completion evidence
+
+Implemented 2026-10-13 in the Android app:
+
+- `MovementAnalysisPipeline` is the shared per-movement production orchestration used by durable processing and the ephemeral developer evaluation.
+- The override supplies only a non-alternating `STRAIGHT_PUNCH` activity context against the exact retained track and geometry. It has no repository dependency, does not persist or publish, and does not bypass side, view, impact, or target prerequisites.
+- `MovementDebugReport` is the single typed snapshot used by per-section copy, full copy, and Markdown export. It distinguishes retained historical, current session, presentation-computed, and ephemeral effective values.
+- Movement Detail exposes the controls only when both `BuildConfig.DEBUG` and developer mode are true. Pending evaluations are generation-guarded across clear, reload, navigation, and destruction.
+- Regression coverage exercises pipeline parity, provenance and unavailable states, debug gating, set/clear and stale completion, persistence isolation, clipboard output, and document export/cancellation.
+
+Verification completed with JBR 17 using serialized Gradle execution: `:app:testDebugUnitTest`, `:app:assembleDebug`, and `:app:assembleRelease`.

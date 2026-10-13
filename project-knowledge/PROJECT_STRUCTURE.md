@@ -40,6 +40,15 @@ For each non-obvious entry, include enough evidence to recheck it: a repository-
 - Exported schemas: `android/KarateClipRecorder/app/schemas/dk.lasse.karatecliprecorder.training.KarateTrainingDatabase/`. These and the source provide recheckable implementation evidence for the model.
 - These classes currently live in the Android `app` module. Their location and database relationships do not establish shared-platform persistence ownership or domain aggregate boundaries.
 
+### Movement developer diagnostics
+
+**Status: OBSERVED — verified 2026-10-13**
+
+- `app/.../training/MovementAnalysisPipeline.kt` owns pure per-movement orchestration shared by durable `TrainingSessionProcessor` processing and developer inspection; repository selection, persistence, and publication stay with the caller.
+- `app/.../movement/MovementDebugOverride.kt` evaluates an ephemeral activity-only override against the exact retained track and canonical geometry. It has no repository dependency and does not provide sequence, side, view approval, impact, target, or measurement evidence.
+- `app/.../movement/MovementDebugReport.kt` and `MovementDebugReportFactory.kt` provide the typed diagnostic snapshot and explicitly distinguish retained historical evidence, the current session declaration, presentation-time shared-model diagnostics, and ephemeral effective override output. Movement Detail clipboard and Markdown adapters consume this snapshot.
+- Movement Detail gates debug controls with both generated `BuildConfig.DEBUG` and `AppPreferences.developerMode`; release builds compile the same inspection types but do not expose or execute the controls.
+
 ### Four-limb characterization and side interpretation
 
 **Status: OBSERVED — 2026-10-04, initial implementation; acceptance incomplete**
