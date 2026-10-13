@@ -18,6 +18,9 @@ range 0.7–10 seconds), and spoken counting (default On) are remembered. Activi
 resets on fresh entry; Record another retains the full current setup. Setup
 rotation retains the Activity and controls. Audio route is read from Android
 at runtime, not persisted; choosing another output uses Android's controls.
+The named default entry carries the matching versioned activity-plan identifier;
+custom and Other callers must provide their plan choice explicitly and never
+receive punch semantics from their display text.
 
 Rear lenses exposed through CameraX can be selected before countdown. Zoom
 defaults to 1×. Automatic quality preference is 1080p60, 720p60, 1080p30, then
@@ -100,6 +103,14 @@ than displaying planned repetitions as detected movements. Deletion requires con
 files. Cancellation and a shared publication fence prevent a stale worker from
 republishing MLS. Failed deletion remains durable for recovery. The lower-level
 media-only deletion API remains available but is not exposed here.
+
+For a historical recording with no activity-plan event, Movement detail offers
+an explicit supported-activity confirmation when reusable landmark evidence is
+available. Confirmation appends `analysis_activity_plan` with
+`operator_post_capture_confirmation` provenance and starts a normal new-run
+reanalysis. Retry reuses that event; existing, malformed, unsupported or duplicate
+plan evidence is not replaced. This does not infer activity from labels, approve
+the camera view, or alter old analysis runs.
 
 The app-shell Queue Manager Tray distinguishes waiting, landmark processing, and
 movement finding, then offers **Segments ready · View** for the completed recording.

@@ -801,10 +801,10 @@ class AssistedCaptureActivity : AppCompatActivity() {
 
         fun createIntent(
             context: Context,
-            activity: String = "Alternating straight punches",
-            category: String = "Punches",
+            activity: String,
+            category: String,
+            analysisPlanKey: String?,
             repetitions: Int? = null,
-            analysisPlanKey: String? = null,
         ): Intent = Intent(context, AssistedCaptureActivity::class.java).apply {
             putExtra(EXTRA_EXPECTED_ACTIVITY, activity)
             putExtra(EXTRA_ANALYSIS_PLAN, analysisPlanKey)
@@ -813,5 +813,13 @@ class AssistedCaptureActivity : AppCompatActivity() {
                 putExtra(EXTRA_REPETITIONS, repetitions)
             }
         }
+
+        fun createDefaultIntent(context: Context, repetitions: Int? = null): Intent = createIntent(
+            context = context,
+            activity = "Alternating straight punches",
+            category = "Punches",
+            analysisPlanKey = dk.lasse.karatecliprecorder.training.MotionActivityPlans.ALTERNATING_PUNCH,
+            repetitions = repetitions,
+        )
     }
 }

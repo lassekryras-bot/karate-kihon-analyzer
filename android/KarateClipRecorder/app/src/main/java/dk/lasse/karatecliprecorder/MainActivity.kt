@@ -656,7 +656,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun handleSkillCoachAction(action: SkillCoachAction) {
         if (action == SkillCoachAction.RECORD_AND_ANALYZE) {
-            startActivity(android.content.Intent(this, dk.lasse.karatecliprecorder.assisted.AssistedCaptureActivity::class.java))
+            startActivity(dk.lasse.karatecliprecorder.assisted.AssistedCaptureActivity.createDefaultIntent(this))
             return
         }
         val destination = when (action) {
@@ -1454,10 +1454,9 @@ class MainActivity : AppCompatActivity() {
 
     private fun recordStraightPunches(repetitions: Int) {
         startActivity(
-            dk.lasse.karatecliprecorder.assisted.AssistedCaptureActivity.createIntent(
+            dk.lasse.karatecliprecorder.assisted.AssistedCaptureActivity.createDefaultIntent(
                 context = this,
                 repetitions = repetitions,
-                analysisPlanKey = dk.lasse.karatecliprecorder.training.MotionActivityPlans.ALTERNATING_PUNCH,
             )
         )
     }

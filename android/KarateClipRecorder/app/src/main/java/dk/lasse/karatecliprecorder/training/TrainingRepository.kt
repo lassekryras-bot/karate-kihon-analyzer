@@ -193,6 +193,37 @@ class TrainingRepository(private val database: KarateTrainingDatabase, val stora
         run to track
     }
 
+    /**
+     * Adds explicit operator-supplied activity context for a legacy recording, then starts a fresh run.
+     * A retry may reuse the same post-capture declaration, but no existing capture declaration,
+     * malformed value, unsupported value, or duplicate event is ever overwritten or inferred.
+     */
+    fun confirmActivityPlanAndPrepareReanalysis(
+        sessionId: String,
+        planKey: String,
+    ): Pair<ProcessingRun, MotionActivityPlans.Evidence> = atomic {
+        val context = requireNotNull(MotionActivityPlans.context(planKey)) { "Unsupported analysis activity plan" }
+        check(canReanalyze(sessionId)) { "Reanalysis cannot proceed: valid landmark evidence is not available" }
+        check(runs(sessionId).none { it.state == RunState.PROCESSING }) { "Analysis is already in progress" }
+
+        val planEvents = dao.events(sessionId).map { it.value }.filter { it.type == MotionActivityPlans.EVENT_TYPE }
+        val event = when {
+            planEvents.isEmpty() -> SessionEvent(
+                sessionId = sessionId,
+                type = MotionActivityPlans.EVENT_TYPE,
+                timestampUs = 0,
+                data = planKey,
+                timingSource = MotionActivityPlans.OPERATOR_POST_CAPTURE_ORIGIN,
+            ).also { dao.insert(SessionEventRow(it)) }
+            planEvents.size == 1 &&
+                planEvents.single().data == planKey &&
+                planEvents.single().timingSource == MotionActivityPlans.OPERATOR_POST_CAPTURE_ORIGIN -> planEvents.single()
+            else -> error("Recording activity plan is already assigned or conflicts with stored evidence")
+        }
+        val (run, _) = prepareReanalysisRun(sessionId)
+        run to MotionActivityPlans.Evidence(context, event.sessionEventId, event.timingSource)
+    }
+
     fun prepareLandmarkReprocessRun(sessionId: String): ProcessingRun = atomic {
         check(canReprocessLandmarks(sessionId)) { "Landmark reprocessing cannot proceed: master video is unavailable" }
         val session = requireNotNull(session(sessionId))

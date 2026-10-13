@@ -40,11 +40,15 @@ class MovementMotionAnalysisTest {
     }
 
     @Test fun `known plan resolves side but missing approved view blocks impact and retains evidence`() {
+        val planEvent = SessionEvent(sessionId = "s", type = MotionActivityPlans.EVENT_TYPE, timestampUs = 0,
+            data = MotionActivityPlans.ALTERNATING_PUNCH, timingSource = MotionActivityPlans.OPERATOR_POST_CAPTURE_ORIGIN)
+        val planEvidence = assertNotNull(MotionActivityPlans.evidenceFromEvents(listOf(planEvent)))
         val calibration = ImageBodyScaleCalibration("c", geometry, 100_000, 10, SourceNormalizedPoint(.4f, .1f),
             SourceNormalizedPoint(.6f, .9f), 0, 2_000_000, true)
         val result = MovementMotionAnalysis.analyze(movement, "t", frames(), geometry,
             MotionActivityPlans.context(MotionActivityPlans.ALTERNATING_PUNCH), emptyList(),
-            bodyScale = ImageBodyScaleProvider.evidence(calibration, geometry, movement.startUs, movement.endUs), calibration = calibration)
+            bodyScale = ImageBodyScaleProvider.evidence(calibration, geometry, movement.startUs, movement.endUs), calibration = calibration,
+            activityPlanEvidence = planEvidence)
         assertEquals(dk.lasse.karateanalyzer.capture.LateralSide.LEFT, result.side?.side)
         assertNull(result.impact)
         assertEquals(ImpactAbstentionReason.UNSUPPORTED_ANALYSIS_PROFILE.name, result.analysis.reason)
@@ -54,6 +58,8 @@ class MovementMotionAnalysisTest {
         assertEquals(101, json.getJSONArray("profiles").getJSONObject(0).getJSONArray("samples").length())
         assertEquals("t", json.getString("trackId"))
         assertEquals(ImpactAbstentionReason.UNSUPPORTED_ANALYSIS_PROFILE.name, json.getString("impactReason"))
+        assertEquals(planEvent.sessionEventId, json.getString("activityPlanEventId"))
+        assertEquals(MotionActivityPlans.OPERATOR_POST_CAPTURE_ORIGIN, json.getString("activityPlanOrigin"))
         assertTrue(json.isNull("impactEvidence"))
     }
 

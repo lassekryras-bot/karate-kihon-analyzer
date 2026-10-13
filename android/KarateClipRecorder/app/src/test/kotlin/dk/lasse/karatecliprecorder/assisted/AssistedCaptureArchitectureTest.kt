@@ -13,8 +13,19 @@ class AssistedCaptureArchitectureTest {
         val activity = sources.resolve("MainActivity.kt").readText()
         val handler = activity.substringAfter("private fun handleSkillCoachAction").substringBefore("private fun showHomeUi")
         assertTrue(handler.contains("action == SkillCoachAction.RECORD_AND_ANALYZE"))
-        assertTrue(handler.contains("startActivity(android.content.Intent(this, dk.lasse.karatecliprecorder.assisted.AssistedCaptureActivity::class.java))"))
+        assertTrue(handler.contains("AssistedCaptureActivity.createDefaultIntent(this)"))
         assertTrue(root.resolve("app/src/main/AndroidManifest.xml").readText().contains(".assisted.AssistedCaptureActivity"))
+    }
+
+    @Test fun defaultCapturePairsActivityWithPlanWhileCustomCallersMustChooseExplicitly() {
+        val page = sources.resolve("assisted/AssistedCaptureActivity.kt").readText()
+        val defaultFactory = page.substringAfter("fun createDefaultIntent").substringBefore("\n    }")
+        assertTrue(defaultFactory.contains("activity = \"Alternating straight punches\""))
+        assertTrue(defaultFactory.contains("MotionActivityPlans.ALTERNATING_PUNCH"))
+        val customFactory = page.substringAfter("fun createIntent(").substringBefore("): Intent")
+        assertTrue(customFactory.contains("activity: String"))
+        assertTrue(customFactory.contains("analysisPlanKey: String?"))
+        assertFalse(customFactory.contains("analysisPlanKey: String? ="))
     }
 
     @Test fun assistedRouteUsesRepositoryAndNoMicrophoneOrSegmentation() {

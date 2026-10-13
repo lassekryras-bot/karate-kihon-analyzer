@@ -67,3 +67,9 @@ Exact bounded-context names, module boundaries, aggregates, persistence ownershi
 **Status: DECIDED precondition; supported mapping UNKNOWN — 2026-10-04 architectural review**
 
 Impact analysis requires explicit evidence that the known activity and capture view are supported. An observed view estimate, an operator-selected marker, and valid body-scale calibration do not establish measurement suitability. Until an activity/view approval mapping is explicitly accepted, production retains generic limb and observed-side evidence but abstains from impact and impact-dependent target output with `UNSUPPORTED_ANALYSIS_PROFILE`. Historical results remain stored.
+
+### Post-capture activity declaration
+
+**Status: DECIDED — 2026-10-04 architectural review**
+
+For a saved recording with no activity-plan event, an operator may explicitly declare one supported activity for the entire recording and request a new analysis. This is product-owned interpretation context, not observed technique classification. The declaration is append-only, uses the existing versioned `analysis_activity_plan` event with distinct `operator_post_capture_confirmation` provenance, and never comes from a display label. Malformed, unsupported or duplicate existing plan events are conflicts rather than missing context. Old runs and results remain immutable; retry reuses the same declaration. The declaration supplies neither observed side, body scale nor approved camera view.

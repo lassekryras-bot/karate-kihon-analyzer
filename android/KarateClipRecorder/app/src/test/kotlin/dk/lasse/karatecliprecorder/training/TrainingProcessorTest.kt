@@ -196,9 +196,14 @@ class TrainingProcessorTest {
             val initialMovements = repository.movements(session.sessionId)
             val initialMovementIds = initialMovements.map { it.movementId }
             assertEquals(10, initialMovementIds.size)
+            assertEquals("ACTIVITY_PLAN_UNAVAILABLE", repository.movementEvidence(session.sessionId, 1)!!.analyses
+                .single { it.analyzerKey == MovementMotionAnalysis.policy.analyzerKey }.reason)
 
             assertTrue(repository.canReanalyze(session.sessionId))
-            val (reanalysisRun, _) = repository.prepareReanalysisRun(session.sessionId)
+            val (reanalysisRun, planEvidence) = repository.confirmActivityPlanAndPrepareReanalysis(
+                session.sessionId,
+                MotionActivityPlans.ALTERNATING_PUNCH,
+            )
             assertEquals(RunMode.REANALYSIS, reanalysisRun.mode)
             assertEquals(RunState.PROCESSING, reanalysisRun.state)
             assertFalse(reanalysisRun.isCurrent)
@@ -231,9 +236,13 @@ class TrainingProcessorTest {
             val target = firstMovementEvidence.analyses.single { it.analyzerKey == "straight_punch_target" }
             assertEquals("2", target.analyzerVersion)
             assertEquals(AnalysisState.ABSTAINED, target.state)
-            assertEquals("ACTIVITY_PLAN_UNAVAILABLE", target.reason)
+            assertNotEquals("ACTIVITY_PLAN_UNAVAILABLE", target.reason)
             assertTrue(firstMovementEvidence.measurements.isEmpty())
-            assertNotNull(firstMovementEvidence.analyses.single { it.analyzerKey == MovementMotionAnalysis.policy.analyzerKey }.geometryJson)
+            val motionJson = org.json.JSONObject(assertNotNull(firstMovementEvidence.analyses
+                .single { it.analyzerKey == MovementMotionAnalysis.policy.analyzerKey }.geometryJson))
+            assertEquals(MotionActivityPlans.ALTERNATING_PUNCH, motionJson.getString("planId"))
+            assertEquals(planEvidence.eventId, motionJson.getString("activityPlanEventId"))
+            assertEquals(MotionActivityPlans.OPERATOR_POST_CAPTURE_ORIGIN, motionJson.getString("activityPlanOrigin"))
             assertNotNull(repository.run(initialRun.runId), "Reanalysis retains historical run provenance")
 
         } finally {

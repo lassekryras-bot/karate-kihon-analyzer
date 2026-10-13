@@ -46,6 +46,9 @@ class MovementDetailActivity : AppCompatActivity() {
     internal var loadedFrames: List<PoseFrame> = emptyList()
     internal var verticalBounds: VerticalBounds = VerticalBounds.FULL
     private var active = false
+    private var activityPlanState = MotionActivityPlans.EventState.CONFLICT
+    private var canRepairActivityPlan = false
+    private var activityPlanRepairRunning = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -176,22 +179,31 @@ class MovementDetailActivity : AppCompatActivity() {
                 )
             }
 
-            Triple(evidence, dispNum to video, frames)
+            LoadedMovement(
+                evidence = evidence,
+                displayedNumber = dispNum,
+                video = video,
+                frames = frames,
+                activityPlanState = MotionActivityPlans.eventState(repo.events(evidence.movement.sessionId)),
+                canRepairActivityPlan = repo.canReanalyze(evidence.movement.sessionId),
+            )
         }) { result ->
             if (isDestroyed) return@submit
-            val triple = result.getOrNull()
-            if (triple == null) {
+            val loaded = result.getOrNull()
+            if (loaded == null) {
                 renderNotFound()
                 return@submit
             }
-            val evidence = triple.first
-            val dispNum = triple.second.first
-            val video = triple.second.second
-            val frames = triple.third
+            val evidence = loaded.evidence
+            val dispNum = loaded.displayedNumber
+            val video = loaded.video
+            val frames = loaded.frames
 
             displayedNumber = dispNum
             videoFile = video
             loadedFrames = frames
+            activityPlanState = loaded.activityPlanState
+            canRepairActivityPlan = loaded.canRepairActivityPlan
             presentationData = MovementPresentationMapper.map(evidence, dispNum, frames)
             if (active) render()
         }
@@ -278,6 +290,10 @@ class MovementDetailActivity : AppCompatActivity() {
                     addView(TextView(this@MovementDetailActivity).apply { text = row; textSize = 14f; setPadding(0, 12.dp(), 0, 0) })
                 }
             }, LinearLayout.LayoutParams(-1, -2).apply { topMargin = 12.dp() })
+        }
+
+        if (activityPlanState == MotionActivityPlans.EventState.MISSING) {
+            contentLayout.addView(buildActivityPlanRepairCard(), LinearLayout.LayoutParams(-1, -2).apply { topMargin = 12.dp() })
         }
 
         if (data.findings.isNotEmpty()) {
@@ -424,6 +440,60 @@ class MovementDetailActivity : AppCompatActivity() {
                 })
             }
             addView(findingBox)
+        }
+    }
+
+    private fun buildActivityPlanRepairCard(): View = card().apply {
+        addView(TextView(this@MovementDetailActivity).apply {
+            text = "Activity context missing"
+            textSize = 16f
+            typeface = Typeface.create("sans-serif", Typeface.BOLD)
+            setTextColor(ContextCompat.getColor(this@MovementDetailActivity, R.color.app_text_primary))
+        })
+        addView(TextView(this@MovementDetailActivity).apply {
+            text = if (canRepairActivityPlan) {
+                "Confirm what was performed in this recording, then create a new analysis. This does not classify the movement or approve the camera view."
+            } else {
+                "This recording has no activity plan. Reanalysis requires available landmark evidence."
+            }
+            textSize = 13f
+            setTextColor(ContextCompat.getColor(this@MovementDetailActivity, R.color.app_text_secondary))
+            setPadding(0, 8.dp(), 0, 8.dp())
+        })
+        if (canRepairActivityPlan) {
+            addView(Button(this@MovementDetailActivity).apply {
+                text = if (activityPlanRepairRunning) "Reanalyzing…" else "Set activity and reanalyze"
+                isEnabled = !activityPlanRepairRunning
+                setOnClickListener { chooseActivityPlanForRepair() }
+            })
+        }
+    }
+
+    private fun chooseActivityPlanForRepair() {
+        ActivityPlanRepairDialogs(this, ::runActivityPlanRepair).showChoice()
+    }
+
+    private fun runActivityPlanRepair(planKey: String) {
+        val id = sessionId ?: return
+        if (activityPlanRepairRunning) return
+        activityPlanRepairRunning = true
+        render()
+        training.confirmActivityPlanAndReanalyze(id, planKey) { result ->
+            if (isDestroyed) return@confirmActivityPlanAndReanalyze
+            val error = result.exceptionOrNull()
+            if (error != null) {
+                activityPlanRepairRunning = false
+                Toast.makeText(this, "Reanalysis failed: ${error.message}", Toast.LENGTH_LONG).show()
+                if (active) render()
+                return@confirmActivityPlanAndReanalyze
+            }
+            training.submit({ repo -> repo.movements(id).getOrNull(displayedNumber - 1)?.movementId }) { movementResult ->
+                if (isDestroyed) return@submit
+                activityPlanRepairRunning = false
+                movementResult.getOrNull()?.let { movementId = it }
+                Toast.makeText(this, "Activity saved. Reanalysis complete.", Toast.LENGTH_SHORT).show()
+                loadData()
+            }
         }
     }
 
@@ -607,5 +677,50 @@ class MovementDetailActivity : AppCompatActivity() {
         const val EXTRA_SESSION_ID = "movement_session_id"
         const val EXTRA_MOVEMENT_ID = "movement_id"
         const val EXTRA_DISPLAYED_NUMBER = "movement_displayed_number"
+    }
+
+    private data class LoadedMovement(
+        val evidence: MovementEvidence,
+        val displayedNumber: Int,
+        val video: File?,
+        val frames: List<PoseFrame>,
+        val activityPlanState: MotionActivityPlans.EventState,
+        val canRepairActivityPlan: Boolean,
+    )
+}
+
+internal class ActivityPlanRepairDialogs(
+    private val activity: AppCompatActivity,
+    private val confirmed: (String) -> Unit,
+) {
+    internal data class Option(val label: String, val planKey: String)
+
+    internal var confirmationDialog: androidx.appcompat.app.AlertDialog? = null
+        private set
+
+    fun showChoice(): androidx.appcompat.app.AlertDialog =
+        androidx.appcompat.app.AlertDialog.Builder(activity)
+            .setTitle("What was performed?")
+            // AppCompat attaches its list only when this dialog has no message body.
+            .setItems(options.map { it.label }.toTypedArray()) { _, which ->
+                showConfirmation(options[which])
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
+
+    private fun showConfirmation(option: Option) {
+        confirmationDialog = androidx.appcompat.app.AlertDialog.Builder(activity)
+            .setTitle("Confirm ${option.label}")
+            .setMessage("Choose this only if it describes the entire recording. The declaration will be stored as post-capture context and used for a new analysis. Existing results will be retained.")
+            .setPositiveButton("Confirm and reanalyze") { _, _ -> confirmed(option.planKey) }
+            .setNegativeButton("Cancel", null)
+            .show()
+    }
+
+    companion object {
+        internal val options = listOf(
+            Option("Alternating straight punches", MotionActivityPlans.ALTERNATING_PUNCH),
+            Option("Front kicks", MotionActivityPlans.FRONT_KICK),
+        )
     }
 }

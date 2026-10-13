@@ -125,6 +125,28 @@ class TrainingServices private constructor(context: Context) {
         }
     }
 
+    fun confirmActivityPlanAndReanalyze(
+        sessionId: String,
+        planKey: String,
+        completed: (Result<ProcessingRun>) -> Unit = {},
+    ) {
+        processingExecutor.execute {
+            val result = runCatching {
+                val (run, _) = repository.confirmActivityPlanAndPrepareReanalysis(sessionId, planKey)
+                val proc = processor(
+                    checkActive = {
+                        val currentJob = repository.job(sessionId)
+                        check(currentJob == null || currentJob.state != QueueState.DELETING) { "Cancelled" }
+                    },
+                    publication = { op -> synchronized(ProcessingCoordinator.publication) { op() } },
+                )
+                proc.processReanalysis(sessionId, run.runId)
+                requireNotNull(repository.run(run.runId))
+            }
+            main.post { completed(result) }
+        }
+    }
+
     fun reprocessLandmarksAndReanalyze(sessionId: String, completed: (Result<ProcessingRun>) -> Unit = {}) {
         processingExecutor.execute {
             val result = runCatching {

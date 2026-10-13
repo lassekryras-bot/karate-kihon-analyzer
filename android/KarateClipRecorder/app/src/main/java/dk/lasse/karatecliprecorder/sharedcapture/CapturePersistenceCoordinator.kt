@@ -56,7 +56,7 @@ class CapturePersistenceCoordinator(private val services: TrainingServices) {
         services.prepareRecording(session, recording, snapshot)
         request.analysisPlanKey?.let { key ->
             services.repository.addEvent(SessionEvent(sessionId = sessionId, type = MotionActivityPlans.EVENT_TYPE,
-                timestampUs = 0, data = key, timingSource = "capture_plan"))
+                timestampUs = 0, data = key, timingSource = MotionActivityPlans.CAPTURE_ORIGIN))
         }
         return PreparedCapture(request, session, recording, file)
     }

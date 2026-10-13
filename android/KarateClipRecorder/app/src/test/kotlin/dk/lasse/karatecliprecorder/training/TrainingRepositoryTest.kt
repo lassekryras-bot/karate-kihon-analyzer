@@ -102,6 +102,69 @@ class TrainingRepositoryTest {
         assertEquals(8, repository.movementEvidence(session.sessionId, 1)!!.measurements.size)
     }
 
+    @Test fun postCaptureActivityConfirmationIsAppendOnlyIdempotentAndPreparesFreshRuns() {
+        val (session, track) = session()
+        File(track.filePath).writeText("landmark evidence")
+
+        val (firstRun, firstEvidence) = repository.confirmActivityPlanAndPrepareReanalysis(
+            session.sessionId,
+            MotionActivityPlans.ALTERNATING_PUNCH,
+        )
+        assertEquals(MotionActivityPlans.ALTERNATING_PUNCH, firstEvidence.context.planId)
+        assertEquals(MotionActivityPlans.OPERATOR_POST_CAPTURE_ORIGIN, firstEvidence.origin)
+        assertEquals(firstEvidence.eventId, repository.events(session.sessionId).single { it.type == MotionActivityPlans.EVENT_TYPE }.sessionEventId)
+
+        repository.failRun(firstRun.runId, "synthetic failure")
+        val (retryRun, retryEvidence) = repository.confirmActivityPlanAndPrepareReanalysis(
+            session.sessionId,
+            MotionActivityPlans.ALTERNATING_PUNCH,
+        )
+        assertNotEquals(firstRun.runId, retryRun.runId)
+        assertEquals(firstEvidence, retryEvidence)
+        assertEquals(1, repository.events(session.sessionId).count { it.type == MotionActivityPlans.EVENT_TYPE })
+        assertEquals(RunState.FAILED, repository.run(firstRun.runId)?.state)
+    }
+
+    @Test fun postCaptureActivityConfirmationRejectsUnsupportedExistingAndConflictingEvidence() {
+        fun readySession(): RecordingSession {
+            val (session, track) = session(time = System.nanoTime())
+            File(track.filePath).writeText("landmark evidence")
+            return session
+        }
+
+        val unsupported = readySession()
+        assertFailsWith<IllegalArgumentException> {
+            repository.confirmActivityPlanAndPrepareReanalysis(unsupported.sessionId, "unknown-plan")
+        }
+        assertTrue(repository.events(unsupported.sessionId).none { it.type == MotionActivityPlans.EVENT_TYPE })
+
+        val captured = readySession()
+        repository.addEvent(SessionEvent(sessionId = captured.sessionId, type = MotionActivityPlans.EVENT_TYPE,
+            timestampUs = 0, data = MotionActivityPlans.ALTERNATING_PUNCH, timingSource = MotionActivityPlans.CAPTURE_ORIGIN))
+        assertFailsWith<IllegalStateException> {
+            repository.confirmActivityPlanAndPrepareReanalysis(captured.sessionId, MotionActivityPlans.ALTERNATING_PUNCH)
+        }
+
+        val malformed = readySession()
+        repository.addEvent(SessionEvent(sessionId = malformed.sessionId, type = MotionActivityPlans.EVENT_TYPE,
+            timestampUs = 0, data = "malformed", timingSource = MotionActivityPlans.OPERATOR_POST_CAPTURE_ORIGIN))
+        assertEquals(MotionActivityPlans.EventState.CONFLICT, MotionActivityPlans.eventState(repository.events(malformed.sessionId)))
+        assertFailsWith<IllegalStateException> {
+            repository.confirmActivityPlanAndPrepareReanalysis(malformed.sessionId, MotionActivityPlans.ALTERNATING_PUNCH)
+        }
+
+        val duplicate = readySession()
+        repeat(2) {
+            repository.addEvent(SessionEvent(sessionId = duplicate.sessionId, type = MotionActivityPlans.EVENT_TYPE,
+                timestampUs = 0, data = MotionActivityPlans.ALTERNATING_PUNCH,
+                timingSource = MotionActivityPlans.OPERATOR_POST_CAPTURE_ORIGIN))
+        }
+        assertEquals(MotionActivityPlans.EventState.CONFLICT, MotionActivityPlans.eventState(repository.events(duplicate.sessionId)))
+        assertFailsWith<IllegalStateException> {
+            repository.confirmActivityPlanAndPrepareReanalysis(duplicate.sessionId, MotionActivityPlans.ALTERNATING_PUNCH)
+        }
+    }
+
     @Test fun insertingMissedMovementChangesDisplayPositionWithoutChangingOtherIdentities() {
         val (session, track) = session()
         val original = segment(session, track)

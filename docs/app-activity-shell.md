@@ -14,6 +14,11 @@ for persistence, interruption, playback and pending physical acceptance.
 The bundled continuation adds two-stage Stop, immediate saved-MP4 completion,
 a durable serial background queue and Performance → Recordings with calendar,
 playback, retry and confirmed deletion. These remain outside the shared shell.
+Movement detail now offers an explicit activity-confirmation repair only for a
+legacy recording with no activity-plan event and reusable landmark evidence.
+The operator selects and confirms one supported activity for the whole recording;
+the app appends post-capture provenance and creates a fresh analysis run while
+retaining prior results. Conflicting plan evidence is never overwritten.
 
 ## Current source map
 

@@ -169,7 +169,8 @@ class TrainingSessionProcessor(
         val isReanalysis = reanalysisRunId != null
         val session = requireNotNull(repository.session(sessionId))
         val recording = requireNotNull(repository.recording(sessionId))
-        val activityContext = MotionActivityPlans.fromEvents(repository.events(sessionId))
+        val activityPlanEvidence = MotionActivityPlans.evidenceFromEvents(repository.events(sessionId))
+        val activityContext = activityPlanEvidence?.context
         val basePlan = RecordingProcessingPlans.forSession(session)
         val plan = activityContext?.let { context ->
             basePlan.copy(movementProfile = MotionActivityPlans.profile(context))
@@ -321,7 +322,7 @@ class TrainingSessionProcessor(
                 val motion = MovementMotionAnalysis.analyze(movement, source.landmarkTrackId, frames, geometry, activityContext,
                     motionQom, limbResults.getValue(movement.movementId), sequenceByMovement[movement.movementId],
                     dk.lasse.karateanalyzer.geometry.ImageBodyScaleProvider.evidence(calibration, geometry, movement.startUs, movement.endUs),
-                    calibration)
+                    calibration, activityPlanEvidence = activityPlanEvidence)
                 if (repository.preferredAnalysis(movement.movementId, MovementMotionAnalysis.policy) == null) {
                     repository.saveAnalysis(motion.analysis, emptyList())
                 }

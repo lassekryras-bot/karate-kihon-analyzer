@@ -27,7 +27,11 @@ object MovementMotionAnalysis {
         bodyScale: BodyScaleEvidence? = null,
         calibration: dk.lasse.karateanalyzer.geometry.ImageBodyScaleCalibration? = null,
         viewApproval: ImpactViewApproval? = null,
+        activityPlanEvidence: MotionActivityPlans.Evidence? = null,
     ): MovementMotionOutput {
+        require(activityPlanEvidence == null || activityPlanEvidence.context == context) {
+            "Activity plan evidence must match the analysis context"
+        }
         val side = context?.let { ActivityStartingSideResolver.resolve(limbs, it) }
         val resolvedSide = side?.side
         val scopedViewApproval = viewApproval?.takeIf { it.activityPlanId == context?.planId }
@@ -57,7 +61,8 @@ object MovementMotionAnalysis {
             impact?.status == ImpactAnalysisStatus.COMPLETED -> null
             else -> ImpactAbstentionReason.UNSUPPORTED_ANALYSIS_PROFILE.name
         }
-        val payload = encode(movement, limbs, side, sequence, impactProfile, scopedViewApproval, impact, qom, reason, bodyScale, calibration)
+        val payload = encode(movement, limbs, side, sequence, impactProfile, scopedViewApproval, impact, qom, reason,
+            bodyScale, calibration, activityPlanEvidence)
         val analysis = MovementAnalysis(movementId = movement.movementId, analyzerKey = policy.analyzerKey,
             analyzerVersion = "1", landmarkTrackId = trackId,
             state = if (limbs.profiles.values.any { it.metrics != null }) AnalysisState.PARTIAL else AnalysisState.ABSTAINED,
@@ -72,7 +77,8 @@ object MovementMotionAnalysis {
     private fun encode(movement: SessionMovement, limbs: FourLimbMotionResult, side: ActivitySideResolution?,
                        sequence: RepetitionSideValidation?, impactProfile: ImpactAnalysisProfile?, viewApproval: ImpactViewApproval?,
                        impact: ImpactAnalysisResult?, qom: List<QomFrameEvidence>, reason: String?, bodyScale: BodyScaleEvidence?,
-                       calibration: dk.lasse.karateanalyzer.geometry.ImageBodyScaleCalibration?): String {
+                       calibration: dk.lasse.karateanalyzer.geometry.ImageBodyScaleCalibration?,
+                       activityPlanEvidence: MotionActivityPlans.Evidence?): String {
         fun obj(vararg values: Pair<String, Any?>) = JSONObject().apply { values.forEach { (key, value) -> put(key, value ?: JSONObject.NULL) } }
         val profiles = JSONArray()
         limbs.profiles.values.forEach { p ->
@@ -108,6 +114,8 @@ object MovementMotionAnalysis {
                 "quietConfirmationUs" to limbs.config.quietConfirmationUs, "medianSamples" to limbs.config.medianSamples,
                 "meanSamples" to limbs.config.meanSamples, "dominantTravelRatio" to limbs.config.dominantTravelRatio),
             "planId" to side?.context?.planId, "planVersion" to side?.context?.planVersion,
+            "activityPlanEventId" to activityPlanEvidence?.eventId,
+            "activityPlanOrigin" to activityPlanEvidence?.origin,
             "activity" to side?.context?.activity?.name, "targetId" to side?.context?.targetId,
             "alternating" to side?.context?.alternating, "side" to side?.side?.name,
             "sideReason" to (side?.reason?.name ?: "ACTIVITY_PLAN_UNAVAILABLE"),
