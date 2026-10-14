@@ -80,6 +80,22 @@ data class LimbReversal(
     val magnitudeDeg: Double,
 )
 
+/** One directionally coherent episode produced by the authoritative angular hysteresis.
+ * Support counts only observed moving intervals; idle elapsed time is not evidence.
+ */
+data class LimbDirectionalEpisode(
+    val episodeIndex: Int,
+    val blockId: Int,
+    val direction: Int,
+    val startTimestampUs: Long,
+    val endTimestampUs: Long,
+    val startAngleDeg: Double,
+    val endAngleDeg: Double,
+    val excursionDeg: Double,
+    val meaningfulTravelDeg: Double,
+    val observedSupportDurationUs: Long,
+)
+
 data class LimbMotionMetrics(
     val referenceStartAngleDeg: Double,
     val referenceEndAngleDeg: Double,
@@ -118,6 +134,8 @@ data class LimbMotionProfile(
     val abstentionReason: LimbAbstentionReason?,
     /** Authoritative data for plots and downstream consumers, including gaps. */
     val samples: List<LimbMotionSample>,
+    /** Authoritative direction runs from the same hysteresis that produced meaningful deltas. */
+    val directionalEpisodes: List<LimbDirectionalEpisode> = emptyList(),
 )
 
 data class LimbActivityRanking(

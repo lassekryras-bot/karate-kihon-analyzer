@@ -10,7 +10,7 @@ import kotlin.math.sign
 
 /** Generic offline articulation evidence. No activity, side-selection, weapon or impact semantics. */
 object FourLimbMotionCharacterizer {
-    const val VERSION = "four-limb-motion-v1"
+    const val VERSION = "four-limb-motion-v2"
 
     fun characterize(input: FourLimbMotionInput, config: FourLimbMotionConfig = FourLimbMotionConfig()): FourLimbMotionResult {
         val failure = validate(input)
@@ -136,9 +136,10 @@ object FourLimbMotionCharacterizer {
             observed, sampleCoverage, flags)
 
         val reversals = mutableListOf<LimbReversal>()
+        val episodes = mutableListOf<LimbDirectionalEpisode>()
         var onset: Long? = null
         val groups = logical.indices.filter { logical[it].blockId != null }.groupBy { logical[it].blockId }
-        for (indices in groups.values) {
+        for ((blockId, indices) in groups) {
             val series = indices.map { AngularMotionEvidence.Sample(logical[it].timestampUs, logical[it].angleDeg!!) }
             val motion = AngularMotionEvidence.characterize(series, config.angularDeadbandDeg)
             for (i in 1 until indices.size) {
@@ -151,6 +152,21 @@ object FourLimbMotionCharacterizer {
                 val support = (run.startIndex + 1..run.endIndex).sumOf { i ->
                     if (motion.meaningfulDeltasDeg[i] != 0.0) series[i].timestampUs - series[i - 1].timestampUs else 0L
                 }
+                val travel = (run.startIndex + 1..run.endIndex).sumOf { i -> abs(motion.meaningfulDeltasDeg[i]) }
+                val startSample = series[run.startIndex]
+                val endSample = series[run.endIndex]
+                episodes += LimbDirectionalEpisode(
+                    episodeIndex = episodes.size,
+                    blockId = requireNotNull(blockId),
+                    direction = run.direction,
+                    startTimestampUs = startSample.timestampUs,
+                    endTimestampUs = endSample.timestampUs,
+                    startAngleDeg = startSample.angleDeg,
+                    endAngleDeg = endSample.angleDeg,
+                    excursionDeg = abs(endSample.angleDeg - startSample.angleDeg),
+                    meaningfulTravelDeg = travel,
+                    observedSupportDurationUs = support,
+                )
                 if (onset == null && support >= config.onsetConfirmationUs) onset = series[run.startIndex].timestampUs
             }
             for ((before, after) in motion.runs.zipWithNext()) {
@@ -208,6 +224,7 @@ object FourLimbMotionCharacterizer {
             }, peak?.angularSpeedDegPerSec, peak?.timestampUs, reversals.toList())
         val logicalByTime = logical.associateBy { it.timestampUs }
         return LimbMotionProfile(limb, input.landmarkTrackId, metrics, pattern, sampleCoverage,
-            valid.minOf { it.confidence!! }, flags.toSet(), null, observed.map { logicalByTime[it.timestampUs] ?: it })
+            valid.minOf { it.confidence!! }, flags.toSet(), null, observed.map { logicalByTime[it.timestampUs] ?: it },
+            episodes.toList())
     }
 }

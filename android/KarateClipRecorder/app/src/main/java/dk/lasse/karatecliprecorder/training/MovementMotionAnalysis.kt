@@ -17,7 +17,7 @@ data class MovementMotionOutput(
 
 /** Product adapter: all motion mathematics stays in the shared analytical core. */
 object MovementMotionAnalysis {
-    val policy = AnalyzerPolicy("four_limb_activity_motion", listOf("1"))
+    val policy = AnalyzerPolicy("four_limb_activity_motion", listOf("2", "1"))
 
     fun analyze(
         movement: SessionMovement, trackId: String, frames: List<PoseFrame>, geometry: CanonicalGeometryDescriptor,
@@ -64,7 +64,7 @@ object MovementMotionAnalysis {
         val payload = encode(movement, limbs, side, sequence, impactProfile, scopedViewApproval, impact, qom, reason,
             bodyScale, calibration, activityPlanEvidence)
         val analysis = MovementAnalysis(movementId = movement.movementId, analyzerKey = policy.analyzerKey,
-            analyzerVersion = "1", landmarkTrackId = trackId,
+            analyzerVersion = "2", landmarkTrackId = trackId,
             state = if (limbs.profiles.values.any { it.metrics != null }) AnalysisState.PARTIAL else AnalysisState.ABSTAINED,
             reason = reason ?: "Provisional descriptive motion evidence", geometryJson = payload)
         return MovementMotionOutput(analysis, limbs, side, impact)
@@ -98,11 +98,19 @@ object MovementMotionAnalysis {
                 "unknownDurationUs" to m?.unknownDurationUs,
                 "reversals" to JSONArray(m?.reversals.orEmpty().map { obj("timeUs" to it.timestampUs,
                     "angleDeg" to it.angleDeg, "before" to it.beforeDirection, "after" to it.afterDirection, "magnitudeDeg" to it.magnitudeDeg) }),
+                "directionalEpisodes" to JSONArray(p.directionalEpisodes.map { episode -> obj(
+                    "episodeIndex" to episode.episodeIndex, "block" to episode.blockId, "direction" to episode.direction,
+                    "startUs" to episode.startTimestampUs, "endUs" to episode.endTimestampUs,
+                    "startAngleDeg" to episode.startAngleDeg, "endAngleDeg" to episode.endAngleDeg,
+                    "excursionDeg" to episode.excursionDeg, "travelDeg" to episode.meaningfulTravelDeg,
+                    "observedSupportUs" to episode.observedSupportDurationUs,
+                ) }),
                 "samples" to JSONArray(p.samples.map { obj("timeUs" to it.timestampUs, "rawAngleDeg" to it.rawAngleDeg,
                     "angleDeg" to it.angleDeg, "confidence" to it.confidence, "block" to it.blockId,
                     "deltaDeg" to it.meaningfulDeltaDeg, "speedDegPerSec" to it.angularSpeedDegPerSec) })))
         }
-        return obj("contract" to "movement-motion-v1", "movementId" to movement.movementId,
+        val supportingEpisode = side?.supportingEpisode
+        return obj("contract" to "movement-motion-v2", "movementId" to movement.movementId,
             "trackId" to limbs.landmarkTrackId, "geometryId" to limbs.canonicalGeometry.geometryId,
             "geometry" to dk.lasse.karateanalyzer.geometry.CanonicalGeometryCodec.encode(limbs.canonicalGeometry),
             "logicalStartUs" to movement.startUs, "logicalEndUs" to movement.endUs,
@@ -120,6 +128,16 @@ object MovementMotionAnalysis {
             "alternating" to side?.context?.alternating, "side" to side?.side?.name,
             "sideReason" to (side?.reason?.name ?: "ACTIVITY_PLAN_UNAVAILABLE"),
             "sideConfig" to side?.config?.toString(), "sideResolverVersion" to side?.resolverVersion,
+            "sideEvidenceMode" to side?.evidenceMode?.name,
+            "sideSupportingEpisode" to supportingEpisode?.let { episode -> obj(
+                "limb" to side.side?.let { if (it == dk.lasse.karateanalyzer.capture.LateralSide.LEFT) LimbId.LEFT_ARM.name else LimbId.RIGHT_ARM.name },
+                "episodeIndex" to episode.episodeIndex, "block" to episode.blockId,
+                "startUs" to episode.startTimestampUs, "endUs" to episode.endTimestampUs,
+                "excursionDeg" to episode.excursionDeg, "travelDeg" to episode.meaningfulTravelDeg,
+                "observedSupportUs" to episode.observedSupportDurationUs,
+                "characterizerVersion" to limbs.analyzerVersion, "angularPolicyVersion" to limbs.angularPolicyVersion,
+                "resolverVersion" to side.resolverVersion,
+            ) },
             "repetitionIndex" to sequence?.repetitionIndex, "expectedSide" to sequence?.expectedSide?.name,
             "alternationStatus" to (sequence?.alternationStatus?.name ?: "UNVERIFIABLE"),
             "profiles" to profiles, "impactStatus" to (impact?.status?.name ?: "NOT_EVALUATED"),

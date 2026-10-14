@@ -53,8 +53,8 @@ For each non-obvious entry, include enough evidence to recheck it: a repository-
 
 **Status: OBSERVED — 2026-10-04, initial implementation; acceptance incomplete**
 
-- Shared core `motion/FourLimbMotionCharacterizer.kt` consumes segmented canonical pose evidence; `FourLimbMotionModels.kt` retains per-limb profiles, trace samples, gaps, configuration and geometry provenance. `AngularMotionEvidence.kt` owns its provisional excursion-based angular hysteresis.
-- Shared core `core/ActivityStartingSideResolver.kt` interprets those profiles using an explicit known-activity context and validates indexed alternation. It does not infer the activity or replace ambiguous observations with expected sides. Production processing saves generic limb and observed-side evidence; view approval remains a separate prerequisite for impact analysis.
+- Shared core `motion/FourLimbMotionCharacterizer.kt` consumes segmented canonical pose evidence; `FourLimbMotionModels.kt` retains per-limb profiles, trace samples, gaps, configuration, geometry provenance, and the directional episodes emitted by the authoritative hysteresis. `AngularMotionEvidence.kt` owns its provisional excursion-based angular hysteresis.
+- Shared core `core/ActivityStartingSideResolver.kt` interprets those profiles using an explicit known-activity context and validates indexed alternation. Straight-punch v2 may resolve one quality-gated anatomical arm when the opposite arm is unavailable, while bilateral opening or usable complex opposite evidence remains ambiguous. It does not infer the activity or replace ambiguous observations with expected sides. Production processing saves generic limb and observed-side evidence, including single-arm versus bilateral provenance; view approval remains a separate prerequisite for impact analysis.
 - Validation state and unresolved measurement-policy details are owned by [four-limb implementation status](../docs/four-limb-motion-implementation-status.md). This initial implementation is not production-accepted.
 
 ## Material conflicts

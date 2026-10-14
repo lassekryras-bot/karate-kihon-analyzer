@@ -6,8 +6,9 @@ import dk.lasse.karateanalyzer.motion.*
 /** Explicit interpretation selected by the known activity plan, never inferred from pose evidence. */
 enum class LimbInterpretationActivity { STRAIGHT_PUNCH, CHAMBER_EXTENSION_KICK }
 enum class SideResolutionStatus { RESOLVED, AMBIGUOUS }
-enum class SideResolutionReason { SINGLE_SUPPORTED_SIDE, INADEQUATE_EVIDENCE, NO_SUPPORTED_PATTERN, MULTIPLE_SUPPORTED_SIDES }
+enum class SideResolutionReason { SINGLE_SUPPORTED_SIDE, INADEQUATE_EVIDENCE, NO_SUPPORTED_PATTERN, MULTIPLE_SUPPORTED_SIDES, CONFLICTING_OPPOSITE_EVIDENCE }
 enum class AlternationStatus { MATCH, MISMATCH, UNVERIFIABLE, NOT_REQUESTED }
+enum class SideEvidenceMode { SINGLE_ARM_ONLY, BILATERAL_CORROBORATED }
 
 /** A projection of the product-owned plan, not a second activity-plan implementation.
  * Target is provenance only: target height must not change observed side evidence.
@@ -46,6 +47,10 @@ data class ActivitySideResolution(
     val context: ActivitySideContext,
     val config: StartingSideConfig,
     val resolverVersion: String,
+    /** Straight-punch evidence provenance. Null for unresolved and unchanged kick interpretation. */
+    val evidenceMode: SideEvidenceMode? = null,
+    /** Earliest qualifying opening episode for the uniquely supported anatomical arm. */
+    val supportingEpisode: LimbDirectionalEpisode? = null,
     /** Exact characterizer result retains geometry, boundaries, profiles and configuration provenance. */
     val evidence: FourLimbMotionResult,
 )
@@ -70,7 +75,7 @@ data class ActivitySequenceSideResult(
  * An expected side never replaces a missing or conflicting observed side.
  */
 object ActivityStartingSideResolver {
-    const val VERSION = "activity-starting-side-v1"
+    const val VERSION = "activity-starting-side-v2"
 
     fun resolve(
         evidence: FourLimbMotionResult,
@@ -84,33 +89,76 @@ object ActivityStartingSideResolver {
         fun usable(profile: LimbMotionProfile): Boolean = profile.metrics != null && profile.abstentionReason == null &&
             LimbQualityFlag.GAPS !in profile.qualityFlags &&
             (profile.motionPattern == LimbMotionPattern.STABLE || profile.metrics.motionStartTimestampUs != null)
-        val adequate = usable(pair.first) && usable(pair.second)
-        fun candidate(active: LimbMotionProfile, opposite: LimbMotionProfile): Boolean {
+        val usableProfiles = listOf(pair.first, pair.second).filter(::usable)
+        fun qualifyingOpening(profile: LimbMotionProfile): LimbDirectionalEpisode? = profile.directionalEpisodes
+            .asSequence()
+            .filter { episode ->
+                episode.direction > 0 &&
+                    episode.excursionDeg >= config.minimumExcursionDeg &&
+                    episode.meaningfulTravelDeg >= config.minimumTravelDeg &&
+                    episode.observedSupportDurationUs >= evidence.config.onsetConfirmationUs
+            }
+            .minByOrNull { it.startTimestampUs }
+        fun corroboratesPunchOpposite(profile: LimbMotionProfile): Boolean {
+            val metrics = profile.metrics ?: return false
+            return profile.motionPattern == LimbMotionPattern.STABLE ||
+                (profile.motionPattern == LimbMotionPattern.MOSTLY_CLOSING &&
+                    metrics.netAngleChangeDeg <= -config.minimumExcursionDeg &&
+                    metrics.meaningfulAngularTravelDeg > 0 &&
+                    metrics.negativeAngularTravelDeg / metrics.meaningfulAngularTravelDeg >= config.minimumDirectionalShare)
+        }
+        fun kickCandidate(active: LimbMotionProfile, opposite: LimbMotionProfile): Boolean {
             val a = active.metrics ?: return false
             val b = opposite.metrics ?: return false
             if (a.maxExcursionDeg < config.minimumExcursionDeg || a.meaningfulAngularTravelDeg < config.minimumTravelDeg) return false
-            return when (context.activity) {
-                LimbInterpretationActivity.STRAIGHT_PUNCH -> {
-                    val opening = active.motionPattern == LimbMotionPattern.MOSTLY_OPENING &&
-                        a.netAngleChangeDeg >= config.minimumExcursionDeg &&
-                        a.positiveAngularTravelDeg / a.meaningfulAngularTravelDeg >= config.minimumDirectionalShare
-                    val oppositeFits = opposite.motionPattern == LimbMotionPattern.STABLE ||
-                        (opposite.motionPattern == LimbMotionPattern.MOSTLY_CLOSING &&
-                            b.netAngleChangeDeg <= -config.minimumExcursionDeg && b.meaningfulAngularTravelDeg > 0 &&
-                            b.negativeAngularTravelDeg / b.meaningfulAngularTravelDeg >= config.minimumDirectionalShare)
-                    opening && oppositeFits
-                }
-                LimbInterpretationActivity.CHAMBER_EXTENSION_KICK ->
-                    active.motionPattern == LimbMotionPattern.CLOSE_OPEN_REVERSAL && a.reversals.size == 1 &&
-                        a.reversals.single().magnitudeDeg >= config.minimumExcursionDeg &&
-                        a.positiveAngularTravelDeg >= config.minimumTravelDeg && a.negativeAngularTravelDeg >= config.minimumTravelDeg &&
-                        (opposite.motionPattern == LimbMotionPattern.STABLE ||
-                            (b.reversals.isEmpty() && a.meaningfulAngularTravelDeg >= b.meaningfulAngularTravelDeg * config.kickToSupportTravelRatio))
-            }
+            return active.motionPattern == LimbMotionPattern.CLOSE_OPEN_REVERSAL && a.reversals.size == 1 &&
+                a.reversals.single().magnitudeDeg >= config.minimumExcursionDeg &&
+                a.positiveAngularTravelDeg >= config.minimumTravelDeg && a.negativeAngularTravelDeg >= config.minimumTravelDeg &&
+                (opposite.motionPattern == LimbMotionPattern.STABLE ||
+                    (b.reversals.isEmpty() && a.meaningfulAngularTravelDeg >= b.meaningfulAngularTravelDeg * config.kickToSupportTravelRatio))
         }
+        if (context.activity == LimbInterpretationActivity.STRAIGHT_PUNCH) {
+            val episodes = listOf(pair.first, pair.second).map { profile ->
+                profile.takeIf(::usable)?.let(::qualifyingOpening)
+            }
+            val candidates = buildSet {
+                if (episodes[0] != null) add(LateralSide.LEFT)
+                if (episodes[1] != null) add(LateralSide.RIGHT)
+            }
+            val candidateSide = candidates.singleOrNull()
+            val candidateIndex = when (candidateSide) { LateralSide.LEFT -> 0; LateralSide.RIGHT -> 1; null -> null }
+            val opposite = candidateIndex?.let { if (it == 0) pair.second else pair.first }
+            val mode = when {
+                candidateIndex == null -> null
+                !usable(opposite!!) -> SideEvidenceMode.SINGLE_ARM_ONLY
+                corroboratesPunchOpposite(opposite) -> SideEvidenceMode.BILATERAL_CORROBORATED
+                else -> null
+            }
+            val side = candidateSide?.takeIf { mode != null }
+            val reason = when {
+                usableProfiles.isEmpty() -> SideResolutionReason.INADEQUATE_EVIDENCE
+                candidates.isEmpty() -> SideResolutionReason.NO_SUPPORTED_PATTERN
+                candidates.size > 1 -> SideResolutionReason.MULTIPLE_SUPPORTED_SIDES
+                mode == null -> SideResolutionReason.CONFLICTING_OPPOSITE_EVIDENCE
+                else -> SideResolutionReason.SINGLE_SUPPORTED_SIDE
+            }
+            return ActivitySideResolution(
+                status = if (side == null) SideResolutionStatus.AMBIGUOUS else SideResolutionStatus.RESOLVED,
+                side = side,
+                reason = reason,
+                supportedCandidates = candidates,
+                context = context,
+                config = config,
+                resolverVersion = VERSION,
+                evidenceMode = mode,
+                supportingEpisode = candidateIndex?.let { episodes[it] }.takeIf { side != null },
+                evidence = evidence,
+            )
+        }
+        val adequate = usable(pair.first) && usable(pair.second)
         val candidates = if (!adequate) emptySet() else buildSet {
-            if (candidate(pair.first, pair.second)) add(LateralSide.LEFT)
-            if (candidate(pair.second, pair.first)) add(LateralSide.RIGHT)
+            if (kickCandidate(pair.first, pair.second)) add(LateralSide.LEFT)
+            if (kickCandidate(pair.second, pair.first)) add(LateralSide.RIGHT)
         }
         val side = candidates.singleOrNull()
         val reason = when {
@@ -120,7 +168,7 @@ object ActivityStartingSideResolver {
             else -> SideResolutionReason.SINGLE_SUPPORTED_SIDE
         }
         return ActivitySideResolution(if (side == null) SideResolutionStatus.AMBIGUOUS else SideResolutionStatus.RESOLVED,
-            side, reason, candidates, context, config, VERSION, evidence)
+            side, reason, candidates, context, config, VERSION, evidence = evidence)
     }
 
     fun resolveSequence(

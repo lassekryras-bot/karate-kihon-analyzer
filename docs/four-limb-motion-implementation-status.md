@@ -61,3 +61,11 @@ The original 701-frame recording/export were traced and imported. A separate des
 - Existing recordings without explicit plan events expose generic evidence but cannot resolve activity-specific side. Use a new capture with a selected known activity for full pipeline verification.
 - The supported activity/view mapping remains unknown. Body-scale calibration and observed orientation do not validate camera-view suitability; production impact stays unavailable until a mapping is explicitly accepted.
 - Stable settling/reference search remains within the logical evidence supplied. Evidence-based pre/post clip boundaries and coordination scoring are deferred; descriptive timestamps are available.
+
+## Partial-visibility straight-punch side repair (2026-10-14)
+
+Architectural review approved single-arm positive evidence for observed straight-punch side because opposite-arm occlusion is normal in side view. Characterizer v2 exposes its existing hysteresis runs as generic directional episodes, including actual excursion/travel, contiguous block, and observed moving support. Resolver v2 evaluates opening episodes over the entire QoM interval: one unique qualifying arm can resolve with `SINGLE_ARM_ONLY` when the opposite is unavailable, or `BILATERAL_CORROBORATED` when the usable opposite is stable/closing. Both arms opening, or a usable complex opposite pattern, remains ambiguous. Kick behavior, confidence thresholds, deadband, segmentation, view approval, and impact policy are unchanged.
+
+Persisted motion analysis v2 records episode evidence, resolution mode, the supporting episode, and component versions. Selection prefers v2 while retaining v1 as historical fallback; absent v1 evidence mode remains unknown and is never inferred. Existing recordings are not automatically reanalyzed.
+
+Focused and complete debug verification passed after this repair: shared core 484 tests, app debug 460 tests, hand adapter debug 23 tests, and pose adapter debug 4 tests. The debug APK assembled successfully. A broad release-variant test attempt had eight failures, but an unchanged baseline was not run; release baseline status therefore remains unverified. No device install or retained-recording reanalysis was performed for this repair.

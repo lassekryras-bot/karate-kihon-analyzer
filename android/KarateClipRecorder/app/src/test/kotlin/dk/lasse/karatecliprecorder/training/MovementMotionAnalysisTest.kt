@@ -53,9 +53,18 @@ class MovementMotionAnalysisTest {
         assertNull(result.impact)
         assertEquals(ImpactAbstentionReason.UNSUPPORTED_ANALYSIS_PROFILE.name, result.analysis.reason)
         val json = JSONObject(result.analysis.geometryJson!!)
+        assertEquals("2", result.analysis.analyzerVersion)
+        assertEquals("movement-motion-v2", json.getString("contract"))
+        assertEquals(FourLimbMotionCharacterizer.VERSION, json.getString("analyzerVersion"))
+        assertEquals(ActivityStartingSideResolver.VERSION, json.getString("sideResolverVersion"))
+        assertEquals(SideEvidenceMode.BILATERAL_CORROBORATED.name, json.getString("sideEvidenceMode"))
+        val supportingEpisode = json.getJSONObject("sideSupportingEpisode")
+        assertEquals(LimbId.LEFT_ARM.name, supportingEpisode.getString("limb"))
+        assertTrue(supportingEpisode.getLong("observedSupportUs") >= 60_000L)
         assertEquals(movement.movementId, json.getString("movementId"))
         assertEquals(4, json.getJSONArray("profiles").length())
         assertEquals(101, json.getJSONArray("profiles").getJSONObject(0).getJSONArray("samples").length())
+        assertTrue(json.getJSONArray("profiles").getJSONObject(0).getJSONArray("directionalEpisodes").length() > 0)
         assertEquals("t", json.getString("trackId"))
         assertEquals(ImpactAbstentionReason.UNSUPPORTED_ANALYSIS_PROFILE.name, json.getString("impactReason"))
         assertEquals(planEvent.sessionEventId, json.getString("activityPlanEventId"))
@@ -87,6 +96,19 @@ class MovementMotionAnalysisTest {
         assertNull(result.impact)
         assertNotNull(result.limbs.leftArm.metrics)
         assertEquals("ACTIVITY_PLAN_UNAVAILABLE", result.analysis.reason)
+    }
+
+    @Test fun `motion policy prefers v2 and treats legacy side mode as absent`() {
+        val legacyPayload = JSONObject().put("contract", "movement-motion-v1").toString()
+        val legacy = MovementAnalysis(movementId = movement.movementId, analyzerKey = MovementMotionAnalysis.policy.analyzerKey,
+            analyzerVersion = "1", landmarkTrackId = "t", state = AnalysisState.PARTIAL, geometryJson = legacyPayload)
+        assertEquals(legacy, selectMovementAnalysis(listOf(legacy), MovementMotionAnalysis.policy, includeUnavailable = true))
+        assertFalse(JSONObject(legacy.geometryJson!!).has("sideEvidenceMode"))
+
+        val current = legacy.copy(analysisId = trainingId(), analyzerVersion = "2",
+            geometryJson = JSONObject().put("contract", "movement-motion-v2")
+                .put("sideEvidenceMode", SideEvidenceMode.SINGLE_ARM_ONLY.name).toString())
+        assertEquals(current, selectMovementAnalysis(listOf(legacy, current), MovementMotionAnalysis.policy, includeUnavailable = true))
     }
 
     @Test fun `shared pipeline preserves production motion semantics for identical input`() {

@@ -50,6 +50,14 @@ The Four-Limb Motion Characterizer describes elbow/knee articulation in an alrea
 
 Source: supplied [requirement](../docs/backlog/four-limb-motion-characterizer-requirement-v1.md) and implementation handover. Implementation order is characterization, starting-side interpretation, then selected-weapon/impact integration. Calibration is provisional; source-code existence does not establish acceptance.
 
+### Straight-punch side under partial visibility
+
+**Status: DECIDED — 2026-10-14 architectural review**
+
+Side-view occlusion of the opposite arm is a normal operating condition. Under an explicit straight-punch plan, one anatomical arm's quality-gated projected elbow-angle opening episode may resolve the observed side when the opposite arm is unavailable. Unavailable evidence is unknown, not contradictory, and must not be fabricated. Resolution requires one unique supported anatomical side over the complete authoritative QoM interval; qualifying opening evidence for both arms, or usable but complex unsupported opposite-arm evidence, remains ambiguous. Extension followed by return may support side without making whole-window net direction authoritative.
+
+The result describes observed side from provisional 2D projected evidence. It does not validate the technique, physical reversal count, capture view, weapon, or impact. Expected alternation never supplies missing side. Confidence gates, hysteresis, and QoM bounds remain independently owned and are not adjusted to force a resolution.
+
 ## Remaining unknowns
 
 Exact bounded-context names, module boundaries, aggregates, persistence ownership, APIs, and integration mechanisms remain `UNKNOWN` until a task requires them to be discovered or decided.

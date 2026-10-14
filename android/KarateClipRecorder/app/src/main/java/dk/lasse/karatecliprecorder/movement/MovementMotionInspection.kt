@@ -10,7 +10,8 @@ object MovementMotionInspection {
         val analysis = selectMovementAnalysis(evidence.analyses, MovementMotionAnalysis.policy, true) ?: return null
         val j = JSONObject(requireNotNull(analysis.geometryJson))
         val geometry = requireNotNull(CanonicalGeometryCodec.decode(j.getString("geometry")))
-        require(j.getString("contract") == "movement-motion-v1" && j.getString("movementId") == evidence.movement.movementId)
+        require(j.getString("contract") in setOf("movement-motion-v1", "movement-motion-v2") &&
+            j.getString("movementId") == evidence.movement.movementId)
         require(j.getString("trackId") == analysis.landmarkTrackId && geometry.landmarkTrackId == analysis.landmarkTrackId)
         require(geometry.recordingId == evidence.recording?.recordingId)
         require(j.getLong("logicalStartUs") == evidence.movement.startUs && j.getLong("logicalEndUs") == evidence.movement.endUs)
@@ -22,6 +23,7 @@ object MovementMotionInspection {
         add("Provisional measurements — no technique score")
         add("Activity: ${value("activity")} · side: ${value("side")}")
         add("Side evidence: ${value("sideReason")} · alternation: ${value("alternationStatus")}")
+        if (j.has("sideEvidenceMode")) add("Side evidence mode: ${value("sideEvidenceMode")}")
         add("Terminal analysis: ${value("impactStatus")} · ${value("impactReason")}")
         val calibration = j.optJSONObject("calibration")
         add(if (calibration == null) "Image height: not calibrated" else "Image height reference: frame ${calibration.optInt("frameIndex") + 1} · ${calibration.optString("method")}")
