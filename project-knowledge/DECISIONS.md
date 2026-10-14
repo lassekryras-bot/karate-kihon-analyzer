@@ -33,3 +33,13 @@ Begin with a fresh project-knowledge layer. Existing implementation and old docu
 **Consequence:** Repository structure and implementation facts must be established by focused discovery. Material conflicts with current intent are surfaced rather than silently reconciled.
 
 **Current policy:** [AGENTS.md](../AGENTS.md#knowledge-policy).
+
+## 2026-10-15 — Supported-world QoM v2 production scope
+
+**Status:** DECIDED
+
+Select `activity_qom_supported_world_v2` only when stored activity evidence explicitly identifies straight-punch processing. Keep kick and activity-unknown routes on `activity_qom_hysteresis_v1` pending separate validation. Preserve the selected version on processing runs and movements; reanalysis must not reinterpret historical runs.
+
+**Consequence:** The evidence-validity improvement can ship for its validated use case without becoming a global detector default or adding feature-flag machinery. Generic detected movement remains distinct from downstream punch validation.
+
+**Current policy and validation:** [Activity-Aware Quantity-of-Motion Detector](../docs/motion-detector-math.md#20-supported-world-v2-evidence-policy-and-production-selection).

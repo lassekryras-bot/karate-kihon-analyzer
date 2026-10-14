@@ -536,3 +536,33 @@ The selected pipeline was replayed without per-recording parameter changes on th
 The 59 FPS recording contains more generic upper-body movement bursts than the ten-punch recordings. That does not by itself mean the segmenter is wrong. The generic segmenter identifies physical movement inside the relevant body profile; activity/cue association and downstream technique analysis determine which movement corresponds to a requested repetition and whether the expected punch/kick events exist.
 
 Open validation questions remain intentionally open: hooks, short close-body punches, slower controlled techniques, kicks, noisy stillness, difficult camera distance, and a broader range of children/adults. Do not pre-emptively add safeguards for these cases until replay evidence demonstrates a concrete failure.
+
+---
+
+## 20. Supported-world v2 evidence policy and production selection
+
+Status: **APPROVED FOR EXPLICIT STRAIGHT-PUNCH PROCESSING**
+
+The versioned `activity_qom_supported_world_v2` policy tightens evidence validity without changing the body profiles, rolling-area duration, gates, cadence, or minimum movement duration. It accepts only finite observed world coordinates at confidence `>= 0.55`, requires both hips for the hip reference, uses support-weighted extremity composites, makes block availability explicit, and treats a gap greater than 500 ms as discontinuous evidence. Unavailable evidence is preserved as UNKNOWN rather than being interpreted as stillness. Stop-gate versus forced-recording-end boundaries and UNKNOWN ranges are persisted with each movement.
+
+Production selection is deliberately narrow:
+
+- an explicit `STRAIGHT_PUNCH` activity plan selects `activity_qom_supported_world_v2`;
+- kick and activity-unknown routes remain on `activity_qom_hysteresis_v1` until separately validated;
+- historical runs retain their stored detector version, and reanalysis creates a new versioned run rather than rewriting prior results;
+- detected movement remains distinct from a validated punch. Technique interpretation stays downstream.
+
+### Acceptance replay evidence
+
+On the retained user straight-punch landmark stream, the actual Kotlin retrospective pipeline with `REPETITIONS` cadence changed from 9 logical intervals under v1 to 10 under v2. The changed first window was separated into two visually distinct punch/return/punch actions with a 300 ms quiet gap. All returned v2 movements had no UNKNOWN ranges; the six unavailable frames were startup or rolling-window warmup before movement. The final movement retained forced-recording-end provenance.
+
+On the blind fixture `output/task5/blind/blind-session.fixture.json`, raw burst counts are v1=11 and v2=12. After the unchanged 200 ms `REPETITIONS` cadence merge, the complete logical comparison is:
+
+- v1 (10): `2193–2579`, `2924–3330`, `4082–4447`, `4691–5056`, `5848–6234`, `6478–6864`, `7534–9687`, `9951–11149`, `11636–12510`, `13830–14297` ms;
+- v2 (11): `2193–2579`, `2924–3330`, `4082–4447`, `4691–5056`, `5848–6234`, `6478–6864`, `7534–8306`, `9057–9626`, `9971–11149`, `11657–12510`, `14155–14277` ms.
+
+The old v1 `7534–9687` logical interval was a cadence merge caused by a late `8813` ms tail. Frame review showed stable guard from about `8306–8813` ms and a distinct next punch beginning around `9057` ms, so the v2 split preserves rather than fragments the actions.
+
+The terminal v2 interval `14155–14277` is a 122 ms upper-body relaxation, not a validated punch. It is real profile-relevant movement and v1 also emitted the broader `13830–14297` interval for the same action. This is not grounds to add punch classification to generic QoM or change the inclusive 120 ms retrospective minimum. It remains an explicit corpus limitation and is handled by downstream activity/technique interpretation.
+
+The evidence base remains small. This approval does not validate v2 for kicks, unknown activity, or every punch style and recording condition.

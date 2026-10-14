@@ -176,14 +176,14 @@ class TrainingRepository(private val database: KarateTrainingDatabase, val stora
             it.state == ProcessingState.COMPLETED && it.sourceState == SourceState.AVAILABLE && file(it.filePath).isFile
         }
         val session = requireNotNull(session(sessionId))
-        val plan = RecordingProcessingPlans.forSession(session)
+        val plan = RecordingProcessingPlans.forSession(session, MotionActivityPlans.fromEvents(events(sessionId)))
         val run = ProcessingRun(
             sessionId = sessionId,
             mode = RunMode.REANALYSIS,
             sourceLandmarkTrackId = track.landmarkTrackId,
             planKey = plan.key,
             planVersion = plan.version,
-            segmenterVersion = TrainingSessionProcessor.SEGMENTATION_VERSION,
+            segmenterVersion = plan.qomConfig.detectorVersion,
             analyzerKey = plan.analyzers.firstOrNull(),
             analyzerVersion = RecordingProcessingPlans.analyzerVersion(plan),
             state = RunState.PROCESSING,
@@ -227,14 +227,14 @@ class TrainingRepository(private val database: KarateTrainingDatabase, val stora
     fun prepareLandmarkReprocessRun(sessionId: String): ProcessingRun = atomic {
         check(canReprocessLandmarks(sessionId)) { "Landmark reprocessing cannot proceed: master video is unavailable" }
         val session = requireNotNull(session(sessionId))
-        val plan = RecordingProcessingPlans.forSession(session)
+        val plan = RecordingProcessingPlans.forSession(session, MotionActivityPlans.fromEvents(events(sessionId)))
         val run = ProcessingRun(
             sessionId = sessionId,
             mode = RunMode.LANDMARK_REPROCESS,
             sourceLandmarkTrackId = null,
             planKey = plan.key,
             planVersion = plan.version,
-            segmenterVersion = TrainingSessionProcessor.SEGMENTATION_VERSION,
+            segmenterVersion = plan.qomConfig.detectorVersion,
             analyzerKey = plan.analyzers.firstOrNull(),
             analyzerVersion = RecordingProcessingPlans.analyzerVersion(plan),
             state = RunState.PROCESSING,

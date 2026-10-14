@@ -2,6 +2,9 @@ package dk.lasse.karatecliprecorder.training
 
 import java.util.UUID
 import dk.lasse.karateanalyzer.capture.qom.MotionBodyProfile
+import dk.lasse.karateanalyzer.capture.qom.QomDetectorConfig
+import dk.lasse.karateanalyzer.core.ActivitySideContext
+import dk.lasse.karateanalyzer.core.LimbInterpretationActivity
 import dk.lasse.karatecliprecorder.sharedcapture.CaptureType
 
 fun trainingId(): String = UUID.randomUUID().toString()
@@ -59,6 +62,7 @@ data class RecordingProcessingPlan(
     val requiresSegmentation: Boolean,
     val analyzers: List<String>,
     val movementProfile: MotionBodyProfile = MotionBodyProfile.PUNCH,
+    val qomConfig: QomDetectorConfig = QomDetectorConfig(),
 )
 
 object RecordingProcessingPlans {
@@ -81,12 +85,27 @@ object RecordingProcessingPlans {
     )
 
     /** Legacy metadata preserves only the established segmentation body profile; it never supplies activity/side semantics. */
-    fun forSession(session: RecordingSession): RecordingProcessingPlan {
+    fun forSession(
+        session: RecordingSession,
+        activityContext: ActivitySideContext? = null,
+    ): RecordingProcessingPlan {
         val legacyKickProfile = session.expectedCategory?.contains("kick", ignoreCase = true) == true ||
             session.activityKey?.contains("kick", ignoreCase = true) == true
         return STRAIGHT_PUNCH_TARGET_ANALYSIS.copy(
-            movementProfile = if (legacyKickProfile) MotionBodyProfile.KICK else MotionBodyProfile.PUNCH,
+            movementProfile = activityContext?.let(MotionActivityPlans::profile)
+                ?: if (legacyKickProfile) MotionBodyProfile.KICK else MotionBodyProfile.PUNCH,
+            qomConfig = if (activityContext?.activity == LimbInterpretationActivity.STRAIGHT_PUNCH) {
+                QomDetectorConfig.supportedWorldV2()
+            } else {
+                QomDetectorConfig()
+            },
         )
+    }
+
+    fun qomConfigForVersion(version: String): QomDetectorConfig = when (version) {
+        QomDetectorConfig.SUPPORTED_WORLD_V2 -> QomDetectorConfig.supportedWorldV2()
+        QomDetectorConfig().detectorVersion -> QomDetectorConfig()
+        else -> error("Unsupported segmentation version: $version")
     }
 
     fun analyzerVersion(plan: RecordingProcessingPlan): String? = when (plan.analyzers.firstOrNull()) {

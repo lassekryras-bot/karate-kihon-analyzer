@@ -6,6 +6,7 @@ import dk.lasse.karateanalyzer.core.*
 import dk.lasse.karateanalyzer.geometry.CanonicalGeometryCodec
 import dk.lasse.karateanalyzer.geometry.CanonicalGeometryDescriptor
 import dk.lasse.karateanalyzer.capture.qom.QomFrameEvidence
+import dk.lasse.karateanalyzer.capture.qom.QomDetectorConfig
 import dk.lasse.karateanalyzer.capture.qom.QomMotionEvidenceExtractor
 import java.io.File
 
@@ -19,14 +20,15 @@ class TrainingSessionProcessor(
     private val publication: (() -> Unit) -> Unit = { it() },
     private val elapsedRealtimeMs: () -> Long = { android.os.SystemClock.elapsedRealtime() },
     private val segment: ((String, String, List<PoseFrame>, CueTimeline) -> RetrospectiveSessionResult)? = null,
-    private val segmentWithProfile: (String, String, List<PoseFrame>, CueTimeline, MotionBodyProfile) -> RetrospectiveSessionResult =
-        { recordingId, path, frames, cues, profile ->
+    private val segmentWithConfig: (String, String, List<PoseFrame>, CueTimeline, MotionBodyProfile, QomDetectorConfig) -> RetrospectiveSessionResult =
+        { recordingId, path, frames, cues, profile, qomConfig ->
             if (segment != null) {
                 segment(recordingId, path, frames, cues)
             } else {
                 RetrospectiveSessionSegmenter(
                     RetrospectiveSegmenterConfig(
                         profile = profile,
+                        qomConfig = qomConfig,
                         cadence = RetrospectiveCadence.REPETITIONS,
                     )
                 ).segment(recordingId, path, frames, cues)
@@ -170,10 +172,7 @@ class TrainingSessionProcessor(
         val recording = requireNotNull(repository.recording(sessionId))
         val activityPlanEvidence = MotionActivityPlans.evidenceFromEvents(repository.events(sessionId))
         val activityContext = activityPlanEvidence?.context
-        val basePlan = RecordingProcessingPlans.forSession(session)
-        val plan = activityContext?.let { context ->
-            basePlan.copy(movementProfile = MotionActivityPlans.profile(context))
-        } ?: basePlan
+        val plan = RecordingProcessingPlans.forSession(session, activityContext)
 
         var currentRun = if (isReanalysis) {
             requireNotNull(repository.run(reanalysisRunId))
@@ -224,7 +223,7 @@ class TrainingSessionProcessor(
                     sourceLandmarkTrackId = source.landmarkTrackId,
                     planKey = plan.key,
                     planVersion = plan.version,
-                    segmenterVersion = SEGMENTATION_VERSION,
+                    segmenterVersion = plan.qomConfig.detectorVersion,
                     analyzerKey = plan.analyzers.firstOrNull(),
                     analyzerVersion = RecordingProcessingPlans.analyzerVersion(plan),
                     state = RunState.PROCESSING,
@@ -235,6 +234,10 @@ class TrainingSessionProcessor(
             }
 
             check(plan.requiresSegmentation) { "Selected plan does not configure segmentation" }
+            val segmentationVersion = requireNotNull(currentRun.segmenterVersion) {
+                "Processing run segmentation version is missing"
+            }
+            val qomConfig = RecordingProcessingPlans.qomConfigForVersion(segmentationVersion)
             updateJob(sessionId) { it.copy(phase = ProcessingPhase.SEGMENTATION) }
             repository.setSessionState(sessionId, SessionState.SEGMENTING)
             val segmentationStarted = elapsedRealtimeMs()
@@ -244,7 +247,14 @@ class TrainingSessionProcessor(
             if (existingMovements.isEmpty() && (isReanalysis || session.state !in setOf(SessionState.MOVEMENTS_AVAILABLE, SessionState.COMPLETED))) {
                 val events = repository.events(sessionId).filter(SessionCueEvents::isCue)
                 val cues = events.map { CueEvent(it.sessionEventId, it.data ?: it.type, 0, it.timestampUs / 1000) }
-                val retro = segmentWithProfile(recording.recordingId, recording.filePath, frames, CueTimeline(recording.recordingId, cues), plan.movementProfile)
+                val retro = segmentWithConfig(
+                    recording.recordingId,
+                    recording.filePath,
+                    frames,
+                    CueTimeline(recording.recordingId, cues),
+                    plan.movementProfile,
+                    qomConfig,
+                )
                 qomTimeline = retro.qomTimeline
                 val movements = retro.movements.map { m ->
                     val canonical = CanonicalAnalysisFrameSelector.select(
@@ -259,7 +269,7 @@ class TrainingSessionProcessor(
                         playbackStartUs = m.retainedStartTimestampMs * 1000L,
                         playbackEndUs = m.retainedEndTimestampMs * 1000L,
                         segmentationSource = "retrospective_session_segmenter",
-                        segmentationVersion = SEGMENTATION_VERSION,
+                        segmentationVersion = segmentationVersion,
                         segmentationTrackId = source.landmarkTrackId,
                         segmentationConfidence = null,
                         runId = currentRun.runId,
@@ -289,7 +299,7 @@ class TrainingSessionProcessor(
             }
             val segmentationDuration = (elapsedRealtimeMs() - segmentationStarted).coerceAtLeast(0)
             android.util.Log.i("RecordingProcessing", "session=$sessionId phase=segmentation durationMs=$segmentationDuration movements=${repository.movementCount(sessionId, currentRun.runId)}")
-            updateJob(sessionId) { it.copy(segmentationDurationMs = segmentationDuration, segmentationVersion = SEGMENTATION_VERSION) }
+            updateJob(sessionId) { it.copy(segmentationDurationMs = segmentationDuration, segmentationVersion = segmentationVersion) }
 
             val runMovements = repository.movements(sessionId, runId = currentRun.runId)
             if (plan.analyzers.isEmpty() || runMovements.isEmpty()) {
@@ -320,7 +330,10 @@ class TrainingSessionProcessor(
                 runCatching { ActivityStartingSideResolver.resolveSequence(indexedMovements, context).repetitions
                     .associateBy { it.observed.evidence.movementId } }.getOrDefault(emptyMap())
             }.orEmpty()
-            val motionQom = qomTimeline ?: QomMotionEvidenceExtractor(profile = plan.movementProfile).let { extractor -> frames.map(extractor::extract) }
+            val motionQom = qomTimeline ?: QomMotionEvidenceExtractor(
+                config = qomConfig,
+                profile = plan.movementProfile,
+            ).let { extractor -> frames.map(extractor::extract) }
             runMovements.forEach { movement ->
                 checkActive()
                 val analyzersToRun = plan.analyzers.filter { analyzerKey ->

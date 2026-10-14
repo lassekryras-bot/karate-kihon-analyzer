@@ -5,6 +5,7 @@ import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
 import dk.lasse.karateanalyzer.capture.PoseReplayJson
 import dk.lasse.karateanalyzer.capture.qom.MotionBodyProfile
+import dk.lasse.karateanalyzer.capture.qom.QomDetectorConfig
 import dk.lasse.karateanalyzer.capture.qom.QomEndBoundaryKind
 import dk.lasse.karateanalyzer.capture.qom.QomUnknownEvidenceInterval
 import dk.lasse.karateanalyzer.capture.retrospective.*
@@ -32,8 +33,24 @@ class TrainingProcessorTest {
 
     @Test fun unknownLegacyContextKeepsPunchSegmentationFallbackWithoutActivitySemantics() {
         val session = RecordingSession(userId = "user", startedAtMs = 1)
-        assertEquals(MotionBodyProfile.PUNCH, RecordingProcessingPlans.forSession(session).movementProfile)
+        val unknownPlan = RecordingProcessingPlans.forSession(session)
+        assertEquals(MotionBodyProfile.PUNCH, unknownPlan.movementProfile)
+        assertEquals(TrainingSessionProcessor.SEGMENTATION_VERSION, unknownPlan.qomConfig.detectorVersion)
         assertNull(MotionActivityPlans.context(null))
+
+        val punchPlan = RecordingProcessingPlans.forSession(
+            session,
+            MotionActivityPlans.context(MotionActivityPlans.ALTERNATING_PUNCH),
+        )
+        assertEquals(MotionBodyProfile.PUNCH, punchPlan.movementProfile)
+        assertEquals(QomDetectorConfig.SUPPORTED_WORLD_V2, punchPlan.qomConfig.detectorVersion)
+
+        val kickPlan = RecordingProcessingPlans.forSession(
+            session,
+            MotionActivityPlans.context(MotionActivityPlans.FRONT_KICK),
+        )
+        assertEquals(MotionBodyProfile.KICK, kickPlan.movementProfile)
+        assertEquals(TrainingSessionProcessor.SEGMENTATION_VERSION, kickPlan.qomConfig.detectorVersion)
     }
 
     @Test fun recordedTenPunchFixturePersistsAndReopensWithoutRerunningMediaPipe() {
@@ -112,13 +129,22 @@ class TrainingProcessorTest {
             repository.beginSession(session, MasterRecording(sessionId = session.sessionId,
                 filePath = source.path, createdAtMs = 1_000))
             repository.finishRecording(session.sessionId, frames.last().timestampMs * 1_000)
+            repository.addEvent(SessionEvent(
+                sessionId = session.sessionId,
+                type = MotionActivityPlans.EVENT_TYPE,
+                timestampUs = 0,
+                data = MotionActivityPlans.ALTERNATING_PUNCH,
+                timingSource = MotionActivityPlans.CAPTURE_ORIGIN,
+            ))
             repository.enqueue(session.sessionId)
             val decoder = object : VideoPoseProcessor {
                 override fun processVideo(videoFile: File, onProgress: (Float, Long) -> Unit) = frames
             }
+            var observedQomConfig: QomDetectorConfig? = null
             val processor = TrainingSessionProcessor(
                 repository, directory, decoder, "fixture-v1",
-                segment = { recordingId, path, _, _ ->
+                segmentWithConfig = { recordingId, path, _, _, _, qomConfig ->
+                    observedQomConfig = qomConfig
                     RetrospectiveSessionResult(
                         sequenceId = recordingId,
                         masterVideoPath = path,
@@ -142,7 +168,17 @@ class TrainingProcessorTest {
                 },
             )
             assertEquals(1, processor.process(session.sessionId))
+            assertEquals(QomDetectorConfig.SUPPORTED_WORLD_V2, observedQomConfig?.detectorVersion)
+            assertEquals(
+                QomDetectorConfig.SUPPORTED_WORLD_V2,
+                repository.currentRun(session.sessionId)?.segmenterVersion,
+            )
+            assertEquals(
+                QomDetectorConfig.SUPPORTED_WORLD_V2,
+                repository.job(session.sessionId)?.segmentationVersion,
+            )
             var stored = repository.movements(session.sessionId).single()
+            assertEquals(QomDetectorConfig.SUPPORTED_WORLD_V2, stored.segmentationVersion)
             assertEquals(QomEndBoundaryKind.RECORDING_END_WITHOUT_STOP_EVIDENCE.name,
                 stored.segmentationEndBoundaryKind)
             assertEquals("[{\"startUs\":3500000,\"endUs\":4200000}]", stored.segmentationUnknownRangesJson)
@@ -151,6 +187,7 @@ class TrainingProcessorTest {
             db = open()
             repository = TrainingRepository(db)
             stored = repository.movements(session.sessionId).single()
+            assertEquals(QomDetectorConfig.SUPPORTED_WORLD_V2, stored.segmentationVersion)
             assertEquals(QomEndBoundaryKind.RECORDING_END_WITHOUT_STOP_EVIDENCE.name,
                 stored.segmentationEndBoundaryKind)
             assertEquals("[{\"startUs\":3500000,\"endUs\":4200000}]", stored.segmentationUnknownRangesJson)
@@ -192,6 +229,13 @@ class TrainingProcessorTest {
             if (expectedCount != null) assertEquals(expectedCount, count)
             else assertTrue(count >= 10, "Real fixture has ten punches and may contain later reset movements; actual count=$count")
             assertEquals(count, repository.movementCount(session.sessionId))
+            assertTrue(repository.movements(session.sessionId).all {
+                it.segmentationVersion == TrainingSessionProcessor.SEGMENTATION_VERSION
+            })
+            assertEquals(
+                TrainingSessionProcessor.SEGMENTATION_VERSION,
+                repository.currentRun(session.sessionId)?.segmenterVersion,
+            )
             val fifth = assertNotNull(repository.movementEvidence(session.sessionId, 5))
             assertEquals(1, fifth.landmarkTracks.size)
             assertEquals(2, fifth.analyses.size)
@@ -260,6 +304,7 @@ class TrainingProcessorTest {
             assertEquals(RunMode.INITIAL, initialRun.mode)
             assertEquals(RunState.COMPLETED, initialRun.state)
             assertEquals("2", initialRun.analyzerVersion)
+            assertEquals(TrainingSessionProcessor.SEGMENTATION_VERSION, initialRun.segmenterVersion)
             assertTrue(initialRun.isCurrent)
 
             val initialMovements = repository.movements(session.sessionId)
@@ -277,6 +322,7 @@ class TrainingProcessorTest {
             assertEquals(RunState.PROCESSING, reanalysisRun.state)
             assertFalse(reanalysisRun.isCurrent)
             assertEquals(initialRun.sourceLandmarkTrackId, reanalysisRun.sourceLandmarkTrackId)
+            assertEquals(QomDetectorConfig.SUPPORTED_WORLD_V2, reanalysisRun.segmenterVersion)
 
             val reanalyzedCount = processor.processReanalysis(session.sessionId, reanalysisRun.runId)
             assertEquals(10, reanalyzedCount)
@@ -288,7 +334,8 @@ class TrainingProcessorTest {
             assertEquals(RunState.COMPLETED, currentRun.state)
             assertEquals("2", currentRun.analyzerVersion)
             assertTrue(currentRun.isCurrent)
-            assertEquals(TrainingSessionProcessor.SEGMENTATION_VERSION, currentRun.segmenterVersion)
+            assertEquals(QomDetectorConfig.SUPPORTED_WORLD_V2, currentRun.segmenterVersion)
+            assertEquals(QomDetectorConfig.SUPPORTED_WORLD_V2, repository.job(session.sessionId)?.segmentationVersion)
 
             val oldRun = repository.run(initialRun.runId)!!
             assertFalse(oldRun.isCurrent)
@@ -299,6 +346,7 @@ class TrainingProcessorTest {
             assertTrue(newMovementIds.none { it in initialMovementIds }, "New movement IDs must be generated for reanalysis")
             assertTrue(newMovements.all { it.runId == reanalysisRun.runId })
             assertTrue(newMovements.all { it.analysisFrameUs != null })
+            assertTrue(newMovements.all { it.segmentationVersion == QomDetectorConfig.SUPPORTED_WORLD_V2 })
 
             val firstMovementEvidence = repository.movementEvidence(session.sessionId, 1)!!
             assertEquals(2, firstMovementEvidence.analyses.size)
@@ -346,6 +394,7 @@ class TrainingProcessorTest {
             repository.enqueue(session.sessionId)
 
             var observedProfile: MotionBodyProfile? = null
+            var observedQomConfig: QomDetectorConfig? = null
             val decoder = object : VideoPoseProcessor {
                 override fun processVideo(videoFile: File, onProgress: (Float, Long) -> Unit): List<PoseFrame> = frames
             }
@@ -354,10 +403,15 @@ class TrainingProcessorTest {
                 directory,
                 decoder,
                 "fixture-v1",
-                segmentWithProfile = { recordingId, path, poseFrames, cues, profile ->
+                segmentWithConfig = { recordingId, path, poseFrames, cues, profile, qomConfig ->
                     observedProfile = profile
+                    observedQomConfig = qomConfig
                     RetrospectiveSessionSegmenter(
-                        RetrospectiveSegmenterConfig(profile = profile, cadence = RetrospectiveCadence.REPETITIONS)
+                        RetrospectiveSegmenterConfig(
+                            profile = profile,
+                            qomConfig = qomConfig,
+                            cadence = RetrospectiveCadence.REPETITIONS,
+                        )
                     ).segment(recordingId, path, poseFrames, cues)
                 },
             )
@@ -365,6 +419,7 @@ class TrainingProcessorTest {
             val movementCount = processor.process(session.sessionId)
 
             assertEquals(MotionBodyProfile.KICK, observedProfile)
+            assertEquals(TrainingSessionProcessor.SEGMENTATION_VERSION, observedQomConfig?.detectorVersion)
             assertNull(MotionActivityPlans.fromEvents(repository.events(session.sessionId)))
             assertEquals(0, movementCount, "Punch-shaped fixture need not produce movements under preserved kick segmentation")
             assertTrue(repository.movements(session.sessionId).isEmpty())
