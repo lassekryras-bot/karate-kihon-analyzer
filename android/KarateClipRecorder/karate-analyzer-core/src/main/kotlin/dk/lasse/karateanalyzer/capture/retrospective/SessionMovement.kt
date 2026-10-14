@@ -1,5 +1,8 @@
 package dk.lasse.karateanalyzer.capture.retrospective
 
+import dk.lasse.karateanalyzer.capture.qom.QomEndBoundaryKind
+import dk.lasse.karateanalyzer.capture.qom.QomUnknownEvidenceInterval
+
 /**
  * Lifecycle status of per-movement analysis.
  *
@@ -51,5 +54,6 @@ data class SessionMovement(
     val associatedCue: CueEvent? = null,
     val segmentationConfidence: Double = 1.0,
     val analysisStatus: MovementAnalysisStatus = MovementAnalysisStatus.DETECTED,
+    val endBoundaryKind: QomEndBoundaryKind = QomEndBoundaryKind.STOP_GATE,
+    val unknownEvidenceIntervals: List<QomUnknownEvidenceInterval> = emptyList(),
 )
-

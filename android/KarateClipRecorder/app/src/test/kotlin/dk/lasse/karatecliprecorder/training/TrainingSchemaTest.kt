@@ -60,18 +60,19 @@ class TrainingSchemaTest {
             execSQL("INSERT INTO LandmarkTrack(landmarkTrackId,recordingId,pipelineKey,pipelineVersion,configuration,filePath,createdAtMs,state,sourceState) VALUES ('track','recording','pose','legacy','fixture','/legacy/track.pose',10,'COMPLETED','AVAILABLE')")
             close()
         }
-        helper.runMigrationsAndValidate(name, 10, true, KarateTrainingDatabase.MIGRATION_1_2,
+        helper.runMigrationsAndValidate(name, 11, true, KarateTrainingDatabase.MIGRATION_1_2,
             KarateTrainingDatabase.MIGRATION_2_3, KarateTrainingDatabase.MIGRATION_3_4,
             KarateTrainingDatabase.MIGRATION_4_5, KarateTrainingDatabase.MIGRATION_5_6,
             KarateTrainingDatabase.MIGRATION_6_7, KarateTrainingDatabase.MIGRATION_7_8,
-            KarateTrainingDatabase.MIGRATION_8_9, KarateTrainingDatabase.MIGRATION_9_10).close()
+            KarateTrainingDatabase.MIGRATION_8_9, KarateTrainingDatabase.MIGRATION_9_10,
+            KarateTrainingDatabase.MIGRATION_10_11).close()
         val context = InstrumentationRegistry.getInstrumentation().targetContext
         val database = Room.databaseBuilder(context, KarateTrainingDatabase::class.java, name).addMigrations(
             KarateTrainingDatabase.MIGRATION_1_2, KarateTrainingDatabase.MIGRATION_2_3,
             KarateTrainingDatabase.MIGRATION_3_4, KarateTrainingDatabase.MIGRATION_4_5,
             KarateTrainingDatabase.MIGRATION_5_6, KarateTrainingDatabase.MIGRATION_6_7,
             KarateTrainingDatabase.MIGRATION_7_8, KarateTrainingDatabase.MIGRATION_8_9,
-            KarateTrainingDatabase.MIGRATION_9_10).build()
+            KarateTrainingDatabase.MIGRATION_9_10, KarateTrainingDatabase.MIGRATION_10_11).build()
         try {
             database.openHelper.readableDatabase.query("SELECT userId FROM TrainingUser").use { cursor ->
                 cursor.moveToFirst()
@@ -201,6 +202,23 @@ class TrainingSchemaTest {
                 assertEquals(1, it.count)
                 org.junit.Assert.assertTrue(it.moveToFirst())
                 assertEquals("track", it.getString(0))
+                org.junit.Assert.assertTrue(it.isNull(1))
+            }
+        }
+    }
+
+    @Test fun versionTenMigratesWithoutInventingBoundaryEvidence() {
+        val name = "version-10-to-11-migration"
+        helper.createDatabase(name, 10).apply {
+            execSQL("INSERT INTO TrainingUser(userId,createdAtMs) VALUES ('user',10)")
+            execSQL("INSERT INTO RecordingSession(sessionId,userId,startedAtMs,guided,state) VALUES ('session','user',10,0,'RECORDED')")
+            execSQL("INSERT INTO SessionMovement(movementId,sessionId,startUs,endUs,playbackStartUs,playbackEndUs,segmentationSource,segmentationVersion,state) VALUES ('mov1','session',100,200,50,250,'seg','1','DETECTED')")
+            close()
+        }
+        helper.runMigrationsAndValidate(name, 11, true, KarateTrainingDatabase.MIGRATION_10_11).use { db ->
+            db.query("SELECT segmentationEndBoundaryKind,segmentationUnknownRangesJson FROM SessionMovement WHERE movementId='mov1'").use {
+                org.junit.Assert.assertTrue(it.moveToFirst())
+                org.junit.Assert.assertTrue(it.isNull(0))
                 org.junit.Assert.assertTrue(it.isNull(1))
             }
         }

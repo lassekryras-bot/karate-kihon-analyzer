@@ -1,6 +1,9 @@
 package dk.lasse.karateanalyzer.capture.retrospective
 
 import dk.lasse.karateanalyzer.capture.PoseReplayJson
+import dk.lasse.karateanalyzer.capture.qom.QomDetectorConfig
+import dk.lasse.karateanalyzer.capture.qom.QomEndBoundaryKind
+import dk.lasse.karateanalyzer.core.PoseLandmarkId
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
@@ -152,5 +155,62 @@ class RetrospectiveMovementSegmenterTest {
         val m3 = result.movements[2]
         assertNotNull(m3.associatedCue)
         assertEquals("SAN", m3.associatedCue!!.cueName)
+    }
+
+    @Test
+    fun supportedWorldV2PreservesHipReferenceGapAndForcedEndProvenance() {
+        val root = findRepoRoot()
+        val fixture = PoseReplayJson.decode(File(root, "output/task5/real-kihon-10-punch.fixture.json").readText())
+        val frames = fixture.frames.filter { it.timestampMs <= 800L }.map { frame ->
+            if (frame.timestampMs < 700L) frame else frame.copy(
+                landmarks = frame.landmarks.toMutableMap().also { landmarks ->
+                    landmarks[PoseLandmarkId.RIGHT_HIP] = landmarks.getValue(PoseLandmarkId.RIGHT_HIP).copy(
+                        visibility = 0.1f,
+                        presence = 0.1f,
+                    )
+                },
+            )
+        }
+        val result = RetrospectiveSessionSegmenter(
+            RetrospectiveSegmenterConfig(
+                qomConfig = QomDetectorConfig.supportedWorldV2(),
+                cadence = RetrospectiveCadence.REPETITIONS,
+            ),
+        ).segment("v2-gap", "master.mp4", frames)
+
+        val movement = result.movements.single()
+        assertEquals(QomEndBoundaryKind.RECORDING_END_WITHOUT_STOP_EVIDENCE, movement.endBoundaryKind)
+        val gap = movement.unknownEvidenceIntervals.single()
+        assertTrue(gap.startTimestampMs in 700L..717L)
+        assertEquals(frames.last().timestampMs, gap.endTimestampMs)
+    }
+
+    @Test
+    fun supportedWorldV2PreservesUnknownGapBetweenCadenceMergedBursts() {
+        val root = findRepoRoot()
+        val fixture = PoseReplayJson.decode(File(root, "output/task5/real-kihon-10-punch.fixture.json").readText())
+        val frames = fixture.frames.filter { it.timestampMs <= 2_000L }.map { frame ->
+            if (frame.timestampMs !in 1_050L..1_150L) frame else frame.copy(
+                landmarks = frame.landmarks.toMutableMap().also { landmarks ->
+                    landmarks[PoseLandmarkId.RIGHT_HIP] = landmarks.getValue(PoseLandmarkId.RIGHT_HIP).copy(
+                        visibility = 0.1f,
+                        presence = 0.1f,
+                    )
+                },
+            )
+        }
+        val result = RetrospectiveSessionSegmenter(
+            RetrospectiveSegmenterConfig(
+                qomConfig = QomDetectorConfig.supportedWorldV2(),
+                cadence = RetrospectiveCadence.COMBINATION,
+            ),
+        ).segment("v2-merged-gap", "master.mp4", frames)
+
+        val movement = result.movements.single()
+        assertTrue(movement.logicalStartTimestampMs < 1_050L)
+        assertTrue(movement.logicalEndTimestampMs > 1_300L)
+        val unknown = movement.unknownEvidenceIntervals.single()
+        assertTrue(unknown.startTimestampMs in 1_050L..1_067L)
+        assertTrue(unknown.endTimestampMs >= 1_300L)
     }
 }

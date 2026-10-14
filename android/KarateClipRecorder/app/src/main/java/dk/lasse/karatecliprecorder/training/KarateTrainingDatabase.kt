@@ -25,11 +25,17 @@ import androidx.room.RoomDatabase
     AnalysisBodyMeasurementRow::class,
     AnalysisCalibrationRow::class,
     SessionBodyMeasurementRow::class
-], version = 10, exportSchema = true)
+], version = 11, exportSchema = true)
 abstract class KarateTrainingDatabase : RoomDatabase() {
     internal abstract fun trainingDao(): TrainingDao
 
     companion object {
+        val MIGRATION_10_11 = object : androidx.room.migration.Migration(10, 11) {
+            override fun migrate(db: androidx.sqlite.db.SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE SessionMovement ADD COLUMN segmentationEndBoundaryKind TEXT")
+                db.execSQL("ALTER TABLE SessionMovement ADD COLUMN segmentationUnknownRangesJson TEXT")
+            }
+        }
         val MIGRATION_9_10 = object : androidx.room.migration.Migration(9, 10) {
             override fun migrate(db: androidx.sqlite.db.SupportSQLiteDatabase) {
                 db.execSQL("ALTER TABLE MasterRecording ADD COLUMN rotation INTEGER")
@@ -177,7 +183,7 @@ abstract class KarateTrainingDatabase : RoomDatabase() {
         internal fun closeForTests() = synchronized(this) { instance?.close(); instance = null }
         fun get(context: Context): KarateTrainingDatabase = instance ?: synchronized(this) {
             instance ?: Room.databaseBuilder(context.applicationContext, KarateTrainingDatabase::class.java,
-                "karate-training.db").addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10).build().also { instance = it }
+                "karate-training.db").addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11).build().also { instance = it }
         }
     }
 }

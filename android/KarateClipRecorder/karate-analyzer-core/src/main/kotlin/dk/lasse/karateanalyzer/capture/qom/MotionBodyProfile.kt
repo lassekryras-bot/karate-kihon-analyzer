@@ -1,5 +1,6 @@
 package dk.lasse.karateanalyzer.capture.qom
 
+import dk.lasse.karateanalyzer.core.LandmarkSource
 import dk.lasse.karateanalyzer.core.Point3
 import dk.lasse.karateanalyzer.core.PoseFrame
 import dk.lasse.karateanalyzer.core.PoseLandmarkId
@@ -94,6 +95,13 @@ object ExtremityPointComposer {
         val contributingLandmarks: Set<PoseLandmarkId>,
     )
 
+    data class SupportedWorldCompositePoint(
+        val point: Point3,
+        val confidence: Double,
+        val support: Double,
+        val acceptedConstituentCount: Int,
+    )
+
     fun landmarkConfidence(sample: PoseLandmarkSample?): Double {
         if (sample == null) return 0.0
         val p = sample.worldPosition ?: sample.position ?: return 0.0
@@ -152,6 +160,40 @@ object ExtremityPointComposer {
         val avgConfidence = constituentIds.sumOf { id -> landmarkConfidence(frame.landmarks[id]) } / totalConstituents
 
         return Pair(center, avgConfidence)
+    }
+
+    /** World-space-only composite for the explicit v2 QoM evidence policy. */
+    fun supportedWorldCompositePoint(
+        frame: PoseFrame,
+        constituentIds: List<PoseLandmarkId>,
+        minimumObservedConfidence: Double,
+        minimumCompositeSupport: Double,
+    ): SupportedWorldCompositePoint? {
+        val eligible = constituentIds.mapNotNull { id ->
+            val sample = frame.landmarks[id] ?: return@mapNotNull null
+            val point = sample.worldPosition ?: return@mapNotNull null
+            if (!sample.visibility.isFinite() || !sample.presence.isFinite()) return@mapNotNull null
+            val confidence = minOf(sample.visibility, sample.presence).coerceIn(0f, 1f).toDouble()
+            if (sample.source != LandmarkSource.OBSERVED || confidence < minimumObservedConfidence ||
+                !point.x.isFinite() || !point.y.isFinite() || !point.z.isFinite()
+            ) return@mapNotNull null
+            Triple(point, confidence, landmarkConfidence(sample))
+        }
+        val support = eligible.sumOf { it.second } / constituentIds.size.toDouble()
+        if (eligible.isEmpty() || support < minimumCompositeSupport) return null
+        val totalWeight = eligible.sumOf { it.third }
+        check(totalWeight > 0.0)
+        val center = Point3(
+            (eligible.sumOf { it.first.x * it.third } / totalWeight).toFloat(),
+            (eligible.sumOf { it.first.y * it.third } / totalWeight).toFloat(),
+            (eligible.sumOf { it.first.z * it.third } / totalWeight).toFloat(),
+        )
+        return SupportedWorldCompositePoint(
+            point = center,
+            confidence = totalWeight / constituentIds.size.toDouble(),
+            support = support,
+            acceptedConstituentCount = eligible.size,
+        )
     }
 
     /**

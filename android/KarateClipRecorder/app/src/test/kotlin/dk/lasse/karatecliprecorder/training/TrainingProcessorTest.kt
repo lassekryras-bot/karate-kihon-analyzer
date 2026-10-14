@@ -5,6 +5,8 @@ import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
 import dk.lasse.karateanalyzer.capture.PoseReplayJson
 import dk.lasse.karateanalyzer.capture.qom.MotionBodyProfile
+import dk.lasse.karateanalyzer.capture.qom.QomEndBoundaryKind
+import dk.lasse.karateanalyzer.capture.qom.QomUnknownEvidenceInterval
 import dk.lasse.karateanalyzer.capture.retrospective.*
 import dk.lasse.karateanalyzer.core.*
 import org.junit.Test
@@ -90,6 +92,73 @@ class TrainingProcessorTest {
     @Test fun syntheticContinuousTenPunchSessionPersistsExactlyTenMovements() {
         val frames = buildSyntheticTenPunchFrames()
         verifyPersistence(frames, 10, assisted = true)
+    }
+
+    @Test fun processorPersistsMergedUnknownGapAndForcedBoundary() {
+        val frames = buildSyntheticTenPunchFrames()
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val databaseName = "provenance-${trainingId()}"
+        val directory = kotlin.io.path.createTempDirectory("provenance-test").toFile()
+        fun open() = Room.databaseBuilder(context, KarateTrainingDatabase::class.java, databaseName)
+            .allowMainThreadQueries().build()
+        var db = open()
+        try {
+            var repository = TrainingRepository(db)
+            val user = TrainingUser()
+            repository.createUser(user)
+            val session = RecordingSession(userId = user.userId, startedAtMs = 1_000,
+                activityKey = AssistedCaptureSetup.ACTIVITY_KEY, guided = false)
+            val source = File(directory, "master.mp4").apply { writeText("fixture") }
+            repository.beginSession(session, MasterRecording(sessionId = session.sessionId,
+                filePath = source.path, createdAtMs = 1_000))
+            repository.finishRecording(session.sessionId, frames.last().timestampMs * 1_000)
+            repository.enqueue(session.sessionId)
+            val decoder = object : VideoPoseProcessor {
+                override fun processVideo(videoFile: File, onProgress: (Float, Long) -> Unit) = frames
+            }
+            val processor = TrainingSessionProcessor(
+                repository, directory, decoder, "fixture-v1",
+                segment = { recordingId, path, _, _ ->
+                    RetrospectiveSessionResult(
+                        sequenceId = recordingId,
+                        masterVideoPath = path,
+                        totalFrames = frames.size,
+                        totalDurationMs = frames.last().timestampMs,
+                        detectedMovementCount = 1,
+                        movements = listOf(dk.lasse.karateanalyzer.capture.retrospective.SessionMovement(
+                            movementNumber = 1,
+                            sourceRecordingPath = path,
+                            logicalStartTimestampMs = 3_000,
+                            logicalEndTimestampMs = 5_000,
+                            retainedStartTimestampMs = 2_850,
+                            retainedEndTimestampMs = 5_200,
+                            endBoundaryKind = QomEndBoundaryKind.RECORDING_END_WITHOUT_STOP_EVIDENCE,
+                            // This interval models UNKNOWN evidence between two child bursts after cadence merging.
+                            unknownEvidenceIntervals = listOf(QomUnknownEvidenceInterval(3_500, 4_200)),
+                        )),
+                        kinematicsTimeline = emptyList(),
+                        stats = RetrospectiveSignalStats(0.0, 0.0, 0.0, 0.0, 1.0),
+                    )
+                },
+            )
+            assertEquals(1, processor.process(session.sessionId))
+            var stored = repository.movements(session.sessionId).single()
+            assertEquals(QomEndBoundaryKind.RECORDING_END_WITHOUT_STOP_EVIDENCE.name,
+                stored.segmentationEndBoundaryKind)
+            assertEquals("[{\"startUs\":3500000,\"endUs\":4200000}]", stored.segmentationUnknownRangesJson)
+
+            db.close()
+            db = open()
+            repository = TrainingRepository(db)
+            stored = repository.movements(session.sessionId).single()
+            assertEquals(QomEndBoundaryKind.RECORDING_END_WITHOUT_STOP_EVIDENCE.name,
+                stored.segmentationEndBoundaryKind)
+            assertEquals("[{\"startUs\":3500000,\"endUs\":4200000}]", stored.segmentationUnknownRangesJson)
+        } finally {
+            db.close()
+            context.deleteDatabase(databaseName)
+            directory.deleteRecursively()
+        }
     }
 
     private fun verifyPersistence(frames: List<PoseFrame>, expectedCount: Int?, assisted: Boolean) {

@@ -1,8 +1,11 @@
 package dk.lasse.karateanalyzer.capture.retrospective
 
+import dk.lasse.karateanalyzer.capture.qom.QomEvidencePolicy
+import dk.lasse.karateanalyzer.capture.qom.QomEndBoundaryKind
 import dk.lasse.karateanalyzer.capture.qom.QomFrameEvidence
 import dk.lasse.karateanalyzer.capture.qom.QomMotionEvidenceExtractor
 import dk.lasse.karateanalyzer.capture.qom.QomMovementSegmenter
+import dk.lasse.karateanalyzer.capture.qom.QomUnknownEvidenceInterval
 import dk.lasse.karateanalyzer.core.PoseFrame
 import kotlin.math.max
 import kotlin.math.min
@@ -59,24 +62,46 @@ class RetrospectiveSessionSegmenter(
         val segmenter = QomMovementSegmenter(config = config.qomConfig)
 
         // 1. Detect raw physical movement bursts using QoM hysteresis
-        data class RawBurst(val startMs: Long, val endMs: Long)
+        data class RawBurst(
+            val startMs: Long,
+            val endMs: Long,
+            val endBoundaryKind: QomEndBoundaryKind,
+            val unknownEvidenceIntervals: List<QomUnknownEvidenceInterval>,
+        )
         val rawBursts = mutableListOf<RawBurst>()
         val qomTimeline = ArrayList<QomFrameEvidence>(frames.size)
+        val globalUnknownIntervals = mutableListOf<QomUnknownEvidenceInterval>()
+        var globalUnknownStartMs: Long? = null
+        var previousEvidenceTimestampMs: Long? = null
 
         for (frame in frames) {
             val ev = extractor.extract(frame)
             qomTimeline.add(ev)
+            if (config.qomConfig.evidencePolicy == QomEvidencePolicy.OBSERVED_WORLD_V2) {
+                if (!ev.isAvailable && globalUnknownStartMs == null) {
+                    globalUnknownStartMs = previousEvidenceTimestampMs
+                        ?.takeIf { ev.timestampMs - it > config.qomConfig.maximumFrameGapMs }
+                        ?: ev.timestampMs
+                } else if (ev.isAvailable && globalUnknownStartMs != null) {
+                    globalUnknownIntervals += QomUnknownEvidenceInterval(globalUnknownStartMs!!, ev.timestampMs)
+                    globalUnknownStartMs = null
+                }
+                previousEvidenceTimestampMs = ev.timestampMs
+            }
             val snap = segmenter.accept(ev)
             if (snap.completedSegment != null) {
                 val seg = snap.completedSegment
                 if (seg.durationMs in config.minMovementDurationMs..config.maxMovementDurationMs) {
-                    rawBursts.add(RawBurst(seg.logicalStartTimestampMs, seg.logicalEndTimestampMs))
+                    rawBursts.add(RawBurst(seg.logicalStartTimestampMs, seg.logicalEndTimestampMs,
+                        seg.endBoundaryKind, seg.unknownEvidenceIntervals))
                 }
             }
         }
+        globalUnknownStartMs?.let { globalUnknownIntervals += QomUnknownEvidenceInterval(it, totalDurationMs) }
         val finalSeg = segmenter.finish(totalDurationMs)
         if (finalSeg != null && finalSeg.durationMs in config.minMovementDurationMs..config.maxMovementDurationMs) {
-            rawBursts.add(RawBurst(finalSeg.logicalStartTimestampMs, finalSeg.logicalEndTimestampMs))
+            rawBursts.add(RawBurst(finalSeg.logicalStartTimestampMs, finalSeg.logicalEndTimestampMs,
+                finalSeg.endBoundaryKind, finalSeg.unknownEvidenceIntervals))
         }
 
         // 2. Merge bursts separated by less than cadence threshold (preserves combinations if configured)
@@ -90,7 +115,10 @@ class RetrospectiveSessionSegmenter(
                 val last = mergedBursts.last()
                 val pause = burst.startMs - last.endMs
                 if (pause < minPauseMs) {
-                    mergedBursts[mergedBursts.size - 1] = RawBurst(last.startMs, burst.endMs)
+                    mergedBursts[mergedBursts.size - 1] = RawBurst(
+                        last.startMs, burst.endMs, burst.endBoundaryKind,
+                        last.unknownEvidenceIntervals + burst.unknownEvidenceIntervals,
+                    )
                 } else {
                     mergedBursts.add(burst)
                 }
@@ -105,6 +133,15 @@ class RetrospectiveSessionSegmenter(
             val movementNumber = idx + 1
             val logicalStart = burst.startMs
             val logicalEnd = burst.endMs
+            val unknownEvidenceIntervals = if (config.qomConfig.evidencePolicy == QomEvidencePolicy.OBSERVED_WORLD_V2) {
+                globalUnknownIntervals.mapNotNull { interval ->
+                    val start = max(logicalStart, interval.startTimestampMs)
+                    val end = min(logicalEnd, interval.endTimestampMs)
+                    if (start < end) QomUnknownEvidenceInterval(start, end) else null
+                }
+            } else {
+                burst.unknownEvidenceIntervals
+            }
 
             val retainedStart = max(0L, logicalStart - config.preRollMs)
             val retainedEnd = min(totalDurationMs, logicalEnd + config.postRollMs)
@@ -140,12 +177,16 @@ class RetrospectiveSessionSegmenter(
                     associatedCue = cue,
                     segmentationConfidence = 1.0,
                     analysisStatus = MovementAnalysisStatus.DETECTED,
+                    endBoundaryKind = burst.endBoundaryKind,
+                    unknownEvidenceIntervals = unknownEvidenceIntervals,
                 )
             )
         }
 
         // Maintain compatibility kinematics timeline populated with QoM metrics
         val kinematicsTimeline = qomTimeline.mapIndexed { index, ev ->
+            val transitionEligible =
+                config.qomConfig.evidencePolicy != QomEvidencePolicy.OBSERVED_WORLD_V2 || ev.isAvailable
             RetrospectiveKinematicFrame(
                 timestampMs = ev.timestampMs,
                 frameIndex = index,
@@ -154,8 +195,8 @@ class RetrospectiveSessionSegmenter(
                 normalizedTranslationEvidence = ev.rollingArea,
                 normalizedAngularEvidence = null,
                 combinedMovementEvidence = ev.rollingArea,
-                isMoving = ev.rollingArea >= config.qomConfig.startGateMeters,
-                isQuiet = ev.rollingArea <= config.qomConfig.stopGateMeters,
+                isMoving = transitionEligible && ev.rollingArea >= config.qomConfig.startGateMeters,
+                isQuiet = transitionEligible && ev.rollingArea <= config.qomConfig.stopGateMeters,
             )
         }
 

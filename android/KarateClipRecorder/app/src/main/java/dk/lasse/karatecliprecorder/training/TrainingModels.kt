@@ -136,6 +136,8 @@ data class SessionMovement(
     val segmentationTrackId: String? = null, val segmentationConfidence: Double? = null,
     val runId: String? = null,
     val analysisFrameUs: Long? = null,
+    val segmentationEndBoundaryKind: String? = null,
+    val segmentationUnknownRangesJson: String? = null,
 )
 data class ObservationContext(
     val movementId: String, val view: ObservedView = ObservedView.UNKNOWN,

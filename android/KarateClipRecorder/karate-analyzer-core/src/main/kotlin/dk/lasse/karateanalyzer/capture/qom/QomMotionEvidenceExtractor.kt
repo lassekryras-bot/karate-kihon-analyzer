@@ -1,5 +1,6 @@
 package dk.lasse.karateanalyzer.capture.qom
 
+import dk.lasse.karateanalyzer.core.LandmarkSource
 import dk.lasse.karateanalyzer.core.Point3
 import dk.lasse.karateanalyzer.core.PoseFrame
 import dk.lasse.karateanalyzer.core.PoseLandmarkId
@@ -41,6 +42,9 @@ class QomMotionEvidenceExtractor(
      * @throws IllegalArgumentException if timestamps are non-increasing.
      */
     fun extract(frame: PoseFrame): QomFrameEvidence {
+        if (config.evidencePolicy == QomEvidencePolicy.OBSERVED_WORLD_V2) {
+            return extractSupportedWorld(frame)
+        }
         val currentMs = frame.timestampMs
         val prevMs = previousTimestampMs
 
@@ -215,6 +219,158 @@ class QomMotionEvidenceExtractor(
             pointConfidences = currentConfidences,
         )
     }
+
+    private fun extractSupportedWorld(frame: PoseFrame): QomFrameEvidence {
+        val currentMs = frame.timestampMs
+        var previousMs = previousTimestampMs
+        if (previousMs != null && currentMs <= previousMs) {
+            throw IllegalArgumentException(
+                "Timestamps must be strictly increasing: previous=$previousMs, current=$currentMs",
+            )
+        }
+        if (previousMs != null && currentMs - previousMs > config.maximumFrameGapMs) {
+            pointFilters.clear()
+            qomHistory.clear()
+            previousMs = null
+        }
+        previousTimestampMs = currentMs
+
+        fun supportedWorld(id: PoseLandmarkId): Pair<Point3, Double>? {
+            val sample = frame.landmarks[id] ?: return null
+            val point = sample.worldPosition ?: return null
+            if (!sample.visibility.isFinite() || !sample.presence.isFinite()) return null
+            val support = minOf(sample.visibility, sample.presence).coerceIn(0f, 1f).toDouble()
+            if (sample.source != LandmarkSource.OBSERVED || support < config.minimumObservedConfidence ||
+                !point.x.isFinite() || !point.y.isFinite() || !point.z.isFinite()
+            ) return null
+            return point to ExtremityPointComposer.landmarkConfidence(sample)
+        }
+
+        val leftHip = supportedWorld(PoseLandmarkId.LEFT_HIP)
+        val rightHip = supportedWorld(PoseLandmarkId.RIGHT_HIP)
+        if (leftHip == null || rightHip == null) {
+            pointFilters.clear()
+            qomHistory.clear()
+            return unavailable(currentMs, "supported_hip_reference_unavailable")
+        }
+        val hipMidpoint = Point3(
+            (leftHip.first.x + rightHip.first.x) * 0.5f,
+            (leftHip.first.y + rightHip.first.y) * 0.5f,
+            (leftHip.first.z + rightHip.first.z) * 0.5f,
+        )
+
+        val effectivePoints = mutableMapOf<String, EffectivePointSample>()
+        val compositeSupports = mutableMapOf<String, QomCompositeSupport>()
+        fun addSingle(pointId: String, landmarkId: PoseLandmarkId) {
+            supportedWorld(landmarkId)?.let { (point, confidence) ->
+                effectivePoints[pointId] = EffectivePointSample(pointId, point - hipMidpoint, confidence)
+            }
+        }
+        fun addComposite(pointId: String, ids: List<PoseLandmarkId>) {
+            ExtremityPointComposer.supportedWorldCompositePoint(
+                frame, ids, config.minimumObservedConfidence, config.minimumCompositeSupport,
+            )?.let { composite ->
+                effectivePoints[pointId] = EffectivePointSample(
+                    pointId, composite.point - hipMidpoint, composite.confidence,
+                )
+                compositeSupports[pointId] = QomCompositeSupport(
+                    support = composite.support,
+                    acceptedConstituentCount = composite.acceptedConstituentCount,
+                    totalConstituentCount = ids.size,
+                )
+            }
+        }
+        addSingle("LEFT_SHOULDER", PoseLandmarkId.LEFT_SHOULDER)
+        addSingle("RIGHT_SHOULDER", PoseLandmarkId.RIGHT_SHOULDER)
+        addSingle("LEFT_HIP", PoseLandmarkId.LEFT_HIP)
+        addSingle("RIGHT_HIP", PoseLandmarkId.RIGHT_HIP)
+        when (profile) {
+            MotionBodyProfile.PUNCH -> {
+                addSingle("LEFT_ELBOW", PoseLandmarkId.LEFT_ELBOW)
+                addSingle("RIGHT_ELBOW", PoseLandmarkId.RIGHT_ELBOW)
+                addComposite("LEFT_HAND", MotionBodyProfile.PUNCH_HAND_LANDMARKS_LEFT)
+                addComposite("RIGHT_HAND", MotionBodyProfile.PUNCH_HAND_LANDMARKS_RIGHT)
+            }
+            MotionBodyProfile.KICK -> {
+                addSingle("LEFT_KNEE", PoseLandmarkId.LEFT_KNEE)
+                addSingle("RIGHT_KNEE", PoseLandmarkId.RIGHT_KNEE)
+                addComposite("LEFT_FOOT", MotionBodyProfile.KICK_FOOT_LANDMARKS_LEFT)
+                addComposite("RIGHT_FOOT", MotionBodyProfile.KICK_FOOT_LANDMARKS_RIGHT)
+            }
+        }
+
+        pointFilters.keys.retainAll(effectivePoints.keys)
+        val filterOutputs = effectivePoints.mapValues { (pointId, sample) ->
+            pointFilters.getOrPut(pointId) {
+                CausalCoordinateMotionFilter(3, config.positionMedianSamples, config.positionMeanSamples)
+            }.accept(
+                currentMs * 1000L,
+                listOf(sample.position.x.toDouble(), sample.position.y.toDouble(), sample.position.z.toDouble()),
+                sample.confidence,
+            )
+        }
+        val blockDefinitions = getBlockDefinitions(profile)
+        val blockQom = mutableMapOf<MotionBlockId, Double>()
+        for ((blockId, pointIds) in blockDefinitions) {
+            var weightedSpeed = 0.0
+            var totalWeight = 0.0
+            for (pointId in pointIds) {
+                val output = filterOutputs[pointId] ?: continue
+                val speed = output.speed ?: continue
+                val weight = minOf(output.confidence, output.previousConfidence ?: 0.0)
+                if (weight > 0.0) {
+                    weightedSpeed += weight * speed
+                    totalWeight += weight
+                }
+            }
+            if (totalWeight > 1e-9) blockQom[blockId] = weightedSpeed / totalWeight
+        }
+        val available = blockQom.filterKeys { it in profile.activeBlocks }
+        val aggregate = available.values.takeIf { available.size >= config.minimumValidBlocks }?.average()
+        if (aggregate == null) {
+            qomHistory.clear()
+            return unavailable(currentMs, if (previousMs == null) "initial_filter_startup" else "supported_blocks_unavailable",
+                effectivePoints.mapValues { it.value.confidence }, compositeSupports)
+        }
+
+        val currentSec = currentMs / 1000.0
+        qomHistory.add(QomSample(currentSec, aggregate))
+        val freshSpanSeconds = currentSec - qomHistory.first().timestampSec
+        val rollingArea = computeRollingArea(currentSec, config.rollingAreaDurationMs / 1000.0)
+        val freshWindowAvailable = freshSpanSeconds * 1000.0 >= config.rollingAreaDurationMs
+        return QomFrameEvidence(
+            timestampMs = currentMs,
+            profile = profile,
+            blockQom = blockQom,
+            aggregateQom = aggregate,
+            rollingArea = rollingArea,
+            availableBlockCount = available.size,
+            totalActiveBlockCount = profile.activeBlocks.size,
+            isAvailable = freshWindowAvailable,
+            reason = if (freshWindowAvailable) null else "rolling_window_warmup",
+            pointConfidences = effectivePoints.mapValues { it.value.confidence },
+            compositeSupports = compositeSupports,
+        )
+    }
+
+    private fun unavailable(
+        timestampMs: Long,
+        reason: String,
+        pointConfidences: Map<String, Double> = emptyMap(),
+        compositeSupports: Map<String, QomCompositeSupport> = emptyMap(),
+    ) = QomFrameEvidence(
+        timestampMs = timestampMs,
+        profile = profile,
+        blockQom = emptyMap(),
+        aggregateQom = null,
+        rollingArea = 0.0,
+        availableBlockCount = 0,
+        totalActiveBlockCount = profile.activeBlocks.size,
+        isAvailable = false,
+        reason = reason,
+        pointConfidences = pointConfidences,
+        compositeSupports = compositeSupports,
+    )
 
     private fun extractEffectivePoints(
         frame: PoseFrame,

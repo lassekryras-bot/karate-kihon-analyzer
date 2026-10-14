@@ -9,6 +9,16 @@ import kotlin.math.abs
 
 class QomReplayValidationTest {
 
+    private fun runSupportedWorldV2(frames: List<dk.lasse.karateanalyzer.core.PoseFrame>): List<QomMovementSegment> {
+        val config = QomDetectorConfig.supportedWorldV2()
+        val extractor = QomMotionEvidenceExtractor(config = config, profile = MotionBodyProfile.PUNCH)
+        val segmenter = QomMovementSegmenter(config)
+        return buildList {
+            frames.forEach { frame -> segmenter.accept(extractor.extract(frame)).completedSegment?.let(::add) }
+            segmenter.finish(frames.last().timestampMs)?.let(::add)
+        }
+    }
+
     private fun findRepoRoot(): File {
         var dir = File(".").canonicalFile
         while (dir != null && !File(dir, "output/task5/real-kihon-10-punch.fixture.json").exists()) {
@@ -169,6 +179,33 @@ class QomReplayValidationTest {
         val run1 = run()
         val run2 = run()
         assertEquals(run1, run2)
+    }
+
+    @Test
+    fun supportedWorldV2AdultReplayObservedSnapshotAndFrameRateComparison() {
+        val root = findRepoRoot()
+        val fixture = PoseReplayJson.decode(File(root, "output/task5/real-kihon-10-punch.fixture.json").readText())
+        val segments60 = runSupportedWorldV2(fixture.frames)
+        val segments30 = runSupportedWorldV2(fixture.frames.filterIndexed { index, _ -> index % 2 == 0 })
+
+        // Candidate observation snapshot, not a claim that 14 is universal ground truth.
+        assertEquals(14, segments60.size)
+        assertEquals(14, segments30.size)
+        assertEquals(567L to 1017L, segments60.first().let { it.logicalStartTimestampMs to it.logicalEndTimestampMs })
+        for (index in segments60.indices) {
+            assertTrue(abs(segments60[index].logicalStartTimestampMs - segments30[index].logicalStartTimestampMs) <= 100L)
+            assertTrue(abs(segments60[index].logicalEndTimestampMs - segments30[index].logicalEndTimestampMs) <= 100L)
+        }
+    }
+
+    @Test
+    fun supportedWorldV2BlindReplayIsDeterministicWithoutCountOracle() {
+        val root = findRepoRoot()
+        val fixture = PoseReplayJson.decode(File(root, "output/task5/blind/blind-session.fixture.json").readText())
+        val first = runSupportedWorldV2(fixture.frames)
+        val second = runSupportedWorldV2(fixture.frames)
+        assertTrue(first.isNotEmpty())
+        assertEquals(first, second)
     }
 }
 

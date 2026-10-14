@@ -319,5 +319,184 @@ class QomMathematicalUnitTest {
         assertEquals(600L, snap.activeStartBoundaryMs)
         assertEquals(2, segmenter.currentMovementNumber)
     }
+
+    @Test
+    fun supportedWorldCompositeExcludesUnsupportedConstituentsBeforePosition() {
+        fun landmark(x: Float, confidence: Float, world: Boolean = true) = PoseLandmarkSample(
+            position = Point3(x, 0f, 0f),
+            worldPosition = if (world) Point3(x, 0f, 0f) else null,
+            visibility = confidence,
+            presence = confidence,
+            source = LandmarkSource.OBSERVED,
+        )
+        fun composite(jump: Float) = ExtremityPointComposer.supportedWorldCompositePoint(
+            PoseFrame(0, mapOf(
+                PoseLandmarkId.RIGHT_WRIST to landmark(1f, 0.9f),
+                PoseLandmarkId.RIGHT_THUMB to landmark(2f, 0.9f),
+                PoseLandmarkId.RIGHT_INDEX to landmark(3f, 0.9f),
+                PoseLandmarkId.RIGHT_PINKY to landmark(jump, 0.1f),
+            )),
+            MotionBodyProfile.PUNCH_HAND_LANDMARKS_RIGHT,
+            minimumObservedConfidence = 0.55,
+            minimumCompositeSupport = 0.55,
+        )!!
+
+        val nearJump = composite(10f)
+        val farJump = composite(1_000f)
+        assertEquals(nearJump.point, farJump.point)
+        assertEquals(2f, nearJump.point.x, 1e-5f)
+        assertEquals(3, nearJump.acceptedConstituentCount)
+        assertEquals(0.675, nearJump.support, 1e-5)
+
+        val sparse = PoseFrame(0, mapOf(
+            PoseLandmarkId.RIGHT_WRIST to landmark(1f, 0.9f),
+            PoseLandmarkId.RIGHT_THUMB to landmark(1_000f, 0.1f),
+            PoseLandmarkId.RIGHT_INDEX to landmark(-1_000f, 0.1f),
+            PoseLandmarkId.RIGHT_PINKY to landmark(500f, 0.1f),
+        ))
+        assertNull(ExtremityPointComposer.supportedWorldCompositePoint(
+            sparse, MotionBodyProfile.PUNCH_HAND_LANDMARKS_RIGHT, 0.55, 0.55,
+        ))
+        val normalizedOnly = PoseFrame(0, mapOf(PoseLandmarkId.RIGHT_WRIST to landmark(1f, 0.9f, world = false)))
+        assertNull(ExtremityPointComposer.supportedWorldCompositePoint(
+            normalizedOnly, MotionBodyProfile.PUNCH_HAND_LANDMARKS_RIGHT, 0.55, 0.55,
+        ))
+    }
+
+    @Test
+    fun supportedWorldPolicyRequiresHipReferenceAndFreshWindowAfterTimestampGap() {
+        val extractor = QomMotionEvidenceExtractor(config = QomDetectorConfig.supportedWorldV2())
+        val startup = (0..6).map { index ->
+            extractor.extract(PoseFrame(index * 33L, createBasePose()))
+        }
+        assertTrue(startup.take(6).all { !it.isAvailable })
+        assertTrue(startup.last().isAvailable)
+        assertEquals(4, startup.last().compositeSupports.getValue("RIGHT_HAND").acceptedConstituentCount)
+
+        val lowHip = createBasePose().toMutableMap().also { landmarks ->
+            landmarks[PoseLandmarkId.RIGHT_HIP] = landmarks.getValue(PoseLandmarkId.RIGHT_HIP).copy(
+                visibility = 0.2f,
+                presence = 0.2f,
+            )
+        }
+        val missingReference = extractor.extract(PoseFrame(231L, lowHip))
+        assertFalse(missingReference.isAvailable)
+        assertEquals("supported_hip_reference_unavailable", missingReference.reason)
+
+        val afterGap = (0..6).map { index ->
+            extractor.extract(PoseFrame(800L + index * 33L, createBasePose()))
+        }
+        assertTrue(afterGap.take(6).all { !it.isAvailable })
+        assertTrue(afterGap.last().isAvailable)
+        assertEquals(0.0, afterGap.last().rollingArea, 1e-6)
+    }
+
+    @Test
+    fun supportedWorldPolicyRejectsNonFiniteConfidenceWithoutFabricatingBlockMotion() {
+        val hipExtractor = QomMotionEvidenceExtractor(config = QomDetectorConfig.supportedWorldV2())
+        val nanHip = createBasePose().toMutableMap().also { landmarks ->
+            landmarks[PoseLandmarkId.RIGHT_HIP] = landmarks.getValue(PoseLandmarkId.RIGHT_HIP).copy(
+                visibility = Float.NaN,
+            )
+        }
+        val hipEvidence = hipExtractor.extract(PoseFrame(0, nanHip))
+        assertFalse(hipEvidence.isAvailable)
+        assertEquals("supported_hip_reference_unavailable", hipEvidence.reason)
+
+        val extractor = QomMotionEvidenceExtractor(config = QomDetectorConfig.supportedWorldV2())
+        (0..6).forEach { index -> extractor.extract(PoseFrame(index * 33L, createBasePose())) }
+        val unsupportedRightArm = createBasePose().toMutableMap().also { landmarks ->
+            listOf(
+                PoseLandmarkId.RIGHT_ELBOW,
+                PoseLandmarkId.RIGHT_WRIST,
+                PoseLandmarkId.RIGHT_THUMB,
+                PoseLandmarkId.RIGHT_INDEX,
+                PoseLandmarkId.RIGHT_PINKY,
+            ).forEach { id ->
+                landmarks[id] = landmarks.getValue(id).copy(presence = Float.NaN)
+            }
+        }
+        val excluded = extractor.extract(PoseFrame(231, unsupportedRightArm))
+        assertFalse(excluded.blockQom.containsKey(MotionBlockId.RIGHT_ARM))
+        assertFalse(excluded.pointConfidences.containsKey("RIGHT_ELBOW"))
+        assertFalse(excluded.compositeSupports.containsKey("RIGHT_HAND"))
+
+        val reacquiredBaseline = extractor.extract(PoseFrame(264, createBasePose()))
+        assertFalse(reacquiredBaseline.blockQom.containsKey(MotionBlockId.RIGHT_ARM))
+
+        val oneNanConstituent = createBasePose().toMutableMap().also { landmarks ->
+            landmarks[PoseLandmarkId.RIGHT_PINKY] = landmarks.getValue(PoseLandmarkId.RIGHT_PINKY).copy(
+                visibility = Float.NaN,
+            )
+        }
+        val supportedComposite = extractor.extract(PoseFrame(297, oneNanConstituent))
+            .compositeSupports.getValue("RIGHT_HAND")
+        assertEquals(3, supportedComposite.acceptedConstituentCount)
+        assertEquals(4, supportedComposite.totalConstituentCount)
+        assertTrue(supportedComposite.support.isFinite())
+    }
+
+    @Test
+    fun detectorVersionAndEvidencePolicyCannotBeMismatched() {
+        assertFailsWith<IllegalArgumentException> {
+            QomDetectorConfig(evidencePolicy = QomEvidencePolicy.OBSERVED_WORLD_V2)
+        }
+        assertFailsWith<IllegalArgumentException> {
+            QomDetectorConfig(detectorVersion = QomDetectorConfig.SUPPORTED_WORLD_V2)
+        }
+        assertFailsWith<IllegalArgumentException> {
+            QomDetectorConfig.supportedWorldV2().copy(
+                evidencePolicy = QomEvidencePolicy.LEGACY_FINITE_WEIGHTED_V1,
+            )
+        }
+    }
+
+    @Test
+    fun unavailableV2EvidencePreservesMovingStateAndForcedEndProvenance() {
+        val segmenter = QomMovementSegmenter(QomDetectorConfig.supportedWorldV2())
+        fun evidence(t: Long, area: Double, available: Boolean = true) = QomFrameEvidence(
+            timestampMs = t,
+            profile = MotionBodyProfile.PUNCH,
+            blockQom = emptyMap(),
+            aggregateQom = area.takeIf { available },
+            rollingArea = area,
+            availableBlockCount = if (available) 2 else 0,
+            totalActiveBlockCount = 3,
+            isAvailable = available,
+        )
+        segmenter.accept(evidence(0, 0.09))
+        assertEquals(QomSegmentState.MOVING, segmenter.accept(evidence(100, 0.0, available = false)).state)
+        assertEquals(QomSegmentState.MOVING, segmenter.accept(evidence(200, 0.0, available = false)).state)
+        val completed = segmenter.accept(evidence(300, 0.03)).completedSegment!!
+        assertEquals(QomEndBoundaryKind.STOP_GATE, completed.endBoundaryKind)
+        assertEquals(listOf(QomUnknownEvidenceInterval(100, 300)), completed.unknownEvidenceIntervals)
+
+        segmenter.accept(evidence(400, 0.09))
+        segmenter.accept(evidence(500, 0.0, available = false))
+        val forced = segmenter.finish(700)!!
+        assertEquals(QomEndBoundaryKind.RECORDING_END_WITHOUT_STOP_EVIDENCE, forced.endBoundaryKind)
+        assertEquals(listOf(QomUnknownEvidenceInterval(500, 700)), forced.unknownEvidenceIntervals)
+    }
+
+    @Test
+    fun timestampGapMarksTheEntireUnobservedSpanUnknown() {
+        val segmenter = QomMovementSegmenter(QomDetectorConfig.supportedWorldV2())
+        fun evidence(t: Long, area: Double, available: Boolean = true) = QomFrameEvidence(
+            timestampMs = t,
+            profile = MotionBodyProfile.PUNCH,
+            blockQom = emptyMap(),
+            aggregateQom = area.takeIf { available },
+            rollingArea = area,
+            availableBlockCount = if (available) 2 else 0,
+            totalActiveBlockCount = 3,
+            isAvailable = available,
+        )
+
+        segmenter.accept(evidence(100, 0.09))
+        segmenter.accept(evidence(800, 0.0, available = false))
+        val completed = segmenter.accept(evidence(1_000, 0.03)).completedSegment!!
+
+        assertEquals(listOf(QomUnknownEvidenceInterval(100, 1_000)), completed.unknownEvidenceIntervals)
+    }
 }
 

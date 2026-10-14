@@ -264,6 +264,11 @@ class TrainingSessionProcessor(
                         segmentationConfidence = null,
                         runId = currentRun.runId,
                         analysisFrameUs = canonical?.timestampUs,
+                        segmentationEndBoundaryKind = m.endBoundaryKind.name,
+                        segmentationUnknownRangesJson = m.unknownEvidenceIntervals.takeIf { it.isNotEmpty() }
+                            ?.joinToString(prefix = "[", postfix = "]") { interval ->
+                                "{\"startUs\":${interval.startTimestampMs * 1000L},\"endUs\":${interval.endTimestampMs * 1000L}}"
+                            },
                     )
                 }
                 val links = retro.movements.zip(movements).mapNotNull { (m, stored) ->

@@ -10,6 +10,16 @@ enum class QomSegmentState {
     MOVING,
 }
 
+enum class QomEndBoundaryKind {
+    STOP_GATE,
+    RECORDING_END_WITHOUT_STOP_EVIDENCE,
+}
+
+data class QomUnknownEvidenceInterval(
+    val startTimestampMs: Long,
+    val endTimestampMs: Long,
+)
+
 /**
  * Bounded physical movement interval produced by the QoM hysteresis segmenter.
  */
@@ -20,6 +30,8 @@ data class QomMovementSegment(
     val durationMs: Long,
     val retainedStartTimestampMs: Long,
     val retainedEndTimestampMs: Long,
+    val endBoundaryKind: QomEndBoundaryKind = QomEndBoundaryKind.STOP_GATE,
+    val unknownEvidenceIntervals: List<QomUnknownEvidenceInterval> = emptyList(),
 )
 
 /**
@@ -55,6 +67,9 @@ class QomMovementSegmenter(
         private set
 
     private var activeStartBoundaryMs: Long? = null
+    private var activeUnknownStartMs: Long? = null
+    private val activeUnknownIntervals = mutableListOf<QomUnknownEvidenceInterval>()
+    private var lastEvidenceTimestampMs: Long? = null
 
     /**
      * Resets the segmenter state.
@@ -63,6 +78,9 @@ class QomMovementSegmenter(
         state = QomSegmentState.STILL
         currentMovementNumber = 1
         activeStartBoundaryMs = null
+        activeUnknownStartMs = null
+        activeUnknownIntervals.clear()
+        lastEvidenceTimestampMs = null
     }
 
     /**
@@ -70,6 +88,16 @@ class QomMovementSegmenter(
      */
     fun accept(evidence: QomFrameEvidence): QomSegmenterSnapshot {
         val t = evidence.timestampMs
+        val gapStart = lastEvidenceTimestampMs?.takeIf { t - it > config.maximumFrameGapMs }
+        lastEvidenceTimestampMs = t
+        if (config.evidencePolicy == QomEvidencePolicy.OBSERVED_WORLD_V2 && !evidence.isAvailable) {
+            if (state == QomSegmentState.MOVING && activeUnknownStartMs == null) activeUnknownStartMs = gapStart ?: t
+            return QomSegmenterSnapshot(t, state, currentMovementNumber, activeStartBoundaryMs, null, null)
+        }
+        activeUnknownStartMs?.let { start ->
+            activeUnknownIntervals += QomUnknownEvidenceInterval(start, t)
+            activeUnknownStartMs = null
+        }
         val area = evidence.rollingArea
 
         var completedSegment: QomMovementSegment? = null
@@ -97,11 +125,13 @@ class QomMovementSegmenter(
                         durationMs = duration,
                         retainedStartTimestampMs = max(0L, startMs - config.preRollMs),
                         retainedEndTimestampMs = endMs + config.postRollMs,
+                        unknownEvidenceIntervals = activeUnknownIntervals.toList(),
                     )
 
                     state = QomSegmentState.STILL
                     currentMovementNumber++
                     activeStartBoundaryMs = null
+                    activeUnknownIntervals.clear()
                     trigger = "stop_gate_crossing"
                 }
             }
@@ -132,10 +162,17 @@ class QomMovementSegmenter(
                 durationMs = endMs - startMs,
                 retainedStartTimestampMs = max(0L, startMs - config.preRollMs),
                 retainedEndTimestampMs = endMs + config.postRollMs,
+                endBoundaryKind = QomEndBoundaryKind.RECORDING_END_WITHOUT_STOP_EVIDENCE,
+                unknownEvidenceIntervals = buildList {
+                    addAll(activeUnknownIntervals)
+                    activeUnknownStartMs?.let { add(QomUnknownEvidenceInterval(it, endMs)) }
+                },
             )
             state = QomSegmentState.STILL
             currentMovementNumber++
             activeStartBoundaryMs = null
+            activeUnknownStartMs = null
+            activeUnknownIntervals.clear()
             return segment
         }
         return null
