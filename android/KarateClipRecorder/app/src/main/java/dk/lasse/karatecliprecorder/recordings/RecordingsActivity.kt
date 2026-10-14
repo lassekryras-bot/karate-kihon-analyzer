@@ -13,6 +13,9 @@ import android.widget.*
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
+import androidx.core.view.AccessibilityDelegateCompat
+import androidx.core.view.ViewCompat
+import androidx.core.view.accessibility.AccessibilityNodeInfoCompat
 import dk.lasse.karatecliprecorder.AppIcon
 import dk.lasse.karatecliprecorder.AppIconView
 import dk.lasse.karatecliprecorder.AppPreferences
@@ -141,59 +144,252 @@ class RecordingsActivity : AppCompatActivity() {
         header.setTitle(if (selected == null) "Recordings" else "Recording")
         if (!loaded) { body.addView(label("Loading recordings…")); return }
         selected?.let { id -> detail(browser.exact(id)); return }
-        body.addView(button("Filter: ${category ?: "All activities"}") {
-            val categories = browser.categories
-            AlertDialog.Builder(this).setTitle("Stored activity context")
-                .setItems((listOf("All activities") + categories).toTypedArray()) { _, index ->
-                    category = if (index == 0) null else categories[index - 1]; render()
-                }.show()
-        })
-        val navigation = LinearLayout(this)
-        navigation.addView(button("Recent") { day = null; render() }, LinearLayout.LayoutParams(0, -2, 1f))
-        navigation.addView(button("Today") { day = LocalDate.now(); month = YearMonth.now(); render() }, LinearLayout.LayoutParams(0, -2, 1f))
-        body.addView(navigation)
-        calendar()
-        body.addView(label(day?.format(DateTimeFormatter.ofPattern("d MMMM yyyy")) ?: "Recent recordings", 20f))
+        body.addView(filterControl())
+        body.addView(periodSwitcher(), LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(12) })
+        body.addView(calendar(), LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(12) })
+        body.addView(sectionHeading(day?.format(DateTimeFormatter.ofPattern("d MMMM yyyy")) ?: "Recent recordings"))
         val rows = day?.let { browser.day(it, category) } ?: browser.recent(category)
-        if (rows.isEmpty()) body.addView(label("No recordings for this selection."))
-        rows.forEach { row ->
-            body.addView(button("${date(row)}\n${row.context} · ${row.countLabel} · ${row.status}") {
+        if (rows.isEmpty()) {
+            body.addView(card().apply {
+                addView(TextView(this@RecordingsActivity).apply {
+                    text = "No recordings for this selection."
+                    textSize = 14f
+                    gravity = Gravity.CENTER
+                    setTextColor(ContextCompat.getColor(this@RecordingsActivity, R.color.app_text_secondary))
+                    setPadding(0, dp(8), 0, dp(8))
+                })
+            })
+        }
+        rows.forEachIndexed { index, row ->
+            body.addView(recordingCard(row) {
                 selected = row.session.sessionId; segmentData = null; detailsExpanded = false; render(); load()
-            }.apply { gravity = Gravity.START or Gravity.CENTER_VERTICAL; textSize = 14f })
+            }, LinearLayout.LayoutParams(-1, -2).apply { if (index > 0) topMargin = dp(10) })
         }
     }
-    private fun calendar() {
-        val header = LinearLayout(this).apply { gravity = Gravity.CENTER_VERTICAL }
-        header.addView(button("‹") { month = month.minusMonths(1); render() }.apply { contentDescription = "Previous month" }, LinearLayout.LayoutParams(dp(48), dp(48)))
-        header.addView(label(month.format(DateTimeFormatter.ofPattern("MMMM yyyy")), 18f).apply { gravity = Gravity.CENTER }, LinearLayout.LayoutParams(0, -2, 1f))
-        header.addView(button("›") { month = month.plusMonths(1); render() }.apply { contentDescription = "Next month" }, LinearLayout.LayoutParams(dp(48), dp(48)))
-        body.addView(header)
-        val weekdays = LinearLayout(this)
-        listOf("M", "T", "W", "T", "F", "S", "S").forEach { weekdays.addView(label(it, 13f).apply { gravity = Gravity.CENTER }, LinearLayout.LayoutParams(0, -2, 1f)) }
-        body.addView(weekdays)
+    private fun filterControl(): View = LinearLayout(this).apply {
+        orientation = LinearLayout.HORIZONTAL
+        gravity = Gravity.CENTER_VERTICAL
+        minimumHeight = dp(64)
+        background = roundedSurface(R.color.app_card_surface, 16)
+        foreground = selectableItemBackground()
+        setPadding(dp(16), dp(10), dp(12), dp(10))
+        isClickable = true
+        isFocusable = true
+        contentDescription = "Filter recordings. Selected activity: ${category ?: "All activities"}"
+        exposeAsButton()
+        addView(AppIconView(this@RecordingsActivity, AppIcon.KARATE, sizeDp = 24), LinearLayout.LayoutParams(dp(24), dp(24)).apply {
+            marginEnd = dp(14)
+        })
+        addView(LinearLayout(this@RecordingsActivity).apply {
+            orientation = LinearLayout.VERTICAL
+            addView(TextView(this@RecordingsActivity).apply {
+                text = "ACTIVITY FILTER"
+                textSize = 11f
+                typeface = Typeface.create("sans-serif", Typeface.BOLD)
+                letterSpacing = 0.08f
+                setTextColor(ContextCompat.getColor(this@RecordingsActivity, R.color.app_text_secondary))
+            })
+            addView(TextView(this@RecordingsActivity).apply {
+                text = category ?: "All activities"
+                textSize = 16f
+                typeface = Typeface.create("sans-serif", Typeface.BOLD)
+                setTextColor(ContextCompat.getColor(this@RecordingsActivity, R.color.app_text_primary))
+                setPadding(0, dp(2), 0, 0)
+            })
+        }, LinearLayout.LayoutParams(0, -2, 1f))
+        addView(AppIconView(this@RecordingsActivity, AppIcon.CHEVRON_RIGHT, sizeDp = 20).apply {
+            setIconColor(ContextCompat.getColor(this@RecordingsActivity, R.color.app_text_secondary))
+        }, LinearLayout.LayoutParams(dp(20), dp(20)))
+        setOnClickListener {
+            val categories = browser.categories
+            AlertDialog.Builder(this@RecordingsActivity).setTitle("Stored activity context")
+                .setItems((listOf("All activities") + categories).toTypedArray()) { _, index ->
+                    category = if (index == 0) null else categories[index - 1]
+                    render()
+                }.show()
+        }
+    }
+    private fun periodSwitcher(): View = LinearLayout(this).apply {
+        orientation = LinearLayout.HORIZONTAL
+        background = roundedSurface(R.color.app_card_surface, 14)
+        setPadding(dp(4), dp(4), dp(4), dp(4))
+        addView(periodButton("Recent", day == null) { day = null; render() }, LinearLayout.LayoutParams(0, dp(48), 1f))
+        addView(periodButton("Today", day == LocalDate.now()) {
+            day = LocalDate.now(); month = YearMonth.now(); render()
+        }, LinearLayout.LayoutParams(0, dp(48), 1f).apply { marginStart = dp(4) })
+    }
+    private fun periodButton(value: String, selected: Boolean, action: () -> Unit) = TextView(this).apply {
+        text = value
+        textSize = 14f
+        typeface = Typeface.create("sans-serif", Typeface.BOLD)
+        gravity = Gravity.CENTER
+        isSelected = selected
+        isClickable = true
+        isFocusable = true
+        contentDescription = "$value recordings${if (selected) ", selected" else ""}"
+        exposeAsButton()
+        setTextColor(ContextCompat.getColor(this@RecordingsActivity,
+            if (selected) R.color.app_accent else R.color.app_text_secondary))
+        background = if (selected) roundedFill(R.color.progress_pale_fill, 10) else null
+        foreground = selectableItemBackground()
+        setOnClickListener { action() }
+    }
+    private fun calendar(): View = LinearLayout(this).apply {
+        orientation = LinearLayout.VERTICAL
+        background = roundedSurface(R.color.app_card_surface, 16)
+        setPadding(dp(8), dp(8), dp(8), dp(10))
+        val monthHeader = LinearLayout(this@RecordingsActivity).apply { gravity = Gravity.CENTER_VERTICAL }
+        monthHeader.addView(monthButton("Previous month", rotation = 180f) {
+            month = month.minusMonths(1); render()
+        }, LinearLayout.LayoutParams(dp(48), dp(48)))
+        monthHeader.addView(TextView(this@RecordingsActivity).apply {
+            text = month.format(DateTimeFormatter.ofPattern("MMMM yyyy"))
+            textSize = 18f
+            typeface = Typeface.create("sans-serif", Typeface.BOLD)
+            gravity = Gravity.CENTER
+            setTextColor(ContextCompat.getColor(this@RecordingsActivity, R.color.app_text_primary))
+        }, LinearLayout.LayoutParams(0, -2, 1f))
+        monthHeader.addView(monthButton("Next month") {
+            month = month.plusMonths(1); render()
+        }, LinearLayout.LayoutParams(dp(48), dp(48)))
+        addView(monthHeader)
+        val weekdays = LinearLayout(this@RecordingsActivity)
+        listOf("M", "T", "W", "T", "F", "S", "S").forEach {
+            weekdays.addView(TextView(this@RecordingsActivity).apply {
+                text = it
+                textSize = 12f
+                typeface = Typeface.create("sans-serif", Typeface.BOLD)
+                gravity = Gravity.CENTER
+                setTextColor(ContextCompat.getColor(this@RecordingsActivity, R.color.app_text_secondary))
+            }, LinearLayout.LayoutParams(0, dp(36), 1f))
+        }
+        addView(weekdays)
         val marked = browser.markedDays(month, category)
         val offset = month.atDay(1).dayOfWeek.value - 1
         val cells = ((offset + month.lengthOfMonth() + 6) / 7) * 7
         for (week in 0 until cells / 7) {
-            val line = LinearLayout(this)
+            val line = LinearLayout(this@RecordingsActivity)
             for (column in 0..6) {
                 val number = week * 7 + column - offset + 1
                 val date = if (number in 1..month.lengthOfMonth()) month.atDay(number) else null
-                val cell = label(date?.let { "$number${if (it in marked) " •" else ""}" } ?: "", 14f).apply {
-                    gravity = Gravity.CENTER; minHeight = dp(48)
-                    if (date != null) {
-                        contentDescription = "$date${if (date in marked) ", recordings available" else ", no recordings"}"
-                        isClickable = true; isFocusable = true; isSelected = date == day
-                        if (date == day) setBackgroundColor(0x335A83AB)
-                        if (date in marked) setTypeface(typeface, android.graphics.Typeface.BOLD)
-                        setOnClickListener { day = date; render() }
-                    }
-                }
+                val cell = calendarDay(date, date in marked)
                 line.addView(cell, LinearLayout.LayoutParams(0, dp(48), 1f))
             }
-            body.addView(line)
+            addView(line)
         }
     }
+    private fun monthButton(description: String, rotation: Float = 0f, action: () -> Unit) = FrameLayout(this).apply {
+        isClickable = true
+        isFocusable = true
+        contentDescription = description
+        exposeAsButton()
+        foreground = selectableItemBackground(borderless = true)
+        addView(AppIconView(this@RecordingsActivity, AppIcon.CHEVRON_RIGHT, sizeDp = 20).apply {
+            this.rotation = rotation
+            setIconColor(ContextCompat.getColor(this@RecordingsActivity, R.color.app_text_primary))
+        }, FrameLayout.LayoutParams(dp(20), dp(20), Gravity.CENTER))
+        setOnClickListener { action() }
+    }
+    private fun calendarDay(date: LocalDate?, marked: Boolean) = FrameLayout(this).apply {
+        minimumHeight = dp(48)
+        if (date == null) {
+            importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
+            return@apply
+        }
+        val selectedDate = date == day
+        isSelected = selectedDate
+        isClickable = true
+        isFocusable = true
+        exposeAsButton()
+        foreground = selectableItemBackground(borderless = true)
+        contentDescription = buildString {
+            append(date.format(DateTimeFormatter.ofPattern("d MMMM yyyy")))
+            append(if (marked) ", recordings available" else ", no recordings")
+            if (selectedDate) append(", selected")
+        }
+        addView(TextView(this@RecordingsActivity).apply {
+            text = date.dayOfMonth.toString()
+            textSize = 14f
+            gravity = Gravity.CENTER
+            typeface = Typeface.create("sans-serif", if (marked || selectedDate) Typeface.BOLD else Typeface.NORMAL)
+            setTextColor(when {
+                selectedDate -> ContextCompat.getColor(this@RecordingsActivity, R.color.app_accent)
+                date == LocalDate.now() || marked -> ContextCompat.getColor(this@RecordingsActivity, R.color.app_accent)
+                else -> ContextCompat.getColor(this@RecordingsActivity, R.color.app_text_primary)
+            })
+            if (selectedDate) background = roundedFill(R.color.progress_pale_fill, 20)
+        }, FrameLayout.LayoutParams(dp(40), dp(40), Gravity.CENTER))
+        if (marked) {
+            addView(View(this@RecordingsActivity).apply {
+                background = GradientDrawable().apply {
+                    shape = GradientDrawable.OVAL
+                    setColor(ContextCompat.getColor(this@RecordingsActivity, R.color.app_accent))
+                }
+            }, FrameLayout.LayoutParams(dp(4), dp(4), Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL).apply {
+                bottomMargin = dp(3)
+            })
+        }
+        setOnClickListener { day = date; render() }
+    }
+    private fun sectionHeading(value: String) = TextView(this).apply {
+        text = value
+        textSize = 20f
+        typeface = Typeface.create("sans-serif", Typeface.BOLD)
+        setTextColor(ContextCompat.getColor(this@RecordingsActivity, R.color.app_text_primary))
+        setPadding(dp(2), dp(22), 0, dp(10))
+        androidx.core.view.ViewCompat.setAccessibilityHeading(this, true)
+    }
+    private fun recordingCard(row: RecordingSummary, action: () -> Unit): View = LinearLayout(this).apply {
+        orientation = LinearLayout.HORIZONTAL
+        gravity = Gravity.CENTER_VERTICAL
+        minimumHeight = dp(96)
+        background = roundedSurface(R.color.home_card_surface, 16)
+        foreground = selectableItemBackground()
+        setPadding(dp(16), dp(14), dp(12), dp(14))
+        isClickable = true
+        isFocusable = true
+        contentDescription = "${date(row)}. ${row.context}. ${row.countLabel}. ${row.status}"
+        exposeAsButton()
+        addView(LinearLayout(this@RecordingsActivity).apply {
+            orientation = LinearLayout.VERTICAL
+            addView(TextView(this@RecordingsActivity).apply {
+                text = date(row)
+                textSize = 12f
+                typeface = Typeface.create("sans-serif", Typeface.BOLD)
+                setTextColor(ContextCompat.getColor(this@RecordingsActivity, R.color.app_text_secondary))
+            })
+            addView(TextView(this@RecordingsActivity).apply {
+                text = row.context
+                textSize = 16f
+                typeface = Typeface.create("sans-serif", Typeface.BOLD)
+                maxLines = 2
+                setTextColor(ContextCompat.getColor(this@RecordingsActivity, R.color.app_text_primary))
+                setPadding(0, dp(3), 0, dp(2))
+            })
+            addView(TextView(this@RecordingsActivity).apply {
+                text = row.countLabel
+                textSize = 13f
+                setTextColor(ContextCompat.getColor(this@RecordingsActivity, R.color.app_text_secondary))
+            })
+            addView(TextView(this@RecordingsActivity).apply {
+                text = row.status
+                textSize = 12f
+                typeface = Typeface.create("sans-serif", Typeface.BOLD)
+                setTextColor(recordingStatusColor(row.status))
+                background = roundedFill(R.color.app_background, 7)
+                setPadding(dp(8), dp(3), dp(8), dp(3))
+            }, LinearLayout.LayoutParams(-2, -2).apply { topMargin = dp(7) })
+        }, LinearLayout.LayoutParams(0, -2, 1f))
+        addView(AppIconView(this@RecordingsActivity, AppIcon.CHEVRON_RIGHT, sizeDp = 20).apply {
+            setIconColor(ContextCompat.getColor(this@RecordingsActivity, R.color.app_text_secondary))
+        }, LinearLayout.LayoutParams(dp(20), dp(20)).apply { marginStart = dp(10) })
+        setOnClickListener { action() }
+    }
+    private fun recordingStatusColor(status: String): Int = ContextCompat.getColor(this, when {
+        status == "Segments ready" || status == "Saved" -> R.color.app_success
+        status == "Processing failed" || status == "Video unavailable" -> R.color.app_error
+        else -> R.color.app_text_secondary
+    })
     private fun detail(row: RecordingSummary?) {
         if (row == null) { body.addView(label("This recording is no longer available.")); return }
         QueueManager.acknowledge(row.session.sessionId)
@@ -731,6 +927,30 @@ class RecordingsActivity : AppCompatActivity() {
             setStroke(dp(1), ContextCompat.getColor(this@RecordingsActivity, R.color.app_border))
         }
         setPadding(dp(16), dp(16), dp(16), dp(16))
+    }
+    private fun roundedSurface(colorRes: Int, radiusDp: Int) = GradientDrawable().apply {
+        setColor(ContextCompat.getColor(this@RecordingsActivity, colorRes))
+        cornerRadius = dp(radiusDp).toFloat()
+        setStroke(dp(1), ContextCompat.getColor(this@RecordingsActivity, R.color.app_border))
+    }
+    private fun roundedFill(colorRes: Int, radiusDp: Int) = GradientDrawable().apply {
+        setColor(ContextCompat.getColor(this@RecordingsActivity, colorRes))
+        cornerRadius = dp(radiusDp).toFloat()
+    }
+    private fun selectableItemBackground(borderless: Boolean = false) = obtainStyledAttributes(
+        intArrayOf(if (borderless) android.R.attr.selectableItemBackgroundBorderless else android.R.attr.selectableItemBackground),
+    ).let { attributes ->
+        val resourceId = attributes.getResourceId(0, 0)
+        attributes.recycle()
+        resourceId.takeIf { it != 0 }?.let { ContextCompat.getDrawable(this, it) }
+    }
+    private fun View.exposeAsButton() {
+        ViewCompat.setAccessibilityDelegate(this, object : AccessibilityDelegateCompat() {
+            override fun onInitializeAccessibilityNodeInfo(host: View, info: AccessibilityNodeInfoCompat) {
+                super.onInitializeAccessibilityNodeInfo(host, info)
+                info.className = Button::class.java.name
+            }
+        })
     }
     private fun chip(text: String) = TextView(this).apply {
         this.text = text

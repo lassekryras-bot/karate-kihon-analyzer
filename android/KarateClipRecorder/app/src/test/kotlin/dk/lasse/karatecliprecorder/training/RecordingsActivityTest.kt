@@ -6,6 +6,7 @@ import android.os.Looper
 import android.view.View
 import android.view.ViewGroup
 import android.widget.Button
+import android.widget.ListView
 import android.widget.TextView
 import androidx.test.core.app.ApplicationProvider
 import dk.lasse.karatecliprecorder.AppPreferences
@@ -19,6 +20,10 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
 import org.robolectric.shadows.ShadowDialog
+import java.time.LocalDate
+import java.time.YearMonth
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
 import kotlin.test.*
 
 @RunWith(RobolectricTestRunner::class)
@@ -35,6 +40,126 @@ class RecordingsActivityTest {
     }
     private fun views(view: View): List<View> = listOf(view) + if (view is ViewGroup)
         (0 until view.childCount).flatMap { views(view.getChildAt(it)) } else emptyList()
+
+    @Test fun browserFilterCalendarAndRowBackRestoreSelection() {
+        ProcessingPreferences(context).background = false
+        val training = TrainingServices.get(context)
+        val profileRepository = ProfileRepository(context, AppPreferences(context))
+        val user = profileRepository.activeProfile().id
+        profileRepository.close()
+        val zone = ZoneId.systemDefault()
+        val month = YearMonth.now().minusMonths(1)
+        val fixtures = listOf(
+            month.atDay(9) to ("Punches" to "Alternating straight punches"),
+            month.atDay(8) to ("Kicks" to "Front kicks"),
+            month.atDay(7) to ("Punches" to "Alternating straight punches"),
+        )
+        var seeded = false
+        training.submit({ repo ->
+            repo.createUser(TrainingUser(user))
+            fixtures.forEach { (date, context) ->
+                val sessionId = trainingId()
+                val recordingId = trainingId()
+                repo.beginSession(
+                    RecordingSession(
+                        sessionId = sessionId,
+                        userId = user,
+                        startedAtMs = date.atTime(12, 0).atZone(zone).toInstant().toEpochMilli(),
+                        activityKey = AssistedCaptureSetup.ACTIVITY_KEY,
+                        state = SessionState.RECORDED,
+                        expectedActivity = context.second,
+                        expectedCategory = context.first,
+                        expectedRepetitions = 10,
+                    ),
+                    MasterRecording(
+                        recordingId = recordingId,
+                        sessionId = sessionId,
+                        filePath = training.storage.recording(recordingId),
+                        createdAtMs = date.atTime(12, 0).atZone(zone).toInstant().toEpochMilli(),
+                        durationUs = 1_000_000,
+                        sourceState = SourceState.AVAILABLE,
+                    ),
+                )
+            }
+        }) { it.getOrThrow(); seeded = true }
+        drainUntil { seeded }
+
+        // Robolectric does not run the manifest's AndroidX Startup ContentProvider.
+        runCatching { androidx.work.WorkManager.initialize(context, androidx.work.Configuration.Builder().build()) }
+        val activity = Robolectric.buildActivity(RecordingsActivity::class.java).setup()
+        try {
+            val root = activity.get().findViewById<View>(android.R.id.content)
+            fun textValues() = views(root).filterIsInstance<TextView>().map { it.text.toString() }
+            fun semantic(description: String) = views(root).single { it.contentDescription == description }
+            fun dateDescription(date: LocalDate, available: Boolean, selected: Boolean = false) =
+                "${date.format(DateTimeFormatter.ofPattern("d MMMM yyyy"))}, " +
+                    (if (available) "recordings available" else "no recordings") +
+                    (if (selected) ", selected" else "")
+            fun dayCell(date: LocalDate, available: Boolean, selected: Boolean = false) =
+                semantic(dateDescription(date, available, selected))
+            fun rowsFor(activityName: String) = views(root).filter {
+                it.isClickable && it.contentDescription?.toString()?.contains(". $activityName.") == true
+            }
+            fun monthLabel() = month.format(DateTimeFormatter.ofPattern("MMMM yyyy"))
+
+            drainUntil { "Recent recordings" in textValues() }
+            val previous = views(root).single { it.contentDescription == "Previous month" }
+            val next = views(root).single { it.contentDescription == "Next month" }
+            assertTrue(previous.isClickable && previous.isFocusable)
+            assertTrue(next.isClickable && next.isFocusable)
+            assertTrue(semantic("Recent recordings, selected").isClickable)
+            assertTrue(semantic("Today recordings").isClickable)
+
+            previous.performClick()
+            assertTrue(monthLabel() in textValues())
+            assertNotNull(dayCell(month.atDay(9), available = true))
+            assertNotNull(dayCell(month.atDay(8), available = true))
+            assertEquals(2, rowsFor("Alternating straight punches").size)
+            assertEquals(1, rowsFor("Front kicks").size)
+            assertTrue(rowsFor("Alternating straight punches").all {
+                it.contentDescription.toString().contains("Planned 10") &&
+                    it.contentDescription.toString().contains("Saved")
+            })
+
+            semantic("Filter recordings. Selected activity: All activities").performClick()
+            val filterDialog = ShadowDialog.getLatestDialog()
+            val dialogRoot = requireNotNull(filterDialog.window?.decorView)
+            val filterList = views(dialogRoot).filterIsInstance<ListView>().singleOrNull()
+            if (filterList != null) {
+                val punchesIndex = (0 until filterList.count).first {
+                    filterList.adapter.getItem(it).toString() == "Punches"
+                }
+                filterList.performItemClick(null, punchesIndex, filterList.adapter.getItemId(punchesIndex))
+            } else {
+                views(dialogRoot).first { option ->
+                    option.isClickable && views(option).filterIsInstance<TextView>().any { it.text == "Punches" }
+                }.performClick()
+            }
+            assertTrue(semantic("Filter recordings. Selected activity: Punches").isClickable)
+            assertEquals(2, rowsFor("Alternating straight punches").size)
+            assertEquals(0, rowsFor("Front kicks").size)
+            assertNotNull(dayCell(month.atDay(8), available = false))
+
+            val selectedDay = dayCell(month.atDay(9), available = true)
+            assertTrue(selectedDay.isClickable && selectedDay.isFocusable)
+            selectedDay.performClick()
+            assertTrue("9 ${month.format(DateTimeFormatter.ofPattern("MMMM yyyy"))}" in textValues())
+            assertNotNull(dayCell(month.atDay(9), available = true, selected = true))
+            assertEquals(1, rowsFor("Alternating straight punches").size)
+
+            val row = rowsFor("Alternating straight punches").single()
+            row.performClick()
+            assertTrue("Recording" in textValues())
+            assertTrue("Recording details" in textValues())
+
+            activity.get().onBackPressedDispatcher.onBackPressed()
+            assertTrue(semantic("Filter recordings. Selected activity: Punches").isClickable)
+            assertTrue("9 ${month.format(DateTimeFormatter.ofPattern("MMMM yyyy"))}" in textValues())
+            assertEquals(1, rowsFor("Alternating straight punches").size)
+            assertNotNull(dayCell(month.atDay(9), available = true, selected = true))
+            assertTrue(monthLabel() in textValues())
+        } finally { activity.pause().stop().destroy() }
+    }
 
     @Test fun exactFailedRecordingHasPlaybackRetryAndConfirmedDeletionWithoutPromotion() {
         // Robolectric does not run the manifest's AndroidX Startup ContentProvider.
