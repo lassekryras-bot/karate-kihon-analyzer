@@ -41,6 +41,10 @@ data class MovementPlotDefinition(
     val maxValue: Double = 1.0,
     val includeZero: Boolean = true,
     val accessibleSummary: String = "",
+    /** Disconnected analyzer-retained runs. Empty keeps legacy single-run callers compatible. */
+    val sampleSegments: List<List<PlotSample>> = emptyList(),
+    val logicalStartUs: Long? = null,
+    val logicalEndUs: Long? = null,
 )
 
 data class OverlayRay(
@@ -148,6 +152,7 @@ data class MovementPresentationData(
     val knownSampleTimestampsUs: List<Long>,
     val analysisNotice: String? = null,
     val motionInspectionRows: List<String> = emptyList(),
+    val motionInspectionPlotLinks: List<KeyResultItem> = emptyList(),
 )
 
 object MovementPresentationMapper {
@@ -204,10 +209,26 @@ object MovementPresentationMapper {
         else listOf("terminalUs" to "Terminal transition", "stableStartUs" to "Stable start", "stableEndUs" to "Stable end", "representativeUs" to "Measurement sample").forEach { (key, label) ->
             if (!motion.isNull(key)) namedEvents.add(NamedEvent(label, motion.getLong(key)))
         }
+        motion?.optJSONObject("sideSupportingEpisode")?.let { episode ->
+            if (episode.has("startUs")) namedEvents.add(NamedEvent("Side evidence start", episode.getLong("startUs")))
+            if (episode.has("endUs")) namedEvents.add(NamedEvent("Side evidence end", episode.getLong("endUs")))
+        }
         namedEvents.add(NamedEvent("Finish", movement.endUs))
 
-        // Continuous metric plots are not produced by the current recording analyzer.
+        // Retained analyzer-owned motion evidence only; presentation never recomputes a metric.
         val plotDefinitions = motion?.let(MovementMotionInspection::plots).orEmpty()
+
+        val motionInspectionPlotLinks = plotDefinitions.values.map { plot ->
+            KeyResultItem(
+                id = plot.key,
+                label = plot.label,
+                formattedValue = "View plot",
+                sublabel = "Retained evidence · degrees over time",
+                preferredMode = PlayerMode.GRAPH,
+                focusTimestampUs = plot.logicalStartUs ?: movement.startUs,
+                plotKey = plot.key,
+            )
+        }
 
         // Key Results
         val keyResults = mutableListOf<KeyResultItem>()
@@ -410,6 +431,7 @@ object MovementPresentationMapper {
             debugData = debugData,
             knownSampleTimestampsUs = knownSampleTimestampsUs,
             motionInspectionRows = motion?.let(MovementMotionInspection::rows).orEmpty(),
+            motionInspectionPlotLinks = motionInspectionPlotLinks,
             analysisNotice = when {
                 overlayDefinition == null -> "Analysis evidence is unavailable for this movement."
                 frames.isEmpty() -> "Landmark playback is unavailable. Showing retained target geometry."

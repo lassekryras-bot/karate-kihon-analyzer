@@ -136,6 +136,23 @@ class MovementGraphView(
         // Top boundary
         canvas.drawLine(left, top, right, top, paint)
 
+        // Distinguish the analyzed logical interval from playback-only padding.
+        val logicalStart = plot.logicalStartUs
+        val logicalEnd = plot.logicalEndUs
+        if (logicalStart != null && logicalEnd != null) {
+            paint.style = Paint.Style.FILL
+            paint.color = gridColor
+            paint.alpha = 80
+            canvas.drawRect(left, top, xForTime(logicalStart), bottom, paint)
+            canvas.drawRect(xForTime(logicalEnd), top, right, bottom, paint)
+            paint.alpha = 255
+            paint.style = Paint.Style.STROKE
+            paint.color = secondaryColor
+            paint.strokeWidth = 1.5f * density
+            canvas.drawLine(xForTime(logicalStart), top, xForTime(logicalStart), bottom, paint)
+            canvas.drawLine(xForTime(logicalEnd), top, xForTime(logicalEnd), bottom, paint)
+        }
+
         // Axis labels
         textPaint.color = secondaryColor
         textPaint.typeface = Typeface.DEFAULT
@@ -150,16 +167,19 @@ class MovementGraphView(
         canvas.drawText(endText, right - endTextW, bottom + 18f * density, textPaint)
 
         // Plot curve
-        val path = Path()
-        plot.samples.forEachIndexed { i, s ->
-            val px = xForTime(s.timestampUs)
-            val py = yForVal(s.value)
-            if (i == 0) path.moveTo(px, py) else path.lineTo(px, py)
-        }
         paint.color = accentColor
         paint.strokeWidth = 2.5f * density
         paint.style = Paint.Style.STROKE
-        canvas.drawPath(path, paint)
+        val segments = plot.sampleSegments.ifEmpty { listOf(plot.samples) }
+        segments.forEach { segment ->
+            val path = Path()
+            segment.forEachIndexed { i, s ->
+                val px = xForTime(s.timestampUs)
+                val py = yForVal(s.value)
+                if (i == 0) path.moveTo(px, py) else path.lineTo(px, py)
+            }
+            canvas.drawPath(path, paint)
+        }
 
         // Peak marker ring
         plot.peakSample?.let { peak ->
@@ -180,7 +200,11 @@ class MovementGraphView(
         canvas.drawLine(cursorX, top, cursorX, bottom, paint)
 
         // Find nearest sample to cursor
-        val nearestSample = plot.samples.minByOrNull { abs(it.timestampUs - cursorTime) }
+        // Do not project a retained value across an evidence gap.
+        val activeSegment = segments.firstOrNull { segment ->
+            segment.isNotEmpty() && cursorTime in segment.first().timestampUs..segment.last().timestampUs
+        }
+        val nearestSample = activeSegment?.minByOrNull { abs(it.timestampUs - cursorTime) }
         if (nearestSample != null) {
             val dotY = yForVal(nearestSample.value)
             paint.style = Paint.Style.FILL

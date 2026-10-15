@@ -336,6 +336,16 @@ class MovementDetailActivity : AppCompatActivity() {
                 data.motionInspectionRows.forEach { row ->
                     addView(TextView(this@MovementDetailActivity).apply { text = row; textSize = 14f; setPadding(0, 12.dp(), 0, 0) })
                 }
+                if (data.motionInspectionPlotLinks.isNotEmpty()) {
+                    addView(TextView(this@MovementDetailActivity).apply {
+                        text = "Joint angle plots"
+                        textSize = 14f
+                        typeface = Typeface.create("sans-serif", Typeface.BOLD)
+                        setTextColor(ContextCompat.getColor(this@MovementDetailActivity, R.color.app_text_primary))
+                        setPadding(0, 16.dp(), 0, 4.dp())
+                    })
+                    data.motionInspectionPlotLinks.forEach { item -> addView(buildKeyResultRow(item, data)) }
+                }
             }, LinearLayout.LayoutParams(-1, -2).apply { topMargin = 12.dp() })
         }
 

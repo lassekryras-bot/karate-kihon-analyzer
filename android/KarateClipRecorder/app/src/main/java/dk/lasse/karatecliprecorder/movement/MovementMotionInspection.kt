@@ -24,6 +24,12 @@ object MovementMotionInspection {
         add("Activity: ${value("activity")} · side: ${value("side")}")
         add("Side evidence: ${value("sideReason")} · alternation: ${value("alternationStatus")}")
         if (j.has("sideEvidenceMode")) add("Side evidence mode: ${value("sideEvidenceMode")}")
+        j.optJSONObject("sideSupportingEpisode")?.let { episode ->
+            val start = episode.optLong("startUs") / 1_000_000.0
+            val end = episode.optLong("endUs") / 1_000_000.0
+            val excursion = if (episode.isNull("excursionDeg")) "unavailable" else "%.1f°".format(episode.getDouble("excursionDeg"))
+            add("Supporting episode: ${episode.optString("limb", "Unavailable")} · %.3f–%.3f s · excursion %s".format(start, end, excursion))
+        }
         add("Terminal analysis: ${value("impactStatus")} · ${value("impactReason")}")
         val calibration = j.optJSONObject("calibration")
         add(if (calibration == null) "Image height: not calibrated" else "Image height reference: frame ${calibration.optInt("frameIndex") + 1} · ${calibration.optString("method")}")
@@ -41,18 +47,37 @@ object MovementMotionInspection {
         for (i in 0 until profiles.length()) {
             val p = profiles.getJSONObject(i)
             val samples = p.getJSONArray("samples")
-            val blocks = linkedMapOf<Int, MutableList<PlotSample>>()
+            val segments = mutableListOf<MutableList<PlotSample>>()
+            var activeBlock: Int? = null
             for (k in 0 until samples.length()) {
                 val s = samples.getJSONObject(k)
-                if (!s.isNull("angleDeg") && !s.isNull("block")) blocks.getOrPut(s.getInt("block")) { mutableListOf() }
-                    .add(PlotSample(s.getLong("timeUs"), s.getDouble("angleDeg")))
-            }
-            blocks.forEach { (block, points) ->
-                if (points.size >= 2) {
-                    val key = "${p.getString("limb")}_angle_$block"
-                    put(key, MovementPlotDefinition(key, "${p.getString("limb")} angle · block ${block + 1}", "°", points,
-                        minValue = 0.0, maxValue = 180.0, accessibleSummary = "Retained joint angles. Evidence gaps use separate plots."))
+                if (s.isNull("angleDeg") || s.isNull("block")) {
+                    activeBlock = null
+                    continue
                 }
+                val block = s.getInt("block")
+                if (activeBlock != block) {
+                    segments.add(mutableListOf())
+                    activeBlock = block
+                }
+                segments.last().add(PlotSample(s.getLong("timeUs"), s.getDouble("angleDeg")))
+            }
+            val retainedSegments = segments.filter { it.size >= 2 }
+            if (retainedSegments.isNotEmpty()) {
+                val limb = p.getString("limb")
+                val sideLabel = when (limb) {
+                    "LEFT_ARM" -> "Left elbow angle"
+                    "RIGHT_ARM" -> "Right elbow angle"
+                    "LEFT_LEG" -> "Left knee angle"
+                    "RIGHT_LEG" -> "Right knee angle"
+                    else -> "$limb angle"
+                }
+                val key = "${limb}_angle"
+                put(key, MovementPlotDefinition(key, sideLabel, "°", retainedSegments.flatten(),
+                    minValue = 0.0, maxValue = 180.0,
+                    accessibleSummary = "$sideLabel in degrees over the logical movement interval. Missing evidence is shown as gaps.",
+                    sampleSegments = retainedSegments,
+                    logicalStartUs = j.optLong("logicalStartUs"), logicalEndUs = j.optLong("logicalEndUs")))
             }
         }
     }
