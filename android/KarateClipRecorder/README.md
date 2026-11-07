@@ -37,8 +37,10 @@ Physical-device acceptance is pending.
 ## Lite to Heavy processing prototype
 
 Debug builds include an isolated developer tool for comparing full-recording
-Lite pose discovery with Heavy pose processing limited to padded candidate
-windows. It does not replace or update the recording's production analysis.
+Lite pose discovery with Heavy pose processing limited to the union of padded
+candidate windows. Individual candidates and padded requests remain in the
+manifest, while overlapping or touching requests are merged before inference.
+It does not replace or update the recording's production analysis.
 
 To run it on a phone:
 
@@ -56,8 +58,16 @@ geometry compatibility, timing, candidates, windows and typed uncertainties.
 An empty Lite discovery is reported as requiring a full-Heavy fallback; it is
 never treated as evidence that the recording contains no movement.
 The artifact publication is all-or-nothing and has no resume behavior. The
-completion count is per Heavy window and may include overlapping duplicates;
-the prototype does not run a comparative full-Heavy baseline.
+next prototype entry discards abandoned prototype-owned `.pending` directories
+left by process death. Entry is serialized on the existing processing executor;
+cleanup does not attempt to detect concurrent runners. A separate developer action runs an isolated full-video
+Heavy comparator with the same source/model/config provenance. Neither action
+registers its output as production analysis.
+
+Builds record the installed APK hash as their exact binary identity. Source
+revision and dirty state are optional build inputs (`KARATE_SOURCE_REVISION` and
+`KARATE_SOURCE_DIRTY_STATE`) and remain `unknown` for ordinary archive builds
+unless supplied explicitly.
 
 Video capture and the Ready? — Osu selfie now share one CameraX backend and one
 Room-backed persistence coordinator. Callers provide a typed video/photo request;

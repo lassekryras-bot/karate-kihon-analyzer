@@ -7,6 +7,9 @@ plugins {
     id("androidx.room")
 }
 
+val sourceRevision = providers.environmentVariable("KARATE_SOURCE_REVISION").orElse("unknown")
+val sourceDirtyState = providers.environmentVariable("KARATE_SOURCE_DIRTY_STATE").orElse("unknown")
+
 android {
     namespace = "dk.lasse.karatecliprecorder"
     compileSdk = 35
@@ -21,6 +24,8 @@ android {
         targetSdk = 35
         versionCode = 1
         versionName = "0.1.0"
+        buildConfigField("String", "SOURCE_REVISION", "\"${sourceRevision.get()}\"")
+        buildConfigField("String", "SOURCE_DIRTY_STATE", "\"${sourceDirtyState.get()}\"")
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 

@@ -29,6 +29,16 @@ data class LiteHeavyPrototypeRunResult(
     val totalElapsedMs: Long,
 )
 
+data class FullHeavyComparatorRunResult(
+    val prototypeId: String,
+    val artifactDirectory: File,
+    val manifestFile: File,
+    val heavyTrack: PrototypeTrackProvenance,
+    val finalMovements: List<PrototypeFinalMovementInterval>,
+    val heavyElapsedMs: Long,
+    val totalElapsedMs: Long,
+)
+
 /**
  * Isolated developer prototype. It publishes files only below [outputRoot] and never writes Room,
  * recording state, production landmark tracks, movements, runs, calibration, or queue state.
@@ -42,11 +52,17 @@ class LiteHeavyPrototypeRunner(
     private val segmenterConfig: RetrospectiveSegmenterConfig,
     private val canonicalGeometry: CanonicalGeometryDescriptor,
     private val appBuildIdentity: String,
+    private val sourceRevision: String = "unknown",
+    private val sourceDirtyState: String = "unknown",
+    private val apkSha256: String = "unknown",
+    private val deviceConditions: String = "unknown",
+    private val serializedPrototypeEntry: Boolean,
     private val paddingBeforeMs: Long = 1_000,
     private val paddingAfterMs: Long = 1_000,
     private val checkActive: () -> Unit = {},
     private val publication: (() -> Unit) -> Unit = { it() },
     private val elapsedRealtimeMs: () -> Long = { android.os.SystemClock.elapsedRealtime() },
+    private val wallClockMs: () -> Long = { System.currentTimeMillis() },
     private val idFactory: () -> String = { UUID.randomUUID().toString() },
     private val segment: (String, String, List<PoseFrame>) -> RetrospectiveSessionResult =
         { sequenceId, path, frames ->
@@ -59,15 +75,21 @@ class LiteHeavyPrototypeRunner(
         require(sourceDurationMs > 0)
         require(canonicalGeometry.isAvailable && canonicalGeometry.recordingId == recordingId)
         require(appBuildIdentity.isNotBlank())
+        require(sourceRevision.isNotBlank() && sourceDirtyState.isNotBlank())
+        require(apkSha256.isNotBlank() && deviceConditions.isNotBlank())
+        require(serializedPrototypeEntry) { "Prototype staging cleanup requires serialized entry" }
         checkActive()
 
         val prototypeId = idFactory()
         require(prototypeId.isNotBlank())
         val recordingRoot = File(outputRoot, recordingId)
+        val runSequenceIndex = completedRunCount(recordingRoot) + 1
+        val startedAtEpochMs = wallClockMs()
         val staging = File(recordingRoot, "$prototypeId.pending")
         val published = File(recordingRoot, prototypeId)
         check(!staging.exists() && !published.exists()) { "Prototype ID cannot be reused" }
         check(staging.mkdirs()) { "Could not create prototype staging directory" }
+        discardAbandonedStaging(recordingRoot, staging)
 
         val totalStarted = elapsedRealtimeMs()
         try {
@@ -114,7 +136,7 @@ class LiteHeavyPrototypeRunner(
             )
 
             var heavyElapsedMs = 0L
-            val outcomes = plan.windows.map { request ->
+            val outcomes = plan.executionWindows.map { request ->
                 checkActive()
                 val heavyStarted = elapsedRealtimeMs()
                 val extracted = heavyProcessor.processWindow(
@@ -124,11 +146,11 @@ class LiteHeavyPrototypeRunner(
                 val elapsed = (elapsedRealtimeMs() - heavyStarted).coerceAtLeast(0)
                 heavyElapsedMs += elapsed
                 require(extracted.frames.isNotEmpty()) {
-                    "Heavy ${request.windowId} produced no frames in requested source-time window"
+                    "Heavy ${request.executionWindowId} produced no frames in requested source-time window"
                 }
 
-                val heavyTrackId = "heavy-$prototypeId-${request.windowId}"
-                val heavyFile = File(staging, "${request.windowId}.mls")
+                val heavyTrackId = "heavy-$prototypeId-${request.executionWindowId}"
+                val heavyFile = File(staging, "${request.executionWindowId}.mls")
                 val heavyContentHash = LandmarkFiles.write(
                     heavyFile,
                     extracted.frames,
@@ -150,7 +172,7 @@ class LiteHeavyPrototypeRunner(
                     sourceContentHash = sourceContentHash,
                 )
                 val segmentation = segment(
-                    "${recordingId}:${request.windowId}",
+                    "${recordingId}:${request.executionWindowId}",
                     videoFile.absolutePath,
                     extracted.frames,
                 )
@@ -203,6 +225,8 @@ class LiteHeavyPrototypeRunner(
                 heavyElapsedMs,
                 totalElapsedMs,
                 sourceContentHash,
+                runSequenceIndex,
+                startedAtEpochMs,
             )
             val manifestFile = File(staging, "manifest.json")
             writeDurably(manifestFile, manifest.toString(2))
@@ -222,6 +246,94 @@ class LiteHeavyPrototypeRunner(
                 liteElapsedMs = liteElapsedMs,
                 heavyElapsedMs = heavyElapsedMs,
                 totalElapsedMs = totalElapsedMs,
+            )
+        } catch (error: Exception) {
+            staging.deleteRecursively()
+            throw error
+        }
+    }
+
+    fun runFullHeavyComparator(
+        recordingId: String,
+        videoFile: File,
+        sourceDurationMs: Long,
+    ): FullHeavyComparatorRunResult {
+        require(recordingId.isNotBlank())
+        require(videoFile.isFile) { "Comparator source video is unavailable: ${videoFile.absolutePath}" }
+        require(sourceDurationMs > 0)
+        require(canonicalGeometry.isAvailable && canonicalGeometry.recordingId == recordingId)
+        checkActive()
+
+        val prototypeId = "full-heavy-${idFactory()}"
+        val recordingRoot = File(outputRoot, recordingId)
+        val runSequenceIndex = completedRunCount(recordingRoot) + 1
+        val startedAtEpochMs = wallClockMs()
+        val staging = File(recordingRoot, "$prototypeId.pending")
+        val published = File(recordingRoot, prototypeId)
+        check(!staging.exists() && !published.exists())
+        check(staging.mkdirs())
+        discardAbandonedStaging(recordingRoot, staging)
+        val totalStarted = elapsedRealtimeMs()
+        try {
+            val sourceContentHash = videoFile.inputStream().use(LandmarkFiles::sha256)
+            val heavyStarted = elapsedRealtimeMs()
+            val frames = heavyProcessor.processVideo(videoFile) { _, _ -> checkActive() }
+            val heavyElapsedMs = (elapsedRealtimeMs() - heavyStarted).coerceAtLeast(0)
+            require(frames.isNotEmpty()) { "Full-Heavy comparator produced no landmark frames" }
+            require(frames.last().timestampMs <= sourceDurationMs)
+            val trackId = "heavy-full-$prototypeId"
+            val trackFile = File(staging, "heavy-full.mls")
+            val contentHash = LandmarkFiles.write(trackFile, frames, checkActive, publication)
+            val track = trackProvenance(
+                recordingId = recordingId,
+                trackId = trackId,
+                role = PrototypeTrackRole.FULL_HEAVY_COMPARATOR,
+                model = heavyModel,
+                file = trackFile,
+                contentHash = contentHash,
+                requestedStartMs = 0,
+                requestedEndMs = sourceDurationMs,
+                frames = frames,
+                elapsedMs = heavyElapsedMs,
+                geometryCompatibilityKey = geometryCompatibilityKey(canonicalGeometry),
+                sourceContentHash = sourceContentHash,
+            )
+            val segmentation = segment("$recordingId:full-heavy", videoFile.absolutePath, frames)
+            val movements = segmentation.movements.map { movement ->
+                PrototypeFinalMovementInterval(
+                    movement.logicalStartTimestampMs,
+                    movement.logicalEndTimestampMs,
+                    movement.endBoundaryKind,
+                    movement.unknownEvidenceIntervals,
+                )
+            }
+            val totalElapsedMs = (elapsedRealtimeMs() - totalStarted).coerceAtLeast(0)
+            val manifest = fullHeavyManifestJson(
+                prototypeId,
+                sourceDurationMs,
+                sourceContentHash,
+                track,
+                movements,
+                heavyElapsedMs,
+                totalElapsedMs,
+                runSequenceIndex,
+                startedAtEpochMs,
+            )
+            val manifestFile = File(staging, "manifest.json")
+            writeDurably(manifestFile, manifest.toString(2))
+            publication {
+                checkActive()
+                check(recordingRoot.isDirectory || recordingRoot.mkdirs())
+                check(!published.exists() && staging.renameTo(published))
+            }
+            return FullHeavyComparatorRunResult(
+                prototypeId,
+                published,
+                File(published, manifestFile.name),
+                track,
+                movements,
+                heavyElapsedMs,
+                totalElapsedMs,
             )
         } catch (error: Exception) {
             staging.deleteRecursively()
@@ -344,47 +456,117 @@ class LiteHeavyPrototypeRunner(
         heavyElapsedMs: Long,
         totalElapsedMs: Long,
         sourceContentHash: String,
+        runSequenceIndex: Int,
+        startedAtEpochMs: Long,
     ) = JSONObject().apply {
-        put("schema", "lite-heavy-prototype-manifest-v1")
+        put("schema", "lite-heavy-prototype-manifest-v2")
         put("prototypeId", prototypeId)
         put("recordingId", plan.recordingId)
         put("sourceContentSha256", sourceContentHash)
         put("sourceDurationMs", plan.sourceDurationMs)
         put("appBuildIdentity", appBuildIdentity)
+        put("sourceRevision", sourceRevision)
+        put("sourceDirtyState", sourceDirtyState)
+        put("apkSha256", apkSha256)
+        put("deviceConditions", deviceConditions)
+        put("runSequenceIndex", runSequenceIndex)
+        put("startedAtEpochMs", startedAtEpochMs)
         put("productionActivated", false)
         put("calibrationApplied", false)
         put("publicationSemantics", "all-or-nothing-no-resume-v1")
+        put("abandonedStagingPolicy", "discard-prior-pending-under-serialized-entry-v2")
         put("canonicalGeometry", JSONObject(CanonicalGeometryCodec.encode(geometry.copy(landmarkTrackId = null))))
         put("prototypeConfigKey", plan.prototypeConfigKey)
         put("paddingPolicyKey", plan.paddingPolicyKey)
         put("paddingBeforeMs", plan.paddingBeforeMs)
         put("paddingAfterMs", plan.paddingAfterMs)
+        put("requestedCoverageSumMs", plan.requestedCoverageSumMs)
+        put("executionCoverageUnionMs", plan.executionCoverageUnionMs)
         put("segmenterConfig", segmenterConfigJson(segmenterConfig))
         put("discoveryDisposition", plan.discoveryDisposition.name)
         put("liteElapsedMs", liteElapsedMs)
         put("heavyElapsedMs", heavyElapsedMs)
         put("totalElapsedMs", totalElapsedMs)
         put("liteTrack", trackJson(plan.liteTrack))
-        put("windows", JSONArray(outcomes.map { outcomeJson(it) }))
+        put("candidateWindows", JSONArray(plan.windows.map { candidateWindowJson(it) }))
+        put("executionWindows", JSONArray(outcomes.map { outcomeJson(it) }))
+    }
+
+    private fun candidateWindowJson(window: PrototypeHeavyWindowRequest) = JSONObject().apply {
+        put("windowId", window.windowId)
+        put("candidateId", window.candidate.candidateId)
+        put("candidateKind", window.candidate.kind.name)
+        put("candidateStartTimestampMs", window.candidate.startTimestampMs)
+        put("candidateEndTimestampMs", window.candidate.endTimestampMs)
+        put("requestedStartTimestampMs", window.requestedStartTimestampMs)
+        put("requestedEndTimestampMs", window.requestedEndTimestampMs)
+        put("truncatedAtRecordingStart", window.truncatedAtRecordingStart)
+        put("truncatedAtRecordingEnd", window.truncatedAtRecordingEnd)
+        put("overlappingWindowIds", JSONArray(window.overlappingWindowIds))
     }
 
     private fun outcomeJson(outcome: PrototypeHeavyWindowOutcome) = JSONObject().apply {
         val request = outcome.request
-        put("windowId", request.windowId)
-        put("candidateId", request.candidate.candidateId)
-        put("candidateKind", request.candidate.kind.name)
-        put("candidateStartTimestampMs", request.candidate.startTimestampMs)
-        put("candidateEndTimestampMs", request.candidate.endTimestampMs)
+        put("executionWindowId", request.executionWindowId)
+        put("candidateWindowIds", JSONArray(request.candidateWindowIds))
         put("requestedStartTimestampMs", request.requestedStartTimestampMs)
         put("requestedEndTimestampMs", request.requestedEndTimestampMs)
         put("truncatedAtRecordingStart", request.truncatedAtRecordingStart)
         put("truncatedAtRecordingEnd", request.truncatedAtRecordingEnd)
-        put("overlappingWindowIds", JSONArray(request.overlappingWindowIds))
         put("state", outcome.state.name)
         put("heavyTrack", outcome.heavyTrack?.let(::trackJson) ?: JSONObject.NULL)
         put("uncertainty", JSONArray(outcome.uncertainty.map { it.name }.sorted()))
         put("failureReason", outcome.failureReason ?: JSONObject.NULL)
         put("finalMovements", JSONArray(outcome.finalMovements.map { movement ->
+            JSONObject().apply {
+                put("startTimestampMs", movement.startTimestampMs)
+                put("endTimestampMs", movement.endTimestampMs)
+                put("endBoundaryKind", movement.endBoundaryKind.name)
+                put("unknownEvidenceIntervals", JSONArray(movement.unknownEvidenceIntervals.map { unknown ->
+                    JSONObject().put("startTimestampMs", unknown.startTimestampMs)
+                        .put("endTimestampMs", unknown.endTimestampMs)
+                }))
+            }
+        }))
+    }
+
+    private fun fullHeavyManifestJson(
+        prototypeId: String,
+        sourceDurationMs: Long,
+        sourceContentHash: String,
+        heavyTrack: PrototypeTrackProvenance,
+        movements: List<PrototypeFinalMovementInterval>,
+        heavyElapsedMs: Long,
+        totalElapsedMs: Long,
+        runSequenceIndex: Int,
+        startedAtEpochMs: Long,
+    ) = JSONObject().apply {
+        put("schema", "full-heavy-comparator-manifest-v1")
+        put("prototypeId", prototypeId)
+        put("recordingId", heavyTrack.recordingId)
+        put("sourceDurationMs", sourceDurationMs)
+        put("sourceContentSha256", sourceContentHash)
+        put("appBuildIdentity", appBuildIdentity)
+        put("sourceRevision", sourceRevision)
+        put("sourceDirtyState", sourceDirtyState)
+        put("apkSha256", apkSha256)
+        put("deviceConditions", deviceConditions)
+        put("runSequenceIndex", runSequenceIndex)
+        put("startedAtEpochMs", startedAtEpochMs)
+        put("productionActivated", false)
+        put("calibrationApplied", false)
+        put("publicationSemantics", "all-or-nothing-no-resume-v1")
+        put("abandonedStagingPolicy", "discard-prior-pending-under-serialized-entry-v2")
+        put("runKind", "FULL_HEAVY_COMPARATOR")
+        put("runOrder", "recording-prototype-sequence-$runSequenceIndex")
+        put("windowCount", 1)
+        put("trackerResetCount", 1)
+        put("heavyElapsedMs", heavyElapsedMs)
+        put("totalElapsedMs", totalElapsedMs)
+        put("segmenterConfig", segmenterConfigJson(segmenterConfig))
+        put("canonicalGeometry", JSONObject(CanonicalGeometryCodec.encode(canonicalGeometry.copy(landmarkTrackId = null))))
+        put("heavyTrack", trackJson(heavyTrack))
+        put("finalMovements", JSONArray(movements.map { movement ->
             JSONObject().apply {
                 put("startTimestampMs", movement.startTimestampMs)
                 put("endTimestampMs", movement.endTimestampMs)
@@ -462,4 +644,30 @@ class LiteHeavyPrototypeRunner(
             stream.fd.sync()
         }
     }
+
+    private fun discardAbandonedStaging(recordingRoot: File, activeStaging: File) {
+        check(serializedPrototypeEntry)
+        val canonicalRoot = recordingRoot.canonicalFile
+        val canonicalActive = activeStaging.canonicalFile
+        recordingRoot.listFiles()
+            .orEmpty()
+            .filter { it.name.endsWith(".pending") }
+            .forEach { candidate ->
+                val canonicalCandidate = candidate.canonicalFile
+                check(canonicalCandidate.parentFile == canonicalRoot) {
+                    "Prototype staging escapes recording root: ${candidate.absolutePath}"
+                }
+                if (canonicalCandidate == canonicalActive) return@forEach
+                check(candidate.isDirectory) {
+                    "Prototype pending path is not a directory: ${candidate.absolutePath}"
+                }
+                check(canonicalCandidate.deleteRecursively()) {
+                    "Could not discard abandoned prototype staging: ${candidate.absolutePath}"
+                }
+            }
+    }
+
+    private fun completedRunCount(recordingRoot: File): Int = recordingRoot.listFiles()
+        .orEmpty()
+        .count { it.isDirectory && !it.name.endsWith(".pending") && File(it, "manifest.json").isFile }
 }

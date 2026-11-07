@@ -5,7 +5,7 @@ import dk.lasse.karateanalyzer.capture.qom.QomUnknownEvidenceInterval
 import dk.lasse.karateanalyzer.geometry.CanonicalGeometryDescriptor
 
 /** Isolated prototype roles. Production recording processing does not consume these values. */
-enum class PrototypeTrackRole { LITE_DISCOVERY, HEAVY_WINDOW }
+enum class PrototypeTrackRole { LITE_DISCOVERY, HEAVY_WINDOW, FULL_HEAVY_COMPARATOR }
 
 /**
  * Track identity and source-time coverage retained by the Lite/Heavy prototype.
@@ -92,6 +92,27 @@ data class PrototypeHeavyWindowRequest(
     val overlappingWindowIds: List<String>,
 )
 
+/** Disjoint Heavy inference request produced by unioning overlapping or touching candidate windows. */
+data class PrototypeHeavyExecutionWindow(
+    val executionWindowId: String,
+    val recordingId: String,
+    val discoveryTrackId: String,
+    val geometryCompatibilityKey: String,
+    val candidateWindowIds: List<String>,
+    val requestedStartTimestampMs: Long,
+    val requestedEndTimestampMs: Long,
+    val truncatedAtRecordingStart: Boolean,
+    val truncatedAtRecordingEnd: Boolean,
+) {
+    init {
+        require(executionWindowId.isNotBlank())
+        require(candidateWindowIds.isNotEmpty())
+        require(candidateWindowIds.distinct().size == candidateWindowIds.size)
+        require(requestedStartTimestampMs >= 0)
+        require(requestedEndTimestampMs > requestedStartTimestampMs)
+    }
+}
+
 data class LiteHeavyPrototypePlan(
     val recordingId: String,
     val sourceDurationMs: Long,
@@ -102,6 +123,9 @@ data class LiteHeavyPrototypePlan(
     val paddingPolicyKey: String,
     val discoveryDisposition: PrototypeDiscoveryDisposition,
     val windows: List<PrototypeHeavyWindowRequest>,
+    val executionWindows: List<PrototypeHeavyExecutionWindow>,
+    val requestedCoverageSumMs: Long,
+    val executionCoverageUnionMs: Long,
 )
 
 enum class PrototypeDiscoveryDisposition { WINDOWS_PLANNED, FULL_HEAVY_FALLBACK_REQUIRED }
@@ -118,7 +142,7 @@ object LiteHeavyPrototypePlanner {
         candidates: List<PrototypeCandidateInterval>,
         paddingBeforeMs: Long,
         paddingAfterMs: Long,
-        prototypeConfigKey: String = "lite-heavy-prototype-v1",
+        prototypeConfigKey: String = "lite-heavy-prototype-v2",
         paddingPolicyKey: String = "provisional-fixed-padding-v1",
     ): LiteHeavyPrototypePlan {
         require(recordingId.isNotBlank())
@@ -164,6 +188,28 @@ object LiteHeavyPrototypePlanner {
                     .toList(),
             )
         }
+        val executionGroups = linked.fold(mutableListOf<MutableList<PrototypeHeavyWindowRequest>>()) { groups, window ->
+            val last = groups.lastOrNull()
+            if (last == null || window.requestedStartTimestampMs > last.maxOf { it.requestedEndTimestampMs }) {
+                groups += mutableListOf(window)
+            } else {
+                last += window
+            }
+            groups
+        }
+        val executionWindows = executionGroups.mapIndexed { index, group ->
+            PrototypeHeavyExecutionWindow(
+                executionWindowId = "heavy-execution-${index + 1}",
+                recordingId = recordingId,
+                discoveryTrackId = liteTrack.landmarkTrackId,
+                geometryCompatibilityKey = liteTrack.geometryCompatibilityKey,
+                candidateWindowIds = group.map { it.windowId },
+                requestedStartTimestampMs = group.minOf { it.requestedStartTimestampMs },
+                requestedEndTimestampMs = group.maxOf { it.requestedEndTimestampMs },
+                truncatedAtRecordingStart = group.any { it.truncatedAtRecordingStart },
+                truncatedAtRecordingEnd = group.any { it.truncatedAtRecordingEnd },
+            )
+        }
         return LiteHeavyPrototypePlan(
             recordingId = recordingId,
             sourceDurationMs = sourceDurationMs,
@@ -175,6 +221,13 @@ object LiteHeavyPrototypePlanner {
             discoveryDisposition = if (linked.isEmpty()) PrototypeDiscoveryDisposition.FULL_HEAVY_FALLBACK_REQUIRED
                 else PrototypeDiscoveryDisposition.WINDOWS_PLANNED,
             windows = linked,
+            executionWindows = executionWindows,
+            requestedCoverageSumMs = linked.sumOf {
+                it.requestedEndTimestampMs - it.requestedStartTimestampMs
+            },
+            executionCoverageUnionMs = executionWindows.sumOf {
+                it.requestedEndTimestampMs - it.requestedStartTimestampMs
+            },
         )
     }
 }
@@ -206,7 +259,7 @@ enum class PrototypeWindowUncertainty {
 
 /** Heavy evidence outcome. Zero, one, or multiple final movements are all valid outcomes. */
 data class PrototypeHeavyWindowOutcome(
-    val request: PrototypeHeavyWindowRequest,
+    val request: PrototypeHeavyExecutionWindow,
     val state: PrototypeWindowState,
     val heavyTrack: PrototypeTrackProvenance?,
     val finalMovements: List<PrototypeFinalMovementInterval>,

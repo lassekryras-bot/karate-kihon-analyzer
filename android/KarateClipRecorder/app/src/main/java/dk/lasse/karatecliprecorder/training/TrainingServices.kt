@@ -174,70 +174,104 @@ class TrainingServices private constructor(context: Context) {
     ) {
         processingExecutor.execute {
             val result = runCatching {
-                val session = requireNotNull(repository.session(sessionId))
-                val recording = requireNotNull(repository.recording(sessionId))
-                check(recording.sourceState == SourceState.AVAILABLE) { "Original video is unavailable" }
-                val video = repository.file(recording.filePath)
-                check(video.isFile) { "Original video is unavailable" }
-                val sourceDurationMs = requireNotNull(recording.durationUs) { "Recording duration is unavailable" } / 1_000L
-                check(sourceDurationMs > 0) { "Recording duration is unavailable" }
-
-                val liteConfig = dk.lasse.karatecliprecorder.mediapipeposeadapter.PoseLandmarkerConfig.litePrototype()
-                val heavyConfig = offlinePoseConfig()
-                check(heavyConfig.variant == dk.lasse.karatecliprecorder.mediapipeposeadapter.PoseLandmarkerVariant.HEAVY) {
-                    "Heavy Pose Landmarker asset is unavailable"
-                }
-                fun identity(config: dk.lasse.karatecliprecorder.mediapipeposeadapter.PoseLandmarkerConfig): PrototypeModelAssetIdentity {
-                    val hash = app.assets.open(config.assetPath).use(LandmarkFiles::sha256)
-                    return PrototypeModelAssetIdentity(
-                        modelKey = config.variant.variantKey,
-                        sha256 = hash,
-                        pipelineConfiguration = config.trackConfiguration(),
-                    )
-                }
-                val geometry = CanonicalGeometryStorageAdapter.resolveTrackGeometry(
-                    recording = recording,
-                    track = null,
-                    fileResolver = { repository.file(it) },
-                )
-                check(geometry.isAvailable) { "Canonical recording geometry is unavailable" }
-                val activityPlanEvidence = MotionActivityPlans.evidenceFromEvents(repository.events(sessionId))
-                val processingPlan = RecordingProcessingPlans.forSession(session, activityPlanEvidence?.context)
-                val runner = LiteHeavyPrototypeRunner(
-                    outputRoot = File(app.filesDir, "training/prototypes"),
-                    liteProcessor = SequentialVideoPoseDecoder(
-                        app,
-                        liteConfig.delegate,
-                        liteConfig.assetPath,
-                    ),
-                    heavyProcessor = SequentialVideoPoseDecoder(
-                        app,
-                        heavyConfig.delegate,
-                        heavyConfig.assetPath,
-                    ),
-                    liteModel = identity(liteConfig),
-                    heavyModel = identity(heavyConfig),
-                    segmenterConfig = dk.lasse.karateanalyzer.capture.retrospective.RetrospectiveSegmenterConfig(
-                        profile = processingPlan.movementProfile,
-                        qomConfig = processingPlan.qomConfig,
-                        cadence = dk.lasse.karateanalyzer.capture.retrospective.RetrospectiveCadence.REPETITIONS,
-                    ),
-                    canonicalGeometry = geometry,
-                    appBuildIdentity = "app-version=${dk.lasse.karatecliprecorder.BuildConfig.VERSION_NAME};" +
-                        "version-code=${dk.lasse.karatecliprecorder.BuildConfig.VERSION_CODE};" +
-                        "debug=${dk.lasse.karatecliprecorder.BuildConfig.DEBUG}",
-                    checkActive = {
-                        val job = repository.job(sessionId)
-                        check(job == null || job.state != QueueState.DELETING) { "Cancelled" }
-                    },
-                    publication = { operation ->
-                        synchronized(ProcessingCoordinator.publication) { operation() }
-                    },
-                )
-                runner.run(recording.recordingId, video, sourceDurationMs)
+                val invocation = prototypeInvocation(sessionId)
+                invocation.runner.run(invocation.recordingId, invocation.video, invocation.sourceDurationMs)
             }
             main.post { completed(result) }
         }
+    }
+
+    fun runFullHeavyComparator(
+        sessionId: String,
+        completed: (Result<FullHeavyComparatorRunResult>) -> Unit = {},
+    ) {
+        processingExecutor.execute {
+            val result = runCatching {
+                val invocation = prototypeInvocation(sessionId)
+                invocation.runner.runFullHeavyComparator(
+                    invocation.recordingId,
+                    invocation.video,
+                    invocation.sourceDurationMs,
+                )
+            }
+            main.post { completed(result) }
+        }
+    }
+
+    private data class PrototypeInvocation(
+        val runner: LiteHeavyPrototypeRunner,
+        val recordingId: String,
+        val video: File,
+        val sourceDurationMs: Long,
+    )
+
+    private fun prototypeInvocation(sessionId: String): PrototypeInvocation {
+        val session = requireNotNull(repository.session(sessionId))
+        val recording = requireNotNull(repository.recording(sessionId))
+        check(recording.sourceState == SourceState.AVAILABLE) { "Original video is unavailable" }
+        val video = repository.file(recording.filePath)
+        check(video.isFile) { "Original video is unavailable" }
+        val sourceDurationMs = requireNotNull(recording.durationUs) { "Recording duration is unavailable" } / 1_000L
+        check(sourceDurationMs > 0) { "Recording duration is unavailable" }
+        val liteConfig = dk.lasse.karatecliprecorder.mediapipeposeadapter.PoseLandmarkerConfig.litePrototype()
+        val heavyConfig = offlinePoseConfig()
+        check(heavyConfig.variant == dk.lasse.karatecliprecorder.mediapipeposeadapter.PoseLandmarkerVariant.HEAVY)
+        fun identity(config: dk.lasse.karatecliprecorder.mediapipeposeadapter.PoseLandmarkerConfig) =
+            PrototypeModelAssetIdentity(
+                modelKey = config.variant.variantKey,
+                sha256 = app.assets.open(config.assetPath).use(LandmarkFiles::sha256),
+                pipelineConfiguration = config.trackConfiguration(),
+            )
+        val geometry = CanonicalGeometryStorageAdapter.resolveTrackGeometry(
+            recording = recording,
+            track = null,
+            fileResolver = { repository.file(it) },
+        )
+        check(geometry.isAvailable) { "Canonical recording geometry is unavailable" }
+        val activityPlanEvidence = MotionActivityPlans.evidenceFromEvents(repository.events(sessionId))
+        val processingPlan = RecordingProcessingPlans.forSession(session, activityPlanEvidence?.context)
+        val battery = app.registerReceiver(
+            null,
+            android.content.IntentFilter(android.content.Intent.ACTION_BATTERY_CHANGED),
+        )
+        val level = battery?.getIntExtra(android.os.BatteryManager.EXTRA_LEVEL, -1) ?: -1
+        val scale = battery?.getIntExtra(android.os.BatteryManager.EXTRA_SCALE, 100) ?: 100
+        val batteryPercent = if (level >= 0 && scale > 0) level * 100 / scale else -1
+        val status = battery?.getIntExtra(android.os.BatteryManager.EXTRA_STATUS, -1) ?: -1
+        val charging = status == android.os.BatteryManager.BATTERY_STATUS_CHARGING ||
+            status == android.os.BatteryManager.BATTERY_STATUS_FULL
+        val thermal = prototypeThermalStatus(android.os.Build.VERSION.SDK_INT) {
+            app.getSystemService(android.os.PowerManager::class.java)?.currentThermalStatus ?: -1
+        }
+        val runner = LiteHeavyPrototypeRunner(
+            outputRoot = File(app.filesDir, "training/prototypes"),
+            liteProcessor = SequentialVideoPoseDecoder(app, liteConfig.delegate, liteConfig.assetPath),
+            heavyProcessor = SequentialVideoPoseDecoder(app, heavyConfig.delegate, heavyConfig.assetPath),
+            liteModel = identity(liteConfig),
+            heavyModel = identity(heavyConfig),
+            segmenterConfig = dk.lasse.karateanalyzer.capture.retrospective.RetrospectiveSegmenterConfig(
+                profile = processingPlan.movementProfile,
+                qomConfig = processingPlan.qomConfig,
+                cadence = dk.lasse.karateanalyzer.capture.retrospective.RetrospectiveCadence.REPETITIONS,
+            ),
+            canonicalGeometry = geometry,
+            appBuildIdentity = "app-version=${dk.lasse.karatecliprecorder.BuildConfig.VERSION_NAME};" +
+                "version-code=${dk.lasse.karatecliprecorder.BuildConfig.VERSION_CODE};" +
+                "debug=${dk.lasse.karatecliprecorder.BuildConfig.DEBUG}",
+            sourceRevision = dk.lasse.karatecliprecorder.BuildConfig.SOURCE_REVISION,
+            sourceDirtyState = dk.lasse.karatecliprecorder.BuildConfig.SOURCE_DIRTY_STATE,
+            apkSha256 = LandmarkFiles.sha256(File(app.applicationInfo.sourceDir)),
+            deviceConditions = "manufacturer=${android.os.Build.MANUFACTURER};model=${android.os.Build.MODEL};" +
+                "android=${android.os.Build.VERSION.RELEASE};sdk=${android.os.Build.VERSION.SDK_INT};" +
+                "battery=$batteryPercent;charging=$charging;thermal=$thermal",
+            checkActive = {
+                val job = repository.job(sessionId)
+                check(job == null || job.state != QueueState.DELETING) { "Cancelled" }
+            },
+            publication = { operation -> synchronized(ProcessingCoordinator.publication) { operation() } },
+            serializedPrototypeEntry = true,
+        )
+        return PrototypeInvocation(runner, recording.recordingId, video, sourceDurationMs)
     }
 
     companion object {
@@ -254,6 +288,9 @@ class TrainingServices private constructor(context: Context) {
         }
     }
 }
+
+internal fun prototypeThermalStatus(sdkInt: Int, readThermalStatus: () -> Int): Int =
+    if (sdkInt >= android.os.Build.VERSION_CODES.Q) readThermalStatus() else -1
 
 internal fun recoverPendingCapture(repository: TrainingRepository, session: RecordingSession,
                                    recording: MasterRecording) {

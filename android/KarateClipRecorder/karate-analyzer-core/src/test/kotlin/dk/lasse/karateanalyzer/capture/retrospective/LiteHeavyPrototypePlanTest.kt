@@ -29,6 +29,10 @@ class LiteHeavyPrototypePlanTest {
         assertEquals(listOf("heavy-window-2"), plan.windows[0].overlappingWindowIds)
         assertEquals(listOf("heavy-window-1"), plan.windows[1].overlappingWindowIds)
         assertEquals(PrototypeCandidateKind.UNKNOWN_EVIDENCE, plan.windows[1].candidate.kind)
+        assertEquals(1, plan.executionWindows.size)
+        assertEquals(listOf("heavy-window-1", "heavy-window-2"), plan.executionWindows.single().candidateWindowIds)
+        assertEquals(2_700, plan.requestedCoverageSumMs)
+        assertEquals(1_900, plan.executionCoverageUnionMs)
     }
 
     @Test
@@ -50,12 +54,14 @@ class LiteHeavyPrototypePlanTest {
         assertFalse(plan.windows[0].truncatedAtRecordingEnd)
         assertEquals(5_000, plan.windows[1].requestedEndTimestampMs)
         assertTrue(plan.windows[1].truncatedAtRecordingEnd)
+        assertEquals(2, plan.executionWindows.size)
     }
 
     @Test
     fun `empty discovery explicitly requires full Heavy fallback`() {
         val plan = LiteHeavyPrototypePlanner.plan("recording-1", 10_000, liteTrack(), emptyList(), 500, 500)
         assertTrue(plan.windows.isEmpty())
+        assertTrue(plan.executionWindows.isEmpty())
         assertEquals(PrototypeDiscoveryDisposition.FULL_HEAVY_FALLBACK_REQUIRED, plan.discoveryDisposition)
     }
 
@@ -92,7 +98,7 @@ class LiteHeavyPrototypePlanTest {
             listOf(PrototypeCandidateInterval("movement", 2_000, 3_000, PrototypeCandidateKind.DETECTED_MOVEMENT)),
             500,
             500,
-        ).windows.single()
+        ).executionWindows.single()
         val heavy = PrototypeTrackProvenance(
             recordingId = "recording-1",
             landmarkTrackId = "heavy-track-1",
@@ -134,6 +140,29 @@ class LiteHeavyPrototypePlanTest {
         )
         assertEquals(2, multiple.finalMovements.size)
         assertTrue(multiple.heavyTrack?.landmarkTrackId != liteTrack().landmarkTrackId)
+    }
+
+    @Test
+    fun `merges touching requests but retains disjoint execution windows`() {
+        val plan = LiteHeavyPrototypePlanner.plan(
+            "recording-1",
+            10_000,
+            liteTrack(),
+            listOf(
+                PrototypeCandidateInterval("a", 1_000, 1_500, PrototypeCandidateKind.DETECTED_MOVEMENT),
+                PrototypeCandidateInterval("b", 2_500, 3_000, PrototypeCandidateKind.DETECTED_MOVEMENT),
+                PrototypeCandidateInterval("c", 7_000, 7_500, PrototypeCandidateKind.DETECTED_MOVEMENT),
+            ),
+            500,
+            500,
+        )
+
+        assertEquals(3, plan.windows.size)
+        assertEquals(2, plan.executionWindows.size)
+        assertEquals(listOf("heavy-window-1", "heavy-window-2"), plan.executionWindows[0].candidateWindowIds)
+        assertEquals(listOf("heavy-window-3"), plan.executionWindows[1].candidateWindowIds)
+        assertEquals(500, plan.executionWindows[0].requestedStartTimestampMs)
+        assertEquals(3_500, plan.executionWindows[0].requestedEndTimestampMs)
     }
 
     private fun liteTrack(

@@ -36,7 +36,7 @@ class LiteHeavyPrototypeRunnerTest {
 
             assertTrue(result.artifactDirectory.isDirectory)
             assertTrue(File(result.artifactDirectory, "lite.mls").isFile)
-            assertTrue(File(result.artifactDirectory, "heavy-window-1.mls").isFile)
+            assertTrue(File(result.artifactDirectory, "heavy-execution-1.mls").isFile)
             assertTrue(result.manifestFile.isFile)
             assertFalse(File(result.artifactDirectory.parentFile, "prototype-1.pending").exists())
             assertEquals(100, result.liteElapsedMs)
@@ -44,6 +44,11 @@ class LiteHeavyPrototypeRunnerTest {
             assertEquals(230, result.totalElapsedMs)
 
             val manifest = JSONObject(result.manifestFile.readText())
+            assertEquals("lite-heavy-prototype-manifest-v2", manifest.getString("schema"))
+            assertEquals("lite-heavy-prototype-v2", manifest.getString("prototypeConfigKey"))
+            assertTrue(manifest.has("candidateWindows"))
+            assertTrue(manifest.has("executionWindows"))
+            assertFalse(manifest.has("windows"))
             assertEquals(false, manifest.getBoolean("productionActivated"))
             assertEquals(false, manifest.getBoolean("calibrationApplied"))
             assertEquals("test-build", manifest.getString("appBuildIdentity"))
@@ -54,7 +59,9 @@ class LiteHeavyPrototypeRunnerTest {
             assertEquals("pose_lite", manifest.getJSONObject("liteTrack").getString("modelKey"))
             assertEquals("lite-prototype-1", manifest.getJSONObject("liteTrack")
                 .getJSONObject("geometryBinding").getString("landmarkTrackId"))
-            val heavyTrack = manifest.getJSONArray("windows").getJSONObject(0).getJSONObject("heavyTrack")
+            assertEquals(1, manifest.getJSONArray("candidateWindows").length())
+            assertEquals(1, manifest.getJSONArray("executionWindows").length())
+            val heavyTrack = manifest.getJSONArray("executionWindows").getJSONObject(0).getJSONObject("heavyTrack")
             assertEquals("pose_heavy", heavyTrack.getString("modelKey"))
             assertEquals(33, heavyTrack.getLong("actualStartTimestampMs"))
             assertEquals(2_967, heavyTrack.getLong("actualEndTimestampMs"))
@@ -63,7 +70,7 @@ class LiteHeavyPrototypeRunnerTest {
                 heavyTrack.getString("landmarkTrackId"),
             )
             assertTrue(
-                manifest.getJSONArray("windows").getJSONObject(0).getJSONArray("uncertainty")
+                manifest.getJSONArray("executionWindows").getJSONObject(0).getJSONArray("uncertainty")
                     .toString().contains("ACTUAL_COVERAGE_NARROWER"),
             )
         } finally {
@@ -91,6 +98,10 @@ class LiteHeavyPrototypeRunnerTest {
             }.map { it.candidate.startTimestampMs to it.candidate.endTimestampMs }
             assertEquals(listOf(0L to 600L, 1_300L to 2_500L, 3_400L to 4_000L), unknown)
             assertEquals(4, result.plan.windows.size)
+            assertEquals(1, result.plan.executionWindows.size)
+            assertEquals(1, result.outcomes.size)
+            assertTrue(File(result.artifactDirectory, "heavy-execution-1.mls").isFile)
+            assertFalse(File(result.artifactDirectory, "heavy-execution-2.mls").exists())
         } finally {
             root.deleteRecursively()
         }
@@ -133,16 +144,93 @@ class LiteHeavyPrototypeRunnerTest {
             assertFailsWith<IllegalStateException> {
                 runner(
                     root = File(root, "artifacts"),
-                    liteFrames = frames(0, 1_000, 2_000, 3_000, 4_000),
-                    heavyFrames = frames(0, 500, 1_000, 1_500, 2_000, 2_500, 3_000, 3_500, 4_000),
-                    liteMovementIntervals = listOf(500L to 700L, 2_500L to 2_700L),
+                    liteFrames = frames(0, 1_000, 2_000, 3_000, 4_000, 5_000),
+                    heavyFrames = frames(0, 500, 1_000, 1_500, 2_000, 2_500, 3_000, 3_500, 4_000, 4_500, 5_000),
+                    liteMovementIntervals = listOf(500L to 700L, 3_000L to 3_200L),
                     failHeavyCall = 2,
-                ).run("recording-1", video, 4_000)
+                ).run("recording-1", video, 5_000)
             }
             assertEquals("unchanged", productionSentinel.readText())
             assertTrue(File(root, "artifacts").walkTopDown().none {
                 it.name == "manifest.json" || it.extension == "mls" || it.name.endsWith(".pending")
             })
+        } finally {
+            root.deleteRecursively()
+        }
+    }
+
+    @Test
+    fun `full Heavy comparator publishes an isolated full-video track and manifest`() {
+        val root = createTempDirectory("full-heavy-comparator").toFile()
+        try {
+            val video = File(root, "recording.mp4").apply { writeBytes(byteArrayOf(1)) }
+            val clock = listOf(0L, 10L, 110L, 230L).iterator()
+            val result = runner(
+                root = File(root, "artifacts"),
+                liteFrames = frames(0, 1_000, 2_000, 3_000),
+                heavyFrames = frames(0, 1_000, 2_000, 3_000),
+                elapsed = { clock.next() },
+            ).runFullHeavyComparator("recording-1", video, 3_000)
+
+            assertTrue(File(result.artifactDirectory, "heavy-full.mls").isFile)
+            val manifest = JSONObject(result.manifestFile.readText())
+            assertEquals("full-heavy-comparator-manifest-v1", manifest.getString("schema"))
+            assertEquals("FULL_HEAVY_COMPARATOR", manifest.getString("runKind"))
+            assertEquals(1, manifest.getInt("windowCount"))
+            assertEquals(1, manifest.getInt("trackerResetCount"))
+            assertEquals("FULL_HEAVY_COMPARATOR", manifest.getJSONObject("heavyTrack").getString("role"))
+            assertEquals(false, manifest.getBoolean("productionActivated"))
+            assertEquals(0, result.heavyTrack.requestedStartTimestampMs)
+            assertEquals(3_000, result.heavyTrack.requestedEndTimestampMs)
+            assertEquals(0, result.heavyTrack.actualStartTimestampMs)
+            assertEquals(3_000, result.heavyTrack.actualEndTimestampMs)
+            assertEquals(result.heavyTrack.landmarkTrackId, result.heavyTrack.geometryBinding.landmarkTrackId)
+            assertEquals(result.heavyTrack.contentSha256, result.heavyTrack.geometryBinding.trackHash)
+            assertEquals(100, result.heavyElapsedMs)
+            assertEquals(230, result.totalElapsedMs)
+        } finally {
+            root.deleteRecursively()
+        }
+    }
+
+    @Test
+    fun `next prototype entry discards abandoned staging but preserves published artifacts`() {
+        val root = createTempDirectory("prototype-abandoned-staging").toFile()
+        try {
+            val artifacts = File(root, "artifacts")
+            val recordingRoot = File(artifacts, "recording-1")
+            val abandoned = File(recordingRoot, "interrupted.pending").apply { mkdirs() }
+            File(abandoned, "partial.mls").writeBytes(byteArrayOf(1))
+            val published = File(recordingRoot, "completed-run").apply { mkdirs() }
+            File(published, "manifest.json").writeText("{}")
+            val video = File(root, "recording.mp4").apply { writeBytes(byteArrayOf(1)) }
+
+            runner(
+                artifacts,
+                frames(0, 1_000, 2_000, 3_000),
+                frames(0, 1_000, 2_000, 3_000),
+            ).run("recording-1", video, 3_000)
+
+            assertFalse(abandoned.exists())
+            assertTrue(File(published, "manifest.json").isFile)
+        } finally {
+            root.deleteRecursively()
+        }
+    }
+
+    @Test
+    fun `prototype entry refuses cleanup without serialized execution precondition`() {
+        val root = createTempDirectory("prototype-not-serialized").toFile()
+        try {
+            val video = File(root, "recording.mp4").apply { writeBytes(byteArrayOf(1)) }
+            assertFailsWith<IllegalArgumentException> {
+                runner(
+                    File(root, "artifacts"),
+                    frames(0, 1_000, 2_000, 3_000),
+                    frames(0, 1_000, 2_000, 3_000),
+                    serializedPrototypeEntry = false,
+                ).run("recording-1", video, 3_000)
+            }
         } finally {
             root.deleteRecursively()
         }
@@ -174,6 +262,7 @@ class LiteHeavyPrototypeRunnerTest {
         liteMovementIntervals: List<Pair<Long, Long>> = listOf(1_000L to 2_000L),
         failHeavyCall: Int? = null,
         publication: (() -> Unit) -> Unit = { it() },
+        serializedPrototypeEntry: Boolean = true,
     ): LiteHeavyPrototypeRunner {
         var heavyCalls = 0
         return LiteHeavyPrototypeRunner(
@@ -209,6 +298,7 @@ class LiteHeavyPrototypeRunnerTest {
             canonicalHeight = 1_920,
         ),
         appBuildIdentity = "test-build",
+        serializedPrototypeEntry = serializedPrototypeEntry,
         publication = publication,
         elapsedRealtimeMs = elapsed,
         idFactory = { "prototype-1" },

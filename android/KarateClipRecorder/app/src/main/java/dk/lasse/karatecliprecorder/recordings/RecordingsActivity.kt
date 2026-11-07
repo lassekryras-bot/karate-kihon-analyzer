@@ -581,6 +581,7 @@ class RecordingsActivity : AppCompatActivity() {
                             .setTitle("Run isolated Lite→Heavy prototype?")
                             .setMessage(
                                 "Create separate developer-only Lite discovery and Heavy window artifacts from this recording. " +
+                                    "Overlapping candidate requests are merged before Heavy inference. Abandoned prototype staging is discarded. " +
                                     "Saved landmarks, movements, analysis, calibration, and the production processing route will not be changed.",
                             )
                             .setNegativeButton("Cancel", null)
@@ -598,7 +599,9 @@ class RecordingsActivity : AppCompatActivity() {
                                                 "Lite: ${result.liteElapsedMs} ms\n" +
                                                     "Heavy windows: ${result.heavyElapsedMs} ms\n" +
                                                     "Total: ${result.totalElapsedMs} ms\n" +
-                                                    "Windows: ${result.outcomes.size}\n" +
+                                                    "Candidate windows: ${result.plan.windows.size}\n" +
+                                                    "Heavy execution windows: ${result.outcomes.size}\n" +
+                                                    "Requested/union coverage: ${result.plan.requestedCoverageSumMs}/${result.plan.executionCoverageUnionMs} ms\n" +
                                                     "Heavy per-window intervals (not deduplicated): $finalMovements\n" +
                                                     "Disposition: ${result.plan.discoveryDisposition}\n\n" +
                                                     "This prototype does not run a comparative full-Heavy baseline.\n" +
@@ -608,6 +611,43 @@ class RecordingsActivity : AppCompatActivity() {
                                             .show()
                                     }.onFailure { error ->
                                         toast("Lite→Heavy prototype failed: ${error.message}")
+                                    }
+                                    render()
+                                }
+                            }
+                            .show()
+                    }.apply {
+                        isEnabled = row.session.sessionId !in prototypeRunsInProgress
+                        (layoutParams as? ViewGroup.MarginLayoutParams)?.topMargin = dp(6)
+                    })
+                    utils.addView(button("Run isolated full-Heavy comparator") {
+                        if (row.session.sessionId in prototypeRunsInProgress) return@button
+                        AlertDialog.Builder(this@RecordingsActivity)
+                            .setTitle("Run isolated full-Heavy comparator?")
+                            .setMessage(
+                                "Create a separate full-video Heavy landmark stream and segmentation manifest for comparison. " +
+                                    "This does not reanalyze or replace saved production results. Abandoned prototype staging is discarded.",
+                            )
+                            .setNegativeButton("Cancel", null)
+                            .setPositiveButton("Run comparator") { _, _ ->
+                                prototypeRunsInProgress += row.session.sessionId
+                                render()
+                                toast("Full-Heavy comparator started…")
+                                training.runFullHeavyComparator(row.session.sessionId) { run ->
+                                    prototypeRunsInProgress -= row.session.sessionId
+                                    run.onSuccess { result ->
+                                        AlertDialog.Builder(this@RecordingsActivity)
+                                            .setTitle("Full-Heavy comparator complete")
+                                            .setMessage(
+                                                "Heavy extraction: ${result.heavyElapsedMs} ms\n" +
+                                                    "Total: ${result.totalElapsedMs} ms\n" +
+                                                    "Final intervals: ${result.finalMovements.size}\n\n" +
+                                                    "Manifest: ${result.manifestFile.absolutePath}",
+                                            )
+                                            .setPositiveButton("OK", null)
+                                            .show()
+                                    }.onFailure { error ->
+                                        toast("Full-Heavy comparator failed: ${error.message}")
                                     }
                                     render()
                                 }
