@@ -599,8 +599,9 @@ class RecordingsActivity : AppCompatActivity() {
                                                     "Heavy windows: ${result.heavyElapsedMs} ms\n" +
                                                     "Total: ${result.totalElapsedMs} ms\n" +
                                                     "Windows: ${result.outcomes.size}\n" +
-                                                    "Heavy final intervals: $finalMovements\n" +
+                                                    "Heavy per-window intervals (not deduplicated): $finalMovements\n" +
                                                     "Disposition: ${result.plan.discoveryDisposition}\n\n" +
+                                                    "This prototype does not run a comparative full-Heavy baseline.\n" +
                                                     "Manifest: ${result.manifestFile.absolutePath}",
                                             )
                                             .setPositiveButton("OK", null)

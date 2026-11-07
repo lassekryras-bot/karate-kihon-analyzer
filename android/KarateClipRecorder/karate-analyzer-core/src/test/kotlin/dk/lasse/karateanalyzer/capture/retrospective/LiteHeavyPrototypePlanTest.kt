@@ -6,6 +6,7 @@ import kotlin.test.assertFailsWith
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 import dk.lasse.karateanalyzer.capture.qom.QomEndBoundaryKind
+import dk.lasse.karateanalyzer.geometry.CanonicalGeometryDescriptor
 
 class LiteHeavyPrototypePlanTest {
     @Test
@@ -99,7 +100,7 @@ class LiteHeavyPrototypePlanTest {
             modelKey = "pose_heavy",
             modelSha256 = "heavy-sha",
             pipelineConfiguration = "heavy-config",
-            geometryId = "geometry-heavy-track-1",
+            geometryBinding = geometry("heavy-track-1", "heavy-content-sha"),
             geometryCompatibilityKey = "recording-transform-1",
             fileReference = "prototype/heavy-window-1.mls",
             formatId = "movement_landmark_stream_v1",
@@ -145,7 +146,7 @@ class LiteHeavyPrototypePlanTest {
         modelKey = "pose_lite",
         modelSha256 = "lite-sha",
         pipelineConfiguration = "lite-config",
-        geometryId = "geometry-lite-track-1",
+        geometryBinding = geometry("lite-track-1", "lite-content-sha"),
         geometryCompatibilityKey = "recording-transform-1",
         fileReference = "prototype/lite.mls",
         formatId = "movement_landmark_stream_v1",
@@ -157,5 +158,15 @@ class LiteHeavyPrototypePlanTest {
         actualEndTimestampMs = actualEndTimestampMs,
         frameCount = 301,
         extractionElapsedMs = 1_500,
+    )
+
+    private fun geometry(trackId: String, trackHash: String) = CanonicalGeometryDescriptor(
+        geometryId = "geometry-recording-1",
+        recordingId = "recording-1",
+        landmarkTrackId = trackId,
+        canonicalWidth = 1_080,
+        canonicalHeight = 1_920,
+        sourceHash = "source-sha",
+        trackHash = trackHash,
     )
 }

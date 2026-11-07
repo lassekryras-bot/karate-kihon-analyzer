@@ -55,6 +55,9 @@ the exact model and content hashes, requested and actual source-time coverage,
 geometry compatibility, timing, candidates, windows and typed uncertainties.
 An empty Lite discovery is reported as requiring a full-Heavy fallback; it is
 never treated as evidence that the recording contains no movement.
+The artifact publication is all-or-nothing and has no resume behavior. The
+completion count is per Heavy window and may include overlapping duplicates;
+the prototype does not run a comparative full-Heavy baseline.
 
 Video capture and the Ready? — Osu selfie now share one CameraX backend and one
 Room-backed persistence coordinator. Callers provide a typed video/photo request;

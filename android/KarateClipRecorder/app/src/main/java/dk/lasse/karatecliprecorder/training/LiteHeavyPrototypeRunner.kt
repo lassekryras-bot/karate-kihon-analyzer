@@ -41,6 +41,7 @@ class LiteHeavyPrototypeRunner(
     private val heavyModel: PrototypeModelAssetIdentity,
     private val segmenterConfig: RetrospectiveSegmenterConfig,
     private val canonicalGeometry: CanonicalGeometryDescriptor,
+    private val appBuildIdentity: String,
     private val paddingBeforeMs: Long = 1_000,
     private val paddingAfterMs: Long = 1_000,
     private val checkActive: () -> Unit = {},
@@ -57,6 +58,7 @@ class LiteHeavyPrototypeRunner(
         require(videoFile.isFile) { "Prototype source video is unavailable: ${videoFile.absolutePath}" }
         require(sourceDurationMs > 0)
         require(canonicalGeometry.isAvailable && canonicalGeometry.recordingId == recordingId)
+        require(appBuildIdentity.isNotBlank())
         checkActive()
 
         val prototypeId = idFactory()
@@ -69,6 +71,7 @@ class LiteHeavyPrototypeRunner(
 
         val totalStarted = elapsedRealtimeMs()
         try {
+            val sourceContentHash = videoFile.inputStream().use(LandmarkFiles::sha256)
             val liteStarted = elapsedRealtimeMs()
             val liteFrames = liteProcessor.processVideo(videoFile) { _, _ -> checkActive() }
             val liteElapsedMs = (elapsedRealtimeMs() - liteStarted).coerceAtLeast(0)
@@ -93,10 +96,12 @@ class LiteHeavyPrototypeRunner(
                 frames = liteFrames,
                 elapsedMs = liteElapsedMs,
                 geometryCompatibilityKey = geometryCompatibilityKey,
+                sourceContentHash = sourceContentHash,
             )
             val liteSegmentation = segment(recordingId, videoFile.absolutePath, liteFrames)
             val candidates = movementCandidates(liteSegmentation) + unknownCandidates(
                 liteSegmentation,
+                liteFrames,
                 sourceDurationMs,
             )
             val plan = LiteHeavyPrototypePlanner.plan(
@@ -142,6 +147,7 @@ class LiteHeavyPrototypeRunner(
                     frames = extracted.frames,
                     elapsedMs = elapsed,
                     geometryCompatibilityKey = geometryCompatibilityKey,
+                    sourceContentHash = sourceContentHash,
                 )
                 val segmentation = segment(
                     "${recordingId}:${request.windowId}",
@@ -196,6 +202,7 @@ class LiteHeavyPrototypeRunner(
                 liteElapsedMs,
                 heavyElapsedMs,
                 totalElapsedMs,
+                sourceContentHash,
             )
             val manifestFile = File(staging, "manifest.json")
             writeDurably(manifestFile, manifest.toString(2))
@@ -234,6 +241,7 @@ class LiteHeavyPrototypeRunner(
 
     private fun unknownCandidates(
         result: RetrospectiveSessionResult,
+        frames: List<PoseFrame>,
         sourceDurationMs: Long,
     ): List<PrototypeCandidateInterval> {
         val ranges = mutableListOf<Pair<Long, Long>>()
@@ -248,7 +256,30 @@ class LiteHeavyPrototypeRunner(
         start?.let { unknownStart ->
             if (sourceDurationMs > unknownStart) ranges += unknownStart to sourceDurationMs
         }
-        return ranges.mapIndexed { index, (rangeStart, rangeEnd) ->
+        val maximumGapMs = segmenterConfig.qomConfig.maximumFrameGapMs
+        val firstTimestamp = frames.first().timestampMs
+        if (firstTimestamp > maximumGapMs) ranges += 0L to firstTimestamp
+        frames.zipWithNext().forEach { (previous, next) ->
+            if (next.timestampMs - previous.timestampMs > maximumGapMs) {
+                ranges += previous.timestampMs to next.timestampMs
+            }
+        }
+        val lastTimestamp = frames.last().timestampMs
+        if (sourceDurationMs - lastTimestamp > maximumGapMs) ranges += lastTimestamp to sourceDurationMs
+
+        val merged = ranges
+            .filter { (rangeStart, rangeEnd) -> rangeStart < rangeEnd }
+            .sortedBy { it.first }
+            .fold(mutableListOf<Pair<Long, Long>>()) { resultRanges, range ->
+                val last = resultRanges.lastOrNull()
+                if (last == null || range.first > last.second) {
+                    resultRanges += range
+                } else if (range.second > last.second) {
+                    resultRanges[resultRanges.lastIndex] = last.first to range.second
+                }
+                resultRanges
+            }
+        return merged.mapIndexed { index, (rangeStart, rangeEnd) ->
             PrototypeCandidateInterval(
                 candidateId = "unknown-${index + 1}",
                 startTimestampMs = rangeStart,
@@ -270,6 +301,7 @@ class LiteHeavyPrototypeRunner(
         frames: List<PoseFrame>,
         elapsedMs: Long,
         geometryCompatibilityKey: String,
+        sourceContentHash: String,
     ) = PrototypeTrackProvenance(
         recordingId = recordingId,
         landmarkTrackId = trackId,
@@ -277,7 +309,11 @@ class LiteHeavyPrototypeRunner(
         modelKey = model.modelKey,
         modelSha256 = model.sha256,
         pipelineConfiguration = model.pipelineConfiguration,
-        geometryId = "${canonicalGeometry.geometryId}:$trackId",
+        geometryBinding = canonicalGeometry.copy(
+            landmarkTrackId = trackId,
+            sourceHash = sourceContentHash,
+            trackHash = contentHash,
+        ),
         geometryCompatibilityKey = geometryCompatibilityKey,
         fileReference = file.name,
         formatId = LandmarkFiles.FORMAT_ID,
@@ -307,18 +343,23 @@ class LiteHeavyPrototypeRunner(
         liteElapsedMs: Long,
         heavyElapsedMs: Long,
         totalElapsedMs: Long,
+        sourceContentHash: String,
     ) = JSONObject().apply {
         put("schema", "lite-heavy-prototype-manifest-v1")
         put("prototypeId", prototypeId)
         put("recordingId", plan.recordingId)
+        put("sourceContentSha256", sourceContentHash)
         put("sourceDurationMs", plan.sourceDurationMs)
+        put("appBuildIdentity", appBuildIdentity)
         put("productionActivated", false)
         put("calibrationApplied", false)
+        put("publicationSemantics", "all-or-nothing-no-resume-v1")
         put("canonicalGeometry", JSONObject(CanonicalGeometryCodec.encode(geometry.copy(landmarkTrackId = null))))
         put("prototypeConfigKey", plan.prototypeConfigKey)
         put("paddingPolicyKey", plan.paddingPolicyKey)
         put("paddingBeforeMs", plan.paddingBeforeMs)
         put("paddingAfterMs", plan.paddingAfterMs)
+        put("segmenterConfig", segmenterConfigJson(segmenterConfig))
         put("discoveryDisposition", plan.discoveryDisposition.name)
         put("liteElapsedMs", liteElapsedMs)
         put("heavyElapsedMs", heavyElapsedMs)
@@ -363,7 +404,7 @@ class LiteHeavyPrototypeRunner(
         put("modelKey", track.modelKey)
         put("modelSha256", track.modelSha256)
         put("pipelineConfiguration", track.pipelineConfiguration)
-        put("geometryId", track.geometryId)
+        put("geometryBinding", JSONObject(CanonicalGeometryCodec.encode(track.geometryBinding)))
         put("geometryCompatibilityKey", track.geometryCompatibilityKey)
         put("fileReference", track.fileReference)
         put("formatId", track.formatId)
@@ -376,6 +417,41 @@ class LiteHeavyPrototypeRunner(
         put("frameCount", track.frameCount)
         put("extractionElapsedMs", track.extractionElapsedMs)
         put("calibrationApplied", track.calibrationApplied)
+    }
+
+    private fun segmenterConfigJson(config: RetrospectiveSegmenterConfig) = JSONObject().apply {
+        put("profile", config.profile.name)
+        put("cadence", config.cadence.name)
+        put("cadenceMinimumInterMovementPauseMs", config.cadence.minInterMovementPauseMs)
+        put("minMovementDurationMs", config.minMovementDurationMs)
+        put("maxMovementDurationMs", config.maxMovementDurationMs)
+        put("preRollMs", config.preRollMs)
+        put("postRollMs", config.postRollMs)
+        put("halfWindowDurationMs", config.halfWindowDurationMs)
+        put("minimumSamplesInWindow", config.minimumSamplesInWindow)
+        put("minimumWindowSpanMs", config.minimumWindowSpanMs)
+        put("startThresholdNormalized", config.startThresholdNormalized)
+        put("quietThresholdNormalized", config.quietThresholdNormalized)
+        put("minQuietDwellMs", config.minQuietDwellMs)
+        put("q20Percentile", config.q20Percentile)
+        put("q90Percentile", config.q90Percentile)
+        put("qom", JSONObject().apply {
+            val qom = config.qomConfig
+            put("detectorVersion", qom.detectorVersion)
+            put("evidencePolicy", qom.evidencePolicy.name)
+            put("evidencePolicyVersion", qom.evidencePolicy.policyVersion)
+            put("minimumObservedConfidence", qom.minimumObservedConfidence)
+            put("minimumCompositeSupport", qom.minimumCompositeSupport)
+            put("positionMedianSamples", qom.positionMedianSamples)
+            put("positionMeanSamples", qom.positionMeanSamples)
+            put("rollingAreaDurationMs", qom.rollingAreaDurationMs)
+            put("startGateMeters", qom.startGateMeters)
+            put("stopGateMeters", qom.stopGateMeters)
+            put("maximumFrameGapMs", qom.maximumFrameGapMs)
+            put("preRollMs", qom.preRollMs)
+            put("postRollMs", qom.postRollMs)
+            put("minimumValidBlocks", qom.minimumValidBlocks)
+        })
     }
 
     private fun writeDurably(file: File, content: String) {

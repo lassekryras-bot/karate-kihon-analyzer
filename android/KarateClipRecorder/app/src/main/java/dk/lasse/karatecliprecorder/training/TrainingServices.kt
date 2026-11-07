@@ -223,6 +223,9 @@ class TrainingServices private constructor(context: Context) {
                         cadence = dk.lasse.karateanalyzer.capture.retrospective.RetrospectiveCadence.REPETITIONS,
                     ),
                     canonicalGeometry = geometry,
+                    appBuildIdentity = "app-version=${dk.lasse.karatecliprecorder.BuildConfig.VERSION_NAME};" +
+                        "version-code=${dk.lasse.karatecliprecorder.BuildConfig.VERSION_CODE};" +
+                        "debug=${dk.lasse.karatecliprecorder.BuildConfig.DEBUG}",
                     checkActive = {
                         val job = repository.job(sessionId)
                         check(job == null || job.state != QueueState.DELETING) { "Cancelled" }

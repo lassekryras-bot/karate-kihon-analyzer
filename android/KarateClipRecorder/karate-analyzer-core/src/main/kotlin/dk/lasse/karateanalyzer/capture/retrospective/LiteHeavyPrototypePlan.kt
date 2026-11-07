@@ -2,6 +2,7 @@ package dk.lasse.karateanalyzer.capture.retrospective
 
 import dk.lasse.karateanalyzer.capture.qom.QomEndBoundaryKind
 import dk.lasse.karateanalyzer.capture.qom.QomUnknownEvidenceInterval
+import dk.lasse.karateanalyzer.geometry.CanonicalGeometryDescriptor
 
 /** Isolated prototype roles. Production recording processing does not consume these values. */
 enum class PrototypeTrackRole { LITE_DISCOVERY, HEAVY_WINDOW }
@@ -17,7 +18,7 @@ data class PrototypeTrackProvenance(
     val modelKey: String,
     val modelSha256: String,
     val pipelineConfiguration: String,
-    val geometryId: String,
+    val geometryBinding: CanonicalGeometryDescriptor,
     val geometryCompatibilityKey: String,
     val fileReference: String,
     val formatId: String,
@@ -37,7 +38,6 @@ data class PrototypeTrackProvenance(
         require(modelKey.isNotBlank())
         require(modelSha256.isNotBlank())
         require(pipelineConfiguration.isNotBlank())
-        require(geometryId.isNotBlank())
         require(geometryCompatibilityKey.isNotBlank())
         require(fileReference.isNotBlank())
         require(formatId.isNotBlank())
@@ -49,6 +49,10 @@ data class PrototypeTrackProvenance(
         require(frameCount >= 0)
         require(extractionElapsedMs >= 0)
         require(!calibrationApplied) { "Prototype tracks cannot inherit calibration across model tracks" }
+        require(geometryBinding.isAvailable)
+        require(geometryBinding.recordingId == recordingId)
+        require(geometryBinding.landmarkTrackId == landmarkTrackId)
+        require(geometryBinding.trackHash == contentSha256)
         if (actualStartTimestampMs != null && actualEndTimestampMs != null) {
             require(frameCount > 0)
             require(actualStartTimestampMs >= requestedStartTimestampMs)
