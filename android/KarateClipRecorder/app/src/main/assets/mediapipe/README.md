@@ -26,6 +26,20 @@ real `.task` file exists at the expected path.
 
 ## Pose Landmarker
 
+The developer-only Lite/Heavy processing prototype uses the official Lite float16 v1 bundle at:
+
+`app/src/main/assets/mediapipe/pose_landmarker_lite.task`
+
+Official source:
+
+`https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/1/pose_landmarker_lite.task`
+
+- File size: `5,777,746` bytes
+- SHA-256: `59929E1D1EE95287735DDD833B19CF4AC46D29BC7AFDDBBF6753C459690D574A`
+- Runtime configuration: CPU, video, one pose, 0.5 detection/presence/tracking thresholds, segmentation masks disabled
+- Distribution: MediaPipe model assets, Apache-2.0 project licensing; retain upstream notices when redistributing
+- Scope: isolated prototype discovery only; this asset does not change the production processing default
+
 Punch Heights uses the existing full float16 Pose Landmarker v1 bundle at:
 
 `app/src/main/assets/mediapipe/pose_landmarker_full.task`

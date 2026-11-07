@@ -1,6 +1,7 @@
 package dk.lasse.karatecliprecorder.mediapipeposeadapter
 
 import java.io.File
+import dk.lasse.karateanalyzer.capture.retrospective.VideoTimeWindow
 import kotlin.test.Test
 import kotlin.test.assertFailsWith
 import kotlin.test.assertTrue
@@ -19,5 +20,16 @@ class SequentialVideoPoseDecoderTest {
         }
         assertTrue(exception.message?.contains("Master video file does not exist") == true)
     }
-}
 
+    @Test
+    fun windowExtractionChecksSourceBeforeUsingAndroidContext() {
+        val nonExistent = File("build/tmp/window-does-not-exist-${System.currentTimeMillis()}.mp4")
+        val exception = assertFailsWith<IllegalArgumentException> {
+            SequentialVideoPoseDecoder(android.app.Application()).processWindow(
+                nonExistent,
+                VideoTimeWindow(1_000, 2_000),
+            )
+        }
+        assertTrue(exception.message?.contains("Master video file does not exist") == true)
+    }
+}

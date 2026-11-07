@@ -22,3 +22,47 @@ interface VideoPoseProcessor {
     ): List<PoseFrame>
 }
 
+/** Inclusive recording-relative source-time request for isolated prototype extraction. */
+data class VideoTimeWindow(
+    val startTimestampMs: Long,
+    val endTimestampMs: Long,
+) {
+    init {
+        require(startTimestampMs >= 0)
+        require(endTimestampMs >= startTimestampMs)
+    }
+}
+
+/**
+ * Window extraction result with explicit observed coverage. Requested padding is not evidence when
+ * no frame was actually produced at that source timestamp.
+ */
+data class VideoPoseWindowResult(
+    val requestedWindow: VideoTimeWindow,
+    val frames: List<PoseFrame>,
+    val actualStartTimestampMs: Long? = frames.firstOrNull()?.timestampMs,
+    val actualEndTimestampMs: Long? = frames.lastOrNull()?.timestampMs,
+    val trackingStateResetAtWindowStart: Boolean = true,
+) {
+    init {
+        require(frames.zipWithNext().all { (first, second) -> first.timestampMs < second.timestampMs })
+        require((actualStartTimestampMs == null) == (actualEndTimestampMs == null))
+        if (actualStartTimestampMs != null && actualEndTimestampMs != null) {
+            require(actualStartTimestampMs >= requestedWindow.startTimestampMs)
+            require(actualEndTimestampMs <= requestedWindow.endTimestampMs)
+            require(actualStartTimestampMs == frames.first().timestampMs)
+            require(actualEndTimestampMs == frames.last().timestampMs)
+        } else {
+            require(frames.isEmpty())
+        }
+    }
+}
+
+/** Optional capability used only by the isolated Lite/Heavy prototype. */
+interface WindowedVideoPoseProcessor : VideoPoseProcessor {
+    fun processWindow(
+        videoFile: File,
+        window: VideoTimeWindow,
+        onProgress: (progressFraction: Float, currentTimestampMs: Long) -> Unit = { _, _ -> },
+    ): VideoPoseWindowResult
+}

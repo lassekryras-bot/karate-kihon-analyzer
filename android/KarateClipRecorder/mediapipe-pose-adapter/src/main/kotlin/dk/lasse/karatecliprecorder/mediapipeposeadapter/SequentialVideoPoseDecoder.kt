@@ -12,6 +12,9 @@ import com.google.mediapipe.tasks.core.Delegate
 import com.google.mediapipe.tasks.vision.core.RunningMode
 import com.google.mediapipe.tasks.vision.poselandmarker.PoseLandmarker
 import dk.lasse.karateanalyzer.capture.retrospective.VideoPoseProcessor
+import dk.lasse.karateanalyzer.capture.retrospective.VideoPoseWindowResult
+import dk.lasse.karateanalyzer.capture.retrospective.VideoTimeWindow
+import dk.lasse.karateanalyzer.capture.retrospective.WindowedVideoPoseProcessor
 import dk.lasse.karateanalyzer.core.PoseFrame
 import java.io.File
 
@@ -26,12 +29,24 @@ class SequentialVideoPoseDecoder(
     private val context: Context,
     private val delegate: Delegate = Delegate.CPU,
     private val modelAssetPath: String = POSE_LANDMARKER_MODEL_ASSET_PATH,
-) : VideoPoseProcessor {
+) : WindowedVideoPoseProcessor {
 
     override fun processVideo(
         videoFile: File,
         onProgress: (progressFraction: Float, currentTimestampMs: Long) -> Unit,
-    ): List<PoseFrame> {
+    ): List<PoseFrame> = processInternal(videoFile, window = null, onProgress).frames
+
+    override fun processWindow(
+        videoFile: File,
+        window: VideoTimeWindow,
+        onProgress: (progressFraction: Float, currentTimestampMs: Long) -> Unit,
+    ): VideoPoseWindowResult = processInternal(videoFile, window, onProgress)
+
+    private fun processInternal(
+        videoFile: File,
+        window: VideoTimeWindow?,
+        onProgress: (progressFraction: Float, currentTimestampMs: Long) -> Unit,
+    ): VideoPoseWindowResult {
         require(videoFile.exists()) { "Master video file does not exist: ${videoFile.absolutePath}" }
 
         // 1. Validate MediaPipe model asset
@@ -76,7 +91,12 @@ class SequentialVideoPoseDecoder(
             extractor.release()
         }
 
-        val totalFrames = ptsUsList.size
+        val selectedPtsUs = if (window == null) {
+            ptsUsList
+        } else {
+            ptsUsList.filter { ptsUs -> ptsUs / 1000L in window.startTimestampMs..window.endTimestampMs }
+        }
+        val totalFrames = selectedPtsUs.size
 
         // 3. Initialize PoseLandmarker in VIDEO mode
         val options = PoseLandmarker.PoseLandmarkerOptions.builder()
@@ -102,7 +122,7 @@ class SequentialVideoPoseDecoder(
         var lastProcessedPtsMs = -1L
 
         try {
-            for ((index, ptsUs) in ptsUsList.withIndex()) {
+            for ((index, ptsUs) in selectedPtsUs.withIndex()) {
                 val ptsMs = ptsUs / 1000L
 
                 // Strictly enforce monotonically increasing PTS as required by detectForVideo
@@ -141,7 +161,14 @@ class SequentialVideoPoseDecoder(
             landmarker.close()
         }
 
-        return frames
+        val requested = window ?: VideoTimeWindow(
+            startTimestampMs = 0,
+            endTimestampMs = maxOf(durationUs / 1000L, frames.lastOrNull()?.timestampMs ?: 0L),
+        )
+        return VideoPoseWindowResult(
+            requestedWindow = requested,
+            frames = frames,
+            trackingStateResetAtWindowStart = true,
+        )
     }
 }
-

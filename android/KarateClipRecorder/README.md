@@ -34,6 +34,28 @@ provides recent history, a filtered month calendar, playback, retry and confirme
 deletion. See [assisted capture](../../docs/record-and-analyze-assisted-capture-v1.md).
 Physical-device acceptance is pending.
 
+## Lite to Heavy processing prototype
+
+Debug builds include an isolated developer tool for comparing full-recording
+Lite pose discovery with Heavy pose processing limited to padded candidate
+windows. It does not replace or update the recording's production analysis.
+
+To run it on a phone:
+
+1. Install a debug build and enable **Developer mode** in app settings.
+2. Open **Performance > Recordings** and select an available recording.
+3. Expand **Recording details** and tap **Run Lite to Heavy prototype**.
+4. Confirm the run and keep the app open while processing completes.
+5. Review the completion dialog for Lite, Heavy and total timing, planned
+   windows, final intervals and the manifest location.
+
+Prototype artifacts are written to app-private storage below
+`files/training/prototypes/<recording-id>/<prototype-id>/`. The manifest records
+the exact model and content hashes, requested and actual source-time coverage,
+geometry compatibility, timing, candidates, windows and typed uncertainties.
+An empty Lite discovery is reported as requiring a full-Heavy fallback; it is
+never treated as evidence that the recording contains no movement.
+
 Video capture and the Ready? — Osu selfie now share one CameraX backend and one
 Room-backed persistence coordinator. Callers provide a typed video/photo request;
 successful finalization returns durable capture/session identity. See the

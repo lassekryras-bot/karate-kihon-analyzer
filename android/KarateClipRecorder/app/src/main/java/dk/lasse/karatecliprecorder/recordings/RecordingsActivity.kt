@@ -48,6 +48,7 @@ class RecordingsActivity : AppCompatActivity() {
     private var active = false
     private var loading = false
     private var playback: LandmarkPlaybackDialog? = null
+    private val prototypeRunsInProgress = mutableSetOf<String>()
     private val handler = Handler(Looper.getMainLooper())
     private val refresh = object : Runnable {
         override fun run() { load(); if (active) handler.postDelayed(this, 1500) }
@@ -565,6 +566,57 @@ class RecordingsActivity : AppCompatActivity() {
                 })
             }
             if (AppPreferences(this@RecordingsActivity).developerMode && row.processing?.state != QueueState.PROCESSING) {
+                if (LiteHeavyPrototypeToolPolicy.enabled(
+                        debugBuild = dk.lasse.karatecliprecorder.BuildConfig.DEBUG,
+                        developerMode = AppPreferences(this@RecordingsActivity).developerMode,
+                        sourceState = row.recording.sourceState,
+                        queueState = row.processing?.state,
+                    )) {
+                    utils.addView(button(
+                        if (row.session.sessionId in prototypeRunsInProgress) "Lite→Heavy prototype running…"
+                        else "Run Lite→Heavy prototype",
+                    ) {
+                        if (row.session.sessionId in prototypeRunsInProgress) return@button
+                        AlertDialog.Builder(this@RecordingsActivity)
+                            .setTitle("Run isolated Lite→Heavy prototype?")
+                            .setMessage(
+                                "Create separate developer-only Lite discovery and Heavy window artifacts from this recording. " +
+                                    "Saved landmarks, movements, analysis, calibration, and the production processing route will not be changed.",
+                            )
+                            .setNegativeButton("Cancel", null)
+                            .setPositiveButton("Run prototype") { _, _ ->
+                                prototypeRunsInProgress += row.session.sessionId
+                                render()
+                                toast("Lite→Heavy prototype started…")
+                                training.runLiteHeavyPrototype(row.session.sessionId) { run ->
+                                    prototypeRunsInProgress -= row.session.sessionId
+                                    run.onSuccess { result ->
+                                        val finalMovements = result.outcomes.sumOf { it.finalMovements.size }
+                                        AlertDialog.Builder(this@RecordingsActivity)
+                                            .setTitle("Lite→Heavy prototype complete")
+                                            .setMessage(
+                                                "Lite: ${result.liteElapsedMs} ms\n" +
+                                                    "Heavy windows: ${result.heavyElapsedMs} ms\n" +
+                                                    "Total: ${result.totalElapsedMs} ms\n" +
+                                                    "Windows: ${result.outcomes.size}\n" +
+                                                    "Heavy final intervals: $finalMovements\n" +
+                                                    "Disposition: ${result.plan.discoveryDisposition}\n\n" +
+                                                    "Manifest: ${result.manifestFile.absolutePath}",
+                                            )
+                                            .setPositiveButton("OK", null)
+                                            .show()
+                                    }.onFailure { error ->
+                                        toast("Lite→Heavy prototype failed: ${error.message}")
+                                    }
+                                    render()
+                                }
+                            }
+                            .show()
+                    }.apply {
+                        isEnabled = row.session.sessionId !in prototypeRunsInProgress
+                        (layoutParams as? ViewGroup.MarginLayoutParams)?.topMargin = dp(6)
+                    })
+                }
                 if (segmentData?.canReanalyze == true) {
                     utils.addView(button("Reanalyze with current pipeline") {
                         AlertDialog.Builder(this@RecordingsActivity)

@@ -7,6 +7,7 @@ enum class PoseLandmarkerVariant(
     val variantKey: String,
     val displayName: String,
 ) {
+    LITE("mediapipe/pose_landmarker_lite.task", "pose_lite", "Lite"),
     FULL("mediapipe/pose_landmarker_full.task", "pose_full", "Full"),
     HEAVY("pose_landmarker_heavy.task", "pose_heavy", "Heavy"),
 }
@@ -25,6 +26,11 @@ data class PoseLandmarkerConfig(
         "tasks-vision=$tasksVersion;${delegate.name};VIDEO;numPoses=1;detection=0.5;presence=0.5;tracking=0.5;decoder=$decoderVersion;timestamps=source-PTS-ms;model=${variant.variantKey}"
 
     companion object {
+        fun litePrototype(): PoseLandmarkerConfig = PoseLandmarkerConfig(
+            assetPath = PoseLandmarkerVariant.LITE.defaultAssetPath,
+            variant = PoseLandmarkerVariant.LITE,
+        )
+
         fun liveDefault(): PoseLandmarkerConfig = PoseLandmarkerConfig(
             assetPath = PoseLandmarkerVariant.FULL.defaultAssetPath,
             variant = PoseLandmarkerVariant.FULL,
@@ -43,4 +49,3 @@ data class PoseLandmarkerConfig(
         }
     }
 }
-

@@ -167,6 +167,76 @@ class TrainingServices private constructor(context: Context) {
         }
     }
 
+    /** Developer-only isolated prototype. Does not create or update production Room records. */
+    fun runLiteHeavyPrototype(
+        sessionId: String,
+        completed: (Result<LiteHeavyPrototypeRunResult>) -> Unit = {},
+    ) {
+        processingExecutor.execute {
+            val result = runCatching {
+                val session = requireNotNull(repository.session(sessionId))
+                val recording = requireNotNull(repository.recording(sessionId))
+                check(recording.sourceState == SourceState.AVAILABLE) { "Original video is unavailable" }
+                val video = repository.file(recording.filePath)
+                check(video.isFile) { "Original video is unavailable" }
+                val sourceDurationMs = requireNotNull(recording.durationUs) { "Recording duration is unavailable" } / 1_000L
+                check(sourceDurationMs > 0) { "Recording duration is unavailable" }
+
+                val liteConfig = dk.lasse.karatecliprecorder.mediapipeposeadapter.PoseLandmarkerConfig.litePrototype()
+                val heavyConfig = offlinePoseConfig()
+                check(heavyConfig.variant == dk.lasse.karatecliprecorder.mediapipeposeadapter.PoseLandmarkerVariant.HEAVY) {
+                    "Heavy Pose Landmarker asset is unavailable"
+                }
+                fun identity(config: dk.lasse.karatecliprecorder.mediapipeposeadapter.PoseLandmarkerConfig): PrototypeModelAssetIdentity {
+                    val hash = app.assets.open(config.assetPath).use(LandmarkFiles::sha256)
+                    return PrototypeModelAssetIdentity(
+                        modelKey = config.variant.variantKey,
+                        sha256 = hash,
+                        pipelineConfiguration = config.trackConfiguration(),
+                    )
+                }
+                val geometry = CanonicalGeometryStorageAdapter.resolveTrackGeometry(
+                    recording = recording,
+                    track = null,
+                    fileResolver = { repository.file(it) },
+                )
+                check(geometry.isAvailable) { "Canonical recording geometry is unavailable" }
+                val activityPlanEvidence = MotionActivityPlans.evidenceFromEvents(repository.events(sessionId))
+                val processingPlan = RecordingProcessingPlans.forSession(session, activityPlanEvidence?.context)
+                val runner = LiteHeavyPrototypeRunner(
+                    outputRoot = File(app.filesDir, "training/prototypes"),
+                    liteProcessor = SequentialVideoPoseDecoder(
+                        app,
+                        liteConfig.delegate,
+                        liteConfig.assetPath,
+                    ),
+                    heavyProcessor = SequentialVideoPoseDecoder(
+                        app,
+                        heavyConfig.delegate,
+                        heavyConfig.assetPath,
+                    ),
+                    liteModel = identity(liteConfig),
+                    heavyModel = identity(heavyConfig),
+                    segmenterConfig = dk.lasse.karateanalyzer.capture.retrospective.RetrospectiveSegmenterConfig(
+                        profile = processingPlan.movementProfile,
+                        qomConfig = processingPlan.qomConfig,
+                        cadence = dk.lasse.karateanalyzer.capture.retrospective.RetrospectiveCadence.REPETITIONS,
+                    ),
+                    canonicalGeometry = geometry,
+                    checkActive = {
+                        val job = repository.job(sessionId)
+                        check(job == null || job.state != QueueState.DELETING) { "Cancelled" }
+                    },
+                    publication = { operation ->
+                        synchronized(ProcessingCoordinator.publication) { operation() }
+                    },
+                )
+                runner.run(recording.recordingId, video, sourceDurationMs)
+            }
+            main.post { completed(result) }
+        }
+    }
+
     companion object {
         @Volatile private var instance: TrainingServices? = null
         internal fun closeForTests() = synchronized(this) {
