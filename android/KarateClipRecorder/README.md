@@ -1,5 +1,33 @@
 # Karate Clip Recorder Android MVP
 
+## Local build and test performance
+
+Run Gradle from this directory with Java 17 or newer. In PowerShell, if the
+system Java is older, select Android Studio's bundled runtime for this session:
+
+```powershell
+$env:JAVA_HOME = 'C:\Program Files\Android\Android Studio\jbr'
+.\gradlew.bat :karate-analyzer-core:test :app:testDebugUnitTest :mediapipe-hand-adapter:testDebugUnitTest :mediapipe-pose-adapter:testDebugUnitTest
+```
+
+Use the relevant module task and `--tests '*ClassName*'` for focused checks.
+The unqualified `test` task also includes Android release variants; device tests
+are separate. Avoid `clean` during ordinary edit/build cycles because it removes
+reusable build outputs.
+
+Keep Kotlin's daemon compiler strategy enabled in `gradle.properties`.
+With Kotlin 2.0.21, forcing `in-process` bypasses incremental compilation.
+The first daemon build establishes its incremental state; later edits can compile
+only affected files. A local comment-only edit measured on 2026-11-07 reduced
+`:app:compileDebugKotlin` from 52.46s to 1.01s (whole invocation: 61s to 10s).
+This measures a small edit after warm-up, not a clean build or full test execution.
+
+The debug/core test command above also supports `--configuration-cache` to reuse
+Gradle configuration between matching invocations. This is opt-in: the custom
+replay/calibration tasks have not been validated with configuration caching.
+For diagnostics, add `--profile` and `-Pkotlin.build.report.output=file`; reports
+are written under `build/reports/profile/` and `build/reports/kotlin-build/`.
+
 Skill Coach → Record & Analyze now provides assisted touch capture, video-only
 MP4s and a durable serial Movement Landmark Stream queue. Performance → Recordings
 provides recent history, a filtered month calendar, playback, retry and confirmed

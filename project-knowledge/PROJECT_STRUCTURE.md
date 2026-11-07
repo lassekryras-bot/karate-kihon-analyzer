@@ -19,6 +19,15 @@ For each non-obvious entry, include enough evidence to recheck it: a repository-
 
 ## Verified map
 
+### Test entry points
+
+**Status: OBSERVED — verified 2026-11-07**
+
+- Python tests live in `tests/`; run `.venv/Scripts/python.exe -m pytest tests --durations=10` from the repository root. `pyproject.toml` configures `pythonpath` but no `testpaths`, so an unqualified pytest invocation also discovers local tests outside `tests/`, including ignored scratch experiments.
+- Android builds run from `android/KarateClipRecorder/` and require Java 17 or later to start Gradle. The shared pure Kotlin suite is `:karate-analyzer-core:test`; the app and both MediaPipe adapters expose `:app:testDebugUnitTest`, `:mediapipe-hand-adapter:testDebugUnitTest`, and `:mediapipe-pose-adapter:testDebugUnitTest`. The Android modules also have release unit-test variants. App tests mix ordinary JVM tests and Robolectric tests with Android resources enabled (`app/build.gradle.kts`).
+- `app/src/androidTest/` contains device/emulator migration coverage, separate from JVM unit tests. For focused JVM runs, Gradle test tasks accept `--tests` filters; `--profile` records build/task overhead separately from JUnit suite durations in each module's `build/test-results/`.
+- Android `gradle.properties` selects the Kotlin daemon: Kotlin 2.0.21's previous `in-process` override bypassed incremental compilation, confirmed by Kotlin build reports during a one-file edit. Build/test commands and the measured comparison are maintained in `android/KarateClipRecorder/README.md` under local build and test performance.
+
 ### Shared Android analytical core
 
 **Status: OBSERVED — verified 2026-09-24**
