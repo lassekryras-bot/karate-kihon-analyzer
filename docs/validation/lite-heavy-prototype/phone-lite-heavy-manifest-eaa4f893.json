@@ -1,0 +1,435 @@
+{
+  "schema": "lite-heavy-prototype-manifest-v2",
+  "prototypeId": "eaa4f893-a4df-4869-8adf-9e9b5c1147ef",
+  "recordingId": "e9406fe1-90ba-4d0d-9558-ac6a518cc0db",
+  "sourceContentSha256": "f87c0c3e93ef1af5d171353028ba47f34d20e9da665aae2062c66b57b13f1e35",
+  "sourceDurationMs": 12604,
+  "appBuildIdentity": "app-version=0.1.0;version-code=1;debug=true",
+  "sourceRevision": "665d0da4dff36d75426f390af94dbd7e82f49d0d",
+  "sourceDirtyState": "dirty-unrelated-worktree-changes-present",
+  "apkSha256": "bfcd607a7ed0f8b9d2c808ad4daf784d9de1d603d925d0ec9281fa209a28f72e",
+  "deviceConditions": "manufacturer=samsung;model=SM-A556B;android=16;sdk=36;battery=84;charging=true;thermal=0",
+  "runSequenceIndex": 2,
+  "startedAtEpochMs": 1794170723792,
+  "productionActivated": false,
+  "calibrationApplied": false,
+  "publicationSemantics": "all-or-nothing-no-resume-v1",
+  "abandonedStagingPolicy": "discard-prior-pending-under-serialized-entry-v2",
+  "canonicalGeometry": {
+    "geometryId": "geom_recovered_e9406fe1-90ba-4d0d-9558-ac6a518cc0db_rec",
+    "contractVersion": "canonical-geometry-v1",
+    "recordingId": "e9406fe1-90ba-4d0d-9558-ac6a518cc0db",
+    "landmarkTrackId": null,
+    "canonicalWidth": 1080,
+    "canonicalHeight": 1920,
+    "canonicalOrientation": "UPRIGHT_UNMIRRORED",
+    "sourceToCanonicalTransform": {
+      "rotationDegrees": 90,
+      "isMirrored": false,
+      "scaleX": 1,
+      "scaleY": 1,
+      "order": "ROTATION_THEN_MIRROR"
+    },
+    "adapterVersion": "legacy_recovery_v1",
+    "sourceHash": null,
+    "trackHash": null,
+    "encodedWidth": 1920,
+    "encodedHeight": 1080,
+    "containerRotation": 90
+  },
+  "prototypeConfigKey": "lite-heavy-prototype-v2",
+  "paddingPolicyKey": "provisional-fixed-padding-v1",
+  "paddingBeforeMs": 1000,
+  "paddingAfterMs": 1000,
+  "requestedCoverageSumMs": 24736,
+  "executionCoverageUnionMs": 12604,
+  "segmenterConfig": {
+    "profile": "PUNCH",
+    "cadence": "REPETITIONS",
+    "cadenceMinimumInterMovementPauseMs": 200,
+    "minMovementDurationMs": 120,
+    "maxMovementDurationMs": 8000,
+    "preRollMs": 150,
+    "postRollMs": 200,
+    "halfWindowDurationMs": 50,
+    "minimumSamplesInWindow": 3,
+    "minimumWindowSpanMs": 50,
+    "startThresholdNormalized": 0.5,
+    "quietThresholdNormalized": 0.25,
+    "minQuietDwellMs": 60,
+    "q20Percentile": 20,
+    "q90Percentile": 90,
+    "qom": {
+      "detectorVersion": "activity_qom_supported_world_v2",
+      "evidencePolicy": "OBSERVED_WORLD_V2",
+      "evidencePolicyVersion": "qom-evidence-observed-world-v2",
+      "minimumObservedConfidence": 0.55,
+      "minimumCompositeSupport": 0.55,
+      "positionMedianSamples": 3,
+      "positionMeanSamples": 3,
+      "rollingAreaDurationMs": 150,
+      "startGateMeters": 0.08,
+      "stopGateMeters": 0.04,
+      "maximumFrameGapMs": 500,
+      "preRollMs": 150,
+      "postRollMs": 200,
+      "minimumValidBlocks": 1
+    }
+  },
+  "discoveryDisposition": "WINDOWS_PLANNED",
+  "liteElapsedMs": 131448,
+  "heavyElapsedMs": 170395,
+  "totalElapsedMs": 302572,
+  "liteTrack": {
+    "recordingId": "e9406fe1-90ba-4d0d-9558-ac6a518cc0db",
+    "landmarkTrackId": "lite-eaa4f893-a4df-4869-8adf-9e9b5c1147ef",
+    "role": "LITE_DISCOVERY",
+    "modelKey": "pose_lite",
+    "modelSha256": "59929e1d1ee95287735ddd833b19cf4ac46d29bc7afddbbf6753c459690d574a",
+    "pipelineConfiguration": "tasks-vision=0.10.26;CPU;VIDEO;numPoses=1;detection=0.5;presence=0.5;tracking=0.5;decoder=sequential-v1;timestamps=source-PTS-ms;model=pose_lite",
+    "geometryBinding": {
+      "geometryId": "geom_recovered_e9406fe1-90ba-4d0d-9558-ac6a518cc0db_rec",
+      "contractVersion": "canonical-geometry-v1",
+      "recordingId": "e9406fe1-90ba-4d0d-9558-ac6a518cc0db",
+      "landmarkTrackId": "lite-eaa4f893-a4df-4869-8adf-9e9b5c1147ef",
+      "canonicalWidth": 1080,
+      "canonicalHeight": 1920,
+      "canonicalOrientation": "UPRIGHT_UNMIRRORED",
+      "sourceToCanonicalTransform": {
+        "rotationDegrees": 90,
+        "isMirrored": false,
+        "scaleX": 1,
+        "scaleY": 1,
+        "order": "ROTATION_THEN_MIRROR"
+      },
+      "adapterVersion": "legacy_recovery_v1",
+      "sourceHash": "f87c0c3e93ef1af5d171353028ba47f34d20e9da665aae2062c66b57b13f1e35",
+      "trackHash": "11e25df13e44335b5b37bebbfa4a1f38eb58add463e414f0a5512526eb61d5fb",
+      "encodedWidth": 1920,
+      "encodedHeight": 1080,
+      "containerRotation": 90
+    },
+    "geometryCompatibilityKey": "f046dc66159d424ca3dcf6322f56bf2b97ce282c1b03ee5ba5333f8cc3fb7dc6",
+    "fileReference": "lite.mls",
+    "formatId": "movement_landmark_stream_v1",
+    "formatVersion": 1,
+    "contentSha256": "11e25df13e44335b5b37bebbfa4a1f38eb58add463e414f0a5512526eb61d5fb",
+    "requestedStartTimestampMs": 0,
+    "requestedEndTimestampMs": 12604,
+    "actualStartTimestampMs": 0,
+    "actualEndTimestampMs": 12604,
+    "frameCount": 379,
+    "extractionElapsedMs": 131448,
+    "calibrationApplied": false
+  },
+  "candidateWindows": [
+    {
+      "windowId": "heavy-window-1",
+      "candidateId": "unknown-1",
+      "candidateKind": "UNKNOWN_EVIDENCE",
+      "candidateStartTimestampMs": 0,
+      "candidateEndTimestampMs": 200,
+      "requestedStartTimestampMs": 0,
+      "requestedEndTimestampMs": 1200,
+      "truncatedAtRecordingStart": true,
+      "truncatedAtRecordingEnd": false,
+      "overlappingWindowIds": [
+        "heavy-window-2"
+      ]
+    },
+    {
+      "windowId": "heavy-window-2",
+      "candidateId": "movement-1",
+      "candidateKind": "DETECTED_MOVEMENT",
+      "candidateStartTimestampMs": 1500,
+      "candidateEndTimestampMs": 1967,
+      "requestedStartTimestampMs": 500,
+      "requestedEndTimestampMs": 2967,
+      "truncatedAtRecordingStart": false,
+      "truncatedAtRecordingEnd": false,
+      "overlappingWindowIds": [
+        "heavy-window-1",
+        "heavy-window-3",
+        "heavy-window-4"
+      ]
+    },
+    {
+      "windowId": "heavy-window-3",
+      "candidateId": "movement-2",
+      "candidateKind": "DETECTED_MOVEMENT",
+      "candidateStartTimestampMs": 2334,
+      "candidateEndTimestampMs": 2667,
+      "requestedStartTimestampMs": 1334,
+      "requestedEndTimestampMs": 3667,
+      "truncatedAtRecordingStart": false,
+      "truncatedAtRecordingEnd": false,
+      "overlappingWindowIds": [
+        "heavy-window-2",
+        "heavy-window-4"
+      ]
+    },
+    {
+      "windowId": "heavy-window-4",
+      "candidateId": "movement-3",
+      "candidateKind": "DETECTED_MOVEMENT",
+      "candidateStartTimestampMs": 3534,
+      "candidateEndTimestampMs": 4034,
+      "requestedStartTimestampMs": 2534,
+      "requestedEndTimestampMs": 5034,
+      "truncatedAtRecordingStart": false,
+      "truncatedAtRecordingEnd": false,
+      "overlappingWindowIds": [
+        "heavy-window-2",
+        "heavy-window-3",
+        "heavy-window-5",
+        "heavy-window-6"
+      ]
+    },
+    {
+      "windowId": "heavy-window-5",
+      "candidateId": "movement-4",
+      "candidateKind": "DETECTED_MOVEMENT",
+      "candidateStartTimestampMs": 4668,
+      "candidateEndTimestampMs": 5035,
+      "requestedStartTimestampMs": 3668,
+      "requestedEndTimestampMs": 6035,
+      "truncatedAtRecordingStart": false,
+      "truncatedAtRecordingEnd": false,
+      "overlappingWindowIds": [
+        "heavy-window-4",
+        "heavy-window-6"
+      ]
+    },
+    {
+      "windowId": "heavy-window-6",
+      "candidateId": "movement-5",
+      "candidateKind": "DETECTED_MOVEMENT",
+      "candidateStartTimestampMs": 5835,
+      "candidateEndTimestampMs": 6169,
+      "requestedStartTimestampMs": 4835,
+      "requestedEndTimestampMs": 7169,
+      "truncatedAtRecordingStart": false,
+      "truncatedAtRecordingEnd": false,
+      "overlappingWindowIds": [
+        "heavy-window-4",
+        "heavy-window-5",
+        "heavy-window-7"
+      ]
+    },
+    {
+      "windowId": "heavy-window-7",
+      "candidateId": "movement-6",
+      "candidateKind": "DETECTED_MOVEMENT",
+      "candidateStartTimestampMs": 7102,
+      "candidateEndTimestampMs": 7469,
+      "requestedStartTimestampMs": 6102,
+      "requestedEndTimestampMs": 8469,
+      "truncatedAtRecordingStart": false,
+      "truncatedAtRecordingEnd": false,
+      "overlappingWindowIds": [
+        "heavy-window-6",
+        "heavy-window-8",
+        "heavy-window-9"
+      ]
+    },
+    {
+      "windowId": "heavy-window-8",
+      "candidateId": "movement-7",
+      "candidateKind": "DETECTED_MOVEMENT",
+      "candidateStartTimestampMs": 8269,
+      "candidateEndTimestampMs": 8603,
+      "requestedStartTimestampMs": 7269,
+      "requestedEndTimestampMs": 9603,
+      "truncatedAtRecordingStart": false,
+      "truncatedAtRecordingEnd": false,
+      "overlappingWindowIds": [
+        "heavy-window-7",
+        "heavy-window-9",
+        "heavy-window-10"
+      ]
+    },
+    {
+      "windowId": "heavy-window-9",
+      "candidateId": "movement-8",
+      "candidateKind": "DETECTED_MOVEMENT",
+      "candidateStartTimestampMs": 9403,
+      "candidateEndTimestampMs": 9737,
+      "requestedStartTimestampMs": 8403,
+      "requestedEndTimestampMs": 10737,
+      "truncatedAtRecordingStart": false,
+      "truncatedAtRecordingEnd": false,
+      "overlappingWindowIds": [
+        "heavy-window-7",
+        "heavy-window-8",
+        "heavy-window-10",
+        "heavy-window-11"
+      ]
+    },
+    {
+      "windowId": "heavy-window-10",
+      "candidateId": "movement-9",
+      "candidateKind": "DETECTED_MOVEMENT",
+      "candidateStartTimestampMs": 10470,
+      "candidateEndTimestampMs": 10870,
+      "requestedStartTimestampMs": 9470,
+      "requestedEndTimestampMs": 11870,
+      "truncatedAtRecordingStart": false,
+      "truncatedAtRecordingEnd": false,
+      "overlappingWindowIds": [
+        "heavy-window-8",
+        "heavy-window-9",
+        "heavy-window-11"
+      ]
+    },
+    {
+      "windowId": "heavy-window-11",
+      "candidateId": "movement-10",
+      "candidateKind": "DETECTED_MOVEMENT",
+      "candidateStartTimestampMs": 11504,
+      "candidateEndTimestampMs": 11871,
+      "requestedStartTimestampMs": 10504,
+      "requestedEndTimestampMs": 12604,
+      "truncatedAtRecordingStart": false,
+      "truncatedAtRecordingEnd": true,
+      "overlappingWindowIds": [
+        "heavy-window-9",
+        "heavy-window-10"
+      ]
+    }
+  ],
+  "executionWindows": [
+    {
+      "executionWindowId": "heavy-execution-1",
+      "candidateWindowIds": [
+        "heavy-window-1",
+        "heavy-window-2",
+        "heavy-window-3",
+        "heavy-window-4",
+        "heavy-window-5",
+        "heavy-window-6",
+        "heavy-window-7",
+        "heavy-window-8",
+        "heavy-window-9",
+        "heavy-window-10",
+        "heavy-window-11"
+      ],
+      "requestedStartTimestampMs": 0,
+      "requestedEndTimestampMs": 12604,
+      "truncatedAtRecordingStart": true,
+      "truncatedAtRecordingEnd": true,
+      "state": "COMPLETED",
+      "heavyTrack": {
+        "recordingId": "e9406fe1-90ba-4d0d-9558-ac6a518cc0db",
+        "landmarkTrackId": "heavy-eaa4f893-a4df-4869-8adf-9e9b5c1147ef-heavy-execution-1",
+        "role": "HEAVY_WINDOW",
+        "modelKey": "pose_heavy",
+        "modelSha256": "64437af838a65d18e5ba7a0d39b465540069bc8aae8308de3e318aad31fcbc7b",
+        "pipelineConfiguration": "tasks-vision=0.10.26;CPU;VIDEO;numPoses=1;detection=0.5;presence=0.5;tracking=0.5;decoder=sequential-v1;timestamps=source-PTS-ms;model=pose_heavy",
+        "geometryBinding": {
+          "geometryId": "geom_recovered_e9406fe1-90ba-4d0d-9558-ac6a518cc0db_rec",
+          "contractVersion": "canonical-geometry-v1",
+          "recordingId": "e9406fe1-90ba-4d0d-9558-ac6a518cc0db",
+          "landmarkTrackId": "heavy-eaa4f893-a4df-4869-8adf-9e9b5c1147ef-heavy-execution-1",
+          "canonicalWidth": 1080,
+          "canonicalHeight": 1920,
+          "canonicalOrientation": "UPRIGHT_UNMIRRORED",
+          "sourceToCanonicalTransform": {
+            "rotationDegrees": 90,
+            "isMirrored": false,
+            "scaleX": 1,
+            "scaleY": 1,
+            "order": "ROTATION_THEN_MIRROR"
+          },
+          "adapterVersion": "legacy_recovery_v1",
+          "sourceHash": "f87c0c3e93ef1af5d171353028ba47f34d20e9da665aae2062c66b57b13f1e35",
+          "trackHash": "39091b93bba46594ca7ff2a752e86ed2eb762e99d7112ae0cdb4bd54fd2fff54",
+          "encodedWidth": 1920,
+          "encodedHeight": 1080,
+          "containerRotation": 90
+        },
+        "geometryCompatibilityKey": "f046dc66159d424ca3dcf6322f56bf2b97ce282c1b03ee5ba5333f8cc3fb7dc6",
+        "fileReference": "heavy-execution-1.mls",
+        "formatId": "movement_landmark_stream_v1",
+        "formatVersion": 1,
+        "contentSha256": "39091b93bba46594ca7ff2a752e86ed2eb762e99d7112ae0cdb4bd54fd2fff54",
+        "requestedStartTimestampMs": 0,
+        "requestedEndTimestampMs": 12604,
+        "actualStartTimestampMs": 0,
+        "actualEndTimestampMs": 12604,
+        "frameCount": 379,
+        "extractionElapsedMs": 170395,
+        "calibrationApplied": false
+      },
+      "uncertainty": [
+        "END_PADDING_CLIPPED",
+        "RECORDING_END_WITHOUT_STOP_EVIDENCE",
+        "SEGMENT_TOUCHES_ACTUAL_END",
+        "START_PADDING_CLIPPED",
+        "TRACKING_RESET_AT_WINDOW_START"
+      ],
+      "failureReason": null,
+      "finalMovements": [
+        {
+          "startTimestampMs": 1500,
+          "endTimestampMs": 2000,
+          "endBoundaryKind": "STOP_GATE",
+          "unknownEvidenceIntervals": []
+        },
+        {
+          "startTimestampMs": 2300,
+          "endTimestampMs": 2701,
+          "endBoundaryKind": "STOP_GATE",
+          "unknownEvidenceIntervals": []
+        },
+        {
+          "startTimestampMs": 3534,
+          "endTimestampMs": 4034,
+          "endBoundaryKind": "STOP_GATE",
+          "unknownEvidenceIntervals": []
+        },
+        {
+          "startTimestampMs": 4668,
+          "endTimestampMs": 5068,
+          "endBoundaryKind": "STOP_GATE",
+          "unknownEvidenceIntervals": []
+        },
+        {
+          "startTimestampMs": 5835,
+          "endTimestampMs": 6169,
+          "endBoundaryKind": "STOP_GATE",
+          "unknownEvidenceIntervals": []
+        },
+        {
+          "startTimestampMs": 7102,
+          "endTimestampMs": 7536,
+          "endBoundaryKind": "STOP_GATE",
+          "unknownEvidenceIntervals": []
+        },
+        {
+          "startTimestampMs": 8269,
+          "endTimestampMs": 8603,
+          "endBoundaryKind": "STOP_GATE",
+          "unknownEvidenceIntervals": []
+        },
+        {
+          "startTimestampMs": 9370,
+          "endTimestampMs": 9737,
+          "endBoundaryKind": "STOP_GATE",
+          "unknownEvidenceIntervals": []
+        },
+        {
+          "startTimestampMs": 10437,
+          "endTimestampMs": 10870,
+          "endBoundaryKind": "STOP_GATE",
+          "unknownEvidenceIntervals": []
+        },
+        {
+          "startTimestampMs": 11504,
+          "endTimestampMs": 12604,
+          "endBoundaryKind": "RECORDING_END_WITHOUT_STOP_EVIDENCE",
+          "unknownEvidenceIntervals": []
+        }
+      ]
+    }
+  ]
+}

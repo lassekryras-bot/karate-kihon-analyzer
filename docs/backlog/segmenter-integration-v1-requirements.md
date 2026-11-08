@@ -2,6 +2,14 @@
 
 Status: IN PROGRESS
 
+## Delivery checkpoint — 2026-11-07
+
+OBSERVED: integration exists; `d8d0539` selects QoM v2 for explicit straight punches while kick/unknown activity retain v1. See [current routing decision](../../project-knowledge/DECISIONS.md#2026-10-15--supported-world-qom-v2-production-scope) and [replay evidence](../motion-detector-math.md#20-supported-world-v2-evidence-policy-and-production-selection).
+
+The Architect briefing on 2026-11-07 reports Lasse accepted all ten windows of one recording as one punch each. This is recording-specific boundary acceptance, not universal validation or proof of side/impact correctness. The old blanket claim that automated build and all physical boundary validation remain pending is stale; no fresh build/device check ran here.
+
+Remaining: broader corpus and outstanding [integration validation](segmenter-integration-v1-validation.md). Preserve actual counts, versioned runs and evidence gaps. Full acceptance is not established; retain IN PROGRESS. Original v1 requirements below are historical baseline where later routing decisions apply.
+
 ## Purpose
 
 Connect the existing persisted landmark-processing pipeline to the existing

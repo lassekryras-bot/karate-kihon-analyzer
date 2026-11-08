@@ -2,7 +2,21 @@
 
 Status: IN PROGRESS
 
-## Device feedback follow-up - 2026-09-20
+## Delivery checkpoint — 2026-11-07
+
+OBSERVED: `394ca7d` adds retained limb-angle plot presentation, explicit evidence gaps and logical bounds, alongside supporting side-episode diagnostics. Source owners are `app/.../movement/MovementMotionInspection.kt`, `MovementGraphView.kt`, `MovementPresentationModels.kt` and `MovementDetailActivity.kt`; regression cases exist in `MovementMotionInspectionTest.kt`. Therefore the historical blanket statements below that Graph ingestion is deferred or Graph always unavailable no longer describe all current behavior. Missing evidence must still remain unavailable; these plots do not establish speed/deviation metrics or technique findings.
+
+Remaining acceptance: phone plot readability and dark mode (unverified per Architect briefing), plus applicable playback, lifecycle, overlay, accessibility and provenance checks below. No fresh app tests or device checks ran during this reconciliation; older test counts retain their original dates. Record each verified case/build/device before closing this task.
+
+## Prototype phone-test crash — 2026-11-07
+
+OPEN follow-up reported by Senior during isolated Lite/Heavy phone testing on Samsung SM-A556B, build commit `e5737a9`: opening MovementDetailActivity at 21:46:05 preceded a process crash in the existing `MovementPresentationPlayerView`/MediaPlayer path. It interrupted prototype work before manifest publication. Source/production-track hashes were unchanged. This is reported runtime evidence, not a root-cause diagnosis by BA; request the retained crash trace/reproduction evidence from Senior before choosing a fix.
+
+Next action: investigate player lifecycle/crash under this existing playback task. Acceptance: reproduce or explain the captured failure, add focused regression verification where appropriate and verify the affected navigation/playback sequence on device. A prototype rerun that avoids movement details does not close this defect. Pending prototype artifact `7387859e-548c-4c5c-a738-7cae799ad99b` is retained as interruption evidence; see the [prototype task](prioritized/002-lite-heavy-processing-planning.md).
+
+Trace supplied by Senior: `android/KarateClipRecorder/build/phone-movement-player-crash-20261107-214605.txt`, SHA-256 `282E8EEC32832ADCA009CCDB8BC5BF54A566CBA766F19493F40C48A717262310` (BA verified). The trace starts with `IllegalStateException` in `MediaPlayer.getVideoWidth`, called by `MovementPresentationPlayerView.applyViewport` at line 152 from a layout callback. This locates the failure, not its complete lifecycle cause. The later successful prototype run does not resolve it; retain the trace before build cleanup.
+
+## Historical device feedback — 2026-09-20
 
 Manual testing found playback oscillating between frames and an oversized overlay on
 first opening that corrected after a timeline interaction. The local fix separates

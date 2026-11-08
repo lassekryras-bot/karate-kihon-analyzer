@@ -1,5 +1,11 @@
 # Four-limb motion implementation status
 
+## Current checkpoint — 2026-11-07
+
+The reports below are historical. Resolver v2 (`cd296e2`) is implemented but later replay exposed wrong-side results. The initial sparse-MLS test failure was already diagnosed; it is not the current blocker. Current P1 work and acceptance are owned by the [four-limb task](backlog/four-limb-motion-characterizer-requirement-v1.md#current-follow-up--2026-11-07), with evidence in [DOMAIN.md](../project-knowledge/DOMAIN.md). Diagnostic `94e7454` does not establish a corrected production rule.
+
+Plots were extended in `394ca7d`; see [Movement Detail](backlog/movement-detail-page-v1.md#delivery-checkpoint--2026-11-07). Impact suitability remains unresolved; see [ImpactAnalyzer](backlog/impact-analyzer-requirement-v1.md#delivery-checkpoint--2026-11-07). No fresh tests or device checks ran during reconciliation.
+
 **2026-10-04 — App integration implemented; device/production acceptance pending.**
 
 The supplied [requirement](backlog/four-limb-motion-characterizer-requirement-v1.md) and user handover set the sequence: generic limb characterization, activity-aware starting-side resolution, then selected-weapon/impact integration. The user subsequently asked to pause further validation and proceed with starting-side implementation. No acceptance or production-calibration claim follows from that pause.

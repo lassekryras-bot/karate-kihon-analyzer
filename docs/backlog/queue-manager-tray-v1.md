@@ -2,6 +2,10 @@
 
 Status: IN PROGRESS
 
+## Delivery checkpoint — 2026-11-07
+
+OBSERVED: `454a139` implements this task; current source contains `app/.../recordings/QueueManager.kt`, `QueueManagerTrayView.kt` and its use in `RecordingsActivity.kt`. Queue Manager behavioral/architecture tests exist. This review did not run them or establish completion of physical acceptance below. Next action: reconcile the existing implementation with the acceptance checklist and verify the real recording-to-View flow; do not build a second queue.
+
 ## Purpose and milestone
 
 Implement the app-level **Queue Manager Tray** for the Karate Kihon Analyzer

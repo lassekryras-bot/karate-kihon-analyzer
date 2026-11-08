@@ -1,8 +1,16 @@
 # ImpactAnalyzer — Shared Analyzer Requirement v1
 
-**Status:** Design baseline for implementation  
+**Status:** IN PROGRESS — implementation exists; production suitability unresolved
 **Scope:** Offline analysis of one already-segmented, analysis-suitable movement  
 **Primary use:** Locate the terminal event of a known strike and identify the stable terminal window that follows it
+
+## Delivery checkpoint — 2026-11-07
+
+OBSERVED: implementation `c2dd2bd`, integration `276b5d0` and gating/persistence repair `9df4e12` exist. The shared owner is `android/KarateClipRecorder/karate-analyzer-core/src/main/kotlin/dk/lasse/karateanalyzer/impact/ImpactAnalyzer.kt`; app routing is in `app/.../training/MovementMotionAnalysis.kt`.
+
+Production impact output intentionally abstains with `UNSUPPORTED_ANALYSIS_PROFILE` until an activity-scoped view mapping is validated. UI-selected view and image-height calibration alone are insufficient. Do not bypass the gate as a fix. Reliable side/weapon evidence also depends on the [side-correctness follow-up](four-limb-motion-characterizer-requirement-v1.md#current-follow-up--2026-11-07).
+
+Next action: establish supported activity/view evidence and review semantics with the Architect. Acceptance must cover supported/unsupported cases, abstention, retained profile/view/result provenance and historical preservation. Dated tests are recorded in [implementation status](../four-limb-motion-implementation-status.md); no tests, thresholds or camera-view policy were freshly validated here.
 
 ---
 

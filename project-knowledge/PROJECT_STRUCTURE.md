@@ -19,6 +19,12 @@ For each non-obvious entry, include enough evidence to recheck it: a repository-
 
 ## Verified map
 
+### Backlog ownership
+
+**Status: OBSERVED — verified 2026-11-07**
+
+`docs/backlog/README.md` indexes repository task records; `docs/backlog/prioritized/README.md` records the selected execution queue. Each requirement has one owning task file, with dated delivery/acceptance checkpoints; supporting validation plans and superseded specifications are not separate assignments. Durable domain/architecture policy remains in `project-knowledge/` or its linked authoritative owner. Task status is not evidence that every historical specification is current or that device acceptance passed.
+
 ### Test entry points
 
 **Status: OBSERVED — verified 2026-11-07**

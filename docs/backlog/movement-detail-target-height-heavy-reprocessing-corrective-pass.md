@@ -2,10 +2,14 @@
 
 ## Status
 
-IN PROGRESS — Addressing 3 remaining acceptance blockers:
-1. Removing impact-frame neutral fallback in `StraightPunchMovementAdapter` (`neutral_body_reference_unavailable`).
-2. Transporting anatomical target via stable body-origin translation (`currentHipCenter - neutralHipCenter`) in `StraightPunchTargetCalculator`, decoupling target height from striking shoulder.
-3. Enforcing an explicit clipping viewport container for vertical-only cropping in `MovementVideoViewport`, `MovementPresentationPlayerView`, and `MovementExpandedInspectionDialog`.
+IN PROGRESS — implementation present; complete acceptance remains unverified.
+
+Source reconciliation at `94e7454` (2026-11-07) found implementations for all three previously listed code blockers:
+1. `StraightPunchMovementAdapter` returns `neutral_body_reference_unavailable` when the neutral reference is absent.
+2. `StraightPunchTargetCalculator` computes `bodyTranslationA` from current body origin and neutral hip reference and transports anatomical targets with it. The actual implementation can use a single observed hip when the other is unavailable; this review does not approve that fallback as equivalent to bilateral evidence.
+3. `MovementVideoViewport` creates a clipping container (`cropContainer.clipChildren = true`).
+
+These observations supersede the claim that those code changes are wholly missing, not their acceptance criteria. Verify the full requirements and physical playback/geometry/reprocessing workflow before DONE; no fresh tests/device checks ran here. Current impact-dependent output is separately gated by [view suitability](impact-analyzer-requirement-v1.md#delivery-checkpoint--2026-11-07). The new [Lite/Heavy planning task](prioritized/002-lite-heavy-processing-planning.md) does not replace this full-recording Heavy acceptance.
 
 This task combines the agreed fixes for:
 

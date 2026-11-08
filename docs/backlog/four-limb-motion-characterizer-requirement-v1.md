@@ -1,10 +1,20 @@
 # Four-Limb Motion Characterizer — Shared Requirement v1
 
-**Status:** Design baseline for implementation
+**Status:** IN PROGRESS — implemented; side correctness unresolved
 **Scope:** Generic per-segment characterization of left/right arm and left/right leg motion
 **Working name:** `FourLimbMotionCharacterizer`
 
-**Delivery status (2026-10-04): IN PROGRESS.** Initial implementation and downstream side resolver are present; acceptance is not complete. See [implementation status and measurement-policy interpretation](../four-limb-motion-implementation-status.md). The supplied requirement below remains the design baseline.
+**Delivery status (2026-11-07): IN PROGRESS.** Characterizer and partial-visibility resolver v2 exist (`276b5d0`, `cd296e2`); production side correctness is not accepted. See [implementation status](../four-limb-motion-implementation-status.md). The supplied requirement below remains the design baseline.
+
+## Current follow-up — 2026-11-07
+
+Open P1: retained ten-punch replay labelled visible RIGHT punches 2, 4, 6 and 8 LEFT; movement 10 abstained. An opening episode can belong to the retracting arm. Authoritative observations and the rejected shoulder-reach-plus-opening counterexample are in [DOMAIN.md](../../project-knowledge/DOMAIN.md), including diagnostic commit `94e7454`.
+
+Next action: obtain/replay exact body-relative hand evidence to distinguish striking motion from retraction while preserving tracking/confidence uncertainty. Shoulder reach plus elbow opening alone is not an accepted production rule. Senior owns implementation; material semantic changes need Architect review. Keep generic geometry in the shared core.
+
+Correction acceptance: compare independently labelled left/right movements; cover retraction, crossings/identity uncertainty, occlusion and ambiguity; abstain when evidence is insufficient; retain versioned interpretation without rewriting history; verify other-activity regressions. Do not force alternation or ten resolved punches. Thresholds and the discriminative rule remain unresolved.
+
+The Architect reported the previous exact recording/MLS unavailable at the latest checkpoint; availability was not rechecked here. Synthetic diagnostics do not replace recording/device acceptance. [Lite/Heavy planning](prioritized/002-lite-heavy-processing-planning.md) is a separate assignment. No fresh tests ran in this reconciliation.
 
 ---
 

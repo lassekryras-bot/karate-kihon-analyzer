@@ -1,5 +1,7 @@
 # Landmark Geometry Core — Shared Utility Specification v1.0
 
+**Superseded:** use [Geometry Core v2](landmark-geometry-core-v2-spec.md) for current task scope and delivery status. This retained v1 draft is historical evidence, not another open implementation task.
+
 Date: 22 September 2026  
 Project: Karate Analyzer / karate-kihon-analyzer  
 Status: Proposed implementation specification following architecture discussion; not a claim that these capabilities are already implemented.  

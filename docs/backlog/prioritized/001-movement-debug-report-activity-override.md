@@ -1,6 +1,6 @@
 # Movement Debug Report and Activity Override
 
-**Status:** COMPLETED
+**Status:** DONE
 **Source:** Movement Detail debug review, 2026-10-05  
 **Area:** Android app / Movement Detail / Analysis Debug
 

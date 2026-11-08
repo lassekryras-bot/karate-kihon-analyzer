@@ -1,6 +1,10 @@
 # Recording Results Page v1 — Developer Requirement Spec
 
-Status: OPEN
+Status: IN PROGRESS
+
+## Delivery checkpoint — 2026-11-07
+
+OBSERVED at `94e7454`: `app/.../recordings/RecordingsActivity.kt` contains the recording detail presentation, Session analysis section and movement list; `a8f5406` also restyles the recordings browser. Implementation is present, so OPEN as wholly unstarted is misleading. This does not certify all specification criteria or future-provider data. Next action: compare the detail UI against the requirements below, retain unavailable states where providers are absent, and record remaining device/accessibility acceptance. No fresh tests or device checks ran in this reconciliation.
 
 ## 1. Objective
 

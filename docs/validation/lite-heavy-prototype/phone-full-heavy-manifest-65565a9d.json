@@ -1,0 +1,183 @@
+{
+  "schema": "full-heavy-comparator-manifest-v1",
+  "prototypeId": "full-heavy-65565a9d-8d38-48bc-9682-1c1e49abd313",
+  "recordingId": "e9406fe1-90ba-4d0d-9558-ac6a518cc0db",
+  "sourceDurationMs": 12604,
+  "sourceContentSha256": "f87c0c3e93ef1af5d171353028ba47f34d20e9da665aae2062c66b57b13f1e35",
+  "appBuildIdentity": "app-version=0.1.0;version-code=1;debug=true",
+  "sourceRevision": "665d0da4dff36d75426f390af94dbd7e82f49d0d",
+  "sourceDirtyState": "dirty-unrelated-worktree-changes-present",
+  "apkSha256": "bfcd607a7ed0f8b9d2c808ad4daf784d9de1d603d925d0ec9281fa209a28f72e",
+  "deviceConditions": "manufacturer=samsung;model=SM-A556B;android=16;sdk=36;battery=86;charging=true;thermal=0",
+  "runSequenceIndex": 3,
+  "startedAtEpochMs": 1794171078065,
+  "productionActivated": false,
+  "calibrationApplied": false,
+  "publicationSemantics": "all-or-nothing-no-resume-v1",
+  "abandonedStagingPolicy": "discard-prior-pending-under-serialized-entry-v2",
+  "runKind": "FULL_HEAVY_COMPARATOR",
+  "runOrder": "recording-prototype-sequence-3",
+  "windowCount": 1,
+  "trackerResetCount": 1,
+  "heavyElapsedMs": 170918,
+  "totalElapsedMs": 171203,
+  "segmenterConfig": {
+    "profile": "PUNCH",
+    "cadence": "REPETITIONS",
+    "cadenceMinimumInterMovementPauseMs": 200,
+    "minMovementDurationMs": 120,
+    "maxMovementDurationMs": 8000,
+    "preRollMs": 150,
+    "postRollMs": 200,
+    "halfWindowDurationMs": 50,
+    "minimumSamplesInWindow": 3,
+    "minimumWindowSpanMs": 50,
+    "startThresholdNormalized": 0.5,
+    "quietThresholdNormalized": 0.25,
+    "minQuietDwellMs": 60,
+    "q20Percentile": 20,
+    "q90Percentile": 90,
+    "qom": {
+      "detectorVersion": "activity_qom_supported_world_v2",
+      "evidencePolicy": "OBSERVED_WORLD_V2",
+      "evidencePolicyVersion": "qom-evidence-observed-world-v2",
+      "minimumObservedConfidence": 0.55,
+      "minimumCompositeSupport": 0.55,
+      "positionMedianSamples": 3,
+      "positionMeanSamples": 3,
+      "rollingAreaDurationMs": 150,
+      "startGateMeters": 0.08,
+      "stopGateMeters": 0.04,
+      "maximumFrameGapMs": 500,
+      "preRollMs": 150,
+      "postRollMs": 200,
+      "minimumValidBlocks": 1
+    }
+  },
+  "canonicalGeometry": {
+    "geometryId": "geom_recovered_e9406fe1-90ba-4d0d-9558-ac6a518cc0db_rec",
+    "contractVersion": "canonical-geometry-v1",
+    "recordingId": "e9406fe1-90ba-4d0d-9558-ac6a518cc0db",
+    "landmarkTrackId": null,
+    "canonicalWidth": 1080,
+    "canonicalHeight": 1920,
+    "canonicalOrientation": "UPRIGHT_UNMIRRORED",
+    "sourceToCanonicalTransform": {
+      "rotationDegrees": 90,
+      "isMirrored": false,
+      "scaleX": 1,
+      "scaleY": 1,
+      "order": "ROTATION_THEN_MIRROR"
+    },
+    "adapterVersion": "legacy_recovery_v1",
+    "sourceHash": null,
+    "trackHash": null,
+    "encodedWidth": 1920,
+    "encodedHeight": 1080,
+    "containerRotation": 90
+  },
+  "heavyTrack": {
+    "recordingId": "e9406fe1-90ba-4d0d-9558-ac6a518cc0db",
+    "landmarkTrackId": "heavy-full-full-heavy-65565a9d-8d38-48bc-9682-1c1e49abd313",
+    "role": "FULL_HEAVY_COMPARATOR",
+    "modelKey": "pose_heavy",
+    "modelSha256": "64437af838a65d18e5ba7a0d39b465540069bc8aae8308de3e318aad31fcbc7b",
+    "pipelineConfiguration": "tasks-vision=0.10.26;CPU;VIDEO;numPoses=1;detection=0.5;presence=0.5;tracking=0.5;decoder=sequential-v1;timestamps=source-PTS-ms;model=pose_heavy",
+    "geometryBinding": {
+      "geometryId": "geom_recovered_e9406fe1-90ba-4d0d-9558-ac6a518cc0db_rec",
+      "contractVersion": "canonical-geometry-v1",
+      "recordingId": "e9406fe1-90ba-4d0d-9558-ac6a518cc0db",
+      "landmarkTrackId": "heavy-full-full-heavy-65565a9d-8d38-48bc-9682-1c1e49abd313",
+      "canonicalWidth": 1080,
+      "canonicalHeight": 1920,
+      "canonicalOrientation": "UPRIGHT_UNMIRRORED",
+      "sourceToCanonicalTransform": {
+        "rotationDegrees": 90,
+        "isMirrored": false,
+        "scaleX": 1,
+        "scaleY": 1,
+        "order": "ROTATION_THEN_MIRROR"
+      },
+      "adapterVersion": "legacy_recovery_v1",
+      "sourceHash": "f87c0c3e93ef1af5d171353028ba47f34d20e9da665aae2062c66b57b13f1e35",
+      "trackHash": "39091b93bba46594ca7ff2a752e86ed2eb762e99d7112ae0cdb4bd54fd2fff54",
+      "encodedWidth": 1920,
+      "encodedHeight": 1080,
+      "containerRotation": 90
+    },
+    "geometryCompatibilityKey": "f046dc66159d424ca3dcf6322f56bf2b97ce282c1b03ee5ba5333f8cc3fb7dc6",
+    "fileReference": "heavy-full.mls",
+    "formatId": "movement_landmark_stream_v1",
+    "formatVersion": 1,
+    "contentSha256": "39091b93bba46594ca7ff2a752e86ed2eb762e99d7112ae0cdb4bd54fd2fff54",
+    "requestedStartTimestampMs": 0,
+    "requestedEndTimestampMs": 12604,
+    "actualStartTimestampMs": 0,
+    "actualEndTimestampMs": 12604,
+    "frameCount": 379,
+    "extractionElapsedMs": 170918,
+    "calibrationApplied": false
+  },
+  "finalMovements": [
+    {
+      "startTimestampMs": 1500,
+      "endTimestampMs": 2000,
+      "endBoundaryKind": "STOP_GATE",
+      "unknownEvidenceIntervals": []
+    },
+    {
+      "startTimestampMs": 2300,
+      "endTimestampMs": 2701,
+      "endBoundaryKind": "STOP_GATE",
+      "unknownEvidenceIntervals": []
+    },
+    {
+      "startTimestampMs": 3534,
+      "endTimestampMs": 4034,
+      "endBoundaryKind": "STOP_GATE",
+      "unknownEvidenceIntervals": []
+    },
+    {
+      "startTimestampMs": 4668,
+      "endTimestampMs": 5068,
+      "endBoundaryKind": "STOP_GATE",
+      "unknownEvidenceIntervals": []
+    },
+    {
+      "startTimestampMs": 5835,
+      "endTimestampMs": 6169,
+      "endBoundaryKind": "STOP_GATE",
+      "unknownEvidenceIntervals": []
+    },
+    {
+      "startTimestampMs": 7102,
+      "endTimestampMs": 7536,
+      "endBoundaryKind": "STOP_GATE",
+      "unknownEvidenceIntervals": []
+    },
+    {
+      "startTimestampMs": 8269,
+      "endTimestampMs": 8603,
+      "endBoundaryKind": "STOP_GATE",
+      "unknownEvidenceIntervals": []
+    },
+    {
+      "startTimestampMs": 9370,
+      "endTimestampMs": 9737,
+      "endBoundaryKind": "STOP_GATE",
+      "unknownEvidenceIntervals": []
+    },
+    {
+      "startTimestampMs": 10437,
+      "endTimestampMs": 10870,
+      "endBoundaryKind": "STOP_GATE",
+      "unknownEvidenceIntervals": []
+    },
+    {
+      "startTimestampMs": 11504,
+      "endTimestampMs": 12604,
+      "endBoundaryKind": "RECORDING_END_WITHOUT_STOP_EVIDENCE",
+      "unknownEvidenceIntervals": []
+    }
+  ]
+}

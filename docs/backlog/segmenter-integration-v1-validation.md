@@ -1,5 +1,9 @@
 # Segmenter Integration v1 — Validation
 
+## Evidence checkpoint — 2026-11-07
+
+See the [owning task](segmenter-integration-v1-requirements.md#delivery-checkpoint--2026-11-07) for current implementation and scoped acceptance. One ten-punch recording has reported user boundary acceptance; [QoM v2 replay evidence](../motion-detector-math.md#20-supported-world-v2-evidence-policy-and-production-selection) records additional behavior and corpus limits. The checklist below is not wholly unexecuted, nor wholly satisfied. No fresh device validation ran during backlog reconciliation.
+
 ## Purpose
 
 Validate that segmentation works on real recordings and that the persisted
