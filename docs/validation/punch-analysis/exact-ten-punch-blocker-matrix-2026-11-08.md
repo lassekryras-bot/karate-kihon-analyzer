@@ -82,3 +82,60 @@ Production may resolve RIGHT only from supported temporal evidence for the right
 ## Implemented output scope
 
 The currently implemented end-to-end punch output contract is target category, target-angle errors, target-classification margin, and elbow angle, with correct side or explicit abstention, persistence, reopen, and presentation. “Max speed,” “Max path deviation,” and “Hikite max speed” are explicit unavailable UI placeholders and require separately scoped analyzer features; they are not existing measurements merely blocked by terminal selection.
+
+## Executable isolated diagnostic
+
+The opt-in test-only harness is `ExactPunchPipelineDiagnosticTest`. It is not reachable from production code and skips the private exact replay when its environment inputs are absent. It uses the existing canonical geometry conversion, exact Heavy MLS parser, four-limb characterizer, impact analyzer, target adapter, current calibration/body scale, and accepted movement bounds.
+
+Reproduction command from `android/KarateClipRecorder` (private paths intentionally represented by placeholders):
+
+```powershell
+$env:JAVA_HOME = 'C:\Program Files\Android\Android Studio\jbr'
+$env:KARATE_PUNCH_DIAGNOSTIC_JSON = '<private-exact-replay-input.json>'
+$env:KARATE_PUNCH_DIAGNOSTIC_MLS = '<private-production-heavy.mls>'
+$env:KARATE_PUNCH_DIAGNOSTIC_OUTPUT = '<private-executable-result.json>'
+.\gradlew.bat :app:testDebugUnitTest --tests 'dk.lasse.karatecliprecorder.training.ExactPunchPipelineDiagnosticTest'
+```
+
+Experimental configuration `episode_concurrent_distal_v1_experimental` requires observed wrist plus both shoulders and hips at confidence 0.55, at least three samples, 60% episode coverage, and no gap over 100,000 µs. It uses the existing frozen recording scale `e5d2fd39-039e-4f73-89c0-1d534ff357f1` (`manual-upright-image-height-v1`); it creates no calibration. Signed and radial displacement are normalized by that frozen aspect-correct image height. Disclosed provisional body-height-ratio sweeps are 0.05, 0.10, and 0.15. They are sensitivity probes, not validated thresholds.
+
+The private result artifact produced by the recorded run is 10,588 bytes with SHA-256 `b4c76d8ed53e85fce43eaa017478a52f9c0e656013484ca0e43a3096c760e3a6`. The hash makes the reported aggregate replay recheckable without committing the personal input or result artifact.
+
+On the exact replay, all three provisional sweep values retain reviewed LEFT movements 1/3/5/7/9, reject the current false LEFT candidates on 2/4/6/8, and leave 10 unresolved because it has no selected episode. Identity status remains `ANATOMICAL_LANDMARK_LABEL_WITHOUT_INDEPENDENT_CONTINUITY_PROOF`; the harness does not infer RIGHT.
+
+The always-on synthetic portion checks:
+
+- subject scale with a compatible frozen body-height scale;
+- same-aspect frame-size changes and a different frame aspect;
+- rigid translation;
+- horizontal reflection, explicitly as a mathematical transform rather than evidence for an independent opposite-camera capture;
+- extension followed by return;
+- a stationary wrist with a moving body anchor;
+- missing evidence; and
+- a static far hand while the other hand retracts.
+
+## Hypothetical view replay through current impact and target code
+
+The harness supplies `hypothetical-exact-replay-side-view-v1` with source `diagnostic-only-not-production-approval`. This is deliberately not a production `ImpactViewApproval` mapping.
+
+| Movement | Impact status | Terminal / stable / representative evidence (µs) | Target adapter | Measurements |
+|---:|---|---|---|---:|
+| 1 | `COMPLETED` | terminal 1,734,000; stable 1,834,000–2,000,000; representative 1,834,000 | `neutral_body_reference_unavailable` | 0 |
+| 3 | `NO_STABLE_TERMINAL_WINDOW` | peak transition score 0.989 at 3,734,000; stable samples at 3,534,000 and 3,801,000–3,834,000, never 100,000 µs continuously | not run | 0 |
+| 5 | `NO_STABLE_TERMINAL_WINDOW` | peak transition score 0.970 at 6,035,000; one stable sample | not run | 0 |
+| 7 | `NO_STABLE_TERMINAL_WINDOW` | peak transition score 0.952 at 8,436,000; stable samples at 8,269,000 and 8,569,000–8,603,000, never 100,000 µs continuously | not run | 0 |
+| 9 | `COMPLETED` | terminal 10,670,000; stable 10,737,000–10,870,000; representative 10,737,000 | `neutral_body_reference_unavailable` | 0 |
+
+Each case has 100% usable impact-sample coverage. The existing 100,000 µs stable-window requirement explains why a high transition score alone is insufficient for 3/5/7.
+
+For 1 and 9, `PunchHeightAnalyzer.processSetup` returns `NO_BODY` for every frame examined before the representative timestamp (56 frames for 1; 323 for 9). Its current `referenceCandidate` requires both shoulders, both hips, both elbows, and both wrists simultaneously observed. The exact side/oblique recording lacks the far/right wrist on most frames, so target category, target-angle errors, classification margin, and elbow-angle persistence never begin even when impact completes.
+
+This establishes that “impact completed” is not currently sufficient for the implemented target contract. The target setup was designed around bilateral setup visibility, while the retained recording is analyzed using partial one-sided evidence.
+
+## Minimum semantic decisions still owned by architecture/product
+
+1. After validation on independent recordings, may an elbow-opening candidate with insufficient concurrent same-anatomical-wrist displacement be rejected conservatively, producing abstention without assigning the opposite side?
+2. For retained-video target category/angle/margin/elbow outputs, is simultaneous bilateral arm visibility a required phenomenon, or may the analyzer initialize from the explicit activity-selected side plus head, shoulders, hips, same-side elbow/wrist, and the existing persisted calibration?
+3. For impact only, what measurable occlusion/orientation conditions—separate from target suitability—make selected-side composite-hand motion and articulation interpretable? `OTHER`/`UNKNOWN` orientation metadata and landmark confidence are not approval.
+
+Threshold tuning, filtering, and stable-window calibration remain evidence questions, not owner preference questions. Independent opposite-camera and mirrored captures are follow-up acceptance evidence; mathematical reflection is not a substitute.
