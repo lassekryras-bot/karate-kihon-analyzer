@@ -85,6 +85,62 @@ class PunchSideReachDiagnosticExperimentTest {
         assertEquals(0, elbowOpening.overlapDuration(earlierUnrelatedReach))
     }
 
+    @Test
+    fun `body-relative signed image motion removes translation but flips under reflection`() {
+        val bodyStart = Point2(0.4, 0.3)
+        val handStart = Point2(0.2, 0.4)
+        val bodyEnd = Point2(0.5, 0.3)
+        val handEnd = Point2(0.1, 0.4)
+        val bodyRelativeMotion = (handEnd.x - bodyEnd.x) - (handStart.x - bodyStart.x)
+
+        val translation = Point2(2.0, -3.0)
+        val translatedMotion = ((handEnd + translation).x - (bodyEnd + translation).x) -
+            ((handStart + translation).x - (bodyStart + translation).x)
+        val reflectedMotion = (handEnd.reflectHorizontally().x - bodyEnd.reflectHorizontally().x) -
+            (handStart.reflectHorizontally().x - bodyStart.reflectHorizontally().x)
+
+        assertEquals(-0.2, bodyRelativeMotion, 1e-9)
+        assertEquals(bodyRelativeMotion, translatedMotion, 1e-9)
+        assertEquals(-bodyRelativeMotion, reflectedMotion, 1e-9)
+    }
+
+    @Test
+    fun `full-window net hides a valid extension and return`() {
+        val body = Point2(0.5, 0.5)
+        val start = Point2(0.4, 0.5)
+        val extended = Point2(0.1, 0.5)
+        val returned = Point2(0.4, 0.5)
+
+        val net = returned.distanceTo(body) - start.distanceTo(body)
+        val peakExcursion = extended.distanceTo(body) - start.distanceTo(body)
+
+        assertEquals(0.0, net, 1e-9)
+        assertEquals(0.3, peakExcursion, 1e-9)
+    }
+
+    @Test
+    fun `retracting near hand does not prove a static far hand struck`() {
+        val body = Point2(0.5, 0.5)
+        val nearStart = Point2(0.1, 0.5)
+        val nearEnd = Point2(0.4, 0.5)
+        val farStart = Point2(0.9, 0.5)
+        val farEnd = Point2(0.9, 0.5)
+
+        assertTrue(nearEnd.distanceTo(body) < nearStart.distanceTo(body))
+        assertEquals(0.0, farEnd.distanceTo(body) - farStart.distanceTo(body), 1e-9)
+    }
+
+    @Test
+    fun `image-side proximity is not anatomical identity through a crossing`() {
+        val leftHandBefore = Point2(0.2, 0.5)
+        val rightHandBefore = Point2(0.8, 0.5)
+        val leftHandAfter = Point2(0.7, 0.5)
+        val rightHandAfter = Point2(0.3, 0.5)
+
+        assertEquals(leftHandBefore, listOf(leftHandBefore, rightHandBefore).minBy { it.x })
+        assertEquals(rightHandAfter, listOf(leftHandAfter, rightHandAfter).minBy { it.x })
+    }
+
     private fun equalSegmentArm(shoulder: Point2, hand: Point2, segmentLength: Double): ArmPose {
         val reach = shoulder.distanceTo(hand)
         require(reach in 0.0..(2.0 * segmentLength))
