@@ -157,6 +157,14 @@ data class MovementPresentationData(
 
 object MovementPresentationMapper {
 
+    internal fun targetUnavailableExplanation(analysis: MovementAnalysis?): String =
+        when (analysis?.reason?.removePrefix("impact_analysis_")) {
+            "UNSUPPORTED_ANALYSIS_PROFILE" ->
+                "Target analysis is not yet supported for this activity and camera view."
+            null -> "Target analysis is not available for this movement."
+            else -> "Target analysis did not produce a result for this movement."
+        }
+
     /** One retained-side selection path for movement detail and recording summaries. */
     internal fun resolveSide(evidence: MovementEvidence): BodySide {
         val motion = MovementMotionInspection.read(evidence)
@@ -319,6 +327,7 @@ object MovementPresentationMapper {
                         id = "target_height",
                         label = "Target height",
                         formattedValue = "Unavailable",
+                        sublabel = targetUnavailableExplanation(preferredAnalysis),
                         preferredMode = PlayerMode.ANALYSIS,
                         focusTimestampUs = canonicalImpactUs,
                         isAvailable = false,
@@ -327,16 +336,8 @@ object MovementPresentationMapper {
             }
         }
 
-        // No approved recording-level speed/deviation contract exists yet. Do not infer
-        // identity or physical units from arbitrary measurement-key substrings.
-        listOf(
-            "max_speed" to "Max speed",
-            "max_path_deviation" to "Max path deviation",
-            "hikite_max_speed" to "Hikite max speed",
-        ).forEach { (id, label) ->
-            keyResults.add(KeyResultItem(id, label, "Unavailable", preferredMode = PlayerMode.GRAPH,
-                focusTimestampUs = canonicalImpactUs, isAvailable = false))
-        }
+        // Speed, path-deviation and hikite rows remain absent until their analytical
+        // owners define approved measurement contracts. Presentation never invents them.
 
         // Findings / Needs Attention: strictly analyzer-owned qualitative technique findings.
         // In the absence of classified technique faults from the analyzer, findings remains empty.

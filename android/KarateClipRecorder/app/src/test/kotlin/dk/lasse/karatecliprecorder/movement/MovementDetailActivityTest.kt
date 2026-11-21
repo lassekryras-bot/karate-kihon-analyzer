@@ -216,6 +216,9 @@ class MovementDetailActivityTest {
             assertTrue("Key Results" in texts())
             assertTrue("Target height" in texts())
             assertTrue(texts().any { "Chūdan" in it })
+            assertFalse("Max speed" in texts())
+            assertFalse("Max path deviation" in texts())
+            assertFalse("Hikite max speed" in texts())
 
             // Needs Attention is absent when no findings
             assertFalse("Needs Attention" in texts())

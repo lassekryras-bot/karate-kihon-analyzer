@@ -46,6 +46,7 @@ class MovementPresentationMapperTest {
         motionSides: List<Pair<String, BodySide?>>,
         targetState: AnalysisState = AnalysisState.ABSTAINED,
         targetSide: BodySide? = null,
+        targetReason: String? = null,
     ): MovementEvidence {
         val recordingId = "recording_side"
         val trackId = "track_side"
@@ -97,6 +98,7 @@ class MovementPresentationMapperTest {
             landmarkTrackId = trackId,
             state = targetState,
             createdAtMs = 200L,
+            reason = targetReason,
         )
         val measurements = targetSide?.let { side ->
             listOf(MeasurementResult(
@@ -261,7 +263,7 @@ class MovementPresentationMapperTest {
     }
 
     @Test
-    fun speedSlotsAreUnavailableWithoutAnalyzerSpeedMeasurement() {
+    fun unimplementedSpeedAndPathSlotsAreHiddenWithoutApprovedContracts() {
         val movement = SessionMovement(
             sessionId = "session_123",
             startUs = 1_000_000L,
@@ -291,14 +293,11 @@ class MovementPresentationMapperTest {
 
         val presentation = MovementPresentationMapper.map(evidence, displayedNumber = 2)
 
-        val maxSpeedResult = presentation.keyResults.first { it.id == "max_speed" }
-        assertFalse(maxSpeedResult.isAvailable)
-        assertEquals("Unavailable", maxSpeedResult.formattedValue)
-        assertEquals(PlayerMode.GRAPH, maxSpeedResult.preferredMode)
-
-        val hikiteResult = presentation.keyResults.first { it.id == "hikite_max_speed" }
-        assertFalse(hikiteResult.isAvailable)
-        assertEquals("Unavailable", hikiteResult.formattedValue)
+        assertEquals(listOf("target_height"), presentation.keyResults.map { it.id })
+        assertEquals(
+            "Target analysis is not available for this movement.",
+            presentation.keyResults.single().sublabel,
+        )
 
         // An arbitrary key cannot establish an approved metric/unit contract
         val analysis = MovementAnalysis(
@@ -323,9 +322,37 @@ class MovementPresentationMapperTest {
             measurements = listOf(speedMeasurement),
         )
         val presentationWithSpeed = MovementPresentationMapper.map(evidenceWithSpeed, displayedNumber = 2)
-        val mappedSpeed = presentationWithSpeed.keyResults.first { it.id == "max_speed" }
-        assertFalse(mappedSpeed.isAvailable)
-        assertEquals("Unavailable", mappedSpeed.formattedValue)
+        assertEquals(listOf("target_height"), presentationWithSpeed.keyResults.map { it.id })
+    }
+
+    @Test
+    fun targetUnavailableExplainsPersistedViewProfileAbstention() {
+        val evidence = sideEvidence(
+            motionSides = listOf("3" to BodySide.LEFT),
+            targetReason = "UNSUPPORTED_ANALYSIS_PROFILE",
+        )
+
+        val target = MovementPresentationMapper.map(evidence, displayedNumber = 1)
+            .keyResults.single()
+        assertEquals("Unavailable", target.formattedValue)
+        assertFalse(target.isAvailable)
+        assertEquals(
+            "Target analysis is not yet supported for this activity and camera view.",
+            target.sublabel,
+        )
+    }
+
+    @Test
+    fun targetUnavailableUsesNeutralExplanationForUnknownReason() {
+        val evidence = sideEvidence(
+            motionSides = listOf("3" to BodySide.LEFT),
+            targetReason = "FUTURE_ABSTENTION_REASON",
+        )
+
+        assertEquals(
+            "Target analysis did not produce a result for this movement.",
+            MovementPresentationMapper.map(evidence, displayedNumber = 1).keyResults.single().sublabel,
+        )
     }
 
     @Test
