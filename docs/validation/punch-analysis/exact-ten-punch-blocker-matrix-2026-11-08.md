@@ -163,6 +163,31 @@ For 1 and 9, `PunchHeightAnalyzer.processSetup` returns `NO_BODY` for every fram
 
 This establishes that “impact completed” is not currently sufficient for the implemented target contract. The target setup was designed around bilateral setup visibility, while the retained recording is analyzed using partial one-sided evidence.
 
+## Corrected retained-reference duration probe — 2026-11-21
+
+This bounded diagnostic tested the Architect-approved direction of a retrospective neutral body reference that does not depend on the unused arm. It did not activate a production view profile or change phone data. Exact inputs were the retained recording SHA-256 `f87c0c3e93ef1af5d171353028ba47f34d20e9da665aae2062c66b57b13f1e35`, heavy landmark stream SHA-256 `39091b93bba46594ca7ff2a752e86ed2eb762e99d7112ae0cdb4bd54fd2fff54`, and private replay input SHA-256 `6e88b3ea34df74160f457312a73b319ff3539f163bb64bae5083d3fce0074b6d`.
+
+The first probe had a sliding-window enumeration defect: after removing the oldest samples until the retained span was no greater than the requested duration, irregular timestamps could leave only exact-duration windows eligible. The corrected diagnostic retains the sample bracketing the inclusive duration cutoff, adds a nonuniform-timestamp regression covering 12 samples over 1.618 seconds, and reports every qualifying span. Its jitter calculation matches `PunchHeightAnalyzer.referenceJitter`: source-normalized XY shoulder/hip midpoints, window means, and maximum two-dimensional shoulder-or-hip displacement divided by each sample's torso length. The maximum gap remains 500 ms, minimum support remains 12 samples, and the maximum jitter ratio remains 0.025. Target calculation still applies the canonical aspect ratio separately.
+
+| Impact-complete movement | Required duration | Evaluated windows | Minimum jitter | Windows at or below 0.025 |
+|---:|---:|---:|---:|---:|
+| 1 | 1.50 s | 1 | 0.24306607 | 0 |
+| 1 | 1.20 s | 10 | 0.21467194 | 0 |
+| 1 | 1.00 s | 16 | 0.16080622 | 0 |
+| 1 | 0.75 s | 23 | 0.08690936 | 0 |
+| 1 | 0.50 s | 31 | 0.03578943 | 0 |
+| 9 | 1.50 s | 269 | 0.090047225 | 0 |
+| 9 | 1.20 s | 278 | 0.090643995 | 0 |
+| 9 | 1.00 s | 284 | 0.089783415 | 0 |
+| 9 | 0.75 s | 291 | 0.04173873 | 0 |
+| 9 | 0.50 s | 299 | 0.019047149 | 4 |
+
+The four numerical 0.50-second candidates for movement 9 were 3,768,000–4,268,000 µs (16 samples, jitter 0.02142133), 3,801,000–4,301,000 µs (16, 0.019047149), 3,834,000–4,335,000 µs (16, 0.022878816), and 8,469,000–8,970,000 µs (16, 0.019647462). Retained-video inspection of each span's start, midpoint, and end classified all four as extended-punch/terminal or return-transition evidence overlapping movements 3 or 7, not neutral guard evidence. Numeric stability therefore did not establish a neutral reference.
+
+The phone's only other available recording has no retained source landmark track and no accepted activity/view metadata, so it was not an independent replay source. No new analysis was created. The focused diagnostic class passed and produced private result SHA-256 `2734dc352202c8f0fd7228b7badcd2364f187e68b6d5b0d1827ebf74137dc7c9`.
+
+**Conclusion:** this source has no confirmed qualifying neutral reference under the tested policies. The existing 1.50-second/0.025 semantics remain unchanged, shorter durations are not approved, and no production `ImpactViewApproval` follows. This does not prove that no future retrospective method can work. The next bounded design step is reuse and persistence of real live neutral-setup evidence with source, geometry, interval, confidence and stability provenance, with view eligibility decided independently.
+
 ## Minimum semantic decisions still owned by architecture/product
 
 1. After validation on independent recordings, may an elbow-opening candidate with insufficient concurrent same-anatomical-wrist displacement be rejected conservatively, producing abstention without assigning the opposite side?
