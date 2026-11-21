@@ -77,7 +77,7 @@ object RecordingProcessingPlans {
 
     val STRAIGHT_PUNCH_TARGET_ANALYSIS = RecordingProcessingPlan(
         key = "straight_punch_target_analysis",
-        version = 2,
+        version = 3,
         requiresLandmarks = true,
         requiresSegmentation = true,
         analyzers = listOf("straight_punch_target"),
@@ -228,6 +228,13 @@ object TrainingMeasurements {
     const val PUNCH_CHUDAN_TARGET_ANGLE_ERROR_DEG = "PUNCH_CHUDAN_TARGET_ANGLE_ERROR_DEG"
     const val PUNCH_GEDAN_TARGET_ANGLE_ERROR_DEG = "PUNCH_GEDAN_TARGET_ANGLE_ERROR_DEG"
     const val PUNCH_TARGET_CLASSIFICATION_MARGIN_DEG = "PUNCH_TARGET_CLASSIFICATION_MARGIN_DEG"
+    const val PUNCH_HORIZONTAL_CLOSEST_TARGET = "PUNCH_HORIZONTAL_CLOSEST_TARGET"
+    const val PUNCH_JODAN_HEIGHT_ERROR_NORMALIZED = "PUNCH_JODAN_HEIGHT_ERROR_NORMALIZED"
+    const val PUNCH_CHUDAN_HEIGHT_ERROR_NORMALIZED = "PUNCH_CHUDAN_HEIGHT_ERROR_NORMALIZED"
+    const val PUNCH_GEDAN_HEIGHT_ERROR_NORMALIZED = "PUNCH_GEDAN_HEIGHT_ERROR_NORMALIZED"
+    const val PUNCH_JODAN_HEIGHT_ERROR_CANONICAL_PX = "PUNCH_JODAN_HEIGHT_ERROR_CANONICAL_PX"
+    const val PUNCH_CHUDAN_HEIGHT_ERROR_CANONICAL_PX = "PUNCH_CHUDAN_HEIGHT_ERROR_CANONICAL_PX"
+    const val PUNCH_GEDAN_HEIGHT_ERROR_CANONICAL_PX = "PUNCH_GEDAN_HEIGHT_ERROR_CANONICAL_PX"
 
     val definitions = listOf(
         MeasurementDefinition(PUNCH_HEIGHT_ERROR_TORSO_RATIO, "Signed fist height error relative to target",
@@ -254,5 +261,20 @@ object TrainingMeasurements {
         MeasurementDefinition("PUNCH_TARGET_CLASSIFICATION_MARGIN_DEG", "Angular margin between closest and second-best target in degrees", "degree", "1",
             "strike", "straight_punch", setOf(ObservedView.LEFT_SIDE, ObservedView.RIGHT_SIDE),
             "Side-view setup accepted by StraightPunchTargetCalculator", setOf("SHOULDER", "ELBOW", "WRIST", "HIP"), "canonical_terminal_frame"),
+        MeasurementDefinition(PUNCH_HORIZONTAL_CLOSEST_TARGET, "Closest exact-frame horizontal target-height guide", "categorical", "1",
+            "strike", "straight_punch", setOf(ObservedView.LEFT_SIDE, ObservedView.RIGHT_SIDE),
+            "Completed impact representative in canonical upright unmirrored image", setOf("COMPOSITE_HAND"), "stable_representative_frame"),
+        MeasurementDefinition(PUNCH_JODAN_HEIGHT_ERROR_NORMALIZED, "Signed Jodan target Y minus fist Y; positive means fist above", "normalized_image_y", "1",
+            "strike", "straight_punch", setOf(ObservedView.LEFT_SIDE, ObservedView.RIGHT_SIDE), "Exact observed frame", setOf("COMPOSITE_HAND", "NOSE", "MOUTH"), "stable_representative_frame"),
+        MeasurementDefinition(PUNCH_CHUDAN_HEIGHT_ERROR_NORMALIZED, "Signed Chudan target Y minus fist Y; positive means fist above", "normalized_image_y", "1",
+            "strike", "straight_punch", setOf(ObservedView.LEFT_SIDE, ObservedView.RIGHT_SIDE), "Exact observed frame", setOf("COMPOSITE_HAND", "BILATERAL_SHOULDERS", "BILATERAL_HIPS"), "stable_representative_frame"),
+        MeasurementDefinition(PUNCH_GEDAN_HEIGHT_ERROR_NORMALIZED, "Signed Gedan target Y minus fist Y; positive means fist above", "normalized_image_y", "1",
+            "strike", "straight_punch", setOf(ObservedView.LEFT_SIDE, ObservedView.RIGHT_SIDE), "Exact observed frame", setOf("COMPOSITE_HAND", "BILATERAL_HIPS"), "stable_representative_frame"),
+        MeasurementDefinition(PUNCH_JODAN_HEIGHT_ERROR_CANONICAL_PX, "Signed Jodan height error in canonical pixels; positive means fist above", "canonical_pixel", "1",
+            "strike", "straight_punch", setOf(ObservedView.LEFT_SIDE, ObservedView.RIGHT_SIDE), "Exact observed frame", setOf("COMPOSITE_HAND", "NOSE", "MOUTH"), "stable_representative_frame"),
+        MeasurementDefinition(PUNCH_CHUDAN_HEIGHT_ERROR_CANONICAL_PX, "Signed Chudan height error in canonical pixels; positive means fist above", "canonical_pixel", "1",
+            "strike", "straight_punch", setOf(ObservedView.LEFT_SIDE, ObservedView.RIGHT_SIDE), "Exact observed frame", setOf("COMPOSITE_HAND", "BILATERAL_SHOULDERS", "BILATERAL_HIPS"), "stable_representative_frame"),
+        MeasurementDefinition(PUNCH_GEDAN_HEIGHT_ERROR_CANONICAL_PX, "Signed Gedan height error in canonical pixels; positive means fist above", "canonical_pixel", "1",
+            "strike", "straight_punch", setOf(ObservedView.LEFT_SIDE, ObservedView.RIGHT_SIDE), "Exact observed frame", setOf("COMPOSITE_HAND", "BILATERAL_HIPS"), "stable_representative_frame"),
     ).associateBy { it.key }
 }

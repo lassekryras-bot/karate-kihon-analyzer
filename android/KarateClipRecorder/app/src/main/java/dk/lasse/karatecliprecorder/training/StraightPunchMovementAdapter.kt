@@ -3,9 +3,13 @@ package dk.lasse.karatecliprecorder.training
 import dk.lasse.karateanalyzer.core.*
 import dk.lasse.karateanalyzer.impact.ImpactAnalysisResult
 import dk.lasse.karateanalyzer.impact.ImpactAnalysisStatus
+import dk.lasse.karateanalyzer.impact.ImpactLimbFamily
+import dk.lasse.karateanalyzer.impact.WeaponPointDefinition
+import dk.lasse.karateanalyzer.geometry.CanonicalGeometryDescriptor
+import dk.lasse.karateanalyzer.capture.LateralSide
 
 object StraightPunchMovementAdapter {
-    val policy = AnalyzerPolicy("straight_punch_target", listOf("2", "1"))
+    val policy = AnalyzerPolicy("straight_punch_target", listOf("3", "2", "1"))
 
     fun analyze(
         movement: SessionMovement,
@@ -16,31 +20,16 @@ object StraightPunchMovementAdapter {
         videoHeight: Int? = null,
         impactResult: ImpactAnalysisResult? = null,
         resolvedSide: dk.lasse.karateanalyzer.capture.LateralSide? = null,
+        canonicalGeometry: CanonicalGeometryDescriptor? = null,
+        pairedArmEvidence: StraightPunchPairedArmResult? = null,
     ): Pair<MovementAnalysis, List<MeasurementResult>> {
-        val impactAbstentionReason = when {
-            impactResult == null -> null
-            impactResult.status != ImpactAnalysisStatus.COMPLETED ->
-                "impact_analysis_${impactResult.abstentionReason?.name ?: "abstained"}"
-            impactResult.stableRepresentativeTimestampUs == null ->
-                "impact_analysis_representative_unavailable"
-            else -> null
-        }
-        if (impactAbstentionReason != null) {
-            val analysis = MovementAnalysis(
-                movementId = movement.movementId,
-                analyzerKey = policy.analyzerKey,
-                analyzerVersion = if (impactResult != null) "2" else "1",
-                landmarkTrackId = trackId,
-                state = AnalysisState.ABSTAINED,
-                reason = impactAbstentionReason,
-            )
-            return analysis to emptyList()
-        }
-        val impactRepresentativeUs = impactResult?.stableRepresentativeTimestampUs
+        if (impactResult != null) return analyzeHorizontal(
+            movement, trackId, frames, impactResult, resolvedSide, canonicalGeometry, pairedArmEvidence
+        )
         val resolved = CanonicalAnalysisFrameSelector.resolve(
             movement.startUs,
             movement.endUs,
-            impactRepresentativeUs ?: movement.analysisFrameUs,
+            movement.analysisFrameUs,
             frames,
         )
         val canonicalResult = resolved?.first
@@ -49,7 +38,7 @@ object StraightPunchMovementAdapter {
             val analysis = MovementAnalysis(
                 movementId = movement.movementId,
                 analyzerKey = policy.analyzerKey,
-                analyzerVersion = if (impactResult != null) "2" else "1",
+                analyzerVersion = "1",
                 landmarkTrackId = trackId,
                 state = AnalysisState.ABSTAINED,
                 reason = "canonical_analysis_frame_unavailable",
@@ -70,7 +59,7 @@ object StraightPunchMovementAdapter {
             val analysis = MovementAnalysis(
                 movementId = movement.movementId,
                 analyzerKey = policy.analyzerKey,
-                analyzerVersion = if (impactResult != null) "2" else "1",
+                analyzerVersion = "1",
                 landmarkTrackId = trackId,
                 state = AnalysisState.ABSTAINED,
                 reason = "neutral_body_reference_unavailable",
@@ -130,7 +119,7 @@ object StraightPunchMovementAdapter {
         val analysis = MovementAnalysis(
             movementId = movement.movementId,
             analyzerKey = policy.analyzerKey,
-            analyzerVersion = if (impactResult != null) "2" else "1",
+            analyzerVersion = "1",
             landmarkTrackId = trackId,
             state = analysisState,
             reason = eval.reason ?: "closest_target=${eval.closestTarget?.name};concrete=${eval.closestConcreteTargetId?.name};margin=${eval.classificationMarginDeg};frameIndex=${canonicalResult.frameIndex};strategy=${canonicalResult.strategy}",
@@ -312,6 +301,127 @@ object StraightPunchMovementAdapter {
             )
         }
 
+        return analysis to results
+    }
+
+    private fun analyzeHorizontal(
+        movement: SessionMovement,
+        trackId: String,
+        frames: List<PoseFrame>,
+        impact: ImpactAnalysisResult,
+        resolvedSide: LateralSide?,
+        geometry: CanonicalGeometryDescriptor?,
+        pairedArmEvidence: StraightPunchPairedArmResult?,
+    ): Pair<MovementAnalysis, List<MeasurementResult>> {
+        fun abstain(reason: String) = MovementAnalysis(
+            movementId = movement.movementId,
+            analyzerKey = policy.analyzerKey,
+            analyzerVersion = "3",
+            landmarkTrackId = trackId,
+            state = AnalysisState.ABSTAINED,
+            reason = reason,
+        ) to emptyList<MeasurementResult>()
+
+        if (impact.status != ImpactAnalysisStatus.COMPLETED) {
+            return abstain("impact_analysis_${impact.abstentionReason?.name ?: "abstained"}")
+        }
+        if (impact.movementId != movement.movementId) return abstain("impact_movement_identity_mismatch")
+        if (impact.provenance.landmarkTrackId != trackId) return abstain("impact_track_identity_mismatch")
+        if (geometry == null || impact.provenance.recordingId != geometry.recordingId ||
+            impact.provenance.frameGeometryId != geometry.geometryId ||
+            impact.provenance.frameGeometryContractVersion != geometry.contractVersion
+        ) return abstain("impact_geometry_identity_mismatch")
+        if (resolvedSide != null && resolvedSide != impact.side) return abstain("impact_side_identity_mismatch")
+        if (impact.limbFamily != ImpactLimbFamily.UPPER_LIMB || impact.weaponId != WeaponPointDefinition.COMPOSITE_HAND) {
+            return abstain("impact_weapon_not_composite_hand")
+        }
+        val timestampUs = impact.stableRepresentativeTimestampUs ?: return abstain("impact_analysis_representative_unavailable")
+        val expectedFist = impact.stableRepresentativeWeaponPoint ?: return abstain("impact_representative_weapon_unavailable")
+        if (timestampUs !in movement.startUs..movement.endUs) return abstain("impact_representative_outside_movement")
+        val matches = frames.withIndex().filter { it.value.timestampMs * 1000L == timestampUs }
+        if (matches.size != 1) return abstain("exact_impact_frame_unavailable")
+        val indexed = matches.single()
+        val facing = pairedArmEvidence?.forwardAxis?.takeIf { it.status == ForwardAxisStatus.RELIABLE }?.axis?.x?.let { x ->
+            when { x < 0f -> ImageFacingDirection.IMAGE_LEFT; x > 0f -> ImageFacingDirection.IMAGE_RIGHT; else -> ImageFacingDirection.UNKNOWN }
+        } ?: ImageFacingDirection.UNKNOWN
+        val facingSource = if (facing == ImageFacingDirection.UNKNOWN) "unresolved" else
+            "${pairedArmEvidence?.analyzerVersion}:${pairedArmEvidence?.forwardAxis?.source ?: "torso_face_normal"}"
+        val horizontal = StraightPunchHorizontalTargetAnalyzer.analyze(
+            StraightPunchHorizontalTargetInput(
+                frame = indexed.value,
+                frameIndex = indexed.index.toLong(),
+                timestampUs = timestampUs,
+                recordingId = geometry.recordingId,
+                landmarkTrackId = trackId,
+                canonicalGeometry = geometry,
+                side = impact.side,
+                expectedFist = expectedFist,
+                minimumConfidence = impact.provenance.calibration.minimumLandmarkConfidence.toFloat(),
+                facing = facing,
+                facingSource = facingSource,
+            )
+        ) ?: return abstain("exact_frame_horizontal_evidence_unavailable_or_identity_mismatch")
+
+        val availableCount = horizontal.guides.values.count { it.state == HorizontalGuideState.AVAILABLE }
+        val analysisState = when {
+            availableCount == 0 -> AnalysisState.ABSTAINED
+            horizontal.closestState != HorizontalClosestState.RESOLVED -> AnalysisState.PARTIAL
+            availableCount < PunchHeightTargetType.entries.size -> AnalysisState.PARTIAL
+            else -> AnalysisState.COMPLETED
+        }
+        val analysis = MovementAnalysis(
+            movementId = movement.movementId,
+            analyzerKey = policy.analyzerKey,
+            analyzerVersion = "3",
+            landmarkTrackId = trackId,
+            state = analysisState,
+            reason = "horizontal=${horizontal.closestState};closest=${horizontal.closestTarget};available=$availableCount/3;${horizontal.closestReason}",
+            geometryJson = StraightPunchHorizontalGeometryCodec.encode(horizontal),
+        )
+        val side = if (impact.side == LateralSide.LEFT) BodySide.LEFT else BodySide.RIGHT
+        val resultState = if (analysisState == AnalysisState.COMPLETED) ResultState.VALID else ResultState.PARTIAL
+        val results = mutableListOf<MeasurementResult>()
+        results += MeasurementResult(
+            analysisId = analysis.analysisId,
+            measurementKey = TrainingMeasurements.PUNCH_HORIZONTAL_CLOSEST_TARGET,
+            calculationVersion = "1",
+            valueType = ValueType.CATEGORICAL,
+            categoricalValue = horizontal.closestTarget?.name,
+            side = side,
+            role = "strike",
+            state = if (horizontal.closestTarget == null) ResultState.PARTIAL else resultState,
+            reason = horizontal.closestReason,
+            confidence = impact.confidence,
+            occurrenceUs = timestampUs,
+            frameIndex = indexed.index.toLong(),
+        )
+        val normalizedKeys = mapOf(
+            PunchHeightTargetType.JODAN to TrainingMeasurements.PUNCH_JODAN_HEIGHT_ERROR_NORMALIZED,
+            PunchHeightTargetType.CHUDAN to TrainingMeasurements.PUNCH_CHUDAN_HEIGHT_ERROR_NORMALIZED,
+            PunchHeightTargetType.GEDAN to TrainingMeasurements.PUNCH_GEDAN_HEIGHT_ERROR_NORMALIZED,
+        )
+        val pixelKeys = mapOf(
+            PunchHeightTargetType.JODAN to TrainingMeasurements.PUNCH_JODAN_HEIGHT_ERROR_CANONICAL_PX,
+            PunchHeightTargetType.CHUDAN to TrainingMeasurements.PUNCH_CHUDAN_HEIGHT_ERROR_CANONICAL_PX,
+            PunchHeightTargetType.GEDAN to TrainingMeasurements.PUNCH_GEDAN_HEIGHT_ERROR_CANONICAL_PX,
+        )
+        horizontal.guides.values.forEach { guide ->
+            fun measurement(key: String, value: Double?) = MeasurementResult(
+                analysisId = analysis.analysisId,
+                measurementKey = key,
+                calculationVersion = "1",
+                numericValue = value,
+                side = side,
+                role = "strike",
+                state = if (value == null) ResultState.ABSTAINED else resultState,
+                reason = "${guide.estimatorVersion};${guide.reason}",
+                confidence = impact.confidence,
+                occurrenceUs = timestampUs,
+                frameIndex = indexed.index.toLong(),
+            )
+            results += measurement(normalizedKeys.getValue(guide.target), guide.signedErrorNormalized)
+            results += measurement(pixelKeys.getValue(guide.target), guide.signedErrorCanonicalPx)
+        }
         return analysis to results
     }
 

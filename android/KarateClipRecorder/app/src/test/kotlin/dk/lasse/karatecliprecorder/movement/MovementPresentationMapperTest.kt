@@ -42,6 +42,71 @@ class MovementPresentationMapperTest {
             sourceToCanonicalTransform = SourceToCanonicalTransform(0, false, order = TransformOrder.ROTATION_THEN_MIRROR),
         )
 
+    @Test
+    fun horizontalCardAndOverlayReopenFromSamePersistedExactFrameEvidence() {
+        val recordingId = "recording_horizontal"
+        val trackId = "track_horizontal"
+        val descriptor = portraitDescriptor(recordingId, trackId)
+        val retained = StraightPunchHorizontalTargetResult(
+            identity = HorizontalTargetIdentity(recordingId, trackId, descriptor.geometryId, descriptor.contractVersion,
+                1080, 1920, 1_834_000L, 7L, dk.lasse.karateanalyzer.capture.LateralSide.LEFT),
+            fist = dk.lasse.karateanalyzer.geometry.SourceNormalizedPoint(.20f, .40f),
+            fistEstimatorVersion = StraightPunchHorizontalTargetAnalyzer.FIST_ESTIMATOR,
+            shoulderCenter = dk.lasse.karateanalyzer.geometry.SourceNormalizedPoint(.50f, .30f),
+            hipCenter = dk.lasse.karateanalyzer.geometry.SourceNormalizedPoint(.50f, .70f),
+            guides = PunchHeightTargetType.entries.associateWith { target ->
+                val y = when (target) { PunchHeightTargetType.JODAN -> .20f; PunchHeightTargetType.CHUDAN -> .48f; PunchHeightTargetType.GEDAN -> .70f }
+                val error = (y - .40f).toDouble()
+                HorizontalTargetGuide(target, HorizontalGuideState.AVAILABLE,
+                    dk.lasse.karateanalyzer.geometry.SourceNormalizedPoint(.50f, y), error, error * 1920.0,
+                    "estimator-${target.name.lowercase()}", "exact-frame")
+            },
+            closestState = HorizontalClosestState.RESOLVED,
+            closestTarget = PunchHeightTargetType.CHUDAN,
+            closestReason = "minimum_absolute_y_error;compared=JODAN,CHUDAN,GEDAN",
+            facing = ImageFacingDirection.IMAGE_LEFT,
+            facingSource = "straight-punch-paired-arm-v1:NOSE",
+        )
+        val movement = SessionMovement("movement_horizontal", "session_horizontal", 1_500_000, 2_000_000,
+            1_400_000, 2_100_000, segmentationSource = "test", segmentationVersion = "1")
+        val analysis = MovementAnalysis(movementId = movement.movementId, analyzerKey = StraightPunchMovementAdapter.policy.analyzerKey,
+            analyzerVersion = "3", landmarkTrackId = trackId, state = AnalysisState.COMPLETED,
+            geometryJson = StraightPunchHorizontalGeometryCodec.encode(retained))
+        val measurements = listOf(
+            MeasurementResult(analysisId = analysis.analysisId, measurementKey = TrainingMeasurements.PUNCH_HORIZONTAL_CLOSEST_TARGET,
+                calculationVersion = "1", valueType = ValueType.CATEGORICAL, categoricalValue = "CHUDAN", side = BodySide.LEFT,
+                state = ResultState.VALID, occurrenceUs = 1_834_000, frameIndex = 7),
+            MeasurementResult(analysisId = analysis.analysisId, measurementKey = TrainingMeasurements.PUNCH_CHUDAN_HEIGHT_ERROR_CANONICAL_PX,
+                calculationVersion = "1", numericValue = retained.guides.getValue(PunchHeightTargetType.CHUDAN).signedErrorCanonicalPx,
+                side = BodySide.LEFT, state = ResultState.VALID, occurrenceUs = 1_834_000, frameIndex = 7),
+        )
+        val evidence = MovementEvidence(movement,
+            MasterRecording(recordingId = recordingId, sessionId = movement.sessionId, filePath = "recording.mp4", createdAtMs = 1,
+                width = 1080, height = 1920, canonicalGeometryJson = CanonicalGeometryCodec.encode(descriptor)),
+            null, emptyList(), emptyList(), listOf(analysis), measurements, listOf(
+                LandmarkTrack(trackId, recordingId, "test", "1", "{}", "track.mls",
+                    state = ProcessingState.COMPLETED, sourceState = SourceState.AVAILABLE,
+                    canonicalGeometryJson = CanonicalGeometryCodec.encode(descriptor))
+            ))
+
+        val first = MovementPresentationMapper.map(evidence, 1)
+        val reopened = MovementPresentationMapper.map(evidence, 1)
+        assertEquals("Closest to Chūdan · +153.6 px above", first.keyResults.single { it.id == "target_height" }.formattedValue)
+        assertEquals(1_834_000L, first.overlayDefinition!!.canonicalImpactUs)
+        assertEquals(.20f, first.overlayDefinition!!.fist!!.x)
+        assertEquals(.40f, first.overlayDefinition!!.fist!!.y)
+        assertEquals("Landmark playback is unavailable. Showing retained target geometry.", first.analysisNotice)
+        assertEquals("referenced_landmark_track_unavailable", first.debugData.evidenceReason)
+        val chudanRay = first.overlayDefinition!!.rays.single { it.targetType == "CHUDAN" }
+        assertEquals(chudanRay.origin.y, chudanRay.targetPoint!!.y)
+        assertEquals(first, reopened)
+
+        val mismatchedRows = evidence.copy(measurements = evidence.measurements.map { it.copy(occurrenceUs = 1_833_000L) })
+        val rejected = MovementPresentationMapper.map(mismatchedRows, 1)
+        assertEquals("Unavailable", rejected.keyResults.single { it.id == "target_height" }.formattedValue)
+        assertNull(rejected.overlayDefinition)
+    }
+
     private fun sideEvidence(
         motionSides: List<Pair<String, BodySide?>>,
         targetState: AnalysisState = AnalysisState.ABSTAINED,

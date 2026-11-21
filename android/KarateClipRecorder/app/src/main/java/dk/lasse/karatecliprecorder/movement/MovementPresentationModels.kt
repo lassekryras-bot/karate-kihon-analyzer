@@ -64,6 +64,8 @@ data class OverlayArm(
 data class MovementOverlayDefinition(
     val rays: List<OverlayRay> = emptyList(),
     val arm: OverlayArm? = null,
+    val fist: PointF? = null,
+    val exactFrameOnly: Boolean = false,
     val canonicalImpactUs: Long? = null,
     val frameGeometry: FrameGeometry = FrameGeometry(1080, 1920),
 )
@@ -157,6 +159,11 @@ data class MovementPresentationData(
 )
 
 object MovementPresentationMapper {
+    private fun displayTarget(target: PunchHeightTargetType): String = when (target) {
+        PunchHeightTargetType.JODAN -> "Jōdan"
+        PunchHeightTargetType.CHUDAN -> "Chūdan"
+        PunchHeightTargetType.GEDAN -> "Gedan"
+    }
 
     internal fun targetUnavailableExplanation(analysis: MovementAnalysis?): String =
         when (analysis?.reason?.removePrefix("impact_analysis_")) {
@@ -177,13 +184,17 @@ object MovementPresentationMapper {
         }?.geometryJson?.let(StraightPunchGeometryCodec::decode)?.takeIf {
             it.timestampUs in evidence.movement.playbackStartUs..evidence.movement.playbackEndUs
         }
-        return resolveSide(evidence, motion, geometry, measurements)
+        val horizontalGeometry = preferredAnalysis?.geometryJson?.let(StraightPunchHorizontalGeometryCodec::decode)
+            ?.takeIf { it.timestampUs in evidence.movement.playbackStartUs..evidence.movement.playbackEndUs &&
+                it.recordingId == evidence.recording.recordingId && it.landmarkTrackId == preferredAnalysis.landmarkTrackId }
+        return resolveSide(evidence, motion, geometry, horizontalGeometry, measurements)
     }
 
     private fun resolveSide(
         evidence: MovementEvidence,
         motion: org.json.JSONObject?,
         geometry: StraightPunchGeometry?,
+        horizontalGeometry: StraightPunchHorizontalGeometry?,
         measurements: List<MeasurementResult>,
     ): BodySide {
         val retainedMotion = selectMovementAnalysis(
@@ -196,6 +207,7 @@ object MovementPresentationMapper {
             return BodySide.values().firstOrNull { it.name == retainedSide } ?: BodySide.UNKNOWN
         }
         return geometry?.activeSide
+            ?: horizontalGeometry?.activeSide
             ?: measurements.firstOrNull { it.side == BodySide.LEFT || it.side == BodySide.RIGHT }?.side
             ?: BodySide.UNKNOWN
     }
@@ -212,12 +224,43 @@ object MovementPresentationMapper {
         val preferredAnalysis = evidence.presentationAnalysis()
         val analysisResults = evidence.measurements.filter { it.analysisId == preferredAnalysis?.analysisId }
         val measurements = analysisResults.filter { it.state == ResultState.VALID || it.state == ResultState.PARTIAL }
+        val selectedTrack = preferredAnalysis?.landmarkTrackId?.let { trackId ->
+            evidence.landmarkTracks.find { it.landmarkTrackId == trackId }
+        } ?: evidence.landmarkTracks.find { it.landmarkTrackId == movement.segmentationTrackId }
+        ?: evidence.landmarkTracks.firstOrNull()
+        val canonicalDescriptor = CanonicalGeometryStorageAdapter.resolveTrackGeometry(
+            evidence.recording, selectedTrack, fileResolver)
         val geometry = preferredAnalysis?.takeIf {
             it.state == AnalysisState.COMPLETED || it.state == AnalysisState.PARTIAL
         }?.geometryJson?.let(StraightPunchGeometryCodec::decode)?.takeIf {
             it.timestampUs in movement.playbackStartUs..movement.playbackEndUs
         }
-        val side = resolveSide(evidence, motion, geometry, measurements)
+        val decodedHorizontalGeometry = preferredAnalysis?.takeIf {
+            it.state == AnalysisState.COMPLETED || it.state == AnalysisState.PARTIAL
+        }?.geometryJson?.let(StraightPunchHorizontalGeometryCodec::decode)?.takeIf {
+            it.timestampUs in movement.playbackStartUs..movement.playbackEndUs &&
+                it.recordingId == evidence.recording.recordingId && it.landmarkTrackId == preferredAnalysis.landmarkTrackId &&
+                it.frameGeometryId == canonicalDescriptor.geometryId &&
+                it.frameGeometryContractVersion == canonicalDescriptor.contractVersion &&
+                it.canonicalWidth == canonicalDescriptor.canonicalWidth && it.canonicalHeight == canonicalDescriptor.canonicalHeight
+        }
+        val horizontalKeys = setOf(
+            TrainingMeasurements.PUNCH_HORIZONTAL_CLOSEST_TARGET,
+            TrainingMeasurements.PUNCH_JODAN_HEIGHT_ERROR_NORMALIZED,
+            TrainingMeasurements.PUNCH_CHUDAN_HEIGHT_ERROR_NORMALIZED,
+            TrainingMeasurements.PUNCH_GEDAN_HEIGHT_ERROR_NORMALIZED,
+            TrainingMeasurements.PUNCH_JODAN_HEIGHT_ERROR_CANONICAL_PX,
+            TrainingMeasurements.PUNCH_CHUDAN_HEIGHT_ERROR_CANONICAL_PX,
+            TrainingMeasurements.PUNCH_GEDAN_HEIGHT_ERROR_CANONICAL_PX,
+        )
+        val horizontalRows = analysisResults.filter { it.measurementKey in horizontalKeys }
+        val horizontalGeometry = decodedHorizontalGeometry?.takeIf { retained ->
+            horizontalRows.isNotEmpty() && horizontalRows.all {
+                it.occurrenceUs == retained.timestampUs && it.frameIndex == retained.frameIndex
+            }
+        }
+        val presentationMeasurements = if (horizontalGeometry == null) measurements.filterNot { it.measurementKey in horizontalKeys } else measurements
+        val side = resolveSide(evidence, motion, geometry, horizontalGeometry, presentationMeasurements)
         val sideLabel = when (side) {
             BodySide.LEFT -> "Left arm"
             BodySide.RIGHT -> "Right arm"
@@ -234,7 +277,8 @@ object MovementPresentationMapper {
         }
         val contextSubtitle = "$activityTitle · ${motion?.optString("side")?.takeUnless { it == "null" } ?: sideLabel}"
 
-        val canonicalUs = motion?.takeUnless { it.isNull("representativeUs") }?.getLong("representativeUs") ?: geometry?.timestampUs
+        val canonicalUs = horizontalGeometry?.timestampUs
+            ?: motion?.takeUnless { it.isNull("representativeUs") }?.getLong("representativeUs") ?: geometry?.timestampUs
             ?: analysisResults.firstNotNullOfOrNull { it.occurrenceUs }
             ?: movement.analysisFrameUs
         val canonicalImpactUs = canonicalUs ?: movement.playbackStartUs
@@ -276,9 +320,11 @@ object MovementPresentationMapper {
         val keyResults = mutableListOf<KeyResultItem>()
 
         // 1. Target height
-        val closestTarget = measurements.firstOrNull { it.measurementKey == TrainingMeasurements.PUNCH_CLOSEST_TARGET }?.categoricalValue
-        val angleError = measurements.firstOrNull { it.measurementKey == TrainingMeasurements.PUNCH_TARGET_ANGLE_ERROR_DEG }?.numericValue
-        val targetMargin = measurements.firstOrNull { it.measurementKey == TrainingMeasurements.PUNCH_TARGET_CLASSIFICATION_MARGIN_DEG }?.numericValue
+        val horizontalClosest = presentationMeasurements.firstOrNull { it.measurementKey == TrainingMeasurements.PUNCH_HORIZONTAL_CLOSEST_TARGET }?.categoricalValue
+        val closestTarget = horizontalClosest
+            ?: presentationMeasurements.firstOrNull { it.measurementKey == TrainingMeasurements.PUNCH_CLOSEST_TARGET }?.categoricalValue
+        val angleError = presentationMeasurements.firstOrNull { it.measurementKey == TrainingMeasurements.PUNCH_TARGET_ANGLE_ERROR_DEG }?.numericValue
+        val targetMargin = presentationMeasurements.firstOrNull { it.measurementKey == TrainingMeasurements.PUNCH_TARGET_CLASSIFICATION_MARGIN_DEG }?.numericValue
 
         if (closestTarget != null) {
             val targetName = when (closestTarget) {
@@ -287,7 +333,20 @@ object MovementPresentationMapper {
                 "GEDAN" -> "Gedan"
                 else -> closestTarget
             }
-            val errorText = if (angleError != null) {
+            val horizontalPxKey = when (horizontalClosest) {
+                "JODAN" -> TrainingMeasurements.PUNCH_JODAN_HEIGHT_ERROR_CANONICAL_PX
+                "CHUDAN" -> TrainingMeasurements.PUNCH_CHUDAN_HEIGHT_ERROR_CANONICAL_PX
+                "GEDAN" -> TrainingMeasurements.PUNCH_GEDAN_HEIGHT_ERROR_CANONICAL_PX
+                else -> null
+            }
+            val horizontalPx = horizontalPxKey?.let { key -> presentationMeasurements.firstOrNull { it.measurementKey == key }?.numericValue }
+            val errorText = if (horizontalPx != null) {
+                when {
+                    horizontalPx == 0.0 -> "0.0 px difference"
+                    horizontalPx > 0 -> "+${"%.1f".format(horizontalPx)} px above"
+                    else -> "${"%.1f".format(horizontalPx)} px below"
+                }
+            } else if (angleError != null) {
                 when {
                     abs(angleError) < 0.05 -> "exact"
                     angleError > 0 -> "+${"%.1f".format(angleError)}° high"
@@ -295,13 +354,19 @@ object MovementPresentationMapper {
                 }
             } else null
 
-            val targetValue = if (errorText != null) "$targetName · $errorText" else targetName
+            val targetValue = if (errorText != null) "${if (horizontalClosest != null) "Closest to " else ""}$targetName · $errorText" else targetName
+            val horizontalSublabel = horizontalGeometry?.let { retained ->
+                val compared = retained.guides.filter { it.targetPoint != null }.joinToString(", ") { displayTarget(it.targetType) }
+                val missing = retained.guides.filter { it.targetPoint == null }.joinToString(", ") { displayTarget(it.targetType) }
+                listOfNotNull("Compared: $compared", missing.takeIf { it.isNotBlank() }?.let { "Unavailable: $it" }).joinToString(" · ")
+            }
             val sublabel = if (diagnosticApproval != null) {
                 listOfNotNull(
                     "Diagnostic result · excluded from history and baselines",
+                    horizontalSublabel,
                     targetMargin?.let { "Margin: ${"%.1f".format(it)}°" },
                 ).joinToString(" · ")
-            } else targetMargin?.let { "Margin: ${"%.1f".format(it)}°" }
+            } else horizontalSublabel ?: targetMargin?.let { "Margin: ${"%.1f".format(it)}°" }
 
             keyResults.add(
                 KeyResultItem(
@@ -315,7 +380,17 @@ object MovementPresentationMapper {
                 )
             )
         } else {
-            val legacyError = measurements.firstOrNull { it.measurementKey == TrainingMeasurements.PUNCH_HEIGHT_ERROR_TORSO_RATIO }?.numericValue
+            if (horizontalGeometry?.closestState == HorizontalClosestState.AMBIGUOUS) {
+                val tied = horizontalGeometry.guides.filter { guide ->
+                    val minimum = horizontalGeometry.guides.mapNotNull { it.signedErrorNormalized?.let { value -> kotlin.math.abs(value) } }.minOrNull()
+                    guide.signedErrorNormalized?.let { value -> kotlin.math.abs(value) } == minimum
+                }.joinToString(" and ") { displayTarget(it.targetType) }
+                val missing = horizontalGeometry.guides.filter { it.targetPoint == null }.joinToString(", ") { displayTarget(it.targetType) }
+                keyResults.add(KeyResultItem("target_height", "Target height", "Ambiguous",
+                    listOfNotNull("Exact tie between $tied", missing.takeIf { it.isNotBlank() }?.let { "Unavailable: $it" }).joinToString(" · "),
+                    PlayerMode.ANALYSIS, canonicalImpactUs, true))
+            } else {
+            val legacyError = presentationMeasurements.firstOrNull { it.measurementKey == TrainingMeasurements.PUNCH_HEIGHT_ERROR_TORSO_RATIO }?.numericValue
             if (legacyError != null) {
                 keyResults.add(
                     KeyResultItem(
@@ -341,6 +416,7 @@ object MovementPresentationMapper {
                     )
                 )
             }
+            }
         }
 
         // Speed, path-deviation and hikite rows remain absent until their analytical
@@ -350,16 +426,11 @@ object MovementPresentationMapper {
         // In the absence of classified technique faults from the analyzer, findings remains empty.
         val findings = emptyList<FindingItem>()
 
-        val selectedTrack = preferredAnalysis?.landmarkTrackId?.let { trackId ->
-            evidence.landmarkTracks.find { it.landmarkTrackId == trackId }
-        } ?: evidence.landmarkTracks.find { it.landmarkTrackId == movement.segmentationTrackId }
-        ?: evidence.landmarkTracks.firstOrNull()
-
-        val resolvedFrameGeometry = resolveCanonicalFrameGeometry(evidence.recording, selectedTrack, frames, fileResolver)
+        val resolvedFrameGeometry = canonicalDescriptor.takeIf { it.isAvailable }?.toFrameGeometry()
 
         // Overlay definition: renders persisted analyzer geometry and active arm
         val overlayDefinition = if (resolvedFrameGeometry != null) {
-            buildOverlayDefinition(geometry, frames, side, canonicalUs, resolvedFrameGeometry)
+            buildOverlayDefinition(geometry, horizontalGeometry, frames, side, canonicalUs, resolvedFrameGeometry)
         } else null
 
         // Debug Data
@@ -446,7 +517,9 @@ object MovementPresentationMapper {
             analysisState = preferredAnalysis?.state,
             evidenceReason = listOfNotNull(
                 "referenced_landmark_track_unavailable".takeIf { frames.isEmpty() },
-                "target_geometry_unavailable_or_unsupported".takeIf { geometry == null },
+                "target_geometry_unavailable_or_unsupported".takeIf {
+                    geometry == null && horizontalGeometry == null
+                },
             ).joinToString("; ").ifEmpty { null },
             bodyHeightDebug = bodyHeightDebug,
         )
@@ -476,7 +549,7 @@ object MovementPresentationMapper {
             analysisNotice = when {
                 overlayDefinition == null -> "Analysis evidence is unavailable for this movement."
                 frames.isEmpty() -> "Landmark playback is unavailable. Showing retained target geometry."
-                geometry == null -> "Target geometry is unavailable for this movement."
+                geometry == null && horizontalGeometry == null -> "Target geometry is unavailable for this movement."
                 else -> null
             },
         )
@@ -484,12 +557,13 @@ object MovementPresentationMapper {
 
     private fun buildOverlayDefinition(
         geometry: StraightPunchGeometry?,
+        horizontalGeometry: StraightPunchHorizontalGeometry?,
         frames: List<PoseFrame>,
         side: BodySide,
         canonicalImpactUs: Long?,
         frameGeometry: FrameGeometry = FrameGeometry(1080, 1920),
     ): MovementOverlayDefinition? {
-        val impactFrame = if (frames.isNotEmpty() && canonicalImpactUs != null && side in setOf(BodySide.LEFT, BodySide.RIGHT)) {
+        val impactFrame = if (horizontalGeometry == null && frames.isNotEmpty() && canonicalImpactUs != null && side in setOf(BodySide.LEFT, BodySide.RIGHT)) {
             frames.minByOrNull { abs(it.timestampMs * 1000L - canonicalImpactUs) }
         } else null
 
@@ -523,16 +597,26 @@ object MovementPresentationMapper {
             } else null
         } else null
 
-        val rays = geometry?.rays?.map { ray ->
+        val legacyRays = geometry?.rays?.map { ray ->
             OverlayRay(ray.targetType.name, PointF(geometry.origin.x, geometry.origin.y),
                 PointF(ray.endpoint.x, ray.endpoint.y), ray.isClosest)
         }.orEmpty()
+        val horizontalRays = horizontalGeometry?.takeIf { it.facing != ImageFacingDirection.UNKNOWN }?.guides?.mapNotNull { guide ->
+            val point = guide.targetPoint ?: return@mapNotNull null
+            val endpointX = if (horizontalGeometry.facing == ImageFacingDirection.IMAGE_LEFT) 0f else 1f
+            OverlayRay(guide.targetType.name, PointF(point.x, point.y), PointF(endpointX, point.y),
+                horizontalGeometry.closestTarget == guide.targetType)
+        }.orEmpty()
+        val rays = horizontalRays.ifEmpty { legacyRays }
+        val fist = horizontalGeometry?.fist?.let { PointF(it.x, it.y) }
 
-        if (arm == null && rays.isEmpty()) return null
+        if (arm == null && rays.isEmpty() && fist == null) return null
 
         return MovementOverlayDefinition(
             rays = rays,
             arm = arm,
+            fist = fist,
+            exactFrameOnly = horizontalGeometry != null,
             canonicalImpactUs = canonicalImpactUs,
             frameGeometry = frameGeometry,
         )

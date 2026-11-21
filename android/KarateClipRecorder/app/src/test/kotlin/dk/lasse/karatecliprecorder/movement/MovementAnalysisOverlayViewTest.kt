@@ -60,5 +60,22 @@ class MovementAnalysisOverlayViewTest {
         val renderedRays = if (overlay.showAllRays) overlay.overlayDefinition!!.rays else overlay.overlayDefinition!!.rays.filter { it.isClosest }
         assertEquals(3, renderedRays.size)
     }
-}
 
+    @Test
+    fun horizontalEvidenceRendersAllGuidesOnlyAtExactRetainedTimestamp() {
+        val state = MovementTimelineState(0L, 2_000_000L)
+        val overlay = MovementAnalysisOverlayView(context, state)
+        val rays = listOf(
+            OverlayRay("JODAN", PointF(.5f, .2f), PointF(0f, .2f), false),
+            OverlayRay("CHUDAN", PointF(.5f, .5f), PointF(0f, .5f), true),
+            OverlayRay("GEDAN", PointF(.5f, .7f), PointF(0f, .7f), false),
+        )
+        overlay.overlayDefinition = MovementOverlayDefinition(rays = rays, fist = PointF(.2f, .4f),
+            exactFrameOnly = true, canonicalImpactUs = 1_834_000L)
+
+        assertFalse(overlay.shouldRenderAt(1_833_000L))
+        assertTrue(overlay.shouldRenderAt(1_834_000L))
+        assertFalse(overlay.shouldRenderAt(1_835_000L))
+        assertEquals(3, overlay.raysForDisplay().size)
+    }
+}

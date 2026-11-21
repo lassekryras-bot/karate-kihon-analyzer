@@ -3,6 +3,9 @@ package dk.lasse.karatecliprecorder.training
 import dk.lasse.karateanalyzer.core.*
 import dk.lasse.karateanalyzer.capture.LateralSide
 import dk.lasse.karateanalyzer.impact.*
+import dk.lasse.karateanalyzer.capture.qom.ExtremityPointComposer
+import dk.lasse.karateanalyzer.capture.qom.MotionBodyProfile
+import dk.lasse.karateanalyzer.geometry.CanonicalGeometryDescriptor
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
@@ -132,6 +135,87 @@ class StraightPunchMovementAdapterTest {
 
         assertEquals(AnalysisState.ABSTAINED, analysis.state)
         assertEquals("impact_analysis_BODY_SCALE_UNAVAILABLE", analysis.reason)
+        assertTrue(results.isEmpty())
+    }
+
+    @Test
+    fun completedImpactUsesExactRepresentativeAndPersistsHorizontalContract() {
+        val movement = SessionMovement(
+            sessionId = "test-session", startUs = 1_500_000, endUs = 2_000_000,
+            playbackStartUs = 1_400_000, playbackEndUs = 2_100_000,
+            segmentationSource = "test", segmentationVersion = "1",
+        )
+        val transition = buildImpactFrame(1_734, fistY = .60f)
+        val representative = buildImpactFrame(1_834, fistY = .45f)
+        val geometry = CanonicalGeometryDescriptor("geometry", recordingId = "recording",
+            landmarkTrackId = "test-track", canonicalWidth = 1080, canonicalHeight = 1920)
+        val expectedFist = requireNotNull(ExtremityPointComposer.compositeSourcePoint(
+            representative, MotionBodyProfile.PUNCH_HAND_LANDMARKS_LEFT)).point
+        val impact = ImpactAnalysisResult(
+            status = ImpactAnalysisStatus.COMPLETED,
+            movementId = movement.movementId,
+            weaponId = WeaponPointDefinition.COMPOSITE_HAND,
+            side = LateralSide.LEFT,
+            limbFamily = ImpactLimbFamily.UPPER_LIMB,
+            viewProfile = "approved-side",
+            terminalTransitionTimestampUs = 1_734_000,
+            stableRepresentativeTimestampUs = 1_834_000,
+            stableRepresentativeWeaponPoint = expectedFist,
+            quality = ImpactQualityDiagnostics(2, 2, 1.0, 1.0, 1.0, 1.0),
+            provenance = ImpactAnalysisProvenance(
+                landmarkTrackId = "test-track", recordingId = "recording",
+                frameGeometryId = "geometry", frameGeometryContractVersion = geometry.contractVersion,
+                sourceHash = null, trackHash = null, segmenterVersion = "segmenter-v1",
+                bodyScaleSourceId = null, bodyScaleSourceVersion = null,
+                analyzerVersion = ImpactAnalyzer.ANALYZER_VERSION,
+                configurationVersion = ImpactAnalysisProfile.DEFAULT_CONFIG_VERSION,
+            ),
+        )
+
+        val (analysis, results) = StraightPunchMovementAdapter.analyze(
+            movement, "test-track", listOf(transition, representative), impactResult = impact,
+            resolvedSide = LateralSide.LEFT, canonicalGeometry = geometry,
+        )
+
+        assertEquals("3", analysis.analyzerVersion)
+        assertNotEquals(AnalysisState.ABSTAINED, analysis.state)
+        val persisted = requireNotNull(StraightPunchHorizontalGeometryCodec.decode(analysis.geometryJson))
+        assertEquals(1_834_000, persisted.timestampUs)
+        assertEquals(1L, persisted.frameIndex)
+        assertEquals(expectedFist.x, persisted.fist.x)
+        assertEquals(expectedFist.y, persisted.fist.y)
+        assertTrue(results.all { it.occurrenceUs == 1_834_000L && it.frameIndex == 1L })
+        assertNotNull(results.single { it.measurementKey == TrainingMeasurements.PUNCH_CHUDAN_HEIGHT_ERROR_CANONICAL_PX }.numericValue)
+    }
+
+    @Test
+    fun missingExactRepresentativeFrameDoesNotUseTransitionOrNearestFrame() {
+        val movement = SessionMovement(
+            sessionId = "test-session", startUs = 1_500_000, endUs = 2_000_000,
+            playbackStartUs = 1_400_000, playbackEndUs = 2_100_000,
+            segmentationSource = "test", segmentationVersion = "1",
+        )
+        val transition = buildImpactFrame(1_734)
+        val geometry = CanonicalGeometryDescriptor("geometry", recordingId = "recording",
+            landmarkTrackId = "test-track", canonicalWidth = 1080, canonicalHeight = 1920)
+        val fist = requireNotNull(ExtremityPointComposer.compositeSourcePoint(
+            transition, MotionBodyProfile.PUNCH_HAND_LANDMARKS_LEFT)).point
+        val impact = ImpactAnalysisResult(
+            status = ImpactAnalysisStatus.COMPLETED, movementId = movement.movementId,
+            weaponId = WeaponPointDefinition.COMPOSITE_HAND, side = LateralSide.LEFT,
+            limbFamily = ImpactLimbFamily.UPPER_LIMB, viewProfile = "approved-side",
+            stableRepresentativeTimestampUs = 1_834_000, stableRepresentativeWeaponPoint = fist,
+            quality = ImpactQualityDiagnostics(1, 1, 1.0, 1.0, 1.0, 1.0),
+            provenance = ImpactAnalysisProvenance("test-track", "recording", "geometry", geometry.contractVersion,
+                null, null, "segmenter", null, null, ImpactAnalyzer.ANALYZER_VERSION,
+                ImpactAnalysisProfile.DEFAULT_CONFIG_VERSION),
+        )
+        val (analysis, results) = StraightPunchMovementAdapter.analyze(
+            movement, "test-track", listOf(transition), impactResult = impact,
+            resolvedSide = LateralSide.LEFT, canonicalGeometry = geometry,
+        )
+        assertEquals(AnalysisState.ABSTAINED, analysis.state)
+        assertEquals("exact_impact_frame_unavailable", analysis.reason)
         assertTrue(results.isEmpty())
     }
 }

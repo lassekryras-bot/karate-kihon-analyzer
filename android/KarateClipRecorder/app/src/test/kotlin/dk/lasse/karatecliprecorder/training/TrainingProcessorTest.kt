@@ -20,13 +20,13 @@ import kotlin.test.*
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [28])
 class TrainingProcessorTest {
-    @Test fun targetAnalyzerFailureRecordsApprovedV2Provenance() {
+    @Test fun targetAnalyzerFailureRecordsApprovedV3Provenance() {
         val movement = SessionMovement(sessionId = "session", startUs = 0, endUs = 1,
             playbackStartUs = 0, playbackEndUs = 1, segmentationSource = "test", segmentationVersion = "test")
         val failure = runCatching { error("forced target analyzer failure") }
             .exceptionOrNull()!!.let { straightPunchFailureAnalysis(movement, "track", it) }
         assertEquals(StraightPunchMovementAdapter.policy.analyzerKey, failure.analyzerKey)
-        assertEquals("2", failure.analyzerVersion)
+        assertEquals("3", failure.analyzerVersion)
         assertEquals(AnalysisState.FAILED, failure.state)
         assertEquals("forced target analyzer failure", failure.reason)
     }
@@ -303,7 +303,7 @@ class TrainingProcessorTest {
             val initialRun = assertNotNull(repository.currentRun(session.sessionId))
             assertEquals(RunMode.INITIAL, initialRun.mode)
             assertEquals(RunState.COMPLETED, initialRun.state)
-            assertEquals("2", initialRun.analyzerVersion)
+            assertEquals("3", initialRun.analyzerVersion)
             assertEquals(TrainingSessionProcessor.SEGMENTATION_VERSION, initialRun.segmenterVersion)
             assertTrue(initialRun.isCurrent)
 
@@ -332,7 +332,7 @@ class TrainingProcessorTest {
             assertEquals(reanalysisRun.runId, currentRun.runId)
             assertEquals(RunMode.REANALYSIS, currentRun.mode)
             assertEquals(RunState.COMPLETED, currentRun.state)
-            assertEquals("2", currentRun.analyzerVersion)
+            assertEquals("3", currentRun.analyzerVersion)
             assertTrue(currentRun.isCurrent)
             assertEquals(QomDetectorConfig.SUPPORTED_WORLD_V2, currentRun.segmenterVersion)
             assertEquals(QomDetectorConfig.SUPPORTED_WORLD_V2, repository.job(session.sessionId)?.segmentationVersion)
@@ -351,7 +351,7 @@ class TrainingProcessorTest {
             val firstMovementEvidence = repository.movementEvidence(session.sessionId, 1)!!
             assertEquals(2, firstMovementEvidence.analyses.size)
             val target = firstMovementEvidence.analyses.single { it.analyzerKey == "straight_punch_target" }
-            assertEquals("2", target.analyzerVersion)
+            assertEquals("3", target.analyzerVersion)
             assertEquals(AnalysisState.ABSTAINED, target.state)
             assertNotEquals("ACTIVITY_PLAN_UNAVAILABLE", target.reason)
             assertTrue(firstMovementEvidence.measurements.isEmpty())

@@ -71,7 +71,7 @@ object MovementAnalysisPipeline {
                         MovementAnalysis(
                             movementId = movement.movementId,
                             analyzerKey = StraightPunchMovementAdapter.policy.analyzerKey,
-                            analyzerVersion = "2",
+                            analyzerVersion = StraightPunchMovementAdapter.policy.approvedVersions.first(),
                             landmarkTrackId = trackId,
                             state = AnalysisState.ABSTAINED,
                             reason = motion.analysis.reason ?: "TERMINAL_EVIDENCE_UNAVAILABLE",
@@ -85,6 +85,8 @@ object MovementAnalysisPipeline {
                             videoHeight = videoHeight,
                             impactResult = motion.impact,
                             resolvedSide = motion.side?.side,
+                            canonicalGeometry = geometry,
+                            pairedArmEvidence = pairedArmEvidence,
                         )
                     }
                 }.getOrElse { error ->

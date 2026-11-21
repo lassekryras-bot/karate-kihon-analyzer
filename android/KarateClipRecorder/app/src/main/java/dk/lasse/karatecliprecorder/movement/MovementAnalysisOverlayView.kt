@@ -30,6 +30,16 @@ class MovementAnalysisOverlayView(
     private val timelineState: MovementTimelineState,
 ) : View(context), MovementTimelineState.TimelineListener {
 
+    internal fun shouldRenderAt(timestampUs: Long): Boolean {
+        val overlay = overlayDefinition ?: return false
+        return !overlay.exactFrameOnly || timestampUs == overlay.canonicalImpactUs
+    }
+
+    internal fun raysForDisplay(): List<OverlayRay> {
+        val overlay = overlayDefinition ?: return emptyList()
+        return if (overlay.exactFrameOnly || showAllRays) overlay.rays else overlay.rays.filter { it.isClosest }
+    }
+
     private val density = resources.displayMetrics.density
     private val paint = Paint(Paint.ANTI_ALIAS_FLAG)
     private val textPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
@@ -84,6 +94,7 @@ class MovementAnalysisOverlayView(
     override fun onDraw(canvas: Canvas) {
         super.onDraw(canvas)
         val overlay = overlayDefinition ?: return
+        if (!shouldRenderAt(timelineState.currentTimestampUs)) return
         val w = width.toFloat()
         val h = height.toFloat()
         if (w <= 0 || h <= 0) return
@@ -119,7 +130,9 @@ class MovementAnalysisOverlayView(
         canvas.clipRect(rect)
 
         // Draw arm segments matching current timeline timestamp
-        val curArm: OverlayArm? = if (frames.isNotEmpty() && activeSide != BodySide.UNKNOWN) {
+        val curArm: OverlayArm? = if (overlay.fist != null) {
+            null
+        } else if (frames.isNotEmpty() && activeSide != BodySide.UNKNOWN) {
             val curFrame = frames.minByOrNull { abs(it.timestampMs * 1000L - timelineState.currentTimestampUs) }
             val shoulderId = when (activeSide) {
                 BodySide.LEFT -> PoseLandmarkId.LEFT_SHOULDER
@@ -175,8 +188,19 @@ class MovementAnalysisOverlayView(
             canvas.drawCircle(wr.x, wr.y, 7f * density, paint)
         }
 
+        overlay.fist?.let { retainedFist ->
+            val fist = toPx(retainedFist)
+            paint.style = Paint.Style.FILL
+            paint.color = accentColor
+            canvas.drawCircle(fist.x, fist.y, 7f * density, paint)
+            paint.style = Paint.Style.STROKE
+            paint.strokeWidth = 2f * density
+            paint.color = Color.WHITE
+            canvas.drawCircle(fist.x, fist.y, 9f * density, paint)
+        }
+
         // Draw target rays (render only closest ray by default to avoid visual clutter)
-        val raysToDraw = if (showAllRays) overlay.rays else overlay.rays.filter { it.isClosest }
+        val raysToDraw = raysForDisplay()
         raysToDraw.forEach { ray ->
             val orig = toPx(ray.origin)
             val tgt = ray.targetPoint?.let { toPx(it) }
@@ -204,14 +228,21 @@ class MovementAnalysisOverlayView(
                     else -> ray.targetType
                 }
                 textPaint.color = if (ray.isClosest) accentColor else secondaryColor
-                canvas.drawText(label, tgt.x + 4f * density, tgt.y + 4f * density, textPaint)
+                val labelWidth = textPaint.measureText(label)
+                val labelX = if (tgt.x + labelWidth + 4f * density <= rect.right) {
+                    tgt.x + 4f * density
+                } else {
+                    (tgt.x - labelWidth - 4f * density).coerceAtLeast(rect.left + 2f * density)
+                }
+                canvas.drawText(label, labelX, tgt.y + 4f * density, textPaint)
             }
         }
         canvas.restore()
 
         // Canonical impact frame indicator badge
         val impactUs = overlay.canonicalImpactUs
-        if (impactUs != null && abs(timelineState.currentTimestampUs - impactUs) <= 60_000L) {
+        if (impactUs != null && (if (overlay.exactFrameOnly) timelineState.currentTimestampUs == impactUs
+            else abs(timelineState.currentTimestampUs - impactUs) <= 60_000L)) {
             val badgeText = "Impact Frame"
             textPaint.color = Color.WHITE
             val badgeW = textPaint.measureText(badgeText) + 16f * density

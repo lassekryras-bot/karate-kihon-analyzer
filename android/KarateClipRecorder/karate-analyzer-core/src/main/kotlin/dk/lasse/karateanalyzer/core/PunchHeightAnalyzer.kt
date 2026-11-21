@@ -538,6 +538,31 @@ class GedanTargetModel(
 }
 
 class SideViewChinEstimator {
+    companion object {
+        data class FreshFaceObservation(val point: Point3, val confidence: Float, val visibleSide: VisibleSide)
+
+        /** Pure exact-frame variant of the supported fresh-face chin recipe. */
+        fun freshFaceObservation(
+            frame: PoseFrame,
+            visibleSide: VisibleSide,
+            multiplier: Float,
+            minimumConfidence: Float = 0.55f,
+        ): FreshFaceObservation? {
+            if (visibleSide == VisibleSide.UNKNOWN) return null
+            val nose = frame.landmarks[PoseLandmarkId.NOSE]?.takeIf { it.isObserved() }?.position ?: return null
+            val mouthId = visibleSide.mouthId()
+            val mouthSample = frame.landmarks[mouthId]?.takeIf { it.isObserved() } ?: return null
+            val confidence = minOf(frame.landmarks.getValue(PoseLandmarkId.NOSE).confidence, mouthSample.confidence)
+            if (confidence < minimumConfidence) return null
+            val mouth = requireNotNull(mouthSample.position)
+            val point = mouth + (mouth - nose) * multiplier.coerceIn(
+                PunchHeightAnalyzer.MIN_CHIN_PROJECTION_MULTIPLIER,
+                PunchHeightAnalyzer.MAX_CHIN_PROJECTION_MULTIPLIER,
+            )
+            return FreshFaceObservation(point, confidence, visibleSide)
+        }
+    }
+
     private var lastEstimate: ChinEstimate? = null
     private var lastObservedEstimateTimestampMs: Long? = null
     private var lastFreshFaceTimestampMs: Long? = null
@@ -563,18 +588,14 @@ class SideViewChinEstimator {
         val earId = body.visibleSide.earId()
         val eyeId = body.visibleSide.eyeId()
         val shoulderId = body.visibleSide.shoulderId()
-        val nose = frame.observedPoint(PoseLandmarkId.NOSE)
-        val mouth = frame.observedPoint(mouthId)
-        if (nose != null && mouth != null) {
-            val raw = mouth + (mouth - nose) * multiplier.coerceIn(
-                PunchHeightAnalyzer.MIN_CHIN_PROJECTION_MULTIPLIER,
-                PunchHeightAnalyzer.MAX_CHIN_PROJECTION_MULTIPLIER,
-            )
+        val fresh = freshFaceObservation(PoseFrame(frame.timestampMs, frame.landmarks), body.visibleSide, multiplier)
+        if (fresh != null) {
+            val raw = fresh.point
             val smoothed = lastEstimate?.smoothedPoint?.let { lerp(it, raw, 0.30f) } ?: raw
             anchorOffsets = listOf(PoseLandmarkId.NOSE, earId, eyeId, shoulderId).mapNotNull { id ->
                 frame.observedPoint(id)?.let { anchor -> id to (raw - anchor) }
             }.toMap()
-            return build(body, raw, smoothed, ChinTrackingSource.FRESH_FACE, minOf(frame.confidence(PoseLandmarkId.NOSE), frame.confidence(mouthId)), 0L, true)
+            return build(body, raw, smoothed, ChinTrackingSource.FRESH_FACE, fresh.confidence, 0L, true)
                 .also {
                     lastFreshFaceTimestampMs = frame.timestampMs
                     rememberObserved(it, frame.timestampMs)
