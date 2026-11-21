@@ -157,6 +157,40 @@ data class MovementPresentationData(
 
 object MovementPresentationMapper {
 
+    /** One retained-side selection path for movement detail and recording summaries. */
+    internal fun resolveSide(evidence: MovementEvidence): BodySide {
+        val motion = MovementMotionInspection.read(evidence)
+        val preferredAnalysis = evidence.presentationAnalysis()
+        val analysisResults = evidence.measurements.filter { it.analysisId == preferredAnalysis?.analysisId }
+        val measurements = analysisResults.filter { it.state == ResultState.VALID || it.state == ResultState.PARTIAL }
+        val geometry = preferredAnalysis?.takeIf {
+            it.state == AnalysisState.COMPLETED || it.state == AnalysisState.PARTIAL
+        }?.geometryJson?.let(StraightPunchGeometryCodec::decode)?.takeIf {
+            it.timestampUs in evidence.movement.playbackStartUs..evidence.movement.playbackEndUs
+        }
+        return resolveSide(evidence, motion, geometry, measurements)
+    }
+
+    private fun resolveSide(
+        evidence: MovementEvidence,
+        motion: org.json.JSONObject?,
+        geometry: StraightPunchGeometry?,
+        measurements: List<MeasurementResult>,
+    ): BodySide {
+        val retainedMotion = selectMovementAnalysis(
+            evidence.analyses,
+            MovementMotionAnalysis.policy,
+            includeUnavailable = true,
+        )
+        if (retainedMotion != null) {
+            val retainedSide = motion?.optString("side")?.takeUnless { it.isBlank() || it == "null" }
+            return BodySide.values().firstOrNull { it.name == retainedSide } ?: BodySide.UNKNOWN
+        }
+        return geometry?.activeSide
+            ?: measurements.firstOrNull { it.side == BodySide.LEFT || it.side == BodySide.RIGHT }?.side
+            ?: BodySide.UNKNOWN
+    }
+
     fun map(
         evidence: MovementEvidence,
         displayedNumber: Int,
@@ -173,9 +207,7 @@ object MovementPresentationMapper {
         }?.geometryJson?.let(StraightPunchGeometryCodec::decode)?.takeIf {
             it.timestampUs in movement.playbackStartUs..movement.playbackEndUs
         }
-        val side = geometry?.activeSide
-            ?: measurements.firstOrNull { it.side == BodySide.LEFT || it.side == BodySide.RIGHT }?.side
-            ?: BodySide.UNKNOWN
+        val side = resolveSide(evidence, motion, geometry, measurements)
         val sideLabel = when (side) {
             BodySide.LEFT -> "Left arm"
             BodySide.RIGHT -> "Right arm"

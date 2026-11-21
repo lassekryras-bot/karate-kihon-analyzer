@@ -8,6 +8,8 @@ import dk.lasse.karateanalyzer.geometry.SourceToCanonicalTransform
 import dk.lasse.karateanalyzer.geometry.TransformOrder
 import dk.lasse.karatecliprecorder.training.*
 import dk.lasse.karatecliprecorder.training.LandmarkTrack
+import org.json.JSONArray
+import org.json.JSONObject
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
@@ -39,6 +41,121 @@ class MovementPresentationMapperTest {
             canonicalOrientation = CanonicalOrientation.UPRIGHT_UNMIRRORED,
             sourceToCanonicalTransform = SourceToCanonicalTransform(0, false, order = TransformOrder.ROTATION_THEN_MIRROR),
         )
+
+    private fun sideEvidence(
+        motionSides: List<Pair<String, BodySide?>>,
+        targetState: AnalysisState = AnalysisState.ABSTAINED,
+        targetSide: BodySide? = null,
+    ): MovementEvidence {
+        val recordingId = "recording_side"
+        val trackId = "track_side"
+        val movement = SessionMovement(
+            movementId = "movement_side",
+            sessionId = "session_side",
+            startUs = 1_000_000L,
+            endUs = 2_000_000L,
+            playbackStartUs = 800_000L,
+            playbackEndUs = 2_200_000L,
+            segmentationSource = "retrospective_session_segmenter",
+            segmentationVersion = "activity_qom_supported_world_v2",
+            segmentationTrackId = trackId,
+        )
+        val recording = MasterRecording(
+            recordingId = recordingId,
+            sessionId = movement.sessionId,
+            filePath = "recordings/side.mp4",
+            createdAtMs = 1L,
+        )
+        val geometry = CanonicalGeometryCodec.encode(portraitDescriptor(recordingId, trackId))
+        val motionAnalyses = motionSides.mapIndexed { index, (version, side) ->
+            val json = JSONObject()
+                .put("contract", "movement-motion-v$version")
+                .put("movementId", movement.movementId)
+                .put("trackId", trackId)
+                .put("geometry", geometry)
+                .put("logicalStartUs", movement.startUs)
+                .put("logicalEndUs", movement.endUs)
+                .put("activity", "STRAIGHT_PUNCH")
+                .put("side", side?.name ?: JSONObject.NULL)
+                .put("profiles", JSONArray())
+            MovementAnalysis(
+                analysisId = "motion_${version}_$index",
+                movementId = movement.movementId,
+                analyzerKey = MovementMotionAnalysis.policy.analyzerKey,
+                analyzerVersion = version,
+                landmarkTrackId = trackId,
+                state = AnalysisState.PARTIAL,
+                createdAtMs = 100L + index,
+                geometryJson = json.toString(),
+            )
+        }
+        val target = MovementAnalysis(
+            analysisId = "target",
+            movementId = movement.movementId,
+            analyzerKey = StraightPunchMovementAdapter.policy.analyzerKey,
+            analyzerVersion = "2",
+            landmarkTrackId = trackId,
+            state = targetState,
+            createdAtMs = 200L,
+        )
+        val measurements = targetSide?.let { side ->
+            listOf(MeasurementResult(
+                analysisId = target.analysisId,
+                measurementKey = TrainingMeasurements.PUNCH_CLOSEST_TARGET,
+                calculationVersion = "1",
+                valueType = ValueType.CATEGORICAL,
+                categoricalValue = "CHUDAN",
+                side = side,
+                state = ResultState.VALID,
+            ))
+        }.orEmpty()
+        return MovementEvidence(
+            movement = movement,
+            recording = recording,
+            observation = null,
+            labels = emptyList(),
+            events = emptyList(),
+            analyses = motionAnalyses + target,
+            measurements = measurements,
+            landmarkTracks = emptyList(),
+        )
+    }
+
+    @Test
+    fun retainedMotionSideDrivesPresentationWhenTargetAbstainsWithoutMeasurements() {
+        val evidence = sideEvidence(listOf("3" to BodySide.RIGHT))
+
+        assertEquals(BodySide.RIGHT, MovementPresentationMapper.resolveSide(evidence))
+        val presentation = MovementPresentationMapper.map(evidence, displayedNumber = 1)
+        assertEquals("Straight punch · RIGHT", presentation.contextSubtitle)
+        assertEquals("RIGHT", presentation.debugData.activeArm)
+    }
+
+    @Test
+    fun unresolvedCurrentMotionDoesNotFallBackToStaleTargetSide() {
+        val evidence = sideEvidence(
+            motionSides = listOf("3" to null),
+            targetState = AnalysisState.COMPLETED,
+            targetSide = BodySide.LEFT,
+        )
+
+        assertEquals(BodySide.UNKNOWN, MovementPresentationMapper.resolveSide(evidence))
+        val presentation = MovementPresentationMapper.map(evidence, displayedNumber = 1)
+        assertEquals("Straight punch · Active arm", presentation.contextSubtitle)
+        assertEquals("UNKNOWN", presentation.debugData.activeArm)
+    }
+
+    @Test
+    fun historicalMotionReaderAndVersionSelectionUseTheSameSidePolicy() {
+        val historical = sideEvidence(listOf("2" to BodySide.LEFT))
+        assertEquals(BodySide.LEFT, MovementPresentationMapper.resolveSide(historical))
+
+        val currentAndHistorical = sideEvidence(listOf(
+            "2" to BodySide.LEFT,
+            "3" to BodySide.RIGHT,
+        ))
+        assertEquals(BodySide.RIGHT, MovementPresentationMapper.resolveSide(currentAndHistorical))
+    }
 
     @Test
     fun straightPunchTargetAnalysisMapsToKeyResultsAndDebugData() {

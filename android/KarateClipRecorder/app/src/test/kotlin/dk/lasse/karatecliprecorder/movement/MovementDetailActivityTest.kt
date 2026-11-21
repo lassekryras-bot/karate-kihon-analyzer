@@ -204,8 +204,8 @@ class MovementDetailActivityTest {
 
             drainUntil { texts().any { "Key Results" in it } }
 
-            // Context subtitle
-            assertTrue(texts().any { "Left arm" in it })
+            // Retained motion evidence is unresolved, so target measurements cannot override it.
+            assertTrue(texts().any { "Active arm" in it })
 
             // Player tabs
             assertTrue("Video" in texts())

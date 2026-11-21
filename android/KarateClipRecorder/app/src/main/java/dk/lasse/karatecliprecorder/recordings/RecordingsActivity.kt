@@ -22,6 +22,7 @@ import dk.lasse.karatecliprecorder.AppPreferences
 import dk.lasse.karatecliprecorder.R
 import dk.lasse.karatecliprecorder.SubPageHeader
 import dk.lasse.karatecliprecorder.assisted.LandmarkPlaybackDialog
+import dk.lasse.karatecliprecorder.movement.MovementPresentationMapper
 import dk.lasse.karatecliprecorder.profile.ProfileRepository
 import dk.lasse.karatecliprecorder.training.*
 import java.time.LocalDate
@@ -121,10 +122,16 @@ class RecordingsActivity : AppCompatActivity() {
                 val currentRun = repo.currentRun(id)
                 val movements = if (currentRun != null) repo.movementsForRun(currentRun.runId) else repo.movements(id)
                 val items = movements.map { m ->
+                    val evidence = repo.movementEvidence(m.movementId)
                     val preferred = repo.preferredAnalysis(m.movementId, StraightPunchMovementAdapter.policy)
                         ?: repo.preferredAnalysis(m.movementId, AndroidPunchMovementAnalyzer.policy)
                     val results = preferred?.let { a -> repo.resultsForAnalysis(a.analysisId) } ?: emptyList()
-                    MovementItem(m, preferred, results)
+                    MovementItem(
+                        movement = m,
+                        analysis = preferred,
+                        measurements = results,
+                        side = evidence?.let(MovementPresentationMapper::resolveSide) ?: BodySide.UNKNOWN,
+                    )
                 }
                 val rec = repo.recording(id)
                 val tracks = rec?.let { repo.tracks(it.recordingId) } ?: emptyList()
@@ -985,7 +992,7 @@ class RecordingsActivity : AppCompatActivity() {
                 val chudanErr = item.measurements.firstOrNull { it.measurementKey == TrainingMeasurements.PUNCH_CHUDAN_TARGET_ANGLE_ERROR_DEG }?.numericValue
                 val gedanErr = item.measurements.firstOrNull { it.measurementKey == TrainingMeasurements.PUNCH_GEDAN_TARGET_ANGLE_ERROR_DEG }?.numericValue
                 val margin = item.measurements.firstOrNull { it.measurementKey == TrainingMeasurements.PUNCH_TARGET_CLASSIFICATION_MARGIN_DEG }?.numericValue
-                val side = item.measurements.firstOrNull()?.side?.name ?: "UNKNOWN"
+                val side = item.side.name
                 val frameUs = movement.analysisFrameUs
                 val frameIdx = item.measurements.firstOrNull()?.frameIndex
 
@@ -1095,6 +1102,7 @@ private data class MovementItem(
     val movement: SessionMovement,
     val analysis: MovementAnalysis?,
     val measurements: List<MeasurementResult>,
+    val side: BodySide,
 )
 private data class SegmentData(
     val movements: List<MovementItem>,
