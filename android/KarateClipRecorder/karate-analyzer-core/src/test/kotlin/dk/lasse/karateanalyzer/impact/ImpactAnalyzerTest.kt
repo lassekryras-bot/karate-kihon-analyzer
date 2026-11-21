@@ -148,6 +148,29 @@ class ImpactAnalyzerTest {
     }
 
     @Test
+    fun `current per sample deadbands expose sampling dependence for one smooth trajectory`() {
+        val noSmoothing = profile().copy(
+            configVersion = "test_sampling_dependence_v1",
+            positionMedianSamples = 1,
+            positionMeanSamples = 1,
+        )
+        val at30Fps = ImpactAnalyzer.analyze(input(
+            frameIntervalMs = 33L,
+            weaponTravel = 0.16,
+            profile = noSmoothing,
+        ))
+        val at60Fps = ImpactAnalyzer.analyze(input(
+            frameIntervalMs = 16L,
+            weaponTravel = 0.16,
+            profile = noSmoothing,
+        ))
+
+        assertEquals(ImpactAnalysisStatus.COMPLETED, at30Fps.status)
+        assertEquals(ImpactAnalysisStatus.ABSTAINED, at60Fps.status)
+        assertEquals(ImpactAbstentionReason.INSUFFICIENT_MEASURABLE_MOTION, at60Fps.abstentionReason)
+    }
+
+    @Test
     fun `missing weapon missing scale and invalid timestamps have explicit reasons`() {
         val missingWeapon = ImpactAnalyzer.analyze(input(missingWeapon = true))
         val missingScale = ImpactAnalyzer.analyze(input().copy(bodyScale = null))
