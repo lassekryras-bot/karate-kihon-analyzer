@@ -10,7 +10,7 @@ object MovementMotionInspection {
         val analysis = selectMovementAnalysis(evidence.analyses, MovementMotionAnalysis.policy, true) ?: return null
         val j = JSONObject(requireNotNull(analysis.geometryJson))
         val geometry = requireNotNull(CanonicalGeometryCodec.decode(j.getString("geometry")))
-        require(j.getString("contract") in setOf("movement-motion-v1", "movement-motion-v2") &&
+        require(j.getString("contract") in setOf("movement-motion-v1", "movement-motion-v2", "movement-motion-v3") &&
             j.getString("movementId") == evidence.movement.movementId)
         require(j.getString("trackId") == analysis.landmarkTrackId && geometry.landmarkTrackId == analysis.landmarkTrackId)
         require(geometry.recordingId == evidence.recording?.recordingId)
@@ -24,6 +24,10 @@ object MovementMotionInspection {
         add("Activity: ${value("activity")} · side: ${value("side")}")
         add("Side evidence: ${value("sideReason")} · alternation: ${value("alternationStatus")}")
         if (j.has("sideEvidenceMode")) add("Side evidence mode: ${value("sideEvidenceMode")}")
+        j.optJSONObject("pairedArmEvidence")?.let { paired ->
+            val score = if (paired.isNull("scoreMeters")) "unavailable" else "%.3f m".format(paired.getDouble("scoreMeters"))
+            add("Paired arm score: $score · ${paired.optString("decisionReason", "Unavailable")} · ${paired.optString("supportMode", "Unavailable")}")
+        }
         j.optJSONObject("sideSupportingEpisode")?.let { episode ->
             val start = episode.optLong("startUs") / 1_000_000.0
             val end = episode.optLong("endUs") / 1_000_000.0

@@ -318,13 +318,19 @@ class TrainingSessionProcessor(
                 checkActive()
                 movement.movementId to MovementMotionAnalysis.characterize(movement, source.landmarkTrackId, frames, geometry)
             }
+            val pairedArmResults = if (activityContext?.activity == LimbInterpretationActivity.STRAIGHT_PUNCH) {
+                runMovements.associate { movement -> movement.movementId to StraightPunchPairedArmAnalyzer.analyze(
+                    movement.movementId, source.landmarkTrackId, geometry, movement.startUs, movement.endUs, frames)
+                }
+            } else emptyMap()
             val indexedMovements = runMovements.mapNotNull { movement ->
                 // Spoken cue ordinal is one-based and retained even when a repetition was not detected.
                 val ordinals = repository.movementEvidence(movement.movementId)?.events.orEmpty()
                     .filter { it.type == "spoken_count" }.mapNotNull { event ->
                         Regex("(?:^|;)ordinal=(\\d+)(?:;|$)").find(event.data.orEmpty())?.groupValues?.get(1)?.toIntOrNull()
                     }.distinct()
-                ordinals.singleOrNull()?.takeIf { it > 0 }?.let { IndexedLimbMovement(it - 1, limbResults.getValue(movement.movementId)) }
+                ordinals.singleOrNull()?.takeIf { it > 0 }?.let { IndexedLimbMovement(
+                    it - 1, limbResults.getValue(movement.movementId), pairedArmResults[movement.movementId]) }
             }
             val sequenceByMovement = activityContext?.let { context ->
                 runCatching { ActivityStartingSideResolver.resolveSequence(indexedMovements, context).repetitions
@@ -354,6 +360,7 @@ class TrainingSessionProcessor(
                     qom = motionQom,
                     limbs = limbResults.getValue(movement.movementId),
                     sequence = sequenceByMovement[movement.movementId],
+                    pairedArmEvidence = pairedArmResults[movement.movementId],
                     bodyScale = dk.lasse.karateanalyzer.geometry.ImageBodyScaleProvider.evidence(
                         calibration, geometry, movement.startUs, movement.endUs),
                     calibration = calibration,

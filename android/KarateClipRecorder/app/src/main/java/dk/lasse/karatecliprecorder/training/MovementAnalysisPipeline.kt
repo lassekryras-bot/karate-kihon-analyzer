@@ -5,6 +5,7 @@ import dk.lasse.karateanalyzer.core.ActivitySideContext
 import dk.lasse.karateanalyzer.core.LimbInterpretationActivity
 import dk.lasse.karateanalyzer.core.PoseFrame
 import dk.lasse.karateanalyzer.core.RepetitionSideValidation
+import dk.lasse.karateanalyzer.core.StraightPunchPairedArmResult
 import dk.lasse.karateanalyzer.geometry.CanonicalGeometryDescriptor
 import dk.lasse.karateanalyzer.geometry.ImageBodyScaleCalibration
 import dk.lasse.karateanalyzer.impact.BodyScaleEvidence
@@ -36,6 +37,7 @@ object MovementAnalysisPipeline {
         qom: List<QomFrameEvidence>,
         limbs: FourLimbMotionResult,
         sequence: RepetitionSideValidation? = null,
+        pairedArmEvidence: StraightPunchPairedArmResult? = null,
         bodyScale: BodyScaleEvidence? = null,
         calibration: ImageBodyScaleCalibration? = null,
         activityPlanEvidence: MotionActivityPlans.Evidence? = null,
@@ -58,6 +60,7 @@ object MovementAnalysisPipeline {
             calibration = calibration,
             viewApproval = viewApproval,
             activityPlanEvidence = activityPlanEvidence,
+            pairedArmEvidence = pairedArmEvidence,
         )
         var hadFailure = false
         val downstream = analyzers.mapNotNull { analyzerKey ->

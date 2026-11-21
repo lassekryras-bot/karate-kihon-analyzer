@@ -25,17 +25,26 @@ class MovementMotionAnalysisTest {
     )
     private fun frames() = (0L..1000L step 10).map { time ->
         val samples = mutableMapOf<PoseLandmarkId, PoseLandmarkSample>()
-        fun sample(x: Double, y: Double) = PoseLandmarkSample(Point3(x.toFloat(), y.toFloat(), 0f),
+        fun sample(x: Double, y: Double, z: Double = 0.0) = PoseLandmarkSample(Point3(x.toFloat(), y.toFloat(), 0f),
+            worldPosition = Point3(x.toFloat(), y.toFloat(), z.toFloat()),
             visibility = .95f, presence = .95f, source = LandmarkSource.OBSERVED)
         LimbId.entries.forEach { limb ->
             val x = if (limb.ordinal % 2 == 0) .3 else .7
             val y = if (limb.ordinal < 2) .3 else .7
             val progress = ((time - 200) / 600.0).coerceIn(0.0, 1.0)
             val angle = Math.toRadians(when(limb) { LimbId.LEFT_ARM -> 40 + 100 * progress; LimbId.RIGHT_ARM -> 150 - 100 * progress; else -> 150.0 })
+            val z = when (limb) { LimbId.LEFT_ARM -> progress * .4; LimbId.RIGHT_ARM -> -progress * .4; else -> 0.0 }
             samples[limb.proximal] = sample(x + .1, y)
-            samples[limb.joint] = sample(x, y)
-            samples[limb.distal] = sample(x + .1 * cos(angle), y + .1 * sin(angle))
+            samples[limb.joint] = sample(x, y, z)
+            samples[limb.distal] = sample(x + .1 * cos(angle), y + .1 * sin(angle), z)
+            if (limb == LimbId.LEFT_ARM) listOf(PoseLandmarkId.LEFT_THUMB, PoseLandmarkId.LEFT_INDEX, PoseLandmarkId.LEFT_PINKY)
+                .forEach { samples[it] = sample(x, y, z) }
+            if (limb == LimbId.RIGHT_ARM) listOf(PoseLandmarkId.RIGHT_THUMB, PoseLandmarkId.RIGHT_INDEX, PoseLandmarkId.RIGHT_PINKY)
+                .forEach { samples[it] = sample(x, y, z) }
         }
+        samples[PoseLandmarkId.NOSE] = sample(.6, .1, .25)
+        samples[PoseLandmarkId.MOUTH_LEFT] = sample(.57, .13, .22)
+        samples[PoseLandmarkId.MOUTH_RIGHT] = sample(.63, .13, .22)
         PoseFrame(time, samples)
     }
 
@@ -53,11 +62,13 @@ class MovementMotionAnalysisTest {
         assertNull(result.impact)
         assertEquals(ImpactAbstentionReason.UNSUPPORTED_ANALYSIS_PROFILE.name, result.analysis.reason)
         val json = JSONObject(result.analysis.geometryJson!!)
-        assertEquals("2", result.analysis.analyzerVersion)
-        assertEquals("movement-motion-v2", json.getString("contract"))
+        assertEquals("3", result.analysis.analyzerVersion)
+        assertEquals("movement-motion-v3", json.getString("contract"))
         assertEquals(FourLimbMotionCharacterizer.VERSION, json.getString("analyzerVersion"))
         assertEquals(ActivityStartingSideResolver.VERSION, json.getString("sideResolverVersion"))
-        assertEquals(SideEvidenceMode.BILATERAL_CORROBORATED.name, json.getString("sideEvidenceMode"))
+        assertEquals(SideEvidenceMode.PAIRED_BILATERAL_SUPPORT.name, json.getString("sideEvidenceMode"))
+        assertEquals(PairedArmDecisionReason.RESOLVED_PAIRED_SCORE.name,
+            json.getJSONObject("pairedArmEvidence").getString("decisionReason"))
         val supportingEpisode = json.getJSONObject("sideSupportingEpisode")
         assertEquals(LimbId.LEFT_ARM.name, supportingEpisode.getString("limb"))
         assertTrue(supportingEpisode.getLong("observedSupportUs") >= 60_000L)
@@ -98,7 +109,7 @@ class MovementMotionAnalysisTest {
         assertEquals("ACTIVITY_PLAN_UNAVAILABLE", result.analysis.reason)
     }
 
-    @Test fun `motion policy prefers v2 and treats legacy side mode as absent`() {
+    @Test fun `motion policy prefers v3 while retaining legacy history`() {
         val legacyPayload = JSONObject().put("contract", "movement-motion-v1").toString()
         val legacy = MovementAnalysis(movementId = movement.movementId, analyzerKey = MovementMotionAnalysis.policy.analyzerKey,
             analyzerVersion = "1", landmarkTrackId = "t", state = AnalysisState.PARTIAL, geometryJson = legacyPayload)
@@ -109,12 +120,15 @@ class MovementMotionAnalysisTest {
             geometryJson = JSONObject().put("contract", "movement-motion-v2")
                 .put("sideEvidenceMode", SideEvidenceMode.SINGLE_ARM_ONLY.name).toString())
         assertEquals(current, selectMovementAnalysis(listOf(legacy, current), MovementMotionAnalysis.policy, includeUnavailable = true))
+        val paired = current.copy(analysisId = trainingId(), analyzerVersion = "3",
+            geometryJson = JSONObject().put("contract", "movement-motion-v3").put("pairedArmEvidence", JSONObject()).toString())
+        assertEquals(paired, selectMovementAnalysis(listOf(legacy, current, paired), MovementMotionAnalysis.policy, includeUnavailable = true))
     }
 
     @Test fun `shared pipeline preserves production motion semantics for identical input`() {
         val inputFrames = frames()
         val limbs = MovementMotionAnalysis.characterize(movement, "t", inputFrames, geometry)
-        val context = MotionActivityPlans.context(MotionActivityPlans.ALTERNATING_PUNCH)
+        val context = requireNotNull(MotionActivityPlans.context(MotionActivityPlans.ALTERNATING_PUNCH))
         val direct = MovementMotionAnalysis.analyze(
             movement, "t", inputFrames, geometry, context, emptyList(), limbs = limbs,
         )
@@ -135,6 +149,12 @@ class MovementMotionAnalysisTest {
         assertEquals(direct.side, throughPipeline.side)
         assertEquals(direct.impact, throughPipeline.impact)
         assertEquals(direct.limbs, throughPipeline.limbs)
+
+        val paired = assertNotNull(direct.side?.pairedArmEvidence)
+        assertFailsWith<IllegalArgumentException> {
+            ActivityStartingSideResolver.resolve(direct.limbs, context,
+                pairedArmEvidence = paired.copy(landmarkTrackId = "different-track"))
+        }
     }
 
     @Test fun `calibration round trips provenance and revoking latest never revives older reference`() {

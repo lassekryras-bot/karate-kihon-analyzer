@@ -200,7 +200,7 @@ class FourLimbMotionCharacterizerTest {
         assertEquals("track", result.landmarkTrackId)
     }
 
-    @Test fun `side resolver uses opening and hikite without guessing ambiguous or missing first repetitions`() {
+    @Test fun `elbow opening remains diagnostic and cannot assign punch side without paired evidence`() {
         val context = ActivitySideContext("punch", "1", LimbInterpretationActivity.STRAIGHT_PUNCH, true)
         val left = analyze { limb, t -> when (limb) {
             LimbId.LEFT_ARM -> 40 + progress(t) * 100
@@ -208,23 +208,23 @@ class FourLimbMotionCharacterizerTest {
             else -> 100.0
         } }
         val resolved = ActivityStartingSideResolver.resolve(left, context)
-        assertEquals(dk.lasse.karateanalyzer.capture.LateralSide.LEFT, resolved.side)
-        assertEquals(SideEvidenceMode.BILATERAL_CORROBORATED, resolved.evidenceMode)
+        assertNull(resolved.side)
+        assertEquals(SideResolutionReason.INADEQUATE_EVIDENCE, resolved.reason)
         val still = analyze { _, _ -> 100.0 }
         assertNull(ActivityStartingSideResolver.resolve(still, context).side)
         val later = left.copy(movementId = "later", logicalStartTimestampUs = 2_000_000, logicalEndTimestampUs = 3_000_000)
         val mismatch = ActivityStartingSideResolver.resolveSequence(listOf(IndexedLimbMovement(0, left), IndexedLimbMovement(1, later)), context)
-        assertEquals(AlternationStatus.MISMATCH, mismatch.repetitions.last().alternationStatus)
-        assertEquals(dk.lasse.karateanalyzer.capture.LateralSide.LEFT, mismatch.repetitions.last().observed.side)
+        assertEquals(AlternationStatus.UNVERIFIABLE, mismatch.repetitions.last().alternationStatus)
+        assertNull(mismatch.repetitions.last().observed.side)
         val omitted = ActivityStartingSideResolver.resolveSequence(listOf(IndexedLimbMovement(0, left), IndexedLimbMovement(2, later)), context)
-        assertEquals(AlternationStatus.MATCH, omitted.repetitions.last().alternationStatus)
+        assertEquals(AlternationStatus.UNVERIFIABLE, omitted.repetitions.last().alternationStatus)
         assertNull(ActivityStartingSideResolver.resolveSequence(listOf(IndexedLimbMovement(1, later)), context).startingSide)
         assertNull(ActivityStartingSideResolver.resolveSequence(listOf(IndexedLimbMovement(0, still), IndexedLimbMovement(1, later)), context).startingSide)
         val dual = analyze { limb, t -> if (limb.ordinal < 2) 40 + progress(t) * 100 else 100.0 }
         assertNull(ActivityStartingSideResolver.resolve(dual, context).side)
     }
 
-    @Test fun `single visible arm extension return resolves without fabricating opposite evidence`() {
+    @Test fun `single visible elbow episode cannot replace paired world evidence`() {
         val context = ActivitySideContext("punch", "1", LimbInterpretationActivity.STRAIGHT_PUNCH, true)
         val source = input { limb, t -> when {
             limb != LimbId.LEFT_ARM -> 100.0
@@ -237,16 +237,10 @@ class FourLimbMotionCharacterizerTest {
             frame.copy(landmarks = frame.landmarks - PoseLandmarkId.RIGHT_ELBOW)
         }))
         val result = ActivityStartingSideResolver.resolve(evidence, context)
-        assertEquals(dk.lasse.karateanalyzer.capture.LateralSide.LEFT, result.side)
-        assertEquals(SideEvidenceMode.SINGLE_ARM_ONLY, result.evidenceMode)
+        assertNull(result.side)
+        assertNull(result.evidenceMode)
         assertEquals(LimbAbstentionReason.JOINT_GEOMETRY_UNAVAILABLE, evidence.rightArm.abstentionReason)
-        val episode = assertNotNull(result.supportingEpisode)
-        assertEquals(1, episode.direction)
-        assertEquals(200_000L, episode.startTimestampUs)
-        assertEquals(500_000L, episode.endTimestampUs)
-        assertEquals(100.0, episode.excursionDeg, 0.01)
-        assertEquals(100.0, episode.meaningfulTravelDeg, 0.01)
-        assertEquals(300_000L, episode.observedSupportDurationUs)
+        assertNull(result.supportingEpisode)
     }
 
     @Test fun `straight punch rejects closing spike dual opening and complex opposite counterexamples`() {
@@ -258,7 +252,7 @@ class FourLimbMotionCharacterizerTest {
             if (limb == LimbId.LEFT_ARM) 150 - progress(t) * 100 else 100.0
         }))
         assertNull(ActivityStartingSideResolver.resolve(closingOnly, context).side)
-        assertEquals(SideResolutionReason.NO_SUPPORTED_PATTERN, ActivityStartingSideResolver.resolve(closingOnly, context).reason)
+        assertEquals(SideResolutionReason.INADEQUATE_EVIDENCE, ActivityStartingSideResolver.resolve(closingOnly, context).reason)
 
         val isolatedSpike = FourLimbMotionCharacterizer.characterize(withoutRight(input { limb, t ->
             if (limb == LimbId.LEFT_ARM && t == 500L) 130.0 else 100.0
@@ -269,7 +263,7 @@ class FourLimbMotionCharacterizerTest {
             40 + progress(t) * 100 else 100.0 }
         val both = ActivityStartingSideResolver.resolve(bothOpening, context)
         assertNull(both.side)
-        assertEquals(SideResolutionReason.MULTIPLE_SUPPORTED_SIDES, both.reason)
+        assertEquals(SideResolutionReason.INADEQUATE_EVIDENCE, both.reason)
 
         val complexOpposite = analyze { limb, t -> when (limb) {
             LimbId.LEFT_ARM -> 40 + progress(t) * 100
@@ -284,8 +278,8 @@ class FourLimbMotionCharacterizerTest {
         } }
         val conflict = ActivityStartingSideResolver.resolve(complexOpposite, context)
         assertNull(conflict.side)
-        assertEquals(setOf(dk.lasse.karateanalyzer.capture.LateralSide.LEFT), conflict.supportedCandidates)
-        assertEquals(SideResolutionReason.CONFLICTING_OPPOSITE_EVIDENCE, conflict.reason)
+        assertTrue(conflict.supportedCandidates.isEmpty())
+        assertEquals(SideResolutionReason.INADEQUATE_EVIDENCE, conflict.reason)
     }
 
     @Test fun `swapping anatomical input sides produces symmetric resolved side`() {
@@ -305,8 +299,8 @@ class FourLimbMotionCharacterizerTest {
                 swaps.getValue(id) to sample.copy(position = sample.position!!.copy(x = 1f - sample.position.x))
             }.toMap())
         }))
-        assertEquals(dk.lasse.karateanalyzer.capture.LateralSide.LEFT, ActivityStartingSideResolver.resolve(baseline, context).side)
-        assertEquals(dk.lasse.karateanalyzer.capture.LateralSide.RIGHT, ActivityStartingSideResolver.resolve(mirrored, context).side)
+        assertNull(ActivityStartingSideResolver.resolve(baseline, context).side)
+        assertNull(ActivityStartingSideResolver.resolve(mirrored, context).side)
     }
 
     @Test fun `canonical coordinate mirroring preserves anatomical ids and resolved side`() {
@@ -321,8 +315,7 @@ class FourLimbMotionCharacterizerTest {
                 sample.copy(position = sample.position!!.copy(x = 1f - sample.position.x))
             })
         }))
-        assertEquals(dk.lasse.karateanalyzer.capture.LateralSide.LEFT,
-            ActivityStartingSideResolver.resolve(mirroredCoordinates, context).side)
+        assertNull(ActivityStartingSideResolver.resolve(mirroredCoordinates, context).side)
         assertTrue(mirroredCoordinates.leftArm.directionalEpisodes.any { it.direction > 0 })
         assertFalse(mirroredCoordinates.rightArm.directionalEpisodes.any { it.direction > 0 })
     }
@@ -366,15 +359,15 @@ class FourLimbMotionCharacterizerTest {
             frame.copy(landmarks = frame.landmarks + (PoseLandmarkId.RIGHT_ELBOW to
                 frame.landmarks.getValue(PoseLandmarkId.RIGHT_ELBOW).copy(visibility = .2f)))
         }))
-        assertEquals(SideEvidenceMode.SINGLE_ARM_ONLY, ActivityStartingSideResolver.resolve(rightLow, context).evidenceMode)
+        assertNull(ActivityStartingSideResolver.resolve(rightLow, context).evidenceMode)
 
         val rightGap = FourLimbMotionCharacterizer.characterize(source.copy(frames = source.frames.map { frame ->
             if (frame.timestampMs == 500L) frame.copy(landmarks = frame.landmarks - PoseLandmarkId.RIGHT_ELBOW) else frame
         }))
         assertContains(rightGap.rightArm.qualityFlags, LimbQualityFlag.GAPS)
         val gapResolution = ActivityStartingSideResolver.resolve(rightGap, context)
-        assertEquals(dk.lasse.karateanalyzer.capture.LateralSide.LEFT, gapResolution.side)
-        assertEquals(SideEvidenceMode.SINGLE_ARM_ONLY, gapResolution.evidenceMode)
+        assertNull(gapResolution.side)
+        assertNull(gapResolution.evidenceMode)
     }
 
     @Test fun `kick side needs chamber extension while support remains stable`() {

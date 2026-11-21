@@ -6,9 +6,17 @@ import dk.lasse.karateanalyzer.motion.*
 /** Explicit interpretation selected by the known activity plan, never inferred from pose evidence. */
 enum class LimbInterpretationActivity { STRAIGHT_PUNCH, CHAMBER_EXTENSION_KICK }
 enum class SideResolutionStatus { RESOLVED, AMBIGUOUS }
-enum class SideResolutionReason { SINGLE_SUPPORTED_SIDE, INADEQUATE_EVIDENCE, NO_SUPPORTED_PATTERN, MULTIPLE_SUPPORTED_SIDES, CONFLICTING_OPPOSITE_EVIDENCE }
+enum class SideResolutionReason {
+    SINGLE_SUPPORTED_SIDE, INADEQUATE_EVIDENCE, NO_SUPPORTED_PATTERN, MULTIPLE_SUPPORTED_SIDES,
+    CONFLICTING_OPPOSITE_EVIDENCE, PAIRED_ARM_SCORE, PAIRED_ARM_SCORE_UNCERTAIN,
+    FORWARD_AXIS_UNAVAILABLE, FORWARD_AXIS_UNRELIABLE,
+}
 enum class AlternationStatus { MATCH, MISMATCH, UNVERIFIABLE, NOT_REQUESTED }
-enum class SideEvidenceMode { SINGLE_ARM_ONLY, BILATERAL_CORROBORATED }
+enum class SideEvidenceMode {
+    SINGLE_ARM_ONLY, BILATERAL_CORROBORATED,
+    PAIRED_SINGLE_ARM_SUPPORT, PAIRED_BILATERAL_SUPPORT,
+}
+enum class ElbowDiagnosticStatus { AGREES, DISAGREES, NO_QUALIFYING_EPISODE, AMBIGUOUS, NOT_APPLICABLE }
 
 /** A projection of the product-owned plan, not a second activity-plan implementation.
  * Target is provenance only: target height must not change observed side evidence.
@@ -53,12 +61,20 @@ data class ActivitySideResolution(
     val supportingEpisode: LimbDirectionalEpisode? = null,
     /** Exact characterizer result retains geometry, boundaries, profiles and configuration provenance. */
     val evidence: FourLimbMotionResult,
+    /** Full-window world-coordinate evidence used as the straight-punch primary side resolver. */
+    val pairedArmEvidence: StraightPunchPairedArmResult? = null,
+    val elbowDiagnosticCandidates: Set<LateralSide> = emptySet(),
+    val elbowDiagnosticStatus: ElbowDiagnosticStatus = ElbowDiagnosticStatus.NOT_APPLICABLE,
 )
 
 /** The caller supplies the plan's zero-based repetition index, preserving omitted repetitions.
  * List position is not a substitute for repetition identity.
  */
-data class IndexedLimbMovement(val repetitionIndex: Int, val evidence: FourLimbMotionResult)
+data class IndexedLimbMovement(
+    val repetitionIndex: Int,
+    val evidence: FourLimbMotionResult,
+    val pairedArmEvidence: StraightPunchPairedArmResult? = null,
+)
 data class RepetitionSideValidation(
     val repetitionIndex: Int,
     val observed: ActivitySideResolution,
@@ -75,12 +91,13 @@ data class ActivitySequenceSideResult(
  * An expected side never replaces a missing or conflicting observed side.
  */
 object ActivityStartingSideResolver {
-    const val VERSION = "activity-starting-side-v2"
+    const val VERSION = "activity-starting-side-v3"
 
     fun resolve(
         evidence: FourLimbMotionResult,
         context: ActivitySideContext,
         config: StartingSideConfig = StartingSideConfig(),
+        pairedArmEvidence: StraightPunchPairedArmResult? = null,
     ): ActivitySideResolution {
         val pair = when (context.activity) {
             LimbInterpretationActivity.STRAIGHT_PUNCH -> evidence.leftArm to evidence.rightArm
@@ -89,7 +106,6 @@ object ActivityStartingSideResolver {
         fun usable(profile: LimbMotionProfile): Boolean = profile.metrics != null && profile.abstentionReason == null &&
             LimbQualityFlag.GAPS !in profile.qualityFlags &&
             (profile.motionPattern == LimbMotionPattern.STABLE || profile.metrics.motionStartTimestampUs != null)
-        val usableProfiles = listOf(pair.first, pair.second).filter(::usable)
         fun qualifyingOpening(profile: LimbMotionProfile): LimbDirectionalEpisode? = profile.directionalEpisodes
             .asSequence()
             .filter { episode ->
@@ -99,14 +115,6 @@ object ActivityStartingSideResolver {
                     episode.observedSupportDurationUs >= evidence.config.onsetConfirmationUs
             }
             .minByOrNull { it.startTimestampUs }
-        fun corroboratesPunchOpposite(profile: LimbMotionProfile): Boolean {
-            val metrics = profile.metrics ?: return false
-            return profile.motionPattern == LimbMotionPattern.STABLE ||
-                (profile.motionPattern == LimbMotionPattern.MOSTLY_CLOSING &&
-                    metrics.netAngleChangeDeg <= -config.minimumExcursionDeg &&
-                    metrics.meaningfulAngularTravelDeg > 0 &&
-                    metrics.negativeAngularTravelDeg / metrics.meaningfulAngularTravelDeg >= config.minimumDirectionalShare)
-        }
         fun kickCandidate(active: LimbMotionProfile, opposite: LimbMotionProfile): Boolean {
             val a = active.metrics ?: return false
             val b = opposite.metrics ?: return false
@@ -118,29 +126,41 @@ object ActivityStartingSideResolver {
                     (b.reversals.isEmpty() && a.meaningfulAngularTravelDeg >= b.meaningfulAngularTravelDeg * config.kickToSupportTravelRatio))
         }
         if (context.activity == LimbInterpretationActivity.STRAIGHT_PUNCH) {
+            require(pairedArmEvidence == null || pairedArmEvidence.movementId == evidence.movementId &&
+                pairedArmEvidence.landmarkTrackId == evidence.landmarkTrackId &&
+                pairedArmEvidence.canonicalGeometry == evidence.canonicalGeometry &&
+                pairedArmEvidence.logicalStartTimestampUs == evidence.logicalStartTimestampUs &&
+                pairedArmEvidence.logicalEndTimestampUs == evidence.logicalEndTimestampUs) {
+                "Paired-arm evidence must describe the same logical movement"
+            }
             val episodes = listOf(pair.first, pair.second).map { profile ->
                 profile.takeIf(::usable)?.let(::qualifyingOpening)
             }
-            val candidates = buildSet {
+            val side = pairedArmEvidence?.side
+            val candidates = side?.let(::setOf).orEmpty()
+            val elbowCandidates = buildSet {
                 if (episodes[0] != null) add(LateralSide.LEFT)
                 if (episodes[1] != null) add(LateralSide.RIGHT)
             }
-            val candidateSide = candidates.singleOrNull()
-            val candidateIndex = when (candidateSide) { LateralSide.LEFT -> 0; LateralSide.RIGHT -> 1; null -> null }
-            val opposite = candidateIndex?.let { if (it == 0) pair.second else pair.first }
-            val mode = when {
-                candidateIndex == null -> null
-                !usable(opposite!!) -> SideEvidenceMode.SINGLE_ARM_ONLY
-                corroboratesPunchOpposite(opposite) -> SideEvidenceMode.BILATERAL_CORROBORATED
+            val elbowStatus = when {
+                side == null -> ElbowDiagnosticStatus.NOT_APPLICABLE
+                elbowCandidates.isEmpty() -> ElbowDiagnosticStatus.NO_QUALIFYING_EPISODE
+                elbowCandidates.size > 1 -> ElbowDiagnosticStatus.AMBIGUOUS
+                elbowCandidates.single() == side -> ElbowDiagnosticStatus.AGREES
+                else -> ElbowDiagnosticStatus.DISAGREES
+            }
+            val candidateIndex = when (side) { LateralSide.LEFT -> 0; LateralSide.RIGHT -> 1; null -> null }
+            val mode = when (pairedArmEvidence?.supportMode) {
+                PairedArmSupportMode.BILATERAL -> SideEvidenceMode.PAIRED_BILATERAL_SUPPORT
+                PairedArmSupportMode.SINGLE_LEFT, PairedArmSupportMode.SINGLE_RIGHT -> SideEvidenceMode.PAIRED_SINGLE_ARM_SUPPORT
                 else -> null
             }
-            val side = candidateSide?.takeIf { mode != null }
-            val reason = when {
-                usableProfiles.isEmpty() -> SideResolutionReason.INADEQUATE_EVIDENCE
-                candidates.isEmpty() -> SideResolutionReason.NO_SUPPORTED_PATTERN
-                candidates.size > 1 -> SideResolutionReason.MULTIPLE_SUPPORTED_SIDES
-                mode == null -> SideResolutionReason.CONFLICTING_OPPOSITE_EVIDENCE
-                else -> SideResolutionReason.SINGLE_SUPPORTED_SIDE
+            val reason = when (pairedArmEvidence?.decisionReason) {
+                PairedArmDecisionReason.RESOLVED_PAIRED_SCORE -> SideResolutionReason.PAIRED_ARM_SCORE
+                PairedArmDecisionReason.FORWARD_AXIS_UNAVAILABLE -> SideResolutionReason.FORWARD_AXIS_UNAVAILABLE
+                PairedArmDecisionReason.FORWARD_AXIS_UNRELIABLE -> SideResolutionReason.FORWARD_AXIS_UNRELIABLE
+                null -> SideResolutionReason.INADEQUATE_EVIDENCE
+                else -> SideResolutionReason.PAIRED_ARM_SCORE_UNCERTAIN
             }
             return ActivitySideResolution(
                 status = if (side == null) SideResolutionStatus.AMBIGUOUS else SideResolutionStatus.RESOLVED,
@@ -151,8 +171,12 @@ object ActivityStartingSideResolver {
                 config = config,
                 resolverVersion = VERSION,
                 evidenceMode = mode,
-                supportingEpisode = candidateIndex?.let { episodes[it] }.takeIf { side != null },
+                // Retained as a disagreement diagnostic only; it never vetoes or assigns the side.
+                supportingEpisode = candidateIndex?.let { episodes[it] },
                 evidence = evidence,
+                pairedArmEvidence = pairedArmEvidence,
+                elbowDiagnosticCandidates = elbowCandidates,
+                elbowDiagnosticStatus = elbowStatus,
             )
         }
         val adequate = usable(pair.first) && usable(pair.second)
@@ -183,7 +207,7 @@ object ActivityStartingSideResolver {
         require(movements.map { it.evidence.canonicalGeometry.recordingId to it.evidence.landmarkTrackId }.distinct().size <= 1) {
             "Sequence evidence must belong to one recording and landmark track"
         }
-        val resolved = movements.map { it to resolve(it.evidence, context, config) }
+        val resolved = movements.map { it to resolve(it.evidence, context, config, it.pairedArmEvidence) }
         // Do not back-infer a missing first side from later repetitions or assumed alternation.
         val start = resolved.firstOrNull()?.takeIf { it.first.repetitionIndex == 0 }?.second?.side
         val repetitions = resolved.map { (movement, observed) ->

@@ -42,8 +42,9 @@ class MovementDebugOverrideTest {
 
     private fun frames() = (0L..1000L step 10).map { time ->
         val samples = mutableMapOf<PoseLandmarkId, PoseLandmarkSample>()
-        fun sample(x: Double, y: Double) = PoseLandmarkSample(
+        fun sample(x: Double, y: Double, z: Double = 0.0) = PoseLandmarkSample(
             position = Point3(x.toFloat(), y.toFloat(), 0f),
+            worldPosition = Point3(x.toFloat(), y.toFloat(), z.toFloat()),
             visibility = .95f,
             presence = .95f,
             source = LandmarkSource.OBSERVED,
@@ -53,10 +54,18 @@ class MovementDebugOverrideTest {
             val y = if (limb.ordinal < 2) .3 else .7
             val progress = ((time - 200) / 600.0).coerceIn(0.0, 1.0)
             val angle = Math.toRadians(if (limb == LimbId.LEFT_ARM) 40 + 100 * progress else 150 - 100 * progress)
+            val z = when (limb) { LimbId.LEFT_ARM -> progress * .4; LimbId.RIGHT_ARM -> -progress * .4; else -> 0.0 }
             samples[limb.proximal] = sample(x + .1, y)
-            samples[limb.joint] = sample(x, y)
-            samples[limb.distal] = sample(x + .1 * cos(angle), y + .1 * sin(angle))
+            samples[limb.joint] = sample(x, y, z)
+            samples[limb.distal] = sample(x + .1 * cos(angle), y + .1 * sin(angle), z)
+            if (limb == LimbId.LEFT_ARM) listOf(PoseLandmarkId.LEFT_THUMB, PoseLandmarkId.LEFT_INDEX, PoseLandmarkId.LEFT_PINKY)
+                .forEach { samples[it] = sample(x, y, z) }
+            if (limb == LimbId.RIGHT_ARM) listOf(PoseLandmarkId.RIGHT_THUMB, PoseLandmarkId.RIGHT_INDEX, PoseLandmarkId.RIGHT_PINKY)
+                .forEach { samples[it] = sample(x, y, z) }
         }
+        samples[PoseLandmarkId.NOSE] = sample(.6, .1, .25)
+        samples[PoseLandmarkId.MOUTH_LEFT] = sample(.57, .13, .22)
+        samples[PoseLandmarkId.MOUTH_RIGHT] = sample(.63, .13, .22)
         PoseFrame(time, samples)
     }
 

@@ -17,7 +17,7 @@ data class MovementMotionOutput(
 
 /** Product adapter: all motion mathematics stays in the shared analytical core. */
 object MovementMotionAnalysis {
-    val policy = AnalyzerPolicy("four_limb_activity_motion", listOf("2", "1"))
+    val policy = AnalyzerPolicy("four_limb_activity_motion", listOf("3", "2", "1"))
 
     fun analyze(
         movement: SessionMovement, trackId: String, frames: List<PoseFrame>, geometry: CanonicalGeometryDescriptor,
@@ -28,11 +28,18 @@ object MovementMotionAnalysis {
         calibration: dk.lasse.karateanalyzer.geometry.ImageBodyScaleCalibration? = null,
         viewApproval: ImpactViewApproval? = null,
         activityPlanEvidence: MotionActivityPlans.Evidence? = null,
+        pairedArmEvidence: StraightPunchPairedArmResult? = null,
     ): MovementMotionOutput {
         require(activityPlanEvidence == null || activityPlanEvidence.context == context) {
             "Activity plan evidence must match the analysis context"
         }
-        val side = context?.let { ActivityStartingSideResolver.resolve(limbs, it) }
+        val paired = when {
+            context?.activity != LimbInterpretationActivity.STRAIGHT_PUNCH -> null
+            pairedArmEvidence != null -> pairedArmEvidence
+            else -> StraightPunchPairedArmAnalyzer.analyze(
+                movement.movementId, trackId, geometry, movement.startUs, movement.endUs, frames)
+        }
+        val side = context?.let { ActivityStartingSideResolver.resolve(limbs, it, pairedArmEvidence = paired) }
         val resolvedSide = side?.side
         val scopedViewApproval = viewApproval?.takeIf { it.activityPlanId == context?.planId }
         val impactProfile = if (resolvedSide != null && scopedViewApproval != null) {
@@ -64,7 +71,7 @@ object MovementMotionAnalysis {
         val payload = encode(movement, limbs, side, sequence, impactProfile, scopedViewApproval, impact, qom, reason,
             bodyScale, calibration, activityPlanEvidence)
         val analysis = MovementAnalysis(movementId = movement.movementId, analyzerKey = policy.analyzerKey,
-            analyzerVersion = "2", landmarkTrackId = trackId,
+            analyzerVersion = "3", landmarkTrackId = trackId,
             state = if (limbs.profiles.values.any { it.metrics != null }) AnalysisState.PARTIAL else AnalysisState.ABSTAINED,
             reason = reason ?: "Provisional descriptive motion evidence", geometryJson = payload)
         return MovementMotionOutput(analysis, limbs, side, impact)
@@ -110,7 +117,8 @@ object MovementMotionAnalysis {
                     "deltaDeg" to it.meaningfulDeltaDeg, "speedDegPerSec" to it.angularSpeedDegPerSec) })))
         }
         val supportingEpisode = side?.supportingEpisode
-        return obj("contract" to "movement-motion-v2", "movementId" to movement.movementId,
+        val paired = side?.pairedArmEvidence
+        return obj("contract" to "movement-motion-v3", "movementId" to movement.movementId,
             "trackId" to limbs.landmarkTrackId, "geometryId" to limbs.canonicalGeometry.geometryId,
             "geometry" to dk.lasse.karateanalyzer.geometry.CanonicalGeometryCodec.encode(limbs.canonicalGeometry),
             "logicalStartUs" to movement.startUs, "logicalEndUs" to movement.endUs,
@@ -129,6 +137,50 @@ object MovementMotionAnalysis {
             "sideReason" to (side?.reason?.name ?: "ACTIVITY_PLAN_UNAVAILABLE"),
             "sideConfig" to side?.config?.toString(), "sideResolverVersion" to side?.resolverVersion,
             "sideEvidenceMode" to side?.evidenceMode?.name,
+            "elbowDiagnosticCandidates" to JSONArray(side?.elbowDiagnosticCandidates.orEmpty().map { it.name }),
+            "elbowDiagnosticStatus" to side?.elbowDiagnosticStatus?.name,
+            "pairedArmEvidence" to paired?.let { evidence -> obj(
+                "analyzerVersion" to evidence.analyzerVersion,
+                "landmarkTrackId" to evidence.landmarkTrackId,
+                "geometryId" to evidence.canonicalGeometry.geometryId,
+                "configVersion" to evidence.config.version,
+                "config" to obj("version" to evidence.config.version,
+                    "minimumConfidence" to evidence.config.minimumConfidence,
+                    "maximumGapUs" to evidence.config.maximumGapUs,
+                    "minimumAxisCoverage" to evidence.config.minimumAxisCoverage,
+                    "maximumAxisDeviationDeg" to evidence.config.maximumAxisDeviationDeg,
+                    "minimumFaceNormalSeparationMeters" to evidence.config.minimumFaceNormalSeparationMeters,
+                    "minimumValidCoverage" to evidence.config.minimumValidCoverage,
+                    "minimumSupportedDurationUs" to evidence.config.minimumSupportedDurationUs,
+                    "minimumAbsoluteScoreMeters" to evidence.config.minimumAbsoluteScoreMeters,
+                    "medianSamples" to evidence.config.medianSamples,
+                    "meanSamples" to evidence.config.meanSamples),
+                "decisionReason" to evidence.decisionReason.name,
+                "scoreMeters" to evidence.pairedScoreMeters,
+                "supportMode" to evidence.supportMode.name,
+                "validDurationUs" to evidence.validDurationUs,
+                "validCoverage" to evidence.validCoverage,
+                "validIntervalCount" to evidence.validIntervalCount,
+                "bilateralSupportedDurationUs" to evidence.bilateralSupportedDurationUs,
+                "singleLeftSupportedDurationUs" to evidence.singleLeftSupportedDurationUs,
+                "singleRightSupportedDurationUs" to evidence.singleRightSupportedDurationUs,
+                "axisStatus" to evidence.forwardAxis.status.name,
+                "axisSource" to evidence.forwardAxis.source,
+                "axisX" to evidence.forwardAxis.axis?.x,
+                "axisY" to evidence.forwardAxis.axis?.y,
+                "axisZ" to evidence.forwardAxis.axis?.z,
+                "axisCoverage" to evidence.forwardAxis.coverage,
+                "axisMinimumAgreement" to evidence.forwardAxis.minimumAgreement,
+                "axisReliableDurationUs" to evidence.forwardAxis.reliableDurationUs,
+                "left" to obj("signedNetTravelMeters" to evidence.leftArm.signedNetTravelMeters,
+                    "normalizedContributionMeters" to evidence.leftArm.normalizedContributionMeters,
+                    "supportedDurationUs" to evidence.leftArm.supportedDurationUs,
+                    "supportedCoverage" to evidence.leftArm.supportedCoverage),
+                "right" to obj("signedNetTravelMeters" to evidence.rightArm.signedNetTravelMeters,
+                    "normalizedContributionMeters" to evidence.rightArm.normalizedContributionMeters,
+                    "supportedDurationUs" to evidence.rightArm.supportedDurationUs,
+                    "supportedCoverage" to evidence.rightArm.supportedCoverage),
+            ) },
             "sideSupportingEpisode" to supportingEpisode?.let { episode -> obj(
                 "limb" to side.side?.let { if (it == dk.lasse.karateanalyzer.capture.LateralSide.LEFT) LimbId.LEFT_ARM.name else LimbId.RIGHT_ARM.name },
                 "episodeIndex" to episode.episodeIndex, "block" to episode.blockId,

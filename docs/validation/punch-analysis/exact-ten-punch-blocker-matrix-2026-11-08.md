@@ -31,6 +31,37 @@ The personal MP4 and MLS remain outside the repository in system temporary stora
 
 All ten visible-left wrist windows have 100% sample coverage at the MLS cadence and minimum observed confidence 0.905–0.983. Current persistence contains one partial `four_limb_activity_motion` and one abstained `straight_punch_target` analysis per movement, with zero `MeasurementResult` rows. Retained generic motion evidence reopens and displays; terminal, stable-window, representative-sample, and target metrics are not evaluated.
 
+## Superseding paired-arm implementation replay — 2026-11-21
+
+Status: `OBSERVED` exact replay of the versioned implementation candidate. This section supersedes the earlier episode-only “bounded next diagnostic” and RIGHT-side restriction below where they conflict. Impact/view approval remains unchanged and is still required independently.
+
+`StraightPunchPairedArmAnalyzer` scores the complete accepted logical window in hip-relative WORLD coordinates. It freezes one face-signed anatomical torso normal for the movement, causally smooths each landmark's three WORLD coordinates with the shared trailing-three median then trailing-three mean, derives actual-timestamp signed forward velocities, normalizes the two arm terms per interval, and then integrates. The fixed roster is elbow/wrist/thumb/index/pinky for each arm. Missing landmarks contribute zero roster weight; missing evidence resets only that landmark's filter and is never bridged.
+
+The exact replay passed through the production `RetrospectiveSessionSegmenter`, `TrainingSessionProcessor`, `MovementAnalysisPipeline`, `MovementMotionAnalysis`, Room persistence, database close/reopen, and retained JSON inspection. Native `activity_qom_supported_world_v2` segmentation reproduced all ten accepted boundaries and end kinds exactly; review labels were comparators only. No boundary was trimmed or extended to obtain a result. A separate detached-worktree replay of pre-change commit `30e17d6` freshly reproduced the old resolver outputs through the same native processor route.
+
+| # | Logical bounds (µs) | Review | Old side | New side / reason | Score (m) | Left contribution / travel (m) | Right contribution / travel (m) | Left / right support (µs) |
+|---:|---:|---|---|---|---:|---:|---:|---:|
+| 1 | 1,500,000–2,000,000 | LEFT | LEFT | LEFT / `PAIRED_ARM_SCORE` | −0.3637 | −0.2640 / +0.4292 | −0.0996 / −0.2437 | 500,000 / 167,000 |
+| 2 | 2,300,000–2,701,000 | RIGHT | LEFT | RIGHT / `PAIRED_ARM_SCORE` | +0.1984 | +0.1953 / −0.1898 | +0.0031 / +0.0093 | 401,000 / 134,000 |
+| 3 | 3,534,000–4,034,000 | LEFT | LEFT | LEFT / `PAIRED_ARM_SCORE` | −0.2683 | −0.2114 / +0.2661 | −0.0569 / −0.1501 | 500,000 / 134,000 |
+| 4 | 4,668,000–5,068,000 | RIGHT | LEFT | RIGHT / `PAIRED_ARM_SCORE` | +0.0997 | +0.1037 / −0.1037 | −0.0040 / −0.0119 | 400,000 / 133,000 |
+| 5 | 5,835,000–6,169,000 | LEFT | LEFT | LEFT / `PAIRED_ARM_SCORE` | −0.2053 | −0.1696 / +0.2448 | −0.0358 / −0.1037 | 334,000 / 133,000 |
+| 6 | 7,102,000–7,536,000 | RIGHT | LEFT | RIGHT / `PAIRED_ARM_SCORE` | +0.1060 | +0.1035 / −0.0975 | +0.0025 / +0.0072 | 434,000 / 167,000 |
+| 7 | 8,269,000–8,603,000 | LEFT | LEFT | LEFT / `PAIRED_ARM_SCORE` | −0.1276 | −0.0853 / +0.1274 | −0.0423 / −0.1309 | 334,000 / 134,000 |
+| 8 | 9,370,000–9,737,000 | RIGHT | LEFT | RIGHT / `PAIRED_ARM_SCORE` | +0.1060 | +0.1045 / −0.1005 | +0.0015 / +0.0046 | 367,000 / 100,000 |
+| 9 | 10,437,000–10,870,000 | LEFT | LEFT | LEFT / `PAIRED_ARM_SCORE` | −0.2964 | −0.1631 / +0.2783 | −0.1333 / −0.3317 | 433,000 / 200,000 |
+| 10 | 11,504,000–12,604,000 | RIGHT | unresolved | RIGHT / `PAIRED_ARM_SCORE` | +0.1897 | +0.1681 / −0.2028 | +0.0217 / +0.0519 | 1,100,000 / 800,000 |
+
+All ten have reliable frozen-axis coverage 1.0, valid paired-interval coverage 1.0, and simultaneous bilateral support under the versioned criteria. Simultaneous bilateral durations for movements 1–10 are 167,000; 134,000; 134,000; 133,000; 133,000; 167,000; 134,000; 100,000; 200,000; and 800,000 µs. Positive score resolves RIGHT; negative resolves LEFT. A withdrawal can therefore contribute to the opposite arm's punch without expected alternation assigning the answer. The normalized left and right contributions sum to the retained score; signed per-arm travel remains a distinct diagnostic.
+
+Full-window return/cancellation inspection found no exact movement whose return-to-guard cancelled the exchange into the uncertainty band. Movement 4 is the closest case at +0.0997 m: its left-withdrawal contribution is +0.1037 m and its right-arm opposing contribution is only −0.0040 m. The long recording-end window 10 remains +0.1897 m over 1.100 s rather than cancelling. This is recording-specific evidence; the synthetic small triangular extension-return case still correctly abstains below 0.03 m.
+
+The initial decision gates are deliberately provisional and versioned as `straight-punch-paired-arm-v1`: observed finite WORLD confidence at least 0.55, gaps no longer than 100,000 µs, axis and paired coverage at least 0.60 of the whole logical window, face-normal separation at least 0.01 m, frozen-axis deviation no more than 45°, at least 60,000 µs arm support, and absolute score at least 0.03 m. Causal filters use short startup buffers and are not padded beyond the logical end, so end-of-window lag is part of this version's disclosed behavior.
+
+On this recording, absolute score cutoffs 0.02, 0.03, 0.05, and 0.075 m leave all ten results unchanged. At 0.10 m, movement 4 becomes uncertain; at 0.12 m, movements 4, 6, and 8 become uncertain. This demonstrates sensitivity for smaller/slower movement and does not establish physical accuracy from one source. Synthetic acceptance tests additionally cover small-score cancellation, one/no-arm support, fixed-roster confidence normalization, nonuniform timestamps, gaps, brief arm-label swaps, repeated-side punches, oblique whole-body rotation, coordinate reflection, missing face evidence, and forward-axis reversal.
+
+The private post-change normal-path result artifact is 7,239 bytes with SHA-256 `300fa6c100dee9d04d77f6b552f8ae94d430592998c40c21cb5e1a72165cfa05`. The fresh pre-change baseline artifact from detached commit `30e17d6` has SHA-256 `c69bbd48debb68c9db0297ae7344596bc340af687a4105396d4618df6b5f2e47`. Personal MLS/MP4 and result files remain outside the repository.
+
 ## Exact directional diagnostic definition
 
 The table's signed values are not abstract “outward” values. For every MLS frame within the inclusive interval:
