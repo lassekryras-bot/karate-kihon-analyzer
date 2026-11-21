@@ -26,6 +26,27 @@ class TrainingServices private constructor(context: Context) {
     val repository by lazy { TrainingRepository(KarateTrainingDatabase.get(app), storage) }
     private var recovered = false
 
+    private fun <T> executeSessionProcessing(
+        sessionId: String,
+        completed: (Result<T>) -> Unit,
+        work: (ProcessingCoordinator.SessionReservation) -> T,
+    ) {
+        val reservation = ProcessingCoordinator.reserveSession(sessionId)
+        if (reservation == null) {
+            main.post { completed(Result.failure(IllegalStateException("Analysis is already in progress"))) }
+            return
+        }
+        try {
+            processingExecutor.execute {
+                val result = reservation.use { runCatching { work(it) } }
+                main.post { completed(result) }
+            }
+        } catch (error: Throwable) {
+            reservation.close()
+            main.post { completed(Result.failure(error)) }
+        }
+    }
+
     fun <T> submit(work: (TrainingRepository) -> T, completed: (Result<T>) -> Unit = {}) {
         executor.execute {
             val result = runCatching {
@@ -106,22 +127,17 @@ class TrainingServices private constructor(context: Context) {
     }
 
     fun reanalyze(sessionId: String, completed: (Result<ProcessingRun>) -> Unit = {}) {
-        processingExecutor.execute {
-            val result = runCatching {
-                val (run, _) = repository.prepareReanalysisRun(sessionId)
-                val proc = processor(
-                    checkActive = {
-                        val currentJob = repository.job(sessionId)
-                        check(currentJob == null || currentJob.state != QueueState.DELETING) { "Cancelled" }
-                    },
-                    publication = { op ->
-                        synchronized(ProcessingCoordinator.publication) { op() }
-                    }
-                )
-                proc.processReanalysis(sessionId, run.runId)
-                requireNotNull(repository.run(run.runId))
-            }
-            main.post { completed(result) }
+        executeSessionProcessing(sessionId, completed) { reservation ->
+            val (run, _) = repository.prepareReanalysisRun(sessionId, reservation)
+            val proc = processor(
+                checkActive = {
+                    val currentJob = repository.job(sessionId)
+                    check(currentJob == null || currentJob.state != QueueState.DELETING) { "Cancelled" }
+                },
+                publication = { op -> synchronized(ProcessingCoordinator.publication) { op() } },
+            )
+            proc.processReanalysis(sessionId, run.runId)
+            requireNotNull(repository.run(run.runId))
         }
     }
 
@@ -130,40 +146,32 @@ class TrainingServices private constructor(context: Context) {
         planKey: String,
         completed: (Result<ProcessingRun>) -> Unit = {},
     ) {
-        processingExecutor.execute {
-            val result = runCatching {
-                val (run, _) = repository.confirmActivityPlanAndPrepareReanalysis(sessionId, planKey)
-                val proc = processor(
-                    checkActive = {
-                        val currentJob = repository.job(sessionId)
-                        check(currentJob == null || currentJob.state != QueueState.DELETING) { "Cancelled" }
-                    },
-                    publication = { op -> synchronized(ProcessingCoordinator.publication) { op() } },
-                )
-                proc.processReanalysis(sessionId, run.runId)
-                requireNotNull(repository.run(run.runId))
-            }
-            main.post { completed(result) }
+        executeSessionProcessing(sessionId, completed) { reservation ->
+            val (run, _) = repository.confirmActivityPlanAndPrepareReanalysis(sessionId, planKey, reservation)
+            val proc = processor(
+                checkActive = {
+                    val currentJob = repository.job(sessionId)
+                    check(currentJob == null || currentJob.state != QueueState.DELETING) { "Cancelled" }
+                },
+                publication = { op -> synchronized(ProcessingCoordinator.publication) { op() } },
+            )
+            proc.processReanalysis(sessionId, run.runId)
+            requireNotNull(repository.run(run.runId))
         }
     }
 
     fun reprocessLandmarksAndReanalyze(sessionId: String, completed: (Result<ProcessingRun>) -> Unit = {}) {
-        processingExecutor.execute {
-            val result = runCatching {
-                val run = repository.prepareLandmarkReprocessRun(sessionId)
-                val proc = processor(
-                    checkActive = {
-                        val currentJob = repository.job(sessionId)
-                        check(currentJob == null || currentJob.state != QueueState.DELETING) { "Cancelled" }
-                    },
-                    publication = { op ->
-                        synchronized(ProcessingCoordinator.publication) { op() }
-                    }
-                )
-                proc.processLandmarkReprocess(sessionId, run.runId)
-                requireNotNull(repository.run(run.runId))
-            }
-            main.post { completed(result) }
+        executeSessionProcessing(sessionId, completed) { reservation ->
+            val run = repository.prepareLandmarkReprocessRun(sessionId, reservation)
+            val proc = processor(
+                checkActive = {
+                    val currentJob = repository.job(sessionId)
+                    check(currentJob == null || currentJob.state != QueueState.DELETING) { "Cancelled" }
+                },
+                publication = { op -> synchronized(ProcessingCoordinator.publication) { op() } },
+            )
+            proc.processLandmarkReprocess(sessionId, run.runId)
+            requireNotNull(repository.run(run.runId))
         }
     }
 
@@ -178,6 +186,30 @@ class TrainingServices private constructor(context: Context) {
                 invocation.runner.run(invocation.recordingId, invocation.video, invocation.sourceDurationMs)
             }
             main.post { completed(result) }
+        }
+    }
+
+    fun confirmDiagnosticSideViewAndReanalyze(
+        sessionId: String,
+        recordingId: String,
+        completed: (Result<ProcessingRun>) -> Unit = {},
+    ) {
+        executeSessionProcessing(sessionId, completed) { reservation ->
+            check(dk.lasse.karatecliprecorder.BuildConfig.DEBUG) { "Diagnostic view confirmation requires a debug build" }
+            val (run, _) = repository.confirmDiagnosticSideViewAndPrepareReanalysis(
+                sessionId,
+                recordingId,
+                reservation,
+            )
+            val proc = processor(
+                checkActive = {
+                    val currentJob = repository.job(sessionId)
+                    check(currentJob == null || currentJob.state != QueueState.DELETING) { "Cancelled" }
+                },
+                publication = { op -> synchronized(ProcessingCoordinator.publication) { op() } },
+            )
+            proc.processReanalysis(sessionId, run.runId)
+            requireNotNull(repository.run(run.runId))
         }
     }
 

@@ -283,6 +283,15 @@ class MovementDetailActivity : AppCompatActivity() {
             setTextColor(ContextCompat.getColor(this@MovementDetailActivity, R.color.app_text_secondary))
         }
         titleBlock.addView(contextText)
+        data.diagnosticLabel?.let { label ->
+            titleBlock.addView(TextView(this).apply {
+                text = label
+                textSize = 13f
+                typeface = Typeface.create("sans-serif", Typeface.BOLD)
+                setTextColor(ContextCompat.getColor(this@MovementDetailActivity, R.color.app_accent))
+                setPadding(0, 6.dp(), 0, 0)
+            })
+        }
         contentLayout.addView(titleBlock)
 
         // 2. Movement Presentation Player

@@ -313,7 +313,14 @@ class TrainingSessionProcessor(
             updateJob(sessionId) { it.copy(phase = ProcessingPhase.ANALYSIS) }
             var hadFailure = false
             val geometry = CanonicalGeometryCodec.decode(source.canonicalGeometryJson) ?: CanonicalGeometryDescriptor.UNKNOWN
-            val calibration = ImageBodyScaleStore.current(repository.events(sessionId))
+            val sessionEvents = repository.events(sessionId)
+            val calibration = ImageBodyScaleStore.current(sessionEvents)
+            val diagnosticViewConfirmation = DiagnosticImpactViewConfirmationStore.current(
+                events = sessionEvents,
+                recordingId = recording.recordingId,
+                activityPlanEvidence = activityPlanEvidence,
+                debugBuild = dk.lasse.karatecliprecorder.BuildConfig.DEBUG,
+            )
             val limbResults = runMovements.associate { movement ->
                 checkActive()
                 movement.movementId to MovementMotionAnalysis.characterize(movement, source.landmarkTrackId, frames, geometry)
@@ -365,6 +372,7 @@ class TrainingSessionProcessor(
                         calibration, geometry, movement.startUs, movement.endUs),
                     calibration = calibration,
                     activityPlanEvidence = activityPlanEvidence,
+                    viewApproval = diagnosticViewConfirmation?.approval(),
                     analyzers = analyzersToRun,
                     videoWidth = recording.width,
                     videoHeight = recording.height,

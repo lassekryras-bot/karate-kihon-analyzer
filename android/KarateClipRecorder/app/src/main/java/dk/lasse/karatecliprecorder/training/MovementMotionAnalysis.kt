@@ -123,6 +123,11 @@ object MovementMotionAnalysis {
             "geometry" to dk.lasse.karateanalyzer.geometry.CanonicalGeometryCodec.encode(limbs.canonicalGeometry),
             "logicalStartUs" to movement.startUs, "logicalEndUs" to movement.endUs,
             "playbackStartUs" to movement.playbackStartUs, "playbackEndUs" to movement.playbackEndUs,
+            "viewApproval" to viewApproval?.let { approval -> obj(
+                "activityPlanId" to approval.activityPlanId,
+                "profileId" to approval.profileId,
+                "source" to approval.source,
+            ) },
             "analyzerVersion" to limbs.analyzerVersion, "angularPolicyVersion" to limbs.angularPolicyVersion,
             "config" to obj("version" to limbs.config.version, "deadbandDeg" to limbs.config.angularDeadbandDeg,
                 "minimumConfidence" to limbs.config.minimumConfidence, "minimumCoverage" to limbs.config.minimumCoverage,

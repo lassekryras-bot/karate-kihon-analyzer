@@ -131,6 +131,7 @@ class RecordingsActivity : AppCompatActivity() {
                         analysis = preferred,
                         measurements = results,
                         side = evidence?.let(MovementPresentationMapper::resolveSide) ?: BodySide.UNKNOWN,
+                        diagnostic = evidence?.analyses?.let(DiagnosticImpactViewConfirmationStore::isDiagnostic) == true,
                     )
                 }
                 val rec = repo.recording(id)
@@ -666,6 +667,29 @@ class RecordingsActivity : AppCompatActivity() {
                     })
                 }
                 if (segmentData?.canReanalyze == true) {
+                    if (dk.lasse.karatecliprecorder.BuildConfig.DEBUG) {
+                        utils.addView(button("Confirm side view for this recording and reanalyze") {
+                            AlertDialog.Builder(this@RecordingsActivity)
+                                .setTitle("Confirm diagnostic side view?")
+                                .setMessage(
+                                    "Confirm that this exact recording shows the assigned alternating straight punches from the side. " +
+                                        "This creates diagnostic operator evidence and a new analysis run. It does not validate a production camera-view profile or replace earlier runs.",
+                                )
+                                .setNegativeButton("Cancel", null)
+                                .setPositiveButton("Confirm and reanalyze") { _, _ ->
+                                    toast("Diagnostic reanalysis started…")
+                                    training.confirmDiagnosticSideViewAndReanalyze(
+                                        row.session.sessionId,
+                                        row.recording.recordingId,
+                                    ) { result ->
+                                        result.onSuccess { toast("Diagnostic reanalysis complete") }
+                                            .onFailure { err -> toast("Diagnostic reanalysis failed: ${err.message}") }
+                                        load()
+                                    }
+                                }
+                                .show()
+                        }.apply { (layoutParams as? ViewGroup.MarginLayoutParams)?.topMargin = dp(6) })
+                    }
                     utils.addView(button("Reanalyze with current pipeline") {
                         AlertDialog.Builder(this@RecordingsActivity)
                             .setTitle("Reanalyze recording?")
@@ -732,6 +756,13 @@ class RecordingsActivity : AppCompatActivity() {
         })
 
         val items = segmentData?.movements.orEmpty()
+        if (items.any { it.diagnostic }) {
+            addView(label(DiagnosticImpactViewConfirmationStore.PRESENTATION_LABEL, 13f).apply {
+                setTextColor(ContextCompat.getColor(this@RecordingsActivity, R.color.app_accent))
+                setTypeface(typeface, Typeface.BOLD)
+                setPadding(0, dp(6), 0, dp(2))
+            })
+        }
         if (segmentData != null && items.isEmpty() && row.processing?.phase == ProcessingPhase.READY) {
             addView(TextView(this@RecordingsActivity).apply {
                 text = "No movements were detected."
@@ -971,7 +1002,8 @@ class RecordingsActivity : AppCompatActivity() {
                         else -> "${"%.1f".format(error)}° low"
                     }
                 } else null
-                val targetChipText = if (errorText != null) "$targetName · $errorText" else targetName
+                val value = if (errorText != null) "$targetName · $errorText" else targetName
+                val targetChipText = if (item.diagnostic) "Diagnostic · $value" else value
                 val targetChip = chip(targetChipText).apply {
                     (layoutParams as? LinearLayout.LayoutParams)?.marginStart = dp(6)
                 }
@@ -1103,6 +1135,7 @@ private data class MovementItem(
     val analysis: MovementAnalysis?,
     val measurements: List<MeasurementResult>,
     val side: BodySide,
+    val diagnostic: Boolean,
 )
 private data class SegmentData(
     val movements: List<MovementItem>,

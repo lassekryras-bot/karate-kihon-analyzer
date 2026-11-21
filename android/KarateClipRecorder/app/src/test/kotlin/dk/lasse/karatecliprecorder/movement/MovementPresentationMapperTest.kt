@@ -47,6 +47,7 @@ class MovementPresentationMapperTest {
         targetState: AnalysisState = AnalysisState.ABSTAINED,
         targetSide: BodySide? = null,
         targetReason: String? = null,
+        diagnostic: Boolean = false,
     ): MovementEvidence {
         val recordingId = "recording_side"
         val trackId = "track_side"
@@ -79,6 +80,12 @@ class MovementPresentationMapperTest {
                 .put("activity", "STRAIGHT_PUNCH")
                 .put("side", side?.name ?: JSONObject.NULL)
                 .put("profiles", JSONArray())
+                .also { payload ->
+                    if (diagnostic) payload.put("viewApproval", JSONObject()
+                        .put("activityPlanId", MotionActivityPlans.ALTERNATING_PUNCH)
+                        .put("profileId", DiagnosticImpactViewConfirmationStore.PROFILE_ID)
+                        .put("source", "${DiagnosticImpactViewConfirmationStore.SOURCE}:event"))
+                }
             MovementAnalysis(
                 analysisId = "motion_${version}_$index",
                 movementId = movement.movementId,
@@ -339,6 +346,35 @@ class MovementPresentationMapperTest {
         assertEquals(
             "Target analysis is not yet supported for this activity and camera view.",
             target.sublabel,
+        )
+    }
+
+    @Test
+    fun successfulDiagnosticTargetIsVisiblyLabelledWithoutChangingMachineReasonMapping() {
+        val successful = sideEvidence(
+            motionSides = listOf("3" to BodySide.LEFT),
+            targetState = AnalysisState.COMPLETED,
+            targetSide = BodySide.LEFT,
+            diagnostic = true,
+        )
+        val presentation = MovementPresentationMapper.map(successful, displayedNumber = 1)
+        assertEquals(DiagnosticImpactViewConfirmationStore.PRESENTATION_LABEL, presentation.diagnosticLabel)
+        assertTrue(presentation.keyResults.single().sublabel.orEmpty().contains("Diagnostic result"))
+
+        val unavailable = sideEvidence(
+            motionSides = listOf("3" to BodySide.LEFT),
+            targetReason = "UNSUPPORTED_ANALYSIS_PROFILE",
+            diagnostic = true,
+        )
+        val unavailablePresentation = MovementPresentationMapper.map(unavailable, displayedNumber = 1)
+        assertEquals(
+            "Target analysis is not yet supported for this activity and camera view.",
+            unavailablePresentation.keyResults.single().sublabel,
+        )
+        assertNotNull(unavailablePresentation.diagnosticLabel)
+        assertEquals(
+            DiagnosticImpactViewConfirmationStore.PROFILE_ID,
+            DiagnosticImpactViewConfirmationStore.approvalFromAnalyses(unavailable.analyses)?.profileId,
         )
     }
 

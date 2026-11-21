@@ -150,9 +150,13 @@ class TrainingRepository(private val database: KarateTrainingDatabase, val stora
         )))
     }
 
-    fun canReanalyze(sessionId: String): Boolean {
+    fun canReanalyze(
+        sessionId: String,
+        reservation: ProcessingCoordinator.SessionReservation? = null,
+    ): Boolean {
         val rec = recording(sessionId) ?: return false
         if (rec.sourceState != SourceState.AVAILABLE) return false
+        if (ProcessingCoordinator.isSessionReservedByOther(sessionId, reservation)) return false
         val currentJob = job(sessionId)
         if (currentJob?.state in setOf(QueueState.PROCESSING, QueueState.DELETING)) return false
         val completedTrack = tracks(rec.recordingId).firstOrNull {
@@ -161,16 +165,25 @@ class TrainingRepository(private val database: KarateTrainingDatabase, val stora
         return completedTrack != null
     }
 
-    fun canReprocessLandmarks(sessionId: String): Boolean {
+    fun canReprocessLandmarks(
+        sessionId: String,
+        reservation: ProcessingCoordinator.SessionReservation? = null,
+    ): Boolean {
         val rec = recording(sessionId) ?: return false
         if (rec.sourceState != SourceState.AVAILABLE || !file(rec.filePath).isFile) return false
+        if (ProcessingCoordinator.isSessionReservedByOther(sessionId, reservation)) return false
         val currentJob = job(sessionId)
         if (currentJob?.state in setOf(QueueState.PROCESSING, QueueState.DELETING)) return false
         return true
     }
 
-    fun prepareReanalysisRun(sessionId: String): Pair<ProcessingRun, LandmarkTrack> = atomic {
-        check(canReanalyze(sessionId)) { "Reanalysis cannot proceed: valid landmark evidence is not available" }
+    fun prepareReanalysisRun(
+        sessionId: String,
+        reservation: ProcessingCoordinator.SessionReservation? = null,
+    ): Pair<ProcessingRun, LandmarkTrack> = atomic {
+        check(canReanalyze(sessionId, reservation)) {
+            "Reanalysis cannot proceed: valid landmark evidence is not available or processing is active"
+        }
         val rec = requireNotNull(recording(sessionId))
         val track = tracks(rec.recordingId).first {
             it.state == ProcessingState.COMPLETED && it.sourceState == SourceState.AVAILABLE && file(it.filePath).isFile
@@ -201,10 +214,12 @@ class TrainingRepository(private val database: KarateTrainingDatabase, val stora
     fun confirmActivityPlanAndPrepareReanalysis(
         sessionId: String,
         planKey: String,
+        reservation: ProcessingCoordinator.SessionReservation? = null,
     ): Pair<ProcessingRun, MotionActivityPlans.Evidence> = atomic {
         val context = requireNotNull(MotionActivityPlans.context(planKey)) { "Unsupported analysis activity plan" }
-        check(canReanalyze(sessionId)) { "Reanalysis cannot proceed: valid landmark evidence is not available" }
-        check(runs(sessionId).none { it.state == RunState.PROCESSING }) { "Analysis is already in progress" }
+        check(canReanalyze(sessionId, reservation)) {
+            "Reanalysis cannot proceed: valid landmark evidence is not available or processing is active"
+        }
 
         val planEvents = dao.events(sessionId).map { it.value }.filter { it.type == MotionActivityPlans.EVENT_TYPE }
         val event = when {
@@ -220,12 +235,54 @@ class TrainingRepository(private val database: KarateTrainingDatabase, val stora
                 planEvents.single().timingSource == MotionActivityPlans.OPERATOR_POST_CAPTURE_ORIGIN -> planEvents.single()
             else -> error("Recording activity plan is already assigned or conflicts with stored evidence")
         }
-        val (run, _) = prepareReanalysisRun(sessionId)
+        val (run, _) = prepareReanalysisRun(sessionId, reservation)
         run to MotionActivityPlans.Evidence(context, event.sessionEventId, event.timingSource)
     }
 
-    fun prepareLandmarkReprocessRun(sessionId: String): ProcessingRun = atomic {
-        check(canReprocessLandmarks(sessionId)) { "Landmark reprocessing cannot proceed: master video is unavailable" }
+    fun confirmDiagnosticSideViewAndPrepareReanalysis(
+        sessionId: String,
+        recordingId: String,
+        reservation: ProcessingCoordinator.SessionReservation? = null,
+    ): Pair<ProcessingRun, DiagnosticImpactViewConfirmation> = atomic {
+        check(canReanalyze(sessionId, reservation)) {
+            "Reanalysis cannot proceed: valid landmark evidence is not available or processing is active"
+        }
+        val recording = requireNotNull(recording(sessionId))
+        require(recording.recordingId == recordingId) { "Recording identity does not match the confirmation target" }
+        val events = dao.events(sessionId).map { it.value }
+        val planEvidence = requireNotNull(MotionActivityPlans.evidenceFromEvents(events)) {
+            "A single supported activity plan must be assigned before confirming the view"
+        }
+        require(planEvidence.context.planId == MotionActivityPlans.ALTERNATING_PUNCH) {
+            "Diagnostic side-view confirmation is only available for the assigned alternating straight-punch plan"
+        }
+        val existing = events.filter { it.type == DiagnosticImpactViewConfirmationStore.EVENT_TYPE }
+        val event = when {
+            existing.isEmpty() -> DiagnosticImpactViewConfirmationStore.event(
+                sessionId,
+                recordingId,
+                planEvidence.context,
+            ).also { dao.insert(SessionEventRow(it)) }
+            existing.size == 1 -> existing.single()
+            else -> error("Conflicting diagnostic view confirmations are stored")
+        }
+        val confirmation = requireNotNull(DiagnosticImpactViewConfirmationStore.current(
+            events = events.filterNot { it.type == DiagnosticImpactViewConfirmationStore.EVENT_TYPE } + event,
+            recordingId = recordingId,
+            activityPlanEvidence = planEvidence,
+            debugBuild = true,
+        )) { "Stored diagnostic view confirmation is invalid or conflicts with the recording" }
+        val (run, _) = prepareReanalysisRun(sessionId, reservation)
+        run to confirmation
+    }
+
+    fun prepareLandmarkReprocessRun(
+        sessionId: String,
+        reservation: ProcessingCoordinator.SessionReservation? = null,
+    ): ProcessingRun = atomic {
+        check(canReprocessLandmarks(sessionId, reservation)) {
+            "Landmark reprocessing cannot proceed: master video is unavailable or processing is active"
+        }
         val session = requireNotNull(session(sessionId))
         val plan = RecordingProcessingPlans.forSession(session, MotionActivityPlans.fromEvents(events(sessionId)))
         val run = ProcessingRun(
@@ -375,6 +432,9 @@ class TrainingRepository(private val database: KarateTrainingDatabase, val stora
             for (row in page) {
                 val result = row.value
                 val analysis = requireNotNull(dao.analysis(result.analysisId)).value
+                if (DiagnosticImpactViewConfirmationStore.isDiagnostic(
+                        dao.analyses(analysis.movementId).map { it.value },
+                    )) continue
                 val preferredId = preferred.getOrPut(analysis.movementId) {
                     preferredAnalysis(analysis.movementId, query.analyzer)?.analysisId
                 }

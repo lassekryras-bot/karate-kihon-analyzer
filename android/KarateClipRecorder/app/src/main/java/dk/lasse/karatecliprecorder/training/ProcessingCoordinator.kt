@@ -14,6 +14,7 @@ object ProcessingCoordinator {
     private val captures = AtomicInteger()
     val foregroundActivities = AtomicInteger()
     private val deleted = ConcurrentHashMap.newKeySet<String>()
+    private val activeSessions = ConcurrentHashMap<String, Any>()
     val capturing get() = captures.get() > 0
     fun reserveCapture(): AutoCloseable {
         captures.incrementAndGet()
@@ -21,6 +22,26 @@ object ProcessingCoordinator {
         return AutoCloseable { if (closed.compareAndSet(false, true)) captures.decrementAndGet() }
     }
     fun awaitCapturePriority() { heavy.withLock { } }
+    class SessionReservation internal constructor(
+        val sessionId: String,
+        internal val owner: Any,
+    ) : AutoCloseable {
+        private val closed = java.util.concurrent.atomic.AtomicBoolean()
+        override fun close() {
+            if (closed.compareAndSet(false, true)) activeSessions.remove(sessionId, owner)
+        }
+    }
+    /** Reserves both queued and executing production work for one session. */
+    fun reserveSession(sessionId: String): SessionReservation? {
+        val owner = Any()
+        return if (activeSessions.putIfAbsent(sessionId, owner) == null) {
+            SessionReservation(sessionId, owner)
+        } else null
+    }
+    fun isSessionReservedByOther(sessionId: String, reservation: SessionReservation? = null): Boolean {
+        val owner = activeSessions[sessionId] ?: return false
+        return reservation?.sessionId != sessionId || reservation.owner !== owner
+    }
     fun markDeleted(id: String) { deleted.add(id) }
     fun check(id: String, cancelled: Boolean = false) {
         if (capturing || id in deleted || cancelled || Thread.currentThread().isInterrupted) throw ProcessingYield()

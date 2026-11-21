@@ -125,6 +125,86 @@ class TrainingRepositoryTest {
         assertEquals(RunState.FAILED, repository.run(firstRun.runId)?.state)
     }
 
+    @Test fun confirmationUsesLiveReservationAndPreservesHistoricalProcessingRows() {
+        fun readyAlternatingSession(time: Long): Pair<RecordingSession, MasterRecording> {
+            val (session, track) = session(time = time)
+            File(track.filePath).writeText("landmark evidence")
+            repository.addEvent(SessionEvent(
+                sessionId = session.sessionId,
+                type = MotionActivityPlans.EVENT_TYPE,
+                timestampUs = 0,
+                data = MotionActivityPlans.ALTERNATING_PUNCH,
+                timingSource = MotionActivityPlans.OPERATOR_POST_CAPTURE_ORIGIN,
+            ))
+            return session to assertNotNull(repository.recording(session.sessionId))
+        }
+
+        val (staleSession, staleRecording) = readyAlternatingSession(2_000)
+        val published = ProcessingRun(
+            sessionId = staleSession.sessionId,
+            state = RunState.COMPLETED,
+            isCurrent = true,
+        )
+        val stale = ProcessingRun(
+            sessionId = staleSession.sessionId,
+            mode = RunMode.LANDMARK_REPROCESS,
+            state = RunState.PROCESSING,
+            isCurrent = false,
+        )
+        repository.createRun(published)
+        repository.createRun(stale)
+
+        val (fresh, _) = repository.confirmDiagnosticSideViewAndPrepareReanalysis(
+            staleSession.sessionId,
+            staleRecording.recordingId,
+        )
+        assertNotEquals(stale.runId, fresh.runId)
+        assertEquals(RunState.PROCESSING, repository.run(stale.runId)?.state)
+        assertEquals(published.runId, repository.currentRun(staleSession.sessionId)?.runId)
+        assertEquals(setOf(published.runId, stale.runId, fresh.runId), repository.runs(staleSession.sessionId).map { it.runId }.toSet())
+
+        val (activeSession, activeRecording) = readyAlternatingSession(3_000)
+        val activeRun = ProcessingRun(
+            sessionId = activeSession.sessionId,
+            state = RunState.PROCESSING,
+            isCurrent = false,
+        )
+        repository.createRun(activeRun)
+        val reservation = assertNotNull(ProcessingCoordinator.reserveSession(activeSession.sessionId))
+        try {
+            assertNull(ProcessingCoordinator.reserveSession(activeSession.sessionId), "Duplicate invocation cannot overlap")
+            assertFalse(repository.canReanalyze(activeSession.sessionId))
+            assertFailsWith<IllegalStateException> {
+                repository.confirmDiagnosticSideViewAndPrepareReanalysis(
+                    activeSession.sessionId,
+                    activeRecording.recordingId,
+                )
+            }
+            assertTrue(repository.canReanalyze(activeSession.sessionId, reservation))
+            repository.confirmDiagnosticSideViewAndPrepareReanalysis(
+                activeSession.sessionId,
+                activeRecording.recordingId,
+                reservation,
+            )
+            assertEquals(RunState.PROCESSING, repository.run(activeRun.runId)?.state)
+        } finally {
+            reservation.close()
+        }
+
+        val (deletingSession, deletingRecording) = readyAlternatingSession(4_000)
+        repository.enqueue(deletingSession.sessionId)
+        repository.updateJob(assertNotNull(repository.job(deletingSession.sessionId)).copy(state = QueueState.DELETING))
+        assertFailsWith<IllegalStateException> {
+            repository.confirmDiagnosticSideViewAndPrepareReanalysis(
+                deletingSession.sessionId,
+                deletingRecording.recordingId,
+            )
+        }
+        assertTrue(repository.events(deletingSession.sessionId).none {
+            it.type == DiagnosticImpactViewConfirmationStore.EVENT_TYPE
+        })
+    }
+
     @Test fun postCaptureActivityConfirmationRejectsUnsupportedExistingAndConflictingEvidence() {
         fun readySession(): RecordingSession {
             val (session, track) = session(time = System.nanoTime())
@@ -297,6 +377,46 @@ class TrainingRepositoryTest {
             println("Rolling-history query plan: ${plan.joinToString(" | ")}")
             assertTrue(plan.any { it.contains("INDEX") })
         }
+    }
+
+    @Test fun diagnosticMeasurementsAreExcludedFromOrdinaryHistoryWhileOrdinaryResultsRemain() {
+        fun addSession(diagnostic: Boolean): MovementAnalysis {
+            val (session, track) = session(System.nanoTime())
+            val movement = segment(session, track, count = 1).single()
+            val analysis = analyze(movement, track, version = "2")
+            if (diagnostic) {
+                val geometry = org.json.JSONObject()
+                    .put("contract", "movement-motion-v3")
+                    .put("viewApproval", org.json.JSONObject()
+                        .put("activityPlanId", MotionActivityPlans.ALTERNATING_PUNCH)
+                        .put("profileId", DiagnosticImpactViewConfirmationStore.PROFILE_ID)
+                        .put("source", "${DiagnosticImpactViewConfirmationStore.SOURCE}:event"))
+                    .toString()
+                repository.saveAnalysis(MovementAnalysis(
+                    movementId = movement.movementId,
+                    analyzerKey = MovementMotionAnalysis.policy.analyzerKey,
+                    analyzerVersion = "3",
+                    landmarkTrackId = track.landmarkTrackId,
+                    state = AnalysisState.PARTIAL,
+                    geometryJson = geometry,
+                ), emptyList())
+            }
+            return analysis
+        }
+
+        val diagnostic = addSession(diagnostic = true)
+        val ordinary = addSession(diagnostic = false)
+        val history = repository.history(HistoryQuery(
+            userId = user.userId,
+            measurementKey = "PUNCH_ELBOW_ANGLE",
+            analyzer = policy,
+            labelKeys = setOf("straight_punch"),
+            side = BodySide.RIGHT,
+            role = "strike",
+        ))
+
+        assertEquals(listOf(ordinary.analysisId), history.map { it.analysisId })
+        assertFalse(history.any { it.analysisId == diagnostic.analysisId })
     }
 
     @Test fun recoveryRetainsCompletedRunsAndMarksInterruptedSession() {

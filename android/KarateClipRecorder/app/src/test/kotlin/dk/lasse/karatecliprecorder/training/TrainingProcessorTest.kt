@@ -362,6 +362,23 @@ class TrainingProcessorTest {
             assertEquals(MotionActivityPlans.OPERATOR_POST_CAPTURE_ORIGIN, motionJson.getString("activityPlanOrigin"))
             assertNotNull(repository.run(initialRun.runId), "Reanalysis retains historical run provenance")
 
+            val recordingId = assertNotNull(repository.recording(session.sessionId)).recordingId
+            val (diagnosticRun, confirmation) = repository.confirmDiagnosticSideViewAndPrepareReanalysis(
+                session.sessionId,
+                recordingId,
+            )
+            assertEquals(recordingId, confirmation.recordingId)
+            assertEquals(10, processor.processReanalysis(session.sessionId, diagnosticRun.runId))
+            assertEquals(1, decodes)
+            val diagnosticEvidence = repository.movementEvidence(session.sessionId, 1)!!
+            val diagnosticMotion = org.json.JSONObject(assertNotNull(diagnosticEvidence.analyses
+                .single { it.analyzerKey == MovementMotionAnalysis.policy.analyzerKey }.geometryJson))
+            val viewApproval = diagnosticMotion.getJSONObject("viewApproval")
+            assertEquals(DiagnosticImpactViewConfirmationStore.PROFILE_ID, viewApproval.getString("profileId"))
+            assertTrue(viewApproval.getString("source").contains(confirmation.eventId))
+            assertTrue(DiagnosticImpactViewConfirmationStore.isDiagnostic(diagnosticEvidence.analyses))
+            assertNotNull(repository.run(reanalysisRun.runId), "Diagnostic reanalysis retains the previous successful run")
+
         } finally {
             db.close()
             context.deleteDatabase(databaseName)

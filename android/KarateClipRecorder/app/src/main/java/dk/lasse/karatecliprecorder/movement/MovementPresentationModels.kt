@@ -150,6 +150,7 @@ data class MovementPresentationData(
     val overlayDefinition: MovementOverlayDefinition?,
     val debugData: MovementDebugData,
     val knownSampleTimestampsUs: List<Long>,
+    val diagnosticLabel: String? = null,
     val analysisNotice: String? = null,
     val motionInspectionRows: List<String> = emptyList(),
     val motionInspectionPlotLinks: List<KeyResultItem> = emptyList(),
@@ -207,6 +208,7 @@ object MovementPresentationMapper {
     ): MovementPresentationData {
         val movement = evidence.movement
         val motion = MovementMotionInspection.read(evidence)
+        val diagnosticApproval = DiagnosticImpactViewConfirmationStore.approvalFromAnalyses(evidence.analyses)
         val preferredAnalysis = evidence.presentationAnalysis()
         val analysisResults = evidence.measurements.filter { it.analysisId == preferredAnalysis?.analysisId }
         val measurements = analysisResults.filter { it.state == ResultState.VALID || it.state == ResultState.PARTIAL }
@@ -294,7 +296,12 @@ object MovementPresentationMapper {
             } else null
 
             val targetValue = if (errorText != null) "$targetName · $errorText" else targetName
-            val sublabel = targetMargin?.let { "Margin: ${"%.1f".format(it)}°" }
+            val sublabel = if (diagnosticApproval != null) {
+                listOfNotNull(
+                    "Diagnostic result · excluded from history and baselines",
+                    targetMargin?.let { "Margin: ${"%.1f".format(it)}°" },
+                ).joinToString(" · ")
+            } else targetMargin?.let { "Margin: ${"%.1f".format(it)}°" }
 
             keyResults.add(
                 KeyResultItem(
@@ -463,6 +470,7 @@ object MovementPresentationMapper {
             overlayDefinition = overlayDefinition,
             debugData = debugData,
             knownSampleTimestampsUs = knownSampleTimestampsUs,
+            diagnosticLabel = diagnosticApproval?.let { DiagnosticImpactViewConfirmationStore.PRESENTATION_LABEL },
             motionInspectionRows = motion?.let(MovementMotionInspection::rows).orEmpty(),
             motionInspectionPlotLinks = motionInspectionPlotLinks,
             analysisNotice = when {

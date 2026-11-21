@@ -274,4 +274,68 @@ class RecordingsActivityTest {
             assertEquals(1, nextIntent.getIntExtra(dk.lasse.karatecliprecorder.movement.MovementDetailActivity.EXTRA_DISPLAYED_NUMBER, 0))
         } finally { activity.pause().stop().destroy() }
     }
+
+    @Test fun diagnosticTargetChipAndSessionRemainVisiblyLabelledAfterReopen() {
+        runCatching { androidx.work.WorkManager.initialize(context, androidx.work.Configuration.Builder().build()) }
+        ProcessingPreferences(context).background = false
+        val training = TrainingServices.get(context)
+        val profileRepository = ProfileRepository(context, AppPreferences(context))
+        val user = profileRepository.activeProfile().id
+        profileRepository.close()
+        val session = RecordingSession(userId = user, startedAtMs = 3000, activityKey = AssistedCaptureSetup.ACTIVITY_KEY,
+            expectedActivity = "Alternating straight punches", expectedCategory = "Punches", expectedRepetitions = 1)
+        val movement = SessionMovement(sessionId = session.sessionId, startUs = 500_000, endUs = 1_500_000,
+            playbackStartUs = 200_000, playbackEndUs = 1_800_000,
+            segmentationSource = "test_segmenter", segmentationVersion = "1")
+        var seeded = false
+        training.submit({ repo ->
+            repo.createUser(TrainingUser(user))
+            val recordingId = trainingId()
+            val reference = training.storage.recording(recordingId)
+            training.storage.resolve(reference).apply { parentFile!!.mkdirs(); writeText("playback fixture") }
+            repo.beginSession(session, MasterRecording(recordingId, session.sessionId, reference, 3000))
+            repo.finishRecording(session.sessionId, 2_000_000)
+            repo.recoverJobs()
+            val track = LandmarkTrack(recordingId = recordingId, pipelineKey = "test", pipelineVersion = "1",
+                configuration = "fixture", filePath = training.storage.landmarks(trainingId()),
+                state = ProcessingState.COMPLETED, sourceState = SourceState.AVAILABLE)
+            repo.addTrack(track)
+            repo.saveSegmentation(session.sessionId, listOf(movement.copy(segmentationTrackId = track.landmarkTrackId)),
+                listOf(ObservationContext(movement.movementId)), emptyList(), emptyList())
+            val motion = MovementAnalysis(movementId = movement.movementId, analyzerKey = MovementMotionAnalysis.policy.analyzerKey,
+                analyzerVersion = "3", landmarkTrackId = track.landmarkTrackId, state = AnalysisState.PARTIAL,
+                geometryJson = org.json.JSONObject().put("contract", "movement-motion-v3")
+                    .put("side", "LEFT")
+                    .put("viewApproval", org.json.JSONObject()
+                        .put("activityPlanId", MotionActivityPlans.ALTERNATING_PUNCH)
+                        .put("profileId", DiagnosticImpactViewConfirmationStore.PROFILE_ID)
+                        .put("source", "${DiagnosticImpactViewConfirmationStore.SOURCE}:event"))
+                    .toString())
+            repo.saveAnalysis(motion, emptyList())
+            val target = MovementAnalysis(movementId = movement.movementId,
+                analyzerKey = StraightPunchMovementAdapter.policy.analyzerKey, analyzerVersion = "2",
+                landmarkTrackId = track.landmarkTrackId, state = AnalysisState.COMPLETED)
+            repo.saveAnalysis(target, listOf(MeasurementResult(
+                analysisId = target.analysisId,
+                measurementKey = TrainingMeasurements.PUNCH_CLOSEST_TARGET,
+                calculationVersion = "1",
+                valueType = ValueType.CATEGORICAL,
+                categoricalValue = "CHUDAN",
+                side = BodySide.LEFT,
+                state = ResultState.VALID,
+            )))
+            repo.updateJob(repo.job(session.sessionId)!!.copy(state = QueueState.READY, phase = ProcessingPhase.READY))
+        }) { it.getOrThrow(); seeded = true }
+        drainUntil { seeded }
+
+        val intent = Intent(context, RecordingsActivity::class.java).putExtra(RecordingsActivity.EXTRA_SESSION_ID, session.sessionId)
+        val activity = Robolectric.buildActivity(RecordingsActivity::class.java, intent).setup()
+        try {
+            val root = activity.get().findViewById<View>(android.R.id.content)
+            fun texts() = views(root).filterIsInstance<TextView>().map { it.text.toString() }
+            drainUntil { "Diagnostic · Chūdan" in texts() }
+            assertTrue(DiagnosticImpactViewConfirmationStore.PRESENTATION_LABEL in texts())
+            assertTrue("Diagnostic · Chūdan" in texts())
+        } finally { activity.pause().stop().destroy() }
+    }
 }
