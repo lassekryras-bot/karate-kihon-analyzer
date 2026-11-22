@@ -114,7 +114,7 @@ class ExactPairedArmSideReplayTest {
                         evidence.movement.segmentationEndBoundaryKind)
                     val analysis = evidence.analyses.single { it.analyzerKey == MovementMotionAnalysis.policy.analyzerKey }
                     val json = JSONObject(kotlin.test.assertNotNull(analysis.geometryJson))
-                    kotlin.test.assertEquals("movement-motion-v3", json.getString("contract"))
+                    kotlin.test.assertEquals("movement-motion-v4", json.getString("contract"))
                     kotlin.test.assertEquals(expected.getString("reviewSide"), json.getString("side"))
                     kotlin.test.assertEquals("PAIRED_ARM_SCORE", json.getString("sideReason"))
                     val paired = json.getJSONObject("pairedArmEvidence")

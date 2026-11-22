@@ -61,10 +61,23 @@ data class OverlayArm(
     val wrist: PointF,
 )
 
+data class OverlaySegment(val start: PointF, val end: PointF)
+
+data class OverlayAngleArc(
+    val origin: PointF,
+    val actualAngleDeg: Double,
+    val optimalAngleDeg: Double,
+    val signedErrorDeg: Double,
+    val facing: ImageFacingDirection,
+)
+
 data class MovementOverlayDefinition(
     val rays: List<OverlayRay> = emptyList(),
     val arm: OverlayArm? = null,
     val fist: PointF? = null,
+    val actualRay: OverlaySegment? = null,
+    val optimalRay: OverlaySegment? = null,
+    val angleArc: OverlayAngleArc? = null,
     val exactFrameOnly: Boolean = false,
     val canonicalImpactUs: Long? = null,
     val frameGeometry: FrameGeometry = FrameGeometry(1080, 1920),
@@ -187,7 +200,10 @@ object MovementPresentationMapper {
         val horizontalGeometry = preferredAnalysis?.geometryJson?.let(StraightPunchHorizontalGeometryCodec::decode)
             ?.takeIf { it.timestampUs in evidence.movement.playbackStartUs..evidence.movement.playbackEndUs &&
                 it.recordingId == evidence.recording.recordingId && it.landmarkTrackId == preferredAnalysis.landmarkTrackId }
-        return resolveSide(evidence, motion, geometry, horizontalGeometry, measurements)
+        val angularGeometry = preferredAnalysis?.geometryJson?.let(StraightPunchCurrentFrameAngularGeometryCodec::decode)
+            ?.takeIf { it.timestampUs in evidence.movement.playbackStartUs..evidence.movement.playbackEndUs &&
+                it.recordingId == evidence.recording.recordingId && it.landmarkTrackId == preferredAnalysis.landmarkTrackId }
+        return resolveSide(evidence, motion, geometry, horizontalGeometry, angularGeometry, measurements)
     }
 
     private fun resolveSide(
@@ -195,6 +211,7 @@ object MovementPresentationMapper {
         motion: org.json.JSONObject?,
         geometry: StraightPunchGeometry?,
         horizontalGeometry: StraightPunchHorizontalGeometry?,
+        angularGeometry: StraightPunchCurrentFrameAngularGeometry?,
         measurements: List<MeasurementResult>,
     ): BodySide {
         val retainedMotion = selectMovementAnalysis(
@@ -208,6 +225,7 @@ object MovementPresentationMapper {
         }
         return geometry?.activeSide
             ?: horizontalGeometry?.activeSide
+            ?: angularGeometry?.activeSide
             ?: measurements.firstOrNull { it.side == BodySide.LEFT || it.side == BodySide.RIGHT }?.side
             ?: BodySide.UNKNOWN
     }
@@ -244,6 +262,13 @@ object MovementPresentationMapper {
                 it.frameGeometryContractVersion == canonicalDescriptor.contractVersion &&
                 it.canonicalWidth == canonicalDescriptor.canonicalWidth && it.canonicalHeight == canonicalDescriptor.canonicalHeight
         }
+        val decodedAngularGeometry = preferredAnalysis?.geometryJson?.let(StraightPunchCurrentFrameAngularGeometryCodec::decode)?.takeIf {
+            it.timestampUs in movement.playbackStartUs..movement.playbackEndUs &&
+                it.recordingId == evidence.recording.recordingId && it.landmarkTrackId == preferredAnalysis.landmarkTrackId &&
+                it.frameGeometryId == canonicalDescriptor.geometryId &&
+                it.frameGeometryContractVersion == canonicalDescriptor.contractVersion &&
+                it.canonicalWidth == canonicalDescriptor.canonicalWidth && it.canonicalHeight == canonicalDescriptor.canonicalHeight
+        }
         val horizontalKeys = setOf(
             TrainingMeasurements.PUNCH_HORIZONTAL_CLOSEST_TARGET,
             TrainingMeasurements.PUNCH_JODAN_HEIGHT_ERROR_NORMALIZED,
@@ -259,8 +284,21 @@ object MovementPresentationMapper {
                 it.occurrenceUs == retained.timestampUs && it.frameIndex == retained.frameIndex
             }
         }
-        val presentationMeasurements = if (horizontalGeometry == null) measurements.filterNot { it.measurementKey in horizontalKeys } else measurements
-        val side = resolveSide(evidence, motion, geometry, horizontalGeometry, presentationMeasurements)
+        val angularKeys = setOf(
+            TrainingMeasurements.PUNCH_CURRENT_FRAME_ANGULAR_TARGET,
+            TrainingMeasurements.PUNCH_CURRENT_FRAME_ANGULAR_ERROR_DEG,
+        )
+        val angularRows = analysisResults.filter { it.measurementKey in angularKeys }
+        val angularGeometry = decodedAngularGeometry?.takeIf { retained ->
+            angularRows.size == angularKeys.size && angularRows.all {
+                it.occurrenceUs == retained.timestampUs && it.frameIndex == retained.frameIndex
+            }
+        }
+        val presentationMeasurements = measurements.filterNot {
+            (horizontalGeometry == null && angularGeometry == null && it.measurementKey in horizontalKeys) ||
+                (angularGeometry == null && it.measurementKey in angularKeys)
+        }
+        val side = resolveSide(evidence, motion, geometry, horizontalGeometry, angularGeometry, presentationMeasurements)
         val sideLabel = when (side) {
             BodySide.LEFT -> "Left arm"
             BodySide.RIGHT -> "Right arm"
@@ -277,7 +315,7 @@ object MovementPresentationMapper {
         }
         val contextSubtitle = "$activityTitle · ${motion?.optString("side")?.takeUnless { it == "null" } ?: sideLabel}"
 
-        val canonicalUs = horizontalGeometry?.timestampUs
+        val canonicalUs = angularGeometry?.timestampUs ?: horizontalGeometry?.timestampUs
             ?: motion?.takeUnless { it.isNull("representativeUs") }?.getLong("representativeUs") ?: geometry?.timestampUs
             ?: analysisResults.firstNotNullOfOrNull { it.occurrenceUs }
             ?: movement.analysisFrameUs
@@ -320,10 +358,18 @@ object MovementPresentationMapper {
         val keyResults = mutableListOf<KeyResultItem>()
 
         // 1. Target height
+        // A validated v4 geometry contract is authoritative even when its result abstains.
+        // Never replace an angular ambiguity/unavailability with a diagnostic pixel result.
+        val angularTarget = angularGeometry?.let { retained ->
+            retained.selectedTarget?.name
+                ?: retained.declaredTargetRaw?.takeIf { retained.selectionMode == CurrentFrameTargetSelectionMode.DECLARED }
+        }
+        val angularError = angularGeometry?.signedErrorDeg
         val horizontalClosest = presentationMeasurements.firstOrNull { it.measurementKey == TrainingMeasurements.PUNCH_HORIZONTAL_CLOSEST_TARGET }?.categoricalValue
-        val closestTarget = horizontalClosest
+        val closestTarget = if (angularGeometry != null) angularTarget else horizontalClosest
             ?: presentationMeasurements.firstOrNull { it.measurementKey == TrainingMeasurements.PUNCH_CLOSEST_TARGET }?.categoricalValue
-        val angleError = presentationMeasurements.firstOrNull { it.measurementKey == TrainingMeasurements.PUNCH_TARGET_ANGLE_ERROR_DEG }?.numericValue
+        val angleError = if (angularGeometry != null) angularError else
+            presentationMeasurements.firstOrNull { it.measurementKey == TrainingMeasurements.PUNCH_TARGET_ANGLE_ERROR_DEG }?.numericValue
         val targetMargin = presentationMeasurements.firstOrNull { it.measurementKey == TrainingMeasurements.PUNCH_TARGET_CLASSIFICATION_MARGIN_DEG }?.numericValue
 
         if (closestTarget != null) {
@@ -340,7 +386,13 @@ object MovementPresentationMapper {
                 else -> null
             }
             val horizontalPx = horizontalPxKey?.let { key -> presentationMeasurements.firstOrNull { it.measurementKey == key }?.numericValue }
-            val errorText = if (horizontalPx != null) {
+            val errorText = if (angularError != null) {
+                when {
+                    abs(angularError) < 0.05 -> "0.0°"
+                    angularError > 0 -> "+${"%.1f".format(angularError)}° high"
+                    else -> "${"%.1f".format(angularError)}° low"
+                }
+            } else if (horizontalPx != null) {
                 when {
                     horizontalPx == 0.0 -> "0.0 px difference"
                     horizontalPx > 0 -> "+${"%.1f".format(horizontalPx)} px above"
@@ -354,19 +406,49 @@ object MovementPresentationMapper {
                 }
             } else null
 
-            val targetValue = if (errorText != null) "${if (horizontalClosest != null) "Closest to " else ""}$targetName · $errorText" else targetName
+            val closestPrefix = when {
+                angularGeometry?.selectionMode == CurrentFrameTargetSelectionMode.OPEN -> "Closest to "
+                angularGeometry != null -> ""
+                horizontalClosest != null -> "Closest to "
+                else -> ""
+            }
+            val targetValue = when {
+                angularGeometry?.state == CurrentFrameAngularState.UNAVAILABLE -> "$targetName · unavailable"
+                errorText != null -> "$closestPrefix$targetName · $errorText"
+                else -> targetName
+            }
             val horizontalSublabel = horizontalGeometry?.let { retained ->
                 val compared = retained.guides.filter { it.targetPoint != null }.joinToString(", ") { displayTarget(it.targetType) }
                 val missing = retained.guides.filter { it.targetPoint == null }.joinToString(", ") { displayTarget(it.targetType) }
                 listOfNotNull("Compared: $compared", missing.takeIf { it.isNotBlank() }?.let { "Unavailable: $it" }).joinToString(" · ")
             }
+            val angularSublabel = angularGeometry?.let { retained ->
+                val compared = retained.targets.filter { it.state == CurrentFrameAngularTargetState.VALID }
+                    .joinToString(", ") { displayTarget(it.targetType) }
+                val excluded = retained.targets.filter { it.state != CurrentFrameAngularTargetState.VALID }
+                    .joinToString(", ") { "${displayTarget(it.targetType)} ${it.state.name.lowercase()}" }
+                val pixelDiagnostic = retained.targets.firstOrNull { it.targetType == retained.selectedTarget }
+                    ?.horizontalErrorCanonicalPx?.let { value ->
+                        val direction = if (value >= 0.0) "above" else "below"
+                        "Horizontal diagnostic: ${"%.1f".format(abs(value))} px $direction"
+                    }
+                listOfNotNull(
+                    when (retained.selectionMode) {
+                        CurrentFrameTargetSelectionMode.OPEN -> "Compared: $compared"
+                        CurrentFrameTargetSelectionMode.DECLARED -> "Declared target: ${retained.declaredTargetRaw}"
+                    },
+                    excluded.takeIf { it.isNotBlank() }?.let { "Excluded: $it" },
+                    pixelDiagnostic,
+                    retained.selectionReason.takeIf { retained.state == CurrentFrameAngularState.UNAVAILABLE },
+                ).joinToString(" · ")
+            }
             val sublabel = if (diagnosticApproval != null) {
                 listOfNotNull(
                     "Diagnostic result · excluded from history and baselines",
-                    horizontalSublabel,
+                    angularSublabel ?: horizontalSublabel,
                     targetMargin?.let { "Margin: ${"%.1f".format(it)}°" },
                 ).joinToString(" · ")
-            } else horizontalSublabel ?: targetMargin?.let { "Margin: ${"%.1f".format(it)}°" }
+            } else angularSublabel ?: horizontalSublabel ?: targetMargin?.let { "Margin: ${"%.1f".format(it)}°" }
 
             keyResults.add(
                 KeyResultItem(
@@ -376,11 +458,23 @@ object MovementPresentationMapper {
                     sublabel = sublabel,
                     preferredMode = PlayerMode.ANALYSIS,
                     focusTimestampUs = canonicalImpactUs,
-                    isAvailable = true,
+                    isAvailable = angularGeometry?.state != CurrentFrameAngularState.UNAVAILABLE,
                 )
             )
         } else {
-            if (horizontalGeometry?.closestState == HorizontalClosestState.AMBIGUOUS) {
+            if (angularGeometry?.state == CurrentFrameAngularState.AMBIGUOUS) {
+                val tied = angularGeometry.targets.filter { target ->
+                    val minimum = angularGeometry.targets.mapNotNull { it.signedErrorDeg?.let { value -> abs(value) } }.minOrNull()
+                    target.signedErrorDeg?.let { value -> abs(value) } == minimum
+                }.joinToString(" and ") { displayTarget(it.targetType) }
+                keyResults.add(KeyResultItem("target_height", "Target height", "Ambiguous",
+                    "Exact angular tie between $tied · ${angularGeometry.selectionReason}",
+                    PlayerMode.ANALYSIS, canonicalImpactUs, true))
+            } else if (angularGeometry?.state == CurrentFrameAngularState.UNAVAILABLE) {
+                val declaration = angularGeometry.declaredTargetRaw?.let { "Declared target: $it · " }.orEmpty()
+                keyResults.add(KeyResultItem("target_height", "Target height", "Unavailable",
+                    "$declaration${angularGeometry.selectionReason}", PlayerMode.ANALYSIS, canonicalImpactUs, false))
+            } else if (angularGeometry == null && horizontalGeometry?.closestState == HorizontalClosestState.AMBIGUOUS) {
                 val tied = horizontalGeometry.guides.filter { guide ->
                     val minimum = horizontalGeometry.guides.mapNotNull { it.signedErrorNormalized?.let { value -> kotlin.math.abs(value) } }.minOrNull()
                     guide.signedErrorNormalized?.let { value -> kotlin.math.abs(value) } == minimum
@@ -430,11 +524,12 @@ object MovementPresentationMapper {
 
         // Overlay definition: renders persisted analyzer geometry and active arm
         val overlayDefinition = if (resolvedFrameGeometry != null) {
-            buildOverlayDefinition(geometry, horizontalGeometry, frames, side, canonicalUs, resolvedFrameGeometry)
+            buildOverlayDefinition(geometry, horizontalGeometry, angularGeometry, frames, side, canonicalUs, resolvedFrameGeometry)
         } else null
 
         // Debug Data
-        val frameIdx = geometry?.frameIndex ?: analysisResults.firstNotNullOfOrNull { it.frameIndex }
+        val frameIdx = angularGeometry?.frameIndex ?: horizontalGeometry?.frameIndex ?: geometry?.frameIndex
+            ?: analysisResults.firstNotNullOfOrNull { it.frameIndex }
         val bodyHeightDebug = if (frames.isNotEmpty() && canonicalUs != null && resolvedFrameGeometry != null) {
             val observed = dk.lasse.karateanalyzer.height.BodyHeightModel.evaluate(
                 selectedTimestampUs = canonicalUs,
@@ -518,7 +613,7 @@ object MovementPresentationMapper {
             evidenceReason = listOfNotNull(
                 "referenced_landmark_track_unavailable".takeIf { frames.isEmpty() },
                 "target_geometry_unavailable_or_unsupported".takeIf {
-                    geometry == null && horizontalGeometry == null
+                    geometry == null && horizontalGeometry == null && angularGeometry == null
                 },
             ).joinToString("; ").ifEmpty { null },
             bodyHeightDebug = bodyHeightDebug,
@@ -549,7 +644,7 @@ object MovementPresentationMapper {
             analysisNotice = when {
                 overlayDefinition == null -> "Analysis evidence is unavailable for this movement."
                 frames.isEmpty() -> "Landmark playback is unavailable. Showing retained target geometry."
-                geometry == null && horizontalGeometry == null -> "Target geometry is unavailable for this movement."
+                geometry == null && horizontalGeometry == null && angularGeometry == null -> "Target geometry is unavailable for this movement."
                 else -> null
             },
         )
@@ -558,12 +653,13 @@ object MovementPresentationMapper {
     private fun buildOverlayDefinition(
         geometry: StraightPunchGeometry?,
         horizontalGeometry: StraightPunchHorizontalGeometry?,
+        angularGeometry: StraightPunchCurrentFrameAngularGeometry?,
         frames: List<PoseFrame>,
         side: BodySide,
         canonicalImpactUs: Long?,
         frameGeometry: FrameGeometry = FrameGeometry(1080, 1920),
     ): MovementOverlayDefinition? {
-        val impactFrame = if (horizontalGeometry == null && frames.isNotEmpty() && canonicalImpactUs != null && side in setOf(BodySide.LEFT, BodySide.RIGHT)) {
+        val impactFrame = if (horizontalGeometry == null && angularGeometry == null && frames.isNotEmpty() && canonicalImpactUs != null && side in setOf(BodySide.LEFT, BodySide.RIGHT)) {
             frames.minByOrNull { abs(it.timestampMs * 1000L - canonicalImpactUs) }
         } else null
 
@@ -607,16 +703,40 @@ object MovementPresentationMapper {
             OverlayRay(guide.targetType.name, PointF(point.x, point.y), PointF(endpointX, point.y),
                 horizontalGeometry.closestTarget == guide.targetType)
         }.orEmpty()
-        val rays = horizontalRays.ifEmpty { legacyRays }
-        val fist = horizontalGeometry?.fist?.let { PointF(it.x, it.y) }
+        val angularRays = angularGeometry?.selectedTarget?.let { selected ->
+            angularGeometry.targets.firstOrNull { it.targetType == selected }?.targetPoint?.let { point ->
+                val endpointX = if (angularGeometry.facing == ImageFacingDirection.IMAGE_LEFT) 0f else 1f
+                listOf(OverlayRay(selected.name, PointF(point.x, point.y), PointF(endpointX, point.y), true))
+            }
+        }.orEmpty()
+        val rays = when {
+            angularGeometry != null -> angularRays
+            horizontalRays.isNotEmpty() -> horizontalRays
+            else -> legacyRays
+        }
+        val fist = (angularGeometry?.fist ?: horizontalGeometry?.fist)?.let { PointF(it.x, it.y) }
+        val angularTarget = angularGeometry?.selectedTarget?.let { selected ->
+            angularGeometry.targets.firstOrNull { it.targetType == selected }
+        }
+        val shoulder = angularGeometry?.shoulder?.let { PointF(it.x, it.y) }
+        val actualRay = if (shoulder != null && fist != null) OverlaySegment(shoulder, fist) else null
+        val optimalRay = if (shoulder != null && angularTarget?.idealEndpoint != null) OverlaySegment(
+            shoulder, PointF(angularTarget.idealEndpoint.x, angularTarget.idealEndpoint.y)) else null
+        val angleArc = if (shoulder != null && angularGeometry?.actualAngleDeg != null &&
+            angularTarget?.idealAngleDeg != null && angularTarget.signedErrorDeg != null
+        ) OverlayAngleArc(shoulder, angularGeometry.actualAngleDeg, angularTarget.idealAngleDeg,
+            angularTarget.signedErrorDeg, angularGeometry.facing) else null
 
-        if (arm == null && rays.isEmpty() && fist == null) return null
+        if (arm == null && rays.isEmpty() && fist == null && actualRay == null && optimalRay == null) return null
 
         return MovementOverlayDefinition(
             rays = rays,
             arm = arm,
             fist = fist,
-            exactFrameOnly = horizontalGeometry != null,
+            actualRay = actualRay,
+            optimalRay = optimalRay,
+            angleArc = angleArc,
+            exactFrameOnly = horizontalGeometry != null || angularGeometry != null,
             canonicalImpactUs = canonicalImpactUs,
             frameGeometry = frameGeometry,
         )

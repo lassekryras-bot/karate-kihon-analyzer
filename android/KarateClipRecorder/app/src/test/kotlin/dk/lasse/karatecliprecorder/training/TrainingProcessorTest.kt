@@ -20,13 +20,13 @@ import kotlin.test.*
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [28])
 class TrainingProcessorTest {
-    @Test fun targetAnalyzerFailureRecordsApprovedV3Provenance() {
+    @Test fun targetAnalyzerFailureRecordsApprovedV4Provenance() {
         val movement = SessionMovement(sessionId = "session", startUs = 0, endUs = 1,
             playbackStartUs = 0, playbackEndUs = 1, segmentationSource = "test", segmentationVersion = "test")
         val failure = runCatching { error("forced target analyzer failure") }
             .exceptionOrNull()!!.let { straightPunchFailureAnalysis(movement, "track", it) }
         assertEquals(StraightPunchMovementAdapter.policy.analyzerKey, failure.analyzerKey)
-        assertEquals("3", failure.analyzerVersion)
+        assertEquals("4", failure.analyzerVersion)
         assertEquals(AnalysisState.FAILED, failure.state)
         assertEquals("forced target analyzer failure", failure.reason)
     }
@@ -51,6 +51,49 @@ class TrainingProcessorTest {
         )
         assertEquals(MotionBodyProfile.KICK, kickPlan.movementProfile)
         assertEquals(TrainingSessionProcessor.SEGMENTATION_VERSION, kickPlan.qomConfig.detectorVersion)
+    }
+
+    @Test fun experimentalSideViewProfileIsExplicitAndDoesNotChangeLegacySelection() {
+        val session = RecordingSession(userId = "user", startedAtMs = 1)
+        val activity = MotionActivityPlans.context(MotionActivityPlans.ALTERNATING_PUNCH)
+        val selection = SegmentationProfileSelectionStore.Evidence(
+            SegmentationProfileSelectionStore.EXPERIMENTAL_SIDE_VIEW_ALTERNATING_PUNCH,
+            "event",
+            SegmentationProfileSelectionStore.OPERATOR_ORIGIN,
+        )
+
+        assertEquals(
+            QomDetectorConfig.SUPPORTED_WORLD_V2,
+            RecordingProcessingPlans.forSession(session, activity).qomConfig.detectorVersion,
+        )
+        assertEquals(
+            QomDetectorConfig.SIDE_VIEW_ALTERNATING_PUNCH_V2,
+            RecordingProcessingPlans.forSession(session, activity, selection).qomConfig.detectorVersion,
+        )
+        assertEquals(
+            QomDetectorConfig.SIDE_VIEW_ALTERNATING_PUNCH_V2,
+            RecordingProcessingPlans.qomConfigForVersion(QomDetectorConfig.SIDE_VIEW_ALTERNATING_PUNCH_V2).detectorVersion,
+        )
+    }
+
+    @Test fun correctedSelectionSupersedesButDoesNotReinterpretHistoricalV1Event() {
+        val historical = SessionEvent(
+            sessionId = "session",
+            type = SegmentationProfileSelectionStore.EVENT_TYPE,
+            timestampUs = 0L,
+            data = SegmentationProfileSelectionStore.EXPERIMENTAL_SIDE_VIEW_ALTERNATING_PUNCH_V1,
+            timingSource = SegmentationProfileSelectionStore.OPERATOR_ORIGIN,
+        )
+        val corrected = SegmentationProfileSelectionStore.event("session")
+
+        assertEquals(
+            QomDetectorConfig.SIDE_VIEW_ALTERNATING_PUNCH_V1,
+            SegmentationProfileSelectionStore.current(listOf(historical))?.detectorVersion,
+        )
+        assertEquals(
+            QomDetectorConfig.SIDE_VIEW_ALTERNATING_PUNCH_V2,
+            SegmentationProfileSelectionStore.current(listOf(historical, corrected))?.detectorVersion,
+        )
     }
 
     @Test fun recordedTenPunchFixturePersistsAndReopensWithoutRerunningMediaPipe() {
@@ -303,7 +346,7 @@ class TrainingProcessorTest {
             val initialRun = assertNotNull(repository.currentRun(session.sessionId))
             assertEquals(RunMode.INITIAL, initialRun.mode)
             assertEquals(RunState.COMPLETED, initialRun.state)
-            assertEquals("3", initialRun.analyzerVersion)
+            assertEquals("4", initialRun.analyzerVersion)
             assertEquals(TrainingSessionProcessor.SEGMENTATION_VERSION, initialRun.segmenterVersion)
             assertTrue(initialRun.isCurrent)
 
@@ -332,7 +375,7 @@ class TrainingProcessorTest {
             assertEquals(reanalysisRun.runId, currentRun.runId)
             assertEquals(RunMode.REANALYSIS, currentRun.mode)
             assertEquals(RunState.COMPLETED, currentRun.state)
-            assertEquals("3", currentRun.analyzerVersion)
+            assertEquals("4", currentRun.analyzerVersion)
             assertTrue(currentRun.isCurrent)
             assertEquals(QomDetectorConfig.SUPPORTED_WORLD_V2, currentRun.segmenterVersion)
             assertEquals(QomDetectorConfig.SUPPORTED_WORLD_V2, repository.job(session.sessionId)?.segmentationVersion)
@@ -351,7 +394,7 @@ class TrainingProcessorTest {
             val firstMovementEvidence = repository.movementEvidence(session.sessionId, 1)!!
             assertEquals(2, firstMovementEvidence.analyses.size)
             val target = firstMovementEvidence.analyses.single { it.analyzerKey == "straight_punch_target" }
-            assertEquals("3", target.analyzerVersion)
+            assertEquals("4", target.analyzerVersion)
             assertEquals(AnalysisState.ABSTAINED, target.state)
             assertNotEquals("ACTIVITY_PLAN_UNAVAILABLE", target.reason)
             assertTrue(firstMovementEvidence.measurements.isEmpty())

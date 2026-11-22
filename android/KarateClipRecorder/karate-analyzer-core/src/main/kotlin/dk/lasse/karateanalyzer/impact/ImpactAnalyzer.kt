@@ -15,7 +15,7 @@ import kotlin.math.sqrt
 
 /** Offline terminal-event analyzer for one known, pre-segmented movement. */
 object ImpactAnalyzer {
-    const val ANALYZER_VERSION = "impact_analyzer_v2"
+    const val ANALYZER_VERSION = "impact_analyzer_v3"
 
     private data class ObservedSample(
         val timestampUs: Long,
@@ -240,7 +240,10 @@ object ImpactAnalyzer {
 
         val qomPeak = input.qomTimeline
             .asSequence()
-            .filter { it.timestampMs * 1000L in input.logicalStartTimestampUs..input.logicalEndTimestampUs }
+            .filter {
+                it.isAvailable && it.rollingArea.isFinite() &&
+                    it.timestampMs * 1000L in input.logicalStartTimestampUs..input.logicalEndTimestampUs
+            }
             .maxWithOrNull(compareBy<dk.lasse.karateanalyzer.capture.qom.QomFrameEvidence> { it.rollingArea }.thenBy { -it.timestampMs })
         val searchStartUs = qomPeak?.timestampMs?.times(1000L) ?: input.logicalStartTimestampUs
         calculated.forEachIndexed { index, sample ->
@@ -276,7 +279,9 @@ object ImpactAnalyzer {
                 postTransitionStability = sample.postTransitionStability,
                 terminalTransitionScore = sample.transitionScore,
                 stableState = sample.stableState,
-                qomRollingArea = qomByTimestamp[sample.observed.timestampUs]?.rollingArea,
+                qomRollingArea = qomByTimestamp[sample.observed.timestampUs]
+                    ?.takeIf { it.isAvailable && it.rollingArea.isFinite() }
+                    ?.rollingArea,
             )
         }
 
@@ -302,9 +307,8 @@ object ImpactAnalyzer {
         val representativeIndex = representativeIndex(calculated, stableRange, input.profile.representativeQualityImprovement)
         val transition = calculated[transitionIndex]
         val representative = calculated[representativeIndex]
-        val qomAtTransition = input.qomTimeline.minByOrNull {
-            kotlin.math.abs(it.timestampMs * 1000L - transition.observed.timestampUs)
-        }
+        val qomAtTransition = qomByTimestamp[transition.observed.timestampUs]
+            ?.takeIf { it.isAvailable && it.rollingArea.isFinite() }
 
         return ImpactAnalysisResult(
             status = ImpactAnalysisStatus.COMPLETED,

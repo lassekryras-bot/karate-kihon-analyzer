@@ -204,3 +204,171 @@ object StraightPunchHorizontalGeometryCodec {
 
     private fun SourceNormalizedPoint.toJson() = JSONObject().put("x", x.toDouble()).put("y", y.toDouble())
 }
+
+data class CurrentFrameAngularTargetGeometry(
+    val targetType: PunchHeightTargetType,
+    val state: CurrentFrameAngularTargetState,
+    val targetPoint: EvidencePoint?,
+    val idealEndpoint: EvidencePoint?,
+    val idealAngleDeg: Double?,
+    val signedErrorDeg: Double?,
+    val horizontalErrorNormalized: Double?,
+    val horizontalErrorCanonicalPx: Double?,
+    val guideEstimatorVersion: String,
+    val reason: String,
+)
+
+data class StraightPunchCurrentFrameAngularGeometry(
+    val recordingId: String,
+    val landmarkTrackId: String,
+    val frameGeometryId: String,
+    val frameGeometryContractVersion: String,
+    val canonicalWidth: Int,
+    val canonicalHeight: Int,
+    val timestampUs: Long,
+    val frameIndex: Long,
+    val activeSide: BodySide,
+    val state: CurrentFrameAngularState,
+    val selectionMode: CurrentFrameTargetSelectionMode,
+    val declaredTargetRaw: String?,
+    val selectedTarget: PunchHeightTargetType?,
+    val selectionReason: String,
+    val comparisonComplete: Boolean,
+    val facing: ImageFacingDirection,
+    val facingSource: String,
+    val shoulder: EvidencePoint?,
+    val fist: EvidencePoint?,
+    val fistEstimatorVersion: String,
+    val actualAngleDeg: Double?,
+    val signedErrorDeg: Double?,
+    val reach: CompositeFistReachEvidence,
+    val targets: List<CurrentFrameAngularTargetGeometry>,
+)
+
+/** Persisted exact-frame angular evidence. All analytical quantities are decoded, never re-estimated by UI. */
+object StraightPunchCurrentFrameAngularGeometryCodec {
+    const val CONTRACT = "straight_punch_current_frame_angular_geometry_v1"
+    const val COORDINATES = StraightPunchCurrentFrameAngularAnalyzer.COORDINATE_SPACE
+
+    fun encode(result: StraightPunchCurrentFrameAngularResult, horizontal: StraightPunchHorizontalTargetResult): String {
+        require(result.identity == horizontal.identity)
+        fun SourceNormalizedPoint.json() = JSONObject().put("x", x.toDouble()).put("y", y.toDouble())
+        fun number(value: Double?) = value ?: JSONObject.NULL
+        val identity = result.identity
+        return JSONObject().apply {
+            put("contract", CONTRACT)
+            put("coordinateSpace", COORDINATES)
+            put("recordingId", identity.recordingId)
+            put("landmarkTrackId", identity.landmarkTrackId)
+            put("frameGeometryId", identity.frameGeometryId)
+            put("frameGeometryContractVersion", identity.frameGeometryContractVersion)
+            put("canonicalWidth", identity.canonicalWidth)
+            put("canonicalHeight", identity.canonicalHeight)
+            put("timestampUs", identity.timestampUs)
+            put("frameIndex", identity.frameIndex)
+            put("activeSide", identity.side.name)
+            put("state", result.state.name)
+            put("selectionMode", result.selectionMode.name)
+            put("declaredTargetRaw", result.declaredTargetRaw ?: JSONObject.NULL)
+            put("selectedTarget", result.selectedTarget?.name ?: JSONObject.NULL)
+            put("selectionReason", result.selectionReason)
+            put("comparisonComplete", result.comparisonComplete)
+            put("facing", result.facing.name)
+            put("facingSource", result.facingSource)
+            put("shoulder", result.shoulder?.json() ?: JSONObject.NULL)
+            put("fist", result.fist?.json() ?: JSONObject.NULL)
+            put("fistEstimatorVersion", result.fistEstimatorVersion)
+            put("actualAngleDeg", number(result.actualAngleDeg))
+            put("signedErrorDeg", number(result.signedErrorDeg))
+            put("reach", JSONObject().apply {
+                put("estimatorVersion", result.reach.estimatorVersion)
+                put("state", result.reach.state.name)
+                put("radiusAspectCorrect", number(result.reach.radiusAspectCorrect))
+                put("upperArmP80AspectCorrect", number(result.reach.upperArmP80AspectCorrect))
+                put("distalCompositeFistP80AspectCorrect", number(result.reach.distalCompositeFistP80AspectCorrect))
+                put("supportedTimestampsUs", JSONArray(result.reach.supportedTimestampsUs))
+                put("intervalStartUs", result.reach.intervalStartUs)
+                put("intervalEndUs", result.reach.intervalEndUs)
+                put("minimumConfidence", result.reach.minimumConfidence)
+                put("minimumObservedConfidence", number(result.reach.minimumObservedConfidence))
+                put("reason", result.reach.reason)
+            })
+            put("targets", JSONArray().apply {
+                PunchHeightTargetType.entries.forEach { target ->
+                    val angular = result.targets[target] ?: CurrentFrameAngularTargetEvaluation(
+                        target, CurrentFrameAngularTargetState.UNAVAILABLE, reason = "angular_target_not_evaluated")
+                    val guide = horizontal.guides[target]
+                    put(JSONObject().apply {
+                        put("targetType", target.name)
+                        put("state", angular.state.name)
+                        put("targetPoint", angular.targetPoint?.json() ?: JSONObject.NULL)
+                        put("idealEndpoint", angular.idealEndpoint?.json() ?: JSONObject.NULL)
+                        put("idealAngleDeg", number(angular.idealAngleDeg))
+                        put("signedErrorDeg", number(angular.signedErrorDeg))
+                        put("horizontalErrorNormalized", number(guide?.signedErrorNormalized))
+                        put("horizontalErrorCanonicalPx", number(guide?.signedErrorCanonicalPx))
+                        put("guideEstimatorVersion", guide?.estimatorVersion ?: "unavailable")
+                        put("reason", angular.reason)
+                    })
+                }
+            })
+        }.toString().also { requireNotNull(decode(it)) }
+    }
+
+    fun decode(json: String?): StraightPunchCurrentFrameAngularGeometry? = json?.let { runCatching {
+        val root = JSONObject(it)
+        require(root.getString("contract") == CONTRACT && root.getString("coordinateSpace") == COORDINATES)
+        fun JSONObject.longIdentity(key: String): Long = (get(key) as? Number)?.let { number ->
+            number.toLong().also { require(it >= 0L && number.toDouble() == it.toDouble()) }
+        } ?: error("Invalid identity")
+        fun JSONObject.number(key: String): Double? = if (isNull(key)) null else
+            ((get(key) as? Number)?.toDouble() ?: error("Invalid number")).also { require(it.isFinite()) }
+        fun JSONObject.point(key: String): EvidencePoint? = if (isNull(key)) null else getJSONObject(key).let { point ->
+            EvidencePoint(point.number("x")!!.toFloat(), point.number("y")!!.toFloat())
+        }
+        val width = root.getInt("canonicalWidth")
+        val height = root.getInt("canonicalHeight")
+        require(width > 0 && height > 0)
+        val side = BodySide.valueOf(root.getString("activeSide"))
+        require(side == BodySide.LEFT || side == BodySide.RIGHT)
+        val reachJson = root.getJSONObject("reach")
+        val supportedJson = reachJson.getJSONArray("supportedTimestampsUs")
+        val supported = (0 until supportedJson.length()).map { supportedJson.getLong(it) }
+        require(supported.zipWithNext().all { (a, b) -> a < b })
+        val reach = CompositeFistReachEvidence(
+            reachJson.getString("estimatorVersion"), CurrentFrameAngularTargetState.valueOf(reachJson.getString("state")),
+            reachJson.number("radiusAspectCorrect"), reachJson.number("upperArmP80AspectCorrect"),
+            reachJson.number("distalCompositeFistP80AspectCorrect"), supported,
+            reachJson.longIdentity("intervalStartUs"), reachJson.longIdentity("intervalEndUs"),
+            reachJson.number("minimumConfidence")!!, reachJson.number("minimumObservedConfidence"), reachJson.getString("reason"),
+        )
+        require(reach.intervalStartUs <= reach.intervalEndUs)
+        val targetJson = root.getJSONArray("targets")
+        require(targetJson.length() == PunchHeightTargetType.entries.size)
+        val targets = (0 until targetJson.length()).map { index -> targetJson.getJSONObject(index).let { target ->
+            CurrentFrameAngularTargetGeometry(
+                PunchHeightTargetType.valueOf(target.getString("targetType")),
+                CurrentFrameAngularTargetState.valueOf(target.getString("state")),
+                target.point("targetPoint"), target.point("idealEndpoint"), target.number("idealAngleDeg"),
+                target.number("signedErrorDeg"), target.number("horizontalErrorNormalized"),
+                target.number("horizontalErrorCanonicalPx"), target.getString("guideEstimatorVersion"), target.getString("reason"),
+            )
+        } }
+        require(targets.map { it.targetType }.toSet() == PunchHeightTargetType.entries.toSet())
+        val state = CurrentFrameAngularState.valueOf(root.getString("state"))
+        val selected = if (root.isNull("selectedTarget")) null else PunchHeightTargetType.valueOf(root.getString("selectedTarget"))
+        val error = root.number("signedErrorDeg")
+        require((state == CurrentFrameAngularState.RESOLVED) == (selected != null && error != null))
+        StraightPunchCurrentFrameAngularGeometry(
+            root.getString("recordingId"), root.getString("landmarkTrackId"), root.getString("frameGeometryId"),
+            root.getString("frameGeometryContractVersion"), width, height, root.longIdentity("timestampUs"),
+            root.longIdentity("frameIndex"), side, state,
+            CurrentFrameTargetSelectionMode.valueOf(root.getString("selectionMode")),
+            if (root.isNull("declaredTargetRaw")) null else root.getString("declaredTargetRaw"), selected,
+            root.getString("selectionReason"), root.getBoolean("comparisonComplete"),
+            ImageFacingDirection.valueOf(root.getString("facing")), root.getString("facingSource"),
+            root.point("shoulder"), root.point("fist"), root.getString("fistEstimatorVersion"),
+            root.number("actualAngleDeg"), error, reach, targets,
+        )
+    }.getOrNull() }
+}

@@ -87,6 +87,7 @@ object MovementAnalysisPipeline {
                             resolvedSide = motion.side?.side,
                             canonicalGeometry = geometry,
                             pairedArmEvidence = pairedArmEvidence,
+                            declaredTargetId = activityContext.targetId,
                         )
                     }
                 }.getOrElse { error ->

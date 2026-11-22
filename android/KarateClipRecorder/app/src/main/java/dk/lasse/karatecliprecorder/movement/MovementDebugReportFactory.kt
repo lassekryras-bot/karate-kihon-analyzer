@@ -30,6 +30,14 @@ object MovementDebugReportFactory {
         val selectedTrackId = overrideResult?.originalMotionAnalysis?.landmarkTrackId ?: debug.landmarkTrackId
         val selectedTrack = evidence.landmarkTracks.firstOrNull { it.landmarkTrackId == selectedTrackId }
         val effectiveSource = if (overrideResult == null) "PERSISTED_SELECTED_ANALYSIS" else "EPHEMERAL_DEBUG_OVERRIDE"
+        val retainedAngular = selectedAnalysis?.geometryJson
+            ?.let(StraightPunchCurrentFrameAngularGeometryCodec::decode)
+            ?.takeIf {
+                it.recordingId == evidence.recording.recordingId &&
+                    it.landmarkTrackId == selectedAnalysis.landmarkTrackId &&
+                    it.timestampUs == debug.canonicalAnalysisTimestampUs &&
+                    it.frameIndex == debug.canonicalFrameIndex
+            }
 
         return MovementDebugReport(
             identity = evidence.movement.movementId,
@@ -87,6 +95,7 @@ object MovementDebugReportFactory {
                 ),
                 limbSection(effectiveMotion),
                 terminalImpactSection(effectiveMotion, effectiveSource),
+                currentFrameAngularSection(retainedAngular, selectedAnalysis?.analysisId),
                 bodyHeightSection(debug.bodyHeightDebug, debug.analysisId, debug.landmarkTrackId),
                 targetGeometrySection(debug.bodyHeightDebug, debug.analysisId, debug.landmarkTrackId),
                 measurementSection(selectedMeasurements, presentation.keyResults, selectedAnalysis?.analysisId, debug.analysisId, effectiveSource),
@@ -137,6 +146,62 @@ object MovementDebugReportFactory {
             appendJsonEntries(entries, "impact_evidence", "Retained impact evidence", impactEvidence, setOf("result.debugEvidence"))
         }
         return MovementDebugSection("terminal_impact", "Terminal / Impact Evidence", entries)
+    }
+
+    private fun currentFrameAngularSection(
+        geometry: StraightPunchCurrentFrameAngularGeometry?,
+        analysisId: String?,
+    ): MovementDebugSection {
+        val selected = geometry?.selectedTarget?.let { target ->
+            geometry.targets.firstOrNull { it.targetType == target }
+        }
+        val entries = mutableListOf(
+            text("source", "Source", geometry?.let { "PERSISTED_ANALYZER_GEOMETRY" }),
+            text("analysis_id", "Analysis ID", geometry?.let { analysisId }),
+            text("contract", "Contract", geometry?.let { StraightPunchCurrentFrameAngularGeometryCodec.CONTRACT }),
+            text("recording_id", "Recording ID", geometry?.recordingId),
+            text("landmark_track_id", "Landmark track ID", geometry?.landmarkTrackId),
+            text("frame_geometry_id", "Frame geometry ID", geometry?.frameGeometryId),
+            text("frame_geometry_contract", "Frame geometry contract", geometry?.frameGeometryContractVersion),
+            integer("canonical_width", "Canonical width", geometry?.canonicalWidth?.toLong()),
+            integer("canonical_height", "Canonical height", geometry?.canonicalHeight?.toLong()),
+            integer("timestamp_us", "Representative timestamp (us)", geometry?.timestampUs),
+            integer("frame_index", "Representative frame index", geometry?.frameIndex),
+            text("state", "Angular state", geometry?.state?.name),
+            text("selection_mode", "Selection mode", geometry?.selectionMode?.name),
+            text("declared_target_raw", "Declared target raw", geometry?.declaredTargetRaw),
+            text("selected_target", "Selected target", geometry?.selectedTarget?.name),
+            text("selection_reason", "Selection reason", geometry?.selectionReason),
+            text("facing", "Facing", geometry?.facing?.name),
+            text("facing_source", "Facing source", geometry?.facingSource),
+            point("shoulder", "Striking shoulder", geometry?.shoulder?.x, geometry?.shoulder?.y),
+            point("fist", "Observed composite fist", geometry?.fist?.x, geometry?.fist?.y),
+            decimal("actual_angle_deg", "Actual angle (deg)", geometry?.actualAngleDeg),
+            decimal("signed_error_deg", "Signed angular error (deg)", geometry?.signedErrorDeg),
+            point("selected_target_point", "Selected target point", selected?.targetPoint?.x, selected?.targetPoint?.y),
+            point("selected_ideal_endpoint", "Selected ideal endpoint", selected?.idealEndpoint?.x, selected?.idealEndpoint?.y),
+            decimal("selected_ideal_angle_deg", "Selected ideal angle (deg)", selected?.idealAngleDeg),
+            decimal("selected_signed_error_deg", "Selected signed error (deg)", selected?.signedErrorDeg),
+            decimal("selected_horizontal_error_px", "Selected horizontal diagnostic (px)", selected?.horizontalErrorCanonicalPx),
+            text("reach_estimator_version", "Reach estimator version", geometry?.reach?.estimatorVersion),
+            text("reach_state", "Reach state", geometry?.reach?.state?.name),
+            decimal("reach_radius_aspect_correct", "Reach radius (aspect-correct)", geometry?.reach?.radiusAspectCorrect),
+            decimal("reach_upper_arm_p80", "Upper-arm p80 (aspect-correct)", geometry?.reach?.upperArmP80AspectCorrect),
+            decimal("reach_distal_fist_p80", "Distal composite-fist p80 (aspect-correct)", geometry?.reach?.distalCompositeFistP80AspectCorrect),
+            text("reach_supported_timestamps_us", "Reach supporting timestamps (us)", geometry?.reach?.supportedTimestampsUs?.joinToString(",")),
+            integer("reach_interval_start_us", "Reach interval start (us)", geometry?.reach?.intervalStartUs),
+            integer("reach_interval_end_us", "Reach interval end (us)", geometry?.reach?.intervalEndUs),
+            decimal("reach_minimum_confidence", "Reach required minimum confidence", geometry?.reach?.minimumConfidence),
+            decimal("reach_minimum_observed_confidence", "Reach minimum observed confidence", geometry?.reach?.minimumObservedConfidence),
+            text("reach_reason", "Reach reason", geometry?.reach?.reason),
+        )
+        geometry?.targets?.forEach { target ->
+            val prefix = "target_${target.targetType.name.lowercase()}"
+            entries += text("${prefix}_state", "${target.targetType.name} state", target.state.name)
+            entries += decimal("${prefix}_signed_error_deg", "${target.targetType.name} signed error (deg)", target.signedErrorDeg)
+            entries += text("${prefix}_reason", "${target.targetType.name} reason", target.reason)
+        }
+        return MovementDebugSection("current_frame_angular", "Current-Frame Angular Target", entries)
     }
 
     private fun bodyHeightSection(

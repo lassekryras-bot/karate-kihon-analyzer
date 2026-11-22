@@ -107,6 +107,172 @@ class MovementPresentationMapperTest {
         assertNull(rejected.overlayDefinition)
     }
 
+    @Test
+    fun currentFrameAngularCardOverlayAndArcReopenFromOnePersistedContract() {
+        val recordingId = "recording_angular"
+        val trackId = "track_angular"
+        val descriptor = portraitDescriptor(recordingId, trackId)
+        val identity = HorizontalTargetIdentity(recordingId, trackId, descriptor.geometryId, descriptor.contractVersion,
+            1080, 1920, 1_834_000L, 55L, dk.lasse.karateanalyzer.capture.LateralSide.LEFT)
+        val horizontal = StraightPunchHorizontalTargetResult(
+            identity,
+            dk.lasse.karateanalyzer.geometry.SourceNormalizedPoint(.23f, .45f),
+            StraightPunchHorizontalTargetAnalyzer.FIST_ESTIMATOR,
+            dk.lasse.karateanalyzer.geometry.SourceNormalizedPoint(.56f, .41f),
+            dk.lasse.karateanalyzer.geometry.SourceNormalizedPoint(.55f, .54f),
+            PunchHeightTargetType.entries.associateWith { target ->
+                val y = when (target) { PunchHeightTargetType.JODAN -> .38f; PunchHeightTargetType.CHUDAN -> .47f; PunchHeightTargetType.GEDAN -> .54f }
+                val error = (y - .45f).toDouble()
+                HorizontalTargetGuide(target, HorizontalGuideState.AVAILABLE,
+                    dk.lasse.karateanalyzer.geometry.SourceNormalizedPoint(.55f, y), error, error * 1920.0, "guide", "exact")
+            }, HorizontalClosestState.RESOLVED, PunchHeightTargetType.CHUDAN, "horizontal diagnostic",
+            ImageFacingDirection.IMAGE_LEFT, "paired:NOSE",
+        )
+        val angular = StraightPunchCurrentFrameAngularResult(
+            identity, CurrentFrameAngularState.RESOLVED, CurrentFrameTargetSelectionMode.OPEN, null,
+            PunchHeightTargetType.CHUDAN, "minimum_absolute_angle_error", true,
+            dk.lasse.karateanalyzer.capture.LateralSide.LEFT, ImageFacingDirection.IMAGE_LEFT, "paired:NOSE",
+            dk.lasse.karateanalyzer.geometry.SourceNormalizedPoint(.52f, .40f), horizontal.fist,
+            horizontal.fistEstimatorVersion, -14.83, 5.76,
+            CompositeFistReachEvidence(CompositeFistArmReachEstimator.VERSION, CurrentFrameAngularTargetState.VALID,
+                .178, .088, .090, listOf(1_500_000L, 1_600_000L, 1_834_000L), 1_500_000L, 1_834_000L,
+                .55, .90, "supported"),
+            PunchHeightTargetType.entries.associateWith { target ->
+                val guide = horizontal.guides.getValue(target)
+                val selected = target == PunchHeightTargetType.CHUDAN
+                CurrentFrameAngularTargetEvaluation(target, CurrentFrameAngularTargetState.VALID, guide.targetPoint,
+                    dk.lasse.karateanalyzer.geometry.SourceNormalizedPoint(if (selected) .35f else .37f, guide.targetPoint!!.y),
+                    if (selected) -20.59 else 0.0, if (selected) 5.76 else -14.83, "reachable")
+            },
+        )
+        val movement = SessionMovement("movement_angular", "session_angular", 1_500_000, 2_000_000,
+            1_400_000, 2_100_000, segmentationSource = "test", segmentationVersion = "1")
+        val analysis = MovementAnalysis(movementId = movement.movementId, analyzerKey = StraightPunchMovementAdapter.policy.analyzerKey,
+            analyzerVersion = "4", landmarkTrackId = trackId, state = AnalysisState.COMPLETED,
+            geometryJson = StraightPunchCurrentFrameAngularGeometryCodec.encode(angular, horizontal))
+        val measurements = listOf(
+            MeasurementResult(analysisId = analysis.analysisId, measurementKey = TrainingMeasurements.PUNCH_CURRENT_FRAME_ANGULAR_TARGET,
+                calculationVersion = "1", valueType = ValueType.CATEGORICAL, categoricalValue = "CHUDAN", side = BodySide.LEFT,
+                state = ResultState.VALID, occurrenceUs = 1_834_000, frameIndex = 55),
+            MeasurementResult(analysisId = analysis.analysisId, measurementKey = TrainingMeasurements.PUNCH_CURRENT_FRAME_ANGULAR_ERROR_DEG,
+                calculationVersion = "1", numericValue = 5.76, side = BodySide.LEFT,
+                state = ResultState.VALID, occurrenceUs = 1_834_000, frameIndex = 55),
+            MeasurementResult(analysisId = analysis.analysisId, measurementKey = TrainingMeasurements.PUNCH_CHUDAN_HEIGHT_ERROR_CANONICAL_PX,
+                calculationVersion = "1", numericValue = horizontal.guides.getValue(PunchHeightTargetType.CHUDAN).signedErrorCanonicalPx,
+                side = BodySide.LEFT,
+                state = ResultState.VALID, occurrenceUs = 1_834_000, frameIndex = 55),
+            MeasurementResult(analysisId = analysis.analysisId, measurementKey = TrainingMeasurements.PUNCH_HORIZONTAL_CLOSEST_TARGET,
+                calculationVersion = "1", valueType = ValueType.CATEGORICAL, categoricalValue = "CHUDAN",
+                side = BodySide.LEFT, state = ResultState.VALID, occurrenceUs = 1_834_000, frameIndex = 55),
+        )
+        val evidence = MovementEvidence(movement,
+            MasterRecording(recordingId = recordingId, sessionId = movement.sessionId, filePath = "recording.mp4", createdAtMs = 1,
+                width = 1080, height = 1920, canonicalGeometryJson = CanonicalGeometryCodec.encode(descriptor)),
+            null, emptyList(), emptyList(), listOf(analysis), measurements, listOf(
+                LandmarkTrack(trackId, recordingId, "test", "1", "{}", "track.mls",
+                    state = ProcessingState.COMPLETED, sourceState = SourceState.AVAILABLE,
+                    canonicalGeometryJson = CanonicalGeometryCodec.encode(descriptor))))
+
+        val first = MovementPresentationMapper.map(evidence, 1)
+        val reopened = MovementPresentationMapper.map(evidence, 1)
+        assertEquals("Closest to Chūdan · +5.8° high", first.keyResults.single { it.id == "target_height" }.formattedValue)
+        assertTrue(first.keyResults.single { it.id == "target_height" }.sublabel!!.contains("Horizontal diagnostic: 38.4 px above"))
+        assertEquals(5.76, first.overlayDefinition!!.angleArc!!.signedErrorDeg, 1e-9)
+        assertNotNull(first.overlayDefinition!!.actualRay)
+        assertNotNull(first.overlayDefinition!!.optimalRay)
+        assertEquals(1, first.overlayDefinition!!.rays.size)
+        assertEquals(first, reopened)
+
+        val report = MovementDebugReportFactory.create(evidence, emptyList(), reopened)
+        val angularDebug = report.requireSection("current_frame_angular").entries
+            .associate { it.key to it.value.asPlainText() }
+        assertEquals("PERSISTED_ANALYZER_GEOMETRY", angularDebug["source"])
+        assertEquals("1834000", angularDebug["timestamp_us"])
+        assertEquals("55", angularDebug["frame_index"])
+        assertEquals("x=0.52,y=0.4", angularDebug["shoulder"])
+        assertEquals("x=0.23,y=0.45", angularDebug["fist"])
+        assertEquals("CHUDAN", angularDebug["selected_target"])
+        assertEquals("5.76", angularDebug["signed_error_deg"])
+        assertEquals("5.76", angularDebug["selected_signed_error_deg"])
+        assertEquals("0.178", angularDebug["reach_radius_aspect_correct"])
+        assertEquals("1500000,1600000,1834000", angularDebug["reach_supported_timestamps_us"])
+
+        fun angularVariant(
+            state: CurrentFrameAngularState,
+            mode: CurrentFrameTargetSelectionMode,
+            selected: String?,
+            declared: String?,
+            reason: String,
+            tie: Boolean = false,
+        ): MovementPresentationData {
+            val root = JSONObject(analysis.geometryJson!!)
+                .put("state", state.name)
+                .put("selectionMode", mode.name)
+                .put("selectedTarget", selected ?: JSONObject.NULL)
+                .put("declaredTargetRaw", declared ?: JSONObject.NULL)
+                .put("selectionReason", reason)
+                .put("signedErrorDeg", JSONObject.NULL)
+            val targets = root.getJSONArray("targets")
+            for (index in 0 until targets.length()) {
+                val target = targets.getJSONObject(index)
+                if (tie) {
+                    val targetName = target.getString("targetType")
+                    target.put("state", CurrentFrameAngularTargetState.VALID.name)
+                    target.put("signedErrorDeg", when (targetName) {
+                        "JODAN" -> 4.0
+                        "CHUDAN" -> -4.0
+                        else -> 12.0
+                    })
+                } else {
+                    target.put("state", if (selected == target.getString("targetType"))
+                        CurrentFrameAngularTargetState.UNREACHABLE.name else CurrentFrameAngularTargetState.UNAVAILABLE.name)
+                    target.put("idealEndpoint", JSONObject.NULL)
+                    target.put("idealAngleDeg", JSONObject.NULL)
+                    target.put("signedErrorDeg", JSONObject.NULL)
+                }
+            }
+            val variantAnalysis = analysis.copy(geometryJson = root.toString())
+            val variantMeasurements = measurements.map { measurement ->
+                when (measurement.measurementKey) {
+                    TrainingMeasurements.PUNCH_CURRENT_FRAME_ANGULAR_TARGET -> measurement.copy(
+                        categoricalValue = selected ?: declared,
+                        state = if (selected != null || declared != null) ResultState.PARTIAL else ResultState.ABSTAINED,
+                        reason = reason,
+                    )
+                    TrainingMeasurements.PUNCH_CURRENT_FRAME_ANGULAR_ERROR_DEG -> measurement.copy(
+                        numericValue = null,
+                        state = ResultState.ABSTAINED,
+                        reason = reason,
+                    )
+                    else -> measurement
+                }
+            }
+            return MovementPresentationMapper.map(
+                evidence.copy(analyses = listOf(variantAnalysis), measurements = variantMeasurements), 1)
+        }
+
+        val tied = angularVariant(CurrentFrameAngularState.AMBIGUOUS, CurrentFrameTargetSelectionMode.OPEN,
+            null, null, "exact_absolute_angle_tie", tie = true)
+        assertEquals("Ambiguous", tied.keyResults.single { it.id == "target_height" }.formattedValue)
+        assertTrue(tied.keyResults.single { it.id == "target_height" }.sublabel!!.contains("Jōdan and Chūdan"))
+
+        listOf("no_reachable_targets", "reach_unavailable", "facing_unavailable").forEach { reason ->
+            val unavailable = angularVariant(CurrentFrameAngularState.UNAVAILABLE, CurrentFrameTargetSelectionMode.OPEN,
+                null, null, reason)
+            val result = unavailable.keyResults.single { it.id == "target_height" }
+            assertEquals("Unavailable", result.formattedValue)
+            assertEquals(reason, result.sublabel)
+            assertFalse(result.isAvailable)
+        }
+
+        val declaredUnavailable = angularVariant(CurrentFrameAngularState.UNAVAILABLE,
+            CurrentFrameTargetSelectionMode.DECLARED, "JODAN", "JODAN", "declared_target_unreachable")
+        val declaredResult = declaredUnavailable.keyResults.single { it.id == "target_height" }
+        assertEquals("Jōdan · unavailable", declaredResult.formattedValue)
+        assertTrue(declaredResult.sublabel!!.contains("Declared target: JODAN"))
+        assertFalse(declaredResult.formattedValue.contains("Chūdan"))
+    }
+
     private fun sideEvidence(
         motionSides: List<Pair<String, BodySide?>>,
         targetState: AnalysisState = AnalysisState.ABSTAINED,

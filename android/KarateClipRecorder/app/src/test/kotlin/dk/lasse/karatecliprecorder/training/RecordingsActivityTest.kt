@@ -261,6 +261,8 @@ class RecordingsActivityTest {
             assertTrue("Movements (2)" in texts())
             assertTrue("Movement 1" in texts())
             assertTrue("Movement 2" in texts())
+            assertTrue("Time: 0.5 – 1.5 s (duration 1.00 s)" in texts())
+            assertTrue("Playback: 0.2 – 1.8 s" in texts())
             // Tapping a movement row opens MovementDetailActivity
             val row1 = views(root).first { it.isClickable && views(it).filterIsInstance<TextView>().any { tv -> tv.text == "Movement 1" } }
             val row1ImageViews = views(row1).filterIsInstance<android.widget.ImageView>()

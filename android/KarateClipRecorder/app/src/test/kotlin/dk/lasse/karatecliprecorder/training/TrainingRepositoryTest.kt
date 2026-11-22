@@ -3,6 +3,7 @@ package dk.lasse.karatecliprecorder.training
 import android.content.Context
 import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
+import dk.lasse.karateanalyzer.capture.qom.QomDetectorConfig
 import dk.lasse.karateanalyzer.core.*
 import org.junit.After
 import org.junit.Before
@@ -123,6 +124,92 @@ class TrainingRepositoryTest {
         assertEquals(firstEvidence, retryEvidence)
         assertEquals(1, repository.events(session.sessionId).count { it.type == MotionActivityPlans.EVENT_TYPE })
         assertEquals(RunState.FAILED, repository.run(firstRun.runId)?.state)
+    }
+
+    @Test fun experimentalSegmentationSelectionIsPersistedAndPropagatedToFreshRun() {
+        val (session, track) = session()
+        val recording = assertNotNull(repository.recording(session.sessionId))
+        val auditFrames = (0..4).map { index ->
+            val points = PoseLandmarkId.entries.associateWith { id ->
+                val point = when (id) {
+                    PoseLandmarkId.LEFT_SHOULDER -> Point3(0f, 0f, 0f)
+                    PoseLandmarkId.LEFT_ELBOW -> Point3(if (index in 1..2) -2f else -1f, 0f, 0f)
+                    PoseLandmarkId.LEFT_HIP -> Point3(0f, 1f, 0f)
+                    PoseLandmarkId.RIGHT_HIP -> Point3(1f, 1f, 0f)
+                    else -> Point3(id.ordinal / 20f, id.ordinal / 30f, 0f)
+                }
+                PoseLandmarkSample(point, point, .95f, .95f, LandmarkSource.OBSERVED)
+            }
+            PoseFrame(index * 100L, points)
+        }
+        val auditFile = File(directory, "audit-${trainingId()}.mls")
+        val auditHash = LandmarkFiles.write(auditFile, auditFrames)
+        val verifiedTrack = track.copy(
+            landmarkTrackId = trainingId(),
+            recordingId = recording.recordingId,
+            filePath = auditFile.path,
+            sha256 = auditHash,
+            formatId = LandmarkFiles.FORMAT_ID,
+            formatVersion = LandmarkFiles.VERSION,
+        )
+        repository.addTrack(verifiedTrack)
+        repository.addEvent(SessionEvent(
+            sessionId = session.sessionId,
+            type = MotionActivityPlans.EVENT_TYPE,
+            timestampUs = 0L,
+            data = MotionActivityPlans.ALTERNATING_PUNCH,
+            timingSource = MotionActivityPlans.OPERATOR_POST_CAPTURE_ORIGIN,
+        ))
+
+        val legacyRun = repository.prepareReanalysisRun(session.sessionId).first
+        assertEquals(QomDetectorConfig.SUPPORTED_WORLD_V2, legacyRun.segmenterVersion)
+        repository.failRun(legacyRun.runId, "fixture")
+
+        val (selectedRun, evidence) =
+            repository.selectExperimentalSideViewSegmentationAndPrepareReanalysis(session.sessionId)
+        assertEquals(
+            SegmentationProfileSelectionStore.EXPERIMENTAL_SIDE_VIEW_ALTERNATING_PUNCH,
+            evidence.profileId,
+        )
+        assertEquals(QomDetectorConfig.SIDE_VIEW_ALTERNATING_PUNCH_V2, selectedRun.segmenterVersion)
+        assertEquals(
+            evidence.eventId,
+            repository.events(session.sessionId)
+                .single { it.type == SegmentationProfileSelectionStore.EVENT_TYPE }
+                .sessionEventId,
+        )
+        assertTrue(repository.events(session.sessionId).none {
+            it.type == DiagnosticImpactViewConfirmationStore.EVENT_TYPE
+        })
+
+        val reopenedRepository = TrainingRepository(db)
+        assertEquals(
+            evidence,
+            SegmentationProfileSelectionStore.current(reopenedRepository.events(session.sessionId)),
+        )
+        assertEquals(
+            QomDetectorConfig.SIDE_VIEW_ALTERNATING_PUNCH_V2,
+            reopenedRepository.run(selectedRun.runId)?.segmenterVersion,
+        )
+        val diagnosticReplay = SideViewSegmentationDiagnostics.replay(reopenedRepository, selectedRun.runId)
+        assertEquals(verifiedTrack.landmarkTrackId, diagnosticReplay.landmarkTrackId)
+        assertEquals(auditHash, diagnosticReplay.landmarkSha256)
+        assertEquals(
+            SideViewSegmentationDiagnostics.EvidenceSource.RECOMPUTED_FROM_RETAINED_RUN,
+            diagnosticReplay.evidenceSource,
+        )
+        val unresolved = diagnosticReplay.result.derivedFrames[2].landmarks
+            .getValue(PoseLandmarkId.LEFT_ELBOW)
+        assertEquals(
+            dk.lasse.karateanalyzer.capture.qom.DerivedLandmarkProvenance.UNRESOLVED_REJECTED,
+            unresolved.provenance,
+        )
+        assertEquals(
+            dk.lasse.karateanalyzer.capture.qom.DerivedLandmarkRepairRefusalReason.ANCHOR_SPAN_EXCEEDS_LIMIT,
+            unresolved.repairRefusalReason,
+        )
+        assertEquals(300L, unresolved.repairAnchorSpanMs)
+        assertEquals(-2f, unresolved.rejectedObservedPoint?.x)
     }
 
     @Test fun confirmationUsesLiveReservationAndPreservesHistoricalProcessingRows() {

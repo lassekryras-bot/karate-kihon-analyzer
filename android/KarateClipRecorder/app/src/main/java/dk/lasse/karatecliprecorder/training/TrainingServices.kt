@@ -213,6 +213,28 @@ class TrainingServices private constructor(context: Context) {
         }
     }
 
+    fun selectExperimentalSideViewSegmentationAndReanalyze(
+        sessionId: String,
+        completed: (Result<ProcessingRun>) -> Unit = {},
+    ) {
+        executeSessionProcessing(sessionId, completed) { reservation ->
+            check(dk.lasse.karatecliprecorder.BuildConfig.DEBUG) { "Experimental segmentation requires a debug build" }
+            val (run, _) = repository.selectExperimentalSideViewSegmentationAndPrepareReanalysis(
+                sessionId,
+                reservation,
+            )
+            val proc = processor(
+                checkActive = {
+                    val currentJob = repository.job(sessionId)
+                    check(currentJob == null || currentJob.state != QueueState.DELETING) { "Cancelled" }
+                },
+                publication = { op -> synchronized(ProcessingCoordinator.publication) { op() } },
+            )
+            proc.processReanalysis(sessionId, run.runId)
+            requireNotNull(repository.run(run.runId))
+        }
+    }
+
     fun runFullHeavyComparator(
         sessionId: String,
         completed: (Result<FullHeavyComparatorRunResult>) -> Unit = {},

@@ -17,7 +17,7 @@ data class MovementMotionOutput(
 
 /** Product adapter: all motion mathematics stays in the shared analytical core. */
 object MovementMotionAnalysis {
-    val policy = AnalyzerPolicy("four_limb_activity_motion", listOf("3", "2", "1"))
+    val policy = AnalyzerPolicy("four_limb_activity_motion", listOf("4", "3", "2", "1"))
 
     fun analyze(
         movement: SessionMovement, trackId: String, frames: List<PoseFrame>, geometry: CanonicalGeometryDescriptor,
@@ -71,7 +71,7 @@ object MovementMotionAnalysis {
         val payload = encode(movement, limbs, side, sequence, impactProfile, scopedViewApproval, impact, qom, reason,
             bodyScale, calibration, activityPlanEvidence)
         val analysis = MovementAnalysis(movementId = movement.movementId, analyzerKey = policy.analyzerKey,
-            analyzerVersion = "3", landmarkTrackId = trackId,
+            analyzerVersion = "4", landmarkTrackId = trackId,
             state = if (limbs.profiles.values.any { it.metrics != null }) AnalysisState.PARTIAL else AnalysisState.ABSTAINED,
             reason = reason ?: "Provisional descriptive motion evidence", geometryJson = payload)
         return MovementMotionOutput(analysis, limbs, side, impact)
@@ -118,7 +118,7 @@ object MovementMotionAnalysis {
         }
         val supportingEpisode = side?.supportingEpisode
         val paired = side?.pairedArmEvidence
-        return obj("contract" to "movement-motion-v3", "movementId" to movement.movementId,
+        return obj("contract" to "movement-motion-v4", "movementId" to movement.movementId,
             "trackId" to limbs.landmarkTrackId, "geometryId" to limbs.canonicalGeometry.geometryId,
             "geometry" to dk.lasse.karateanalyzer.geometry.CanonicalGeometryCodec.encode(limbs.canonicalGeometry),
             "logicalStartUs" to movement.startUs, "logicalEndUs" to movement.endUs,
@@ -211,6 +211,11 @@ object MovementMotionAnalysis {
                 "motionEnvelope" to it.motionEnvelope, "transitionScore" to it.terminalTransitionScore,
                 "stable" to it.stableState) }),
             "qom" to JSONArray(qom.filter { it.timestampMs * 1000 in movement.startUs..movement.endUs }
-                .map { obj("timeUs" to it.timestampMs * 1000, "rollingArea" to it.rollingArea) })).toString()
+                .map { evidence -> obj(
+                    "timeUs" to evidence.timestampMs * 1000,
+                    "rollingArea" to evidence.rollingArea.takeIf { evidence.isAvailable && it.isFinite() },
+                    "isAvailable" to evidence.isAvailable,
+                    "reason" to evidence.reason,
+                ) })).toString()
     }
 }

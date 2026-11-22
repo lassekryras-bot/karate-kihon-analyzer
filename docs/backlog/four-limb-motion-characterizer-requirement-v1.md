@@ -1,12 +1,45 @@
 # Four-Limb Motion Characterizer — Shared Requirement v1
 
-**Status:** IN PROGRESS — implemented; side correctness unresolved
+**Status:** IN PROGRESS — scoped paired-side implementation accepted; broader acceptance pending
+
+**Side correction delivered — 2026-11-21:** architect-approved commit `5ee140bf8b780ff39b66cda14fb8811294b187b5` is reported pushed to main and verified at local HEAD. Ordinary side-correction implementation is complete; exact native processor replay resolves 10/10 review sides with Room persistence/reload. Senior reports core 522/app 482 suite results (three optional skips) and debug build success. Broader characterizer/domain validation, device UI and independent impact/reference/view-policy acceptance remain open; no automatic saved-data reprocessing. Earlier dated P1 descriptions below document the pre-fix state.
+
+**Phone acceptance — 2026-11-21:** Senior reports installation of `5ee140b` on Samsung SM-A556B without clearing data and targeted normal-UI reanalysis of the exact 15 Sep recording using its saved MLS. Persisted movement detail views show the expected alternating LEFT/RIGHT sequence for all ten movements. The ordinary side-correction slice is validated on this phone/sample; broader characterizer/general accuracy and independent downstream policies remain open. See [003 device milestone](prioritized/003-end-to-end-punch-analysis-coordination.md#side-correction-verified-on-phone--2026-11-21).
+
+**Phone provenance complete:** new completed run, retained prior history, unchanged source MP4/MLS hashes and matching installed APK identity are recorded in [003's durable provenance](prioritized/003-end-to-end-punch-analysis-coordination.md#side-phone-provenance-completed--2026-11-21). Reanalysis changed the database by design; no byte-unchanged database claim applies.
+
+**Latest scoped acceptance — 2026-11-21:** PA approved paired-arm side implementation, scoped commit/push and debug delivery. Native segmentation retains ten intervals; normal Android processing and Room reopen match all ten review sides on the exact recording, correcting 2/4/6/8 and 10 versus reproduced `30e17d6` baseline (nine LEFT, last UNKNOWN). Prior final-review findings are resolved. Commit/APK evidence and phone UI acceptance remain pending; this is source-specific implementation acceptance, not general accuracy or completion of the broader characterizer/impact requirements. See [003 acceptance](prioritized/003-end-to-end-punch-analysis-coordination.md#pa-side-implementation-accepted--2026-11-21).
 **Scope:** Generic per-segment characterization of left/right arm and left/right leg motion
 **Working name:** `FourLimbMotionCharacterizer`
 
 **Delivery status (2026-11-07): IN PROGRESS.** Characterizer and partial-visibility resolver v2 exist (`276b5d0`, `cd296e2`); production side correctness is not accepted. See [implementation status](../four-limb-motion-implementation-status.md). The supplied requirement below remains the design baseline.
 
+## Current user specification — 2026-11-21
+
+**DECIDED by Lasse, explicitly relayed by Project Architect on 2026-11-21:** implement a full-window paired-arm world-velocity side score for alternating straight punches. Senior is assigned implementation, baseline/after replay and normal Android downstream consumption, not only a diagnostic experiment. This section is the current side-method requirement; earlier dated episode-opening and conservative paired-inference restrictions below are superseded where they conflict. Historical decisions/results remain preserved.
+
+- Use hip-relative world coordinates and one fixed, reliable movement forward axis.
+- Use the fixed five-landmark roster for each arm: elbow, wrist, thumb, index and pinky. Apply causal 3-sample median followed by 3-sample mean per landmark.
+- Use minimum smoothed endpoint confidence and fixed-roster support. For each valid interval integrate `(cR * vR - cL * vL) / (cR + cL)` over `dt`; positive score resolves RIGHT, negative resolves LEFT. Retain contribution/confidence evidence and explicit axis provenance rather than treating the score as direct observation of an otherwise missing landmark.
+- One available arm is permitted with zero unavailable term; both-missing intervals and gaps are excluded. Small scores, unreliable axis or insufficient coverage must remain uncertain. No numeric uncertainty/coverage thresholds are established by this backlog entry.
+- Evaluate the full detected movement window, including crossings. Verify return-to-guard contamination explicitly; do not silently change segmentation bounds to obtain a preferred score.
+- Elbow-angle interpretation remains diagnostic, not the primary side rule. Apply expected alternation only after the side decision; repeated same-side movements must remain detectable.
+
+Completion for this side change requires shared-core code, relevant contract/counterexample tests, normal Android downstream consumption, and exact-source before/after replay with per-side/interval contributions, coverage/axis uncertainty, and disclosed outcome changes. Preserve versioned historical interpretations and existing non-target activity behavior. Senior supplies evidence for Architect implementation review before claiming acceptance.
+
+Impact/activity-view gates and production calibration requirements remain unchanged. This instruction does not grant view suitability, relax neutral-reference evidence, or authorize automatic production reanalysis. Preserve current unrelated dirty BA/diagnostic files. Status remains IN PROGRESS.
+
+**2026-11-21 implementation-validation checkpoint:** PA reports preliminary private candidate replay matches ten review labels on unchanged windows; normal processor integration/tests remain pending. Required ordering is 3D per-landmark filtering before projection, with reliable independent forward-sign evidence; an ear-midpoint fallback is not accepted without evidence. Candidate 0.03 m deadband and axis gates remain provisional, not general accuracy validation. No final implementation/push approval or all-ten production-fix claim. Detailed milestone status is in [003](prioritized/003-end-to-end-punch-analysis-coordination.md#preliminary-paired-side-replay--2026-11-21).
+
+**2026-11-21 PA final-review pass 1: CHANGES REQUIRED.** The preliminary all-ten replay injected segmentation; fresh native-segmenter/pre-change comparison and full app rerun are still required. Correct nonfinite confidence, axis coverage across rejected reference/sign frames, and source-track/geometry binding. Inspect return-to-guard boundaries and distinguish bilateral support from agreement. See [review findings](prioritized/003-end-to-end-punch-analysis-coordination.md#pa-final-review-pass-1--changes-required-2026-11-21). The requested formula/direction remains aligned, but final implementation/push acceptance is withheld.
+
 ## Current follow-up — 2026-11-07
+
+**2026-11-08 priority update:** Lasse selected this P1 as the first step of [end-to-end punch analysis](prioritized/003-end-to-end-punch-analysis-coordination.md), relayed by PA. Recent paired phone work recovered the exact source/Heavy track, resolving the historical missing-source blocker below. Senior is assigned identity-bound evidence, a per-movement blocker matrix and the smallest corrective proposal. Preserve accepted segmentation/history; no automatic production reanalysis or forced ten-punch outputs.
+
+**2026-11-08 evidence checkpoint:** Senior delivered exact-source review/proposal to PA: LEFT is correct on 1/3/5/7/9, incorrect on reviewed RIGHT 2/4/6/8, and movement 10 remains ambiguous. Visible-left wrist body-relative direction separates this source, but far/right wrist evidence is mostly fragmentary; do not promote inferred opposite-arm extension to observed evidence. See [initial blocker summary](prioritized/003-end-to-end-punch-analysis-coordination.md#initial-evidence-deliverable--2026-11-08). Body-relative side semantics await Architect decision; no corrective production rule approved yet.
+
+Detailed evidence owner: [sanitized ten-punch blocker matrix](../validation/punch-analysis/exact-ten-punch-blocker-matrix-2026-11-08.md), including reference/sign/time definitions, sensitivity and identity limits. Senior reports test-only counterexamples passing; this does not approve the production rule.
 
 Open P1: retained ten-punch replay labelled visible RIGHT punches 2, 4, 6 and 8 LEFT; movement 10 abstained. An opening episode can belong to the retracting arm. Authoritative observations and the rejected shoulder-reach-plus-opening counterexample are in [DOMAIN.md](../../project-knowledge/DOMAIN.md), including diagnostic commit `94e7454`.
 

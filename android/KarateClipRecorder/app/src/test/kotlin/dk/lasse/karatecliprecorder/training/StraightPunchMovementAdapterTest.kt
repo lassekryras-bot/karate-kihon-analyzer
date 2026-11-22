@@ -16,6 +16,18 @@ import kotlin.test.*
 @Config(sdk = [28])
 class StraightPunchMovementAdapterTest {
 
+    private fun paired(movement: SessionMovement, geometry: CanonicalGeometryDescriptor) = StraightPunchPairedArmResult(
+        movement.movementId, "test-track", geometry, movement.startUs, movement.endUs,
+        StraightPunchPairedArmConfig(), StraightPunchPairedArmAnalyzer.VERSION,
+        ForwardAxisEvidence(ForwardAxisStatus.RELIABLE, Point3(-1f, 0f, 0f), 1.0, 1.0,
+            movement.endUs - movement.startUs, 4, "NOSE"),
+        -0.3, movement.endUs - movement.startUs, 1.0, PairedArmSupportMode.BILATERAL,
+        ArmPairedMotionEvidence(-.3, -.3, movement.endUs - movement.startUs, 1.0),
+        ArmPairedMotionEvidence(0.0, 0.0, movement.endUs - movement.startUs, 1.0),
+        LateralSide.LEFT, PairedArmDecisionReason.RESOLVED_PAIRED_SCORE, 3,
+        movement.endUs - movement.startUs, 0, 0,
+    )
+
     private fun sample(x: Float, y: Float) =
         PoseLandmarkSample(Point3(x, y, 0f), Point3(x, y, 0f), 0.95f, 0.95f, LandmarkSource.OBSERVED)
 
@@ -172,19 +184,21 @@ class StraightPunchMovementAdapterTest {
             ),
         )
 
+        val frames = listOf(buildImpactFrame(1_500), buildImpactFrame(1_600), transition, representative)
         val (analysis, results) = StraightPunchMovementAdapter.analyze(
-            movement, "test-track", listOf(transition, representative), impactResult = impact,
-            resolvedSide = LateralSide.LEFT, canonicalGeometry = geometry,
+            movement, "test-track", frames, impactResult = impact,
+            resolvedSide = LateralSide.LEFT, canonicalGeometry = geometry, pairedArmEvidence = paired(movement, geometry),
         )
 
-        assertEquals("3", analysis.analyzerVersion)
+        assertEquals("4", analysis.analyzerVersion)
         assertNotEquals(AnalysisState.ABSTAINED, analysis.state)
-        val persisted = requireNotNull(StraightPunchHorizontalGeometryCodec.decode(analysis.geometryJson))
+        val persisted = requireNotNull(StraightPunchCurrentFrameAngularGeometryCodec.decode(analysis.geometryJson))
         assertEquals(1_834_000, persisted.timestampUs)
-        assertEquals(1L, persisted.frameIndex)
-        assertEquals(expectedFist.x, persisted.fist.x)
-        assertEquals(expectedFist.y, persisted.fist.y)
-        assertTrue(results.all { it.occurrenceUs == 1_834_000L && it.frameIndex == 1L })
+        assertEquals(3L, persisted.frameIndex)
+        assertEquals(expectedFist.x, requireNotNull(persisted.fist).x)
+        assertEquals(expectedFist.y, requireNotNull(persisted.fist).y)
+        assertTrue(results.all { it.occurrenceUs == 1_834_000L && it.frameIndex == 3L })
+        assertNotNull(results.single { it.measurementKey == TrainingMeasurements.PUNCH_CURRENT_FRAME_ANGULAR_ERROR_DEG }.numericValue)
         assertNotNull(results.single { it.measurementKey == TrainingMeasurements.PUNCH_CHUDAN_HEIGHT_ERROR_CANONICAL_PX }.numericValue)
     }
 

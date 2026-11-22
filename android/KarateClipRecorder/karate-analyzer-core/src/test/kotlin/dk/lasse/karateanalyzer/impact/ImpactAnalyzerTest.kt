@@ -148,6 +148,26 @@ class ImpactAnalyzerTest {
     }
 
     @Test
+    fun `unavailable qom is neither peak evidence nor bridged at the selected timestamp`() {
+        val source = input()
+        val baseline = ImpactAnalyzer.analyze(source)
+        val transitionMs = requireNotNull(baseline.terminalTransitionTimestampUs) / 1_000L
+        val altered = source.qomTimeline.map { evidence ->
+            when (evidence.timestampMs) {
+                source.qomTimeline.last().timestampMs -> evidence.copy(rollingArea = 99.0, isAvailable = false, reason = "gap")
+                transitionMs -> evidence.copy(rollingArea = 0.0, isAvailable = false, reason = "missing")
+                else -> evidence
+            }
+        }
+
+        val result = ImpactAnalyzer.analyze(source.copy(qomTimeline = altered))
+
+        assertEquals(180_000L, result.qomPeakTimestampUs)
+        assertNull(result.qomRollingAreaAtTransition)
+        assertNull(result.debugEvidence.single { it.timestampUs == result.terminalTransitionTimestampUs }.qomRollingArea)
+    }
+
+    @Test
     fun `current per sample deadbands expose sampling dependence for one smooth trajectory`() {
         val noSmoothing = profile().copy(
             configVersion = "test_sampling_dependence_v1",

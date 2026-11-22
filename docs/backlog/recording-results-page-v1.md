@@ -2,6 +2,18 @@
 
 Status: IN PROGRESS
 
+## Active-arm debug presentation follow-up — 2026-11-21
+
+PA relays a current user fix assigned to Senior: the Recordings movement-row debug label Active arm reads the first target measurement's side. When target measurements are absent it displays UNKNOWN despite a resolved persisted v3 side result. This is a presentation inconsistency, not evidence that the side analyzer failed.
+
+Required correction: reuse the authoritative persisted-side presentation already used by MovementDetail. Do not derive a competing side from target-measurement presence. Keep genuinely unavailable/ambiguous side evidence explicit and preserve provenance/version selection.
+
+Acceptance: for a resolved saved v3 side with no target measurement rows, the Recordings debug label agrees with MovementDetail; unresolved/absent evidence remains unavailable rather than guessed. Verify the applicable presentation cases and normal reopen behavior. No impact policy, analyzer calculation, historical data mutation or reanalysis is included. Implementation/review pending; tracked here under [003](prioritized/003-end-to-end-punch-analysis-coordination.md), not as a duplicate task.
+
+**2026-11-21 review/device checkpoint:** Architect APPROVED the source/test changes. Shared presentation-side resolution uses the selected retained motion result, preserves unresolved motion as unknown, and permits historical target fallback only when motion evidence is absent. PA independently verified test XML: 485 total, zero failures/errors, three optional skips. Senior reports installed APK SHA-256 `5dc2b93b1fd0e662747a525ca16c9ad77863d9d2238876b9147cde55c3721572` and Recordings movements 1–10 agree with MovementDetail's LEFT/RIGHT sequence on device without reanalysis. BA did not rerun tests or inspect the phone. Four scoped implementation files are ready; commit/push identity is pending, so final delivery is not yet recorded. Impact blockers and broader Recording Results acceptance remain unchanged.
+
+**Follow-up DONE — 2026-11-21:** Senior reports approved fix pushed to main at `36735d8cc83a6f230e1fbbfd057ab582d96cc381`; BA verified the commit exists locally. Full app suite: 485 entries, three optional skips, no failures/errors per reviewed evidence; debug build passed. Phone rows display the ten alternating retained sides without reanalysis. This closes only the Active arm presentation follow-up; broader Recording Results acceptance and independent impact/reference/view blockers remain open. Unrelated local edits were excluded from the implementation commit.
+
 ## Delivery checkpoint — 2026-11-07
 
 OBSERVED at `94e7454`: `app/.../recordings/RecordingsActivity.kt` contains the recording detail presentation, Session analysis section and movement list; `a8f5406` also restyles the recordings browser. Implementation is present, so OPEN as wholly unstarted is misleading. This does not certify all specification criteria or future-provider data. Next action: compare the detail UI against the requirements below, retain unavailable states where providers are absent, and record remaining device/accessibility acceptance. No fresh tests or device checks ran in this reconciliation.

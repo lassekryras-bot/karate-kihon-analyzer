@@ -2,6 +2,14 @@
 
 ## Status
 
+**2026-11-08 diagnostic follow-up:** selected-side retained-video target initialization is blocked by the existing bilateral setup requirement on the recovered recording. Even hypothetical-view impact completion for movements 1/9 produces `neutral_body_reference_unavailable` and zero measurements because the far wrist is unavailable. [Detailed evidence and semantic questions](../validation/punch-analysis/exact-ten-punch-blocker-matrix-2026-11-08.md#minimum-semantic-decisions-still-owned-by-architectureproduct) are authoritative; [003](prioritized/003-end-to-end-punch-analysis-coordination.md) coordinates review. This is not approval to remove the bilateral prerequisite or manufacture a neutral reference.
+
+**2026-11-08 PA direction:** approved investigation of versioned retained-video reference eligibility without requiring unused-arm visibility. Retain bilateral torso anchors, independently established visible-side/head semantics, actual earlier stable neutral evidence, selected-arm metric requirements and persisted provenance. Preserve live setup behavior. No impact-frame fallback, calibration-as-neutral substitution or production activation. Senior must first deliver minimal reuse design and diagnostic M1/M9 reference replay; see [003 approval scope](prioritized/003-end-to-end-punch-analysis-coordination.md#pa-retained-video-reference-direction--2026-11-08).
+
+**2026-11-21 diagnostic review:** a reported 1.5-second neutral jitter failure is provisional: PA identified window enumeration that may require exact-duration spans and omit irregular-timestamp candidates. Correct/test the probe, rerun baseline, then perform the approved bounded shorter-duration sweep with other thresholds fixed. See [003 checkpoint](prioritized/003-end-to-end-punch-analysis-coordination.md#neutral-window-diagnostic-review--2026-11-21). Investigation only; no recording-ineligibility conclusion, production reference/view relaxation or new resolver groundwork is approved from the current probe.
+
+**2026-11-21 corrected probe:** Senior fixed enumeration and added a nonuniform-timestamp regression. M1 has no valid reference at any swept duration (1.5–0.5 s); M9's four 0.5 s numeric candidates are punch/terminal/return motion, not neutral guard, per direct video inspection. See [corrected evidence summary](prioritized/003-end-to-end-punch-analysis-coordination.md#corrected-retained-reference-probe--2026-11-21). Senior recommends retaining current semantics/unavailable output and future capture-time neutral provenance; PA disposition pending. No threshold/profile change, new capture implementation or phone reanalysis authorized by this checkpoint.
+
 IN PROGRESS — implementation present; complete acceptance remains unverified.
 
 Source reconciliation at `94e7454` (2026-11-07) found implementations for all three previously listed code blockers:
@@ -972,3 +980,23 @@ Do not expand this task into:
 - unrelated Home/Learning UI work.
 
 Keep this corrective pass focused on evidence quality, geometry correctness, replay/presentation behavior, and explicit full landmark reprocessing.
+
+## Current horizontal target-height requirement — 2026-11-21
+
+DECIDED: explicit user requirement relayed by Project Architect to BA. Implement as a new version within task003; preserve old angular semantics and historical results. This supersedes conflicting earlier-neutral, unused-arm and angular-ray prerequisites for the new horizontal target-height result only.
+
+Use the exact representative frame from COMPLETED impact analysis. In canonical image pixels, signed vertical error is `targetY - fistY`. Evaluate supported targets independently: Jodan uses supported chin evidence; Chudan is 45% from shoulder midpoint S toward hip midpoint H; Gedan uses hip midpoint. Do not require an unused arm or an earlier neutral pose for this frame-local metric. Missing required evidence makes the affected target unavailable; partial availability must be explicit. Closest target and on-target status are distinct; ties are ambiguous. Do not invent a target tolerance or unsupported target position.
+
+Existing camera-view approval, selected-side, terminal/stability and representative-frame gates remain. Manually confirmed results retain diagnostic labels and ordinary-history/baseline exclusion. This change does not activate the separate frame-rate correction or claim contact timing, anatomical elbow measurements, or production camera suitability.
+
+Senior owns plan, implementation, regression checks and normal phone replay/reopen. Verify the retained M1 interval 1,500,000–2,000,000 us with representative 1,834,000 us; report M1/M9 supported horizontal outputs and exact per-target blockers. Preserve source video, landmarks and prior analysis runs.
+
+## Current shoulder-origin angular presentation — 2026-11-21
+
+DECIDED: explicit user refinement relayed by Project Architect. This supersedes pixels as the PRIMARY UI for new results, not the meaning of historical horizontal v3 measurements. Preserve horizontal delivery evidence separately; implementation existence and phone verification must be reported independently.
+
+At the exact completed-impact representative frame, use the actual anatomical striking shoulder to composite fist as the observed ray. Retain horizontal target guides: supported chin for Jodan, 45% from shoulder midpoint toward hip midpoint for Chudan, and hip midpoint for Gedan. No earlier neutral reference is required. The optimal ray ends at the forward intersection of the shoulder-centered reach circle with the applicable horizontal guide. Calculate aspect-correct signed angular error in degrees with high/low interpretation invariant under mirroring.
+
+A declared target is authoritative: if unavailable or unreachable, report that result without substituting another target. For an open target, select the closest reachable target by angular error; ties remain ambiguous. Closest is not synonymous with on-target. Preserve partial target support explicitly. Persist observed/optimal line and arc inputs, exact frame identity, and new analyzer version/measurement keys. Horizontal v3 pixels remain diagnostic/historical; old neutral-based angular result semantics remain untouched. Reuse the shared analytical core and existing result pipeline rather than creating a competing implementation.
+
+Senior owns plan, implementation and phone verification at 1,834,000 us (reported frame 55) for the retained 1,500,000–2,000,000 us movement interval. Verify source-frame indexing rather than assuming its convention. Existing impact/view checks, manual diagnostic provenance, history exclusions and retained source/history protections continue. This refinement does not activate sampling-rate corrections.

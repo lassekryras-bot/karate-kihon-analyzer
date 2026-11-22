@@ -8,6 +8,8 @@ import dk.lasse.karateanalyzer.geometry.CanonicalGeometryDescriptor
 import dk.lasse.karateanalyzer.capture.qom.QomFrameEvidence
 import dk.lasse.karateanalyzer.capture.qom.QomDetectorConfig
 import dk.lasse.karateanalyzer.capture.qom.QomMotionEvidenceExtractor
+import dk.lasse.karateanalyzer.capture.qom.SideViewAlternatingPunchConfig
+import dk.lasse.karateanalyzer.capture.qom.SideViewAlternatingPunchSegmenter
 import java.io.File
 
 /** Reuses persisted landmarks and movement identities after process loss or when rerunning an analyzer. */
@@ -170,9 +172,14 @@ class TrainingSessionProcessor(
         val isReanalysis = reanalysisRunId != null
         val session = requireNotNull(repository.session(sessionId))
         val recording = requireNotNull(repository.recording(sessionId))
-        val activityPlanEvidence = MotionActivityPlans.evidenceFromEvents(repository.events(sessionId))
+        val sessionEvents = repository.events(sessionId)
+        val activityPlanEvidence = MotionActivityPlans.evidenceFromEvents(sessionEvents)
         val activityContext = activityPlanEvidence?.context
-        val plan = RecordingProcessingPlans.forSession(session, activityContext)
+        val plan = RecordingProcessingPlans.forSession(
+            session,
+            activityContext,
+            SegmentationProfileSelectionStore.current(sessionEvents),
+        )
 
         var currentRun = if (isReanalysis) {
             requireNotNull(repository.run(reanalysisRunId))
@@ -237,6 +244,7 @@ class TrainingSessionProcessor(
             val segmentationVersion = requireNotNull(currentRun.segmenterVersion) {
                 "Processing run segmentation version is missing"
             }
+            val recordingEndUs = frames.last().timestampMs * 1_000L
             val qomConfig = RecordingProcessingPlans.qomConfigForVersion(segmentationVersion)
             updateJob(sessionId) { it.copy(phase = ProcessingPhase.SEGMENTATION) }
             repository.setSessionState(sessionId, SessionState.SEGMENTING)
@@ -256,12 +264,7 @@ class TrainingSessionProcessor(
                     qomConfig,
                 )
                 qomTimeline = retro.qomTimeline
-                val movements = retro.movements.map { m ->
-                    val canonical = CanonicalAnalysisFrameSelector.select(
-                        m.logicalStartTimestampMs * 1000L,
-                        m.logicalEndTimestampMs * 1000L,
-                        frames,
-                    )
+                val rawMovements = retro.movements.map { m ->
                     SessionMovement(
                         sessionId = sessionId,
                         startUs = m.logicalStartTimestampMs * 1000L,
@@ -273,13 +276,21 @@ class TrainingSessionProcessor(
                         segmentationTrackId = source.landmarkTrackId,
                         segmentationConfidence = null,
                         runId = currentRun.runId,
-                        analysisFrameUs = canonical?.timestampUs,
+                        analysisFrameUs = null,
                         segmentationEndBoundaryKind = m.endBoundaryKind.name,
                         segmentationUnknownRangesJson = m.unknownEvidenceIntervals.takeIf { it.isNotEmpty() }
                             ?.joinToString(prefix = "[", postfix = "]") { interval ->
                                 "{\"startUs\":${interval.startTimestampMs * 1000L},\"endUs\":${interval.endTimestampMs * 1000L}}"
                             },
                     )
+                }
+                val movements = rawMovements.mapIndexed { index, movement ->
+                    val canonical = CanonicalAnalysisFrameSelector.select(
+                        movement.startUs,
+                        movement.endUs,
+                        MovementFrameOwnership.frames(index, rawMovements, frames, recordingEndUs),
+                    )
+                    movement.copy(analysisFrameUs = canonical?.timestampUs)
                 }
                 val links = retro.movements.zip(movements).mapNotNull { (m, stored) ->
                     m.associatedCue?.let { MovementSessionEvent(stored.movementId, it.id, sessionId) }
@@ -291,7 +302,10 @@ class TrainingSessionProcessor(
                 repository.saveSegmentation(
                     sessionId,
                     movements,
-                    movements.map { MovementObservation.estimate(it, frames) },
+                    movements.mapIndexed { index, movement -> MovementObservation.estimate(
+                        movement,
+                        MovementFrameOwnership.frames(index, movements, frames, recordingEndUs),
+                    ) },
                     links,
                     labels,
                     runId = currentRun.runId,
@@ -321,14 +335,22 @@ class TrainingSessionProcessor(
                 activityPlanEvidence = activityPlanEvidence,
                 debugBuild = dk.lasse.karatecliprecorder.BuildConfig.DEBUG,
             )
-            val limbResults = runMovements.associate { movement ->
-                checkActive()
-                movement.movementId to MovementMotionAnalysis.characterize(movement, source.landmarkTrackId, frames, geometry)
+            val ownedFrames = runMovements.mapIndexed { index, _ ->
+                MovementFrameOwnership.frames(index, runMovements, frames, recordingEndUs)
             }
+            val limbResults = runMovements.mapIndexed { index, movement ->
+                checkActive()
+                movement.movementId to MovementMotionAnalysis.characterize(
+                    movement,
+                    source.landmarkTrackId,
+                    ownedFrames[index],
+                    geometry,
+                )
+            }.toMap()
             val pairedArmResults = if (activityContext?.activity == LimbInterpretationActivity.STRAIGHT_PUNCH) {
-                runMovements.associate { movement -> movement.movementId to StraightPunchPairedArmAnalyzer.analyze(
-                    movement.movementId, source.landmarkTrackId, geometry, movement.startUs, movement.endUs, frames)
-                }
+                runMovements.mapIndexed { index, movement -> movement.movementId to StraightPunchPairedArmAnalyzer.analyze(
+                    movement.movementId, source.landmarkTrackId, geometry, movement.startUs, movement.endUs, ownedFrames[index])
+                }.toMap()
             } else emptyMap()
             val indexedMovements = runMovements.mapNotNull { movement ->
                 // Spoken cue ordinal is one-based and retained even when a repetition was not detected.
@@ -343,11 +365,21 @@ class TrainingSessionProcessor(
                 runCatching { ActivityStartingSideResolver.resolveSequence(indexedMovements, context).repetitions
                     .associateBy { it.observed.evidence.movementId } }.getOrDefault(emptyMap())
             }.orEmpty()
-            val motionQom = qomTimeline ?: QomMotionEvidenceExtractor(
-                config = qomConfig,
-                profile = plan.movementProfile,
-            ).let { extractor -> frames.map(extractor::extract) }
-            runMovements.forEach { movement ->
+            val motionQom = qomTimeline ?: if (qomConfig.detectorVersion in setOf(
+                    QomDetectorConfig.SIDE_VIEW_ALTERNATING_PUNCH_V1,
+                    QomDetectorConfig.SIDE_VIEW_ALTERNATING_PUNCH_V2,
+                )
+            ) {
+                SideViewAlternatingPunchSegmenter(
+                    SideViewAlternatingPunchConfig.from(qomConfig),
+                ).segment(frames).qomTimeline
+            } else {
+                QomMotionEvidenceExtractor(
+                    config = qomConfig,
+                    profile = plan.movementProfile,
+                ).let { extractor -> frames.map(extractor::extract) }
+            }
+            runMovements.forEachIndexed { movementIndex, movement ->
                 checkActive()
                 val analyzersToRun = plan.analyzers.filter { analyzerKey ->
                     when (analyzerKey) {
@@ -361,10 +393,10 @@ class TrainingSessionProcessor(
                 val evaluated = MovementAnalysisPipeline.evaluate(
                     movement = movement,
                     trackId = source.landmarkTrackId,
-                    frames = frames,
+                    frames = ownedFrames[movementIndex],
                     geometry = geometry,
                     activityContext = activityContext,
-                    qom = motionQom,
+                    qom = MovementFrameOwnership.qom(movementIndex, runMovements, motionQom, recordingEndUs),
                     limbs = limbResults.getValue(movement.movementId),
                     sequence = sequenceByMovement[movement.movementId],
                     pairedArmEvidence = pairedArmResults[movement.movementId],

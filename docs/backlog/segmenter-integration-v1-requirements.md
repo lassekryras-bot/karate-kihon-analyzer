@@ -350,3 +350,67 @@ The milestone is:
 
 See the companion [validation plan](segmenter-integration-v1-validation.md) and
 [starter prompt](../prompts/segmenter-integration-v1-start-prompt.md).
+
+## Offline side-view alternating-punch option — 2026-11-22
+
+**Status: implementation and validation pending.** User implementation request relayed by PA; Senior owns code, source evidence and phone execution. BA inspected `Downloads/karate_qom_team_handoff.zip` / `START_HERE.md` as proposal and fixture evidence. This extends this existing segmentation owner under coordination task003, not a duplicate task or replacement of legacy profiles.
+
+Implement a versioned opt-in shared-core detector restricted to the supported offline side-view alternating straight-punch profile. Preserve immutable raw MLS and separate derived repair provenance (observed/interpolated/unresolved, anchor timestamps and reliability). Reference fixture uses left-arm length outlier detection (median ±3 scaled MAD), bounded timestamp interpolation (200 ms anchor span), smoothed body-centroid-relative arm coordinates, world-X travel proxy, trailing150 ms QoM integration and quiet-range adaptive candidate detection. Its8× quiet-range acceptance factor is fixture-tuned; left-arm repair is the only demonstrated repair side. Do not silently generalize to bilateral repair, other camera views, adaptive axes or physical calibration.
+
+No spoken count, expected count or CSV boundary enters detection. Associate cues afterward. Adjacent logical intervals may share endpoints; frame ownership is half-open with a shared sample assigned to the later movement, while candidate scoring retains its boundary-sample convention. Viewing padding remains separate. Downstream side, impact and target analyzers retain independent evidence/view requirements; segmentation success grants no downstream eligibility. Legacy processing and historical versions remain preserved.
+
+Fixture: session `e38f86cd-9e95-4cfb-80ff-45c176241c01`, track `d7d06fdc-c247-429c-8af3-8d8c89f25e16`; archive states MLS SHA-256 `499d6fd3beb0acf6a21680bad4c0461274a526f22673b3b0afcf4c673a2d4a15`. Reference claims625 frames,21 candidates,20 accepted vs prior17. These are DOCUMENTED until reproduced. The CSV contains detector output, not independently annotated onset/end truth. The archive states the MP4 was unavailable. Exact video boundaries and generalization remain pending; see the existing validation owner for required evidence.
+
+### Explicit activation decision — 2026-11-22
+
+DECIDED by PA: activate this experimental option only through explicit recorded processing-plan selection for side-view alternating straight punches. Persist the selected option, configuration/version and selection provenance. Keep the existing default unchanged; never select it automatically for all alternating-punch recordings.
+
+Current `operator_selected` requestedView and post-segmentation ObservationContext do not establish authoritative pre-segmentation side-view evidence. Explicit plan selection declares segmentation intent only. It is not ImpactViewApproval or camera suitability approval and must not unlock downstream side, impact or target evidence gates. Implementation and fixture acceptance remain pending.
+
+### Replay centroid roster clarification — 2026-11-22
+
+PA corrected an earlier review assertion: the actual replay includes bilateral FOOT_INDEX landmarks. Its suffix check sees INDEX, so foot/toe indices are not excluded. Use an explicit landmark-ID roster matching the executable replay, including both FOOT_INDEX points. This corrects the interpretation, not the intended reference output. BA found no existing foot-index exclusion claim in the current backlog/project-knowledge text; this clarification prevents such an assumption from entering implementation requirements. Fixture parity and independent validation remain separate evidence obligations.
+
+### Unresolved-point exclusion supersedes exact replay parity — 2026-11-22
+
+DECIDED by user, relayed by PA: exclude unresolved points in the production pipeline of the new detector. Preserve the original replay unchanged as the regression comparison. Predictable enforcement of the repair limit is the rationale; this is not a claim of more accurate movement timing. Failed-length points whose anchor span is233 ms exceed the200 ms interpolation limit and remain UNRESOLVED with a recorded reason and retained raw observations. Other usable landmarks may contribute. Reset affected histories; never compute velocity across the unsupported gap. This is unresolved-point exclusion, not removal of FOOT_INDEX from the centroid roster.
+
+Exact parity with all40 reference endpoints is superseded by three explicitly expected differences: punch2 end2,801,000→2,434,000 us; punch3 start2,801,000→2,901,000 us; punch19 end19,407,000→19,374,000 us. The other37 endpoints remain expected to match. Original replay has21 candidates/20 accepted windows; exclusion variant has20/20. Preserve both sets as distinct evidence. The467 ms interval between2.434 and2.901 seconds is NOT established stillness. Independent video annotation of punch2 end and punch3 onset is still required. PA reports fixture count validated; frame timing remains OPEN. Implementation/full-suite acceptance remains pending review.
+
+### Reviewed implementation checkpoint — 2026-11-22
+
+PA approved the explicit-profile implementation after direct code review, graph inspection and fresh test XML:544 core tests plus512 app tests, zero failures/errors and seven app skips. Senior separately reports private fixture replay20 candidates/20 windows with the three approved endpoint differences. PA authorized one normal phone verification for session `e38f86cd-9e95-4cfb-80ff-45c176241c01`, preserving raw evidence and history. Device acceptance remains PENDING; independent frame-timing and generalization acceptance remain OPEN. Default selection and downstream impact/view eligibility are unchanged.
+
+Diagnostic provenance is `RECOMPUTED_FROM_RETAINED_RUN`: reconstruct diagnostics from SHA-verified raw MLS and the version-fixed configuration. Do not describe derived-point diagnostics as persisted observations or a persisted derived track. Required repair/unresolved reasons and anchor provenance must remain distinguishable in the recomputed evidence.
+
+### Device checkpoint verified by Senior — 2026-11-22
+
+Senior reports successful normal phone verification on Samsung SM-A556B: one explicit profile selection and one new run `9a16c7e0-2a8e-444f-8eea-ea3ea7e4b721` for session `e38f86cd-9e95-4cfb-80ff-45c176241c01`. Reopened UI shows Detected20 / Planned20; all20 windows match the approved exclusion variant, with only the three approved reference deltas. Both previous runs remain retained. Raw MLS SHA-256 is unchanged: `499d6fd3beb0acf6a21680bad4c0461274a526f22673b3b0afcf4c673a2d4a15`. Installed/build APK SHA-256 matches: `CEC3727E577C8304A5248D71700EAD772021A22D0518A8607FCC3661F1C05392`.
+
+Movement2 ends with `EVIDENCE_GAP_WITHOUT_STOP_EVIDENCE`; the467 ms interval is not confirmed stillness. This closes the scoped device checkpoint on Senior's evidence, distinct from PA's direct local code/test/graph review. It does not establish exact video boundary timing or generalization. Per-point diagnostics recomputed on the phone were not reported directly inspected; private MLS and retained-run replay tests passed instead. Default selection and downstream approval remain unchanged.
+
+### Reopened audit — CHANGES REQUIRED, 2026-11-22
+
+PA withdrew implementation acceptance after a reopened audit. This supersedes the earlier approval status, without erasing the factual20-movement replay/phone checkpoint. Count/output parity was successful but insufficient for implementation acceptance.
+
+Senior owns focused repairs and regression tests for:
+
+- UI Time currently uses padded playback bounds while duration uses logical bounds; align the displayed interval semantics.
+- New-profile half-open frame ownership differs between shared core and app for nonshared ends; make ownership consistent.
+- Centered reference smoothing bridges long tracking gaps; preserve gap boundaries.
+- Missing QoM is represented as numeric zero and loses availability through serialization/ImpactAnalyzer; preserve unknown evidence end to end.
+- Signed world-X diagnostics are omitted; retain the promised diagnostic evidence separately from absolute motion.
+
+Repairs/tests precede another phone run. Existing version-fixed configuration mapping is acceptable if immutable and enforced; a parameter snapshot is not newly mandatory. Timing/independent annotation/generalization remain OPEN. Prior run/history and observed count evidence remain valid records, not proof these defects are resolved.
+
+### Corrective versioning decision — 2026-11-22
+
+DECIDED by PA: deliver the corrected detector as v2; do not change v1 in place. A v1 phone run is already persisted, and deterministic recomputed diagnostics depend on immutable version semantics. Preserve historical v1 processing/recomputed diagnostic behavior. Equal fixture boundaries do not establish algorithm equivalence. Use existing minimal version dispatch and append-only selection, without a new framework.
+
+Senior proposed ImpactAnalyzer v3 and MovementMotionAnalysis v4 for changed downstream missing-evidence semantics; these downstream version numbers are PROPOSED pending review, not a completed delivery. Keep historical payloads/rows readable. Overall status remains CHANGES REQUIRED pending implementation review and tests.
+
+### Corrective v2 reviewed; device verification pending — 2026-11-22
+
+Current status supersedes CHANGES REQUIRED for the reviewed implementation checkpoint: PA approved corrected v2 for ONE fresh-build normal phone verification. Direct review covered version separation, ownership propagation, missing QoM and gap isolation. Fresh XML:548 core +515 app tests, zero failures/errors, six app skips. Prior audit findings are addressed in reviewed code; this is not yet device acceptance.
+
+Senior must verify actual logical-versus-playback labels,20 windows and approved deltas, new version provenance and missing-evidence behavior on device, not count alone. Preserve historical v1 run/recomputed diagnostic meaning and original replay comparison. Independent frame timing and generalization remain OPEN.

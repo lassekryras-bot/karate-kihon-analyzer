@@ -1,10 +1,20 @@
 # ImpactAnalyzer — Shared Analyzer Requirement v1
 
 **Status:** IN PROGRESS — implementation exists; production suitability unresolved
+
+**2026-11-21 explicit manual diagnostic:** Lasse authorizes recording-scoped operator side-view confirmation and actual reanalysis for session `6d90a774-ebcb-441c-afdc-e9f36235a64b` / `alternating-straight-punch-v1`. PA approved this bounded approach and requested concrete implementation review before execution. Use explicit manual/diagnostic provenance, validate recording+plan binding, preserve downstream side/stability/reference/geometry checks and history. This supersedes earlier no-view-input restrictions only for this requested test, not production suitability policy. [003](prioritized/003-end-to-end-punch-analysis-coordination.md#explicit-manual-view-diagnostic-authorization--2026-11-21) owns execution evidence.
 **Scope:** Offline analysis of one already-segmented, analysis-suitable movement  
 **Primary use:** Locate the terminal event of a known strike and identify the stable terminal window that follows it
 
 ## Delivery checkpoint — 2026-11-07
+
+**2026-11-08 priority update:** selected after P1 striking-side evidence in [end-to-end punch analysis](prioritized/003-end-to-end-punch-analysis-coordination.md). Keep validated straight-punch/activity/view eligibility explicit before supported terminal/per-metric output; production approval is not implied by selecting this work. Scoped fixture/label discipline is sufficient to begin the bounded investigation; the full validation dataset program is not a prerequisite. Completion still requires traceable evidence, legitimate abstentions and persisted/reopened phone verification through the existing UI owners.
+
+**2026-11-08 evidence checkpoint:** Senior reports all ten accepted movements lack approved activity/view mapping and have zero measurement rows; movement 10 is side-blocked first. Generic evidence persistence/display exists. Max speed, path deviation and hikite speed are unimplemented placeholders, so removing an impact blocker cannot supply those metrics. Policy proposal/matrix is with PA; no approval or broader metric implementation follows from this evidence.
+
+**2026-11-08 executable diagnostic:** under explicitly hypothetical view input, impact completed for movements 1/9 only; 3/5/7 lacked continuous 100 ms terminal stability. Completed impact still yielded zero target measurements because bilateral setup lacked the far wrist. See [diagnostic owner](../validation/punch-analysis/exact-ten-punch-blocker-matrix-2026-11-08.md#hypothetical-view-replay-through-current-impact-and-target-code). No production profile or stable-window relaxation is approved; target initialization semantics need separate review.
+
+**2026-11-21 current-phone recheck:** Senior verified all ten current motion v3 results remain PARTIAL and target v2 results ABSTAINED with `UNSUPPORTED_ANALYSIS_PROFILE`, zero measurement rows, on run `fec07ba7-3914-4c9e-9e9b-ceefac6b1690`. Read-only check; no reanalysis/data change. [003](prioritized/003-end-to-end-punch-analysis-coordination.md#current-phone-blocker-confirmed--2026-11-21) owns the current coordination checkpoint. Reference reuse design/diagnostic M1/M9 replay proceeds within prior constraints; production activity/view policy decision remains pending.
 
 OBSERVED: implementation `c2dd2bd`, integration `276b5d0` and gating/persistence repair `9df4e12` exist. The shared owner is `android/KarateClipRecorder/karate-analyzer-core/src/main/kotlin/dk/lasse/karateanalyzer/impact/ImpactAnalyzer.kt`; app routing is in `app/.../training/MovementMotionAnalysis.kt`.
 

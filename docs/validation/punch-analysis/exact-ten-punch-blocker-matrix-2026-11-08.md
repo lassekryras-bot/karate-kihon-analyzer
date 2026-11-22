@@ -195,3 +195,34 @@ The phone's only other available recording has no retained source landmark track
 3. For impact only, what measurable occlusion/orientation conditions—separate from target suitability—make selected-side composite-hand motion and articulation interpretable? `OTHER`/`UNKNOWN` orientation metadata and landmark confidence are not approval.
 
 Threshold tuning, filtering, and stable-window calibration remain evidence questions, not owner preference questions. Independent opposite-camera and mirrored captures are follow-up acceptance evidence; mathematical reflection is not a substitute.
+
+## Authorized manual side-view phone run — 2026-11-21
+
+OBSERVED by Senior Developer on Samsung SM-A556B, reviewed by PA: confirmation event `7efe1e3e-565a-4d10-9857-ab4de95921ac`, source `operator_post_capture_view_confirmation`, profile `diagnostic-manual-side-view-v1`, consumed by fresh completed/current run `b2e23d77-4a1a-4e00-9799-fae0e5cfc242` for session `6d90a774-ebcb-441c-afdc-e9f36235a64b` and assigned `alternating-straight-punch-v1`. This is operator diagnostic evidence, not live-landmark verification or production camera-view validation.
+
+| Movements | Impact outcome | Representative timestamp | Target outcome |
+| --- | --- | --- | --- |
+| M1 | COMPLETED | 1,834,000 us | `neutral_body_reference_unavailable` |
+| M9 | COMPLETED | 10,737,000 us | `neutral_body_reference_unavailable` |
+| M3, M5, M7 | ABSTAINED: `NO_STABLE_TERMINAL_WINDOW` | None | ABSTAINED |
+| M2, M4, M6, M8, M10 | ABSTAINED: `LIMB_EVIDENCE_UNAVAILABLE` | None | ABSTAINED |
+
+All ten persisted `impactEvidence.result`: ten evaluated, two completed, eight abstained. All ten targets abstained; zero target measurements. No reason strings or downstream checks were bypassed.
+
+Old example `a3ea4ebe-c2d9-474c-a910-b60754885f82` remains on historical run `5a4dfd1f-154c-4bf9-85d5-f8c7d178f5aa`. Corresponding new M1 `8370683b-053c-47e0-898a-496ddc967178` has the same 1,500,000–2,000,000 us interval. Terminal arrival: 1,734,000 us; stable interval: 1,834,000–2,000,000 us. New M9 `2481ecc4-6911-436f-9874-58aeda450cd3`: terminal arrival 10,670,000 us; stable interval 10,737,000–10,870,000 us.
+
+Run count increased 24 to 25 with history retained. MP4 SHA-256 unchanged: `f87c0c3e93ef1af5d171353028ba47f34d20e9da665aae2062c66b57b13f1e35`. MLS SHA-256 unchanged and matches persisted hash: `39091b93bba46594ca7ff2a752e86ed2eb762e99d7112ae0cdb4bd54fd2fff54`; track remains `4826f011-499f-4a12-b36a-d9b4b208f6a5`. Debug package `dk.lasse.karatecliprecorder`, version 0.1.0/code 1, updated in place without uninstall/data clear. Cold reopen with Developer Mode off retained diagnostic labeling and hid debug actions. Full suite: 495 tests, zero failures/errors, three skips. Remaining target-reference work is separate from this completed diagnostic.
+
+## Remaining-blocker diagnostics and corrected interpretation — 2026-11-21
+
+Reported by Senior Developer and reviewed by PA; production behavior remains unchanged and no additional phone run was justified.
+
+The five RIGHT movements fail the early impact limb-evidence gate: selected RIGHT_ARM metrics are absent, with JOINT_GEOMETRY_UNAVAILABLE/GAPS. No frame in these movement windows meets the 0.55 right-elbow confidence requirement. Paired-arm side inference does not supply the missing selected-arm articulation evidence.
+
+The first hand-only probe (report SHA-256 `5bb493ca45011a1d7b9466ebb494dd5a0be5c8ca01ad687577a62c892dff2733`) incorrectly reused the production 0.02-body-height per-step deadband to characterize approach. Its broad no-approach conclusion is SUPERSEDED, not evidence that hand-only analysis is impossible or that recapture is required.
+
+Corrected diagnostic report SHA-256: `35595e4a3096b6e0195cfc5d4271cf8c4306933575faef89ce00515d5afef8d8`. It uses timestamp-normalized finite differences of filtered positions, excludes five-sample filter warmup, and uses 0.02 only as a provisional fixed endpoint tolerance. M2/M4/M6/M8 have insufficient post-warmup support (4–6 valid frames total, beginning near extension). M10 has gradual outward motion: post-warmup displacement 0.019786 body heights, peak filtered radial velocity 0.195 body heights/second at 12.004 seconds, and fixed-endpoint stable suffix 12.271–12.604 seconds. Its diagnostic status is OUTWARD_APPROACH_WITHIN_FIXED_TOLERANCE_AT_UNCONFIRMED_RECORDING_END. It is not absent approach. Limits include filtered finite differences, synthetic coverage at 25/50 fps only, inspection of the trailing support block rather than earlier blocks, and unproven identity continuity. PA accepted this bounded diagnostic evidence, not a production impact profile.
+
+Separate frame-rate report SHA-256: `8095985c93e57cde02577eae81202471b79f3427213f31f623a695e928004dcb`. The same synthetic physical trajectory completes at 30 fps and abstains at 60 fps. Observed-frame subsampling of exact M3/M5/M7 changes transition timing/scores but all remain NO_STABLE_TERMINAL_WINDOW. This establishes sampling sensitivity in the tested synthetic trajectory; it does not establish the cause of the three real-recording failures or validate a correction. Existing continuous quiet evidence remains 33 ms / none / 34 ms against the 100 ms requirement. Further production correction requires review and regression evidence; do not relax thresholds merely to clear these examples.
+
+M1/M9 still lack a confirmed qualifying neutral reference under the previously tested policies. Diagnostic progress does not remove that independent requirement.

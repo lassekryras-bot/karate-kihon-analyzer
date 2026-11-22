@@ -9,7 +9,7 @@ import dk.lasse.karateanalyzer.geometry.CanonicalGeometryDescriptor
 import dk.lasse.karateanalyzer.capture.LateralSide
 
 object StraightPunchMovementAdapter {
-    val policy = AnalyzerPolicy("straight_punch_target", listOf("3", "2", "1"))
+    val policy = AnalyzerPolicy("straight_punch_target", listOf("4", "3", "2", "1"))
 
     fun analyze(
         movement: SessionMovement,
@@ -22,9 +22,10 @@ object StraightPunchMovementAdapter {
         resolvedSide: dk.lasse.karateanalyzer.capture.LateralSide? = null,
         canonicalGeometry: CanonicalGeometryDescriptor? = null,
         pairedArmEvidence: StraightPunchPairedArmResult? = null,
+        declaredTargetId: String? = null,
     ): Pair<MovementAnalysis, List<MeasurementResult>> {
-        if (impactResult != null) return analyzeHorizontal(
-            movement, trackId, frames, impactResult, resolvedSide, canonicalGeometry, pairedArmEvidence
+        if (impactResult != null) return analyzeCurrentFrame(
+            movement, trackId, frames, impactResult, resolvedSide, canonicalGeometry, pairedArmEvidence, declaredTargetId
         )
         val resolved = CanonicalAnalysisFrameSelector.resolve(
             movement.startUs,
@@ -304,7 +305,7 @@ object StraightPunchMovementAdapter {
         return analysis to results
     }
 
-    private fun analyzeHorizontal(
+    private fun analyzeCurrentFrame(
         movement: SessionMovement,
         trackId: String,
         frames: List<PoseFrame>,
@@ -312,11 +313,12 @@ object StraightPunchMovementAdapter {
         resolvedSide: LateralSide?,
         geometry: CanonicalGeometryDescriptor?,
         pairedArmEvidence: StraightPunchPairedArmResult?,
+        declaredTargetId: String?,
     ): Pair<MovementAnalysis, List<MeasurementResult>> {
         fun abstain(reason: String) = MovementAnalysis(
             movementId = movement.movementId,
             analyzerKey = policy.analyzerKey,
-            analyzerVersion = "3",
+            analyzerVersion = "4",
             landmarkTrackId = trackId,
             state = AnalysisState.ABSTAINED,
             reason = reason,
@@ -362,25 +364,65 @@ object StraightPunchMovementAdapter {
             )
         ) ?: return abstain("exact_frame_horizontal_evidence_unavailable_or_identity_mismatch")
 
+        val angular = StraightPunchCurrentFrameAngularAnalyzer.analyze(
+            StraightPunchCurrentFrameAngularInput(
+                movementStartUs = movement.startUs,
+                frame = indexed.value,
+                frameIndex = indexed.index.toLong(),
+                horizontal = horizontal,
+                frames = frames,
+                canonicalGeometry = geometry,
+                declaredTargetId = declaredTargetId,
+                minimumConfidence = impact.provenance.calibration.minimumLandmarkConfidence.toFloat(),
+            )
+        )
+
         val availableCount = horizontal.guides.values.count { it.state == HorizontalGuideState.AVAILABLE }
-        val analysisState = when {
-            availableCount == 0 -> AnalysisState.ABSTAINED
-            horizontal.closestState != HorizontalClosestState.RESOLVED -> AnalysisState.PARTIAL
-            availableCount < PunchHeightTargetType.entries.size -> AnalysisState.PARTIAL
-            else -> AnalysisState.COMPLETED
+        val analysisState = when (angular.state) {
+            CurrentFrameAngularState.RESOLVED -> if (angular.comparisonComplete) AnalysisState.COMPLETED else AnalysisState.PARTIAL
+            CurrentFrameAngularState.AMBIGUOUS -> AnalysisState.PARTIAL
+            CurrentFrameAngularState.UNAVAILABLE -> AnalysisState.ABSTAINED
         }
         val analysis = MovementAnalysis(
             movementId = movement.movementId,
             analyzerKey = policy.analyzerKey,
-            analyzerVersion = "3",
+            analyzerVersion = "4",
             landmarkTrackId = trackId,
             state = analysisState,
-            reason = "horizontal=${horizontal.closestState};closest=${horizontal.closestTarget};available=$availableCount/3;${horizontal.closestReason}",
-            geometryJson = StraightPunchHorizontalGeometryCodec.encode(horizontal),
+            reason = "angular=${angular.state};selected=${angular.selectedTarget};mode=${angular.selectionMode};" +
+                "horizontal=${horizontal.closestState};available=$availableCount/3;${angular.selectionReason}",
+            geometryJson = StraightPunchCurrentFrameAngularGeometryCodec.encode(angular, horizontal),
         )
         val side = if (impact.side == LateralSide.LEFT) BodySide.LEFT else BodySide.RIGHT
         val resultState = if (analysisState == AnalysisState.COMPLETED) ResultState.VALID else ResultState.PARTIAL
         val results = mutableListOf<MeasurementResult>()
+        results += MeasurementResult(
+            analysisId = analysis.analysisId,
+            measurementKey = TrainingMeasurements.PUNCH_CURRENT_FRAME_ANGULAR_TARGET,
+            calculationVersion = "1",
+            valueType = ValueType.CATEGORICAL,
+            categoricalValue = angular.selectedTarget?.name ?: angular.declaredTargetRaw,
+            side = side,
+            role = "strike",
+            state = if (angular.selectedTarget == null && angular.declaredTargetRaw == null) ResultState.ABSTAINED else resultState,
+            reason = angular.selectionReason,
+            confidence = impact.confidence,
+            occurrenceUs = timestampUs,
+            frameIndex = indexed.index.toLong(),
+        )
+        results += MeasurementResult(
+            analysisId = analysis.analysisId,
+            measurementKey = TrainingMeasurements.PUNCH_CURRENT_FRAME_ANGULAR_ERROR_DEG,
+            calculationVersion = "1",
+            numericValue = angular.signedErrorDeg,
+            side = side,
+            role = "strike",
+            state = if (angular.signedErrorDeg == null) ResultState.ABSTAINED else resultState,
+            reason = angular.selectionReason,
+            confidence = impact.confidence,
+            occurrenceUs = timestampUs,
+            frameIndex = indexed.index.toLong(),
+        )
         results += MeasurementResult(
             analysisId = analysis.analysisId,
             measurementKey = TrainingMeasurements.PUNCH_HORIZONTAL_CLOSEST_TARGET,

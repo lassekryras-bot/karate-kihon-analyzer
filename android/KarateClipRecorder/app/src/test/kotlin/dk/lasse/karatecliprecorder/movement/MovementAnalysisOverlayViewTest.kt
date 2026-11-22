@@ -2,6 +2,7 @@ package dk.lasse.karatecliprecorder.movement
 
 import android.content.Context
 import android.graphics.PointF
+import android.graphics.RectF
 import androidx.test.core.app.ApplicationProvider
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -77,5 +78,27 @@ class MovementAnalysisOverlayViewTest {
         assertTrue(overlay.shouldRenderAt(1_834_000L))
         assertFalse(overlay.shouldRenderAt(1_835_000L))
         assertEquals(3, overlay.raysForDisplay().size)
+    }
+
+    @Test
+    fun mirroredRayLabelsStayInsideDisplayedImageAndZeroAngleIsNeutral() {
+        val overlay = MovementAnalysisOverlayView(context, MovementTimelineState(0L, 2_000_000L))
+        val imageBounds = RectF(20f, 30f, 420f, 330f)
+
+        val imageLeftActual = overlay.boundedLabelLayout("Actual", PointF(imageBounds.left, 40f), -100f, imageBounds)
+        val imageRightActual = overlay.boundedLabelLayout("Actual", PointF(imageBounds.right, 320f), 100f, imageBounds)
+        val imageLeftOptimal = overlay.boundedLabelLayout("Optimal", PointF(imageBounds.left, 160f), 15f, imageBounds)
+        val imageRightOptimal = overlay.boundedLabelLayout("Optimal", PointF(imageBounds.right, 160f), 15f, imageBounds)
+
+        listOf(imageLeftActual, imageRightActual, imageLeftOptimal, imageRightOptimal).forEach { label ->
+            assertTrue(label.bounds.left >= imageBounds.left)
+            assertTrue(label.bounds.top >= imageBounds.top)
+            assertTrue(label.bounds.right <= imageBounds.right)
+            assertTrue(label.bounds.bottom <= imageBounds.bottom)
+        }
+        assertEquals("0.0°", overlay.angularErrorLabel(0.0))
+        assertEquals("0.0°", overlay.angularErrorLabel(-0.01))
+        assertEquals("+5.8° high", overlay.angularErrorLabel(5.76))
+        assertEquals("-5.8° low", overlay.angularErrorLabel(-5.76))
     }
 }

@@ -12,6 +12,7 @@ enum class QomSegmentState {
 
 enum class QomEndBoundaryKind {
     STOP_GATE,
+    EVIDENCE_GAP_WITHOUT_STOP_EVIDENCE,
     RECORDING_END_WITHOUT_STOP_EVIDENCE,
 }
 

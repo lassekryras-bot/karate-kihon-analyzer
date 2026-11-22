@@ -5,6 +5,10 @@ import dk.lasse.karateanalyzer.capture.qom.QomEndBoundaryKind
 import dk.lasse.karateanalyzer.capture.qom.QomFrameEvidence
 import dk.lasse.karateanalyzer.capture.qom.QomMotionEvidenceExtractor
 import dk.lasse.karateanalyzer.capture.qom.QomMovementSegmenter
+import dk.lasse.karateanalyzer.capture.qom.QomDetectorConfig
+import dk.lasse.karateanalyzer.capture.qom.SideViewAlternatingPunchConfig
+import dk.lasse.karateanalyzer.capture.qom.SideViewAlternatingPunchResult
+import dk.lasse.karateanalyzer.capture.qom.SideViewAlternatingPunchSegmenter
 import dk.lasse.karateanalyzer.capture.qom.QomUnknownEvidenceInterval
 import dk.lasse.karateanalyzer.core.PoseFrame
 import kotlin.math.max
@@ -23,6 +27,7 @@ data class RetrospectiveSessionResult(
     val kinematicsTimeline: List<RetrospectiveKinematicFrame>,
     val stats: RetrospectiveSignalStats,
     val qomTimeline: List<QomFrameEvidence> = emptyList(),
+    val sideViewAlternatingPunch: SideViewAlternatingPunchResult? = null,
 )
 
 /**
@@ -55,6 +60,14 @@ class RetrospectiveSessionSegmenter(
                 stats = RetrospectiveSignalStats(0.0, 0.0, 0.0, 0.0, 0.1580),
                 qomTimeline = emptyList(),
             )
+        }
+
+        if (config.qomConfig.detectorVersion in setOf(
+                QomDetectorConfig.SIDE_VIEW_ALTERNATING_PUNCH_V1,
+                QomDetectorConfig.SIDE_VIEW_ALTERNATING_PUNCH_V2,
+            )
+        ) {
+            return segmentSideViewAlternatingPunch(sequenceId, masterVideoPath, frames, cueTimeline)
         }
 
         val totalDurationMs = frames.last().timestampMs
@@ -219,6 +232,91 @@ class RetrospectiveSessionSegmenter(
             stats = stats,
             qomTimeline = qomTimeline,
         )
+    }
+
+    private fun segmentSideViewAlternatingPunch(
+        sequenceId: String,
+        masterVideoPath: String,
+        frames: List<PoseFrame>,
+        cueTimeline: CueTimeline?,
+    ): RetrospectiveSessionResult {
+        check(config.profile == dk.lasse.karateanalyzer.capture.qom.MotionBodyProfile.PUNCH) {
+            "Side-view alternating-punch segmentation requires the punch profile"
+        }
+        val detectorConfig = SideViewAlternatingPunchConfig.from(config.qomConfig)
+        val detection = SideViewAlternatingPunchSegmenter(detectorConfig).segment(frames)
+        val totalDurationMs = frames.last().timestampMs
+        val availableCues = cueTimeline?.cues.orEmpty()
+        val globalUnknown = unknownIntervals(detection.qomTimeline, totalDurationMs)
+        val movements = detection.windows.mapIndexed { index, window ->
+            val logicalStart = window.startTimestampMs
+            val logicalEnd = window.endTimestampMs
+            val associatedCue = availableCues.firstOrNull { cue ->
+                val cueTime = cue.videoTimestampMs ?: cue.monotonicTimestampMs
+                cueTime in (logicalStart - 600L)..(logicalStart + 200L)
+            }
+            val peak = detection.derivedFrames.indices
+                .filter { it in window.startFrameIndex..window.endFrameIndex }
+                .maxByOrNull { detection.derivedFrames[it].rollingArea ?: Double.NEGATIVE_INFINITY }
+                ?.let { frames[it].timestampMs }
+                ?: (logicalStart + logicalEnd) / 2L
+            SessionMovement(
+                movementNumber = index + 1,
+                sourceRecordingPath = masterVideoPath,
+                logicalStartTimestampMs = logicalStart,
+                logicalEndTimestampMs = logicalEnd,
+                retainedStartTimestampMs = max(0L, logicalStart - config.preRollMs),
+                retainedEndTimestampMs = min(totalDurationMs, logicalEnd + config.postRollMs),
+                preferredSnapshotTimestampMs = peak,
+                associatedCue = associatedCue,
+                endBoundaryKind = window.endBoundaryKind,
+                unknownEvidenceIntervals = globalUnknown.mapNotNull { interval ->
+                    val start = max(logicalStart, interval.startTimestampMs)
+                    val end = min(logicalEnd, interval.endTimestampMs)
+                    if (start < end) QomUnknownEvidenceInterval(start, end) else null
+                },
+            )
+        }
+        val kinematics = detection.derivedFrames.mapIndexed { index, frame ->
+            val area = frame.rollingArea
+            RetrospectiveKinematicFrame(
+                timestampMs = frame.timestampMs,
+                frameIndex = index,
+                rawTranslationEvidence = frame.instantaneousArmQom,
+                rawAngularEvidence = null,
+                normalizedTranslationEvidence = area,
+                normalizedAngularEvidence = null,
+                combinedMovementEvidence = area,
+                isMoving = false,
+                isQuiet = false,
+            )
+        }
+        return RetrospectiveSessionResult(
+            sequenceId = sequenceId,
+            masterVideoPath = masterVideoPath,
+            totalFrames = frames.size,
+            totalDurationMs = totalDurationMs,
+            detectedMovementCount = movements.size,
+            movements = movements,
+            kinematicsTimeline = kinematics,
+            stats = RetrospectiveSignalStats(0.0, 0.0, 0.0, 0.0, 1.0),
+            qomTimeline = detection.qomTimeline,
+            sideViewAlternatingPunch = detection,
+        )
+    }
+
+    private fun unknownIntervals(timeline: List<QomFrameEvidence>, totalDurationMs: Long): List<QomUnknownEvidenceInterval> {
+        val intervals = mutableListOf<QomUnknownEvidenceInterval>()
+        var start: Long? = null
+        timeline.forEach { frame ->
+            if (!frame.isAvailable && start == null) start = frame.timestampMs
+            if (frame.isAvailable && start != null) {
+                intervals += QomUnknownEvidenceInterval(start!!, frame.timestampMs)
+                start = null
+            }
+        }
+        start?.let { intervals += QomUnknownEvidenceInterval(it, totalDurationMs) }
+        return intervals
     }
 }
 

@@ -189,7 +189,12 @@ class TrainingRepository(private val database: KarateTrainingDatabase, val stora
             it.state == ProcessingState.COMPLETED && it.sourceState == SourceState.AVAILABLE && file(it.filePath).isFile
         }
         val session = requireNotNull(session(sessionId))
-        val plan = RecordingProcessingPlans.forSession(session, MotionActivityPlans.fromEvents(events(sessionId)))
+        val sessionEvents = events(sessionId)
+        val plan = RecordingProcessingPlans.forSession(
+            session,
+            MotionActivityPlans.fromEvents(sessionEvents),
+            SegmentationProfileSelectionStore.current(sessionEvents),
+        )
         val run = ProcessingRun(
             sessionId = sessionId,
             mode = RunMode.REANALYSIS,
@@ -276,6 +281,45 @@ class TrainingRepository(private val database: KarateTrainingDatabase, val stora
         run to confirmation
     }
 
+    fun selectExperimentalSideViewSegmentationAndPrepareReanalysis(
+        sessionId: String,
+        reservation: ProcessingCoordinator.SessionReservation? = null,
+    ): Pair<ProcessingRun, SegmentationProfileSelectionStore.Evidence> = atomic {
+        check(canReanalyze(sessionId, reservation)) {
+            "Reanalysis cannot proceed: valid landmark evidence is not available or processing is active"
+        }
+        val events = dao.events(sessionId).map { it.value }
+        val activity = requireNotNull(MotionActivityPlans.evidenceFromEvents(events)) {
+            "A single supported activity plan must be assigned before selecting this segmentation profile"
+        }
+        require(activity.context.planId == MotionActivityPlans.ALTERNATING_PUNCH) {
+            "Experimental side-view segmentation is only available for alternating straight punches"
+        }
+        val existing = events.filter { it.type == SegmentationProfileSelectionStore.EVENT_TYPE }
+        val event = when {
+            existing.none { it.data == SegmentationProfileSelectionStore.EXPERIMENTAL_SIDE_VIEW_ALTERNATING_PUNCH_V2 } &&
+                existing.all {
+                    it.data == SegmentationProfileSelectionStore.EXPERIMENTAL_SIDE_VIEW_ALTERNATING_PUNCH_V1 &&
+                        it.timingSource == SegmentationProfileSelectionStore.OPERATOR_ORIGIN
+                } -> SegmentationProfileSelectionStore.event(sessionId)
+                .also { dao.insert(SessionEventRow(it)) }
+            existing.count { it.data == SegmentationProfileSelectionStore.EXPERIMENTAL_SIDE_VIEW_ALTERNATING_PUNCH_V2 } == 1 &&
+                existing.all {
+                    it.timingSource == SegmentationProfileSelectionStore.OPERATOR_ORIGIN &&
+                        it.data in setOf(
+                            SegmentationProfileSelectionStore.EXPERIMENTAL_SIDE_VIEW_ALTERNATING_PUNCH_V1,
+                            SegmentationProfileSelectionStore.EXPERIMENTAL_SIDE_VIEW_ALTERNATING_PUNCH_V2,
+                        )
+                } -> existing.single { it.data == SegmentationProfileSelectionStore.EXPERIMENTAL_SIDE_VIEW_ALTERNATING_PUNCH_V2 }
+            else -> error("Recording segmentation profile is already assigned or conflicts with stored evidence")
+        }
+        val evidence = requireNotNull(SegmentationProfileSelectionStore.current(
+            if (event in events) events else events + event,
+        ))
+        val (run, _) = prepareReanalysisRun(sessionId, reservation)
+        run to evidence
+    }
+
     fun prepareLandmarkReprocessRun(
         sessionId: String,
         reservation: ProcessingCoordinator.SessionReservation? = null,
@@ -284,7 +328,12 @@ class TrainingRepository(private val database: KarateTrainingDatabase, val stora
             "Landmark reprocessing cannot proceed: master video is unavailable or processing is active"
         }
         val session = requireNotNull(session(sessionId))
-        val plan = RecordingProcessingPlans.forSession(session, MotionActivityPlans.fromEvents(events(sessionId)))
+        val sessionEvents = events(sessionId)
+        val plan = RecordingProcessingPlans.forSession(
+            session,
+            MotionActivityPlans.fromEvents(sessionEvents),
+            SegmentationProfileSelectionStore.current(sessionEvents),
+        )
         val run = ProcessingRun(
             sessionId = sessionId,
             mode = RunMode.LANDMARK_REPROCESS,

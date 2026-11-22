@@ -88,22 +88,28 @@ object RecordingProcessingPlans {
     fun forSession(
         session: RecordingSession,
         activityContext: ActivitySideContext? = null,
+        segmentationProfile: SegmentationProfileSelectionStore.Evidence? = null,
     ): RecordingProcessingPlan {
         val legacyKickProfile = session.expectedCategory?.contains("kick", ignoreCase = true) == true ||
             session.activityKey?.contains("kick", ignoreCase = true) == true
         return STRAIGHT_PUNCH_TARGET_ANALYSIS.copy(
             movementProfile = activityContext?.let(MotionActivityPlans::profile)
                 ?: if (legacyKickProfile) MotionBodyProfile.KICK else MotionBodyProfile.PUNCH,
-            qomConfig = if (activityContext?.activity == LimbInterpretationActivity.STRAIGHT_PUNCH) {
-                QomDetectorConfig.supportedWorldV2()
-            } else {
-                QomDetectorConfig()
+            qomConfig = when {
+                segmentationProfile != null &&
+                    activityContext?.planId == MotionActivityPlans.ALTERNATING_PUNCH ->
+                    qomConfigForVersion(segmentationProfile.detectorVersion)
+                activityContext?.activity == LimbInterpretationActivity.STRAIGHT_PUNCH ->
+                    QomDetectorConfig.supportedWorldV2()
+                else -> QomDetectorConfig()
             },
         )
     }
 
     fun qomConfigForVersion(version: String): QomDetectorConfig = when (version) {
         QomDetectorConfig.SUPPORTED_WORLD_V2 -> QomDetectorConfig.supportedWorldV2()
+        QomDetectorConfig.SIDE_VIEW_ALTERNATING_PUNCH_V1 -> QomDetectorConfig.sideViewAlternatingPunchV1()
+        QomDetectorConfig.SIDE_VIEW_ALTERNATING_PUNCH_V2 -> QomDetectorConfig.sideViewAlternatingPunchV2()
         QomDetectorConfig().detectorVersion -> QomDetectorConfig()
         else -> error("Unsupported segmentation version: $version")
     }
@@ -228,6 +234,8 @@ object TrainingMeasurements {
     const val PUNCH_CHUDAN_TARGET_ANGLE_ERROR_DEG = "PUNCH_CHUDAN_TARGET_ANGLE_ERROR_DEG"
     const val PUNCH_GEDAN_TARGET_ANGLE_ERROR_DEG = "PUNCH_GEDAN_TARGET_ANGLE_ERROR_DEG"
     const val PUNCH_TARGET_CLASSIFICATION_MARGIN_DEG = "PUNCH_TARGET_CLASSIFICATION_MARGIN_DEG"
+    const val PUNCH_CURRENT_FRAME_ANGULAR_TARGET = "PUNCH_CURRENT_FRAME_ANGULAR_TARGET"
+    const val PUNCH_CURRENT_FRAME_ANGULAR_ERROR_DEG = "PUNCH_CURRENT_FRAME_ANGULAR_ERROR_DEG"
     const val PUNCH_HORIZONTAL_CLOSEST_TARGET = "PUNCH_HORIZONTAL_CLOSEST_TARGET"
     const val PUNCH_JODAN_HEIGHT_ERROR_NORMALIZED = "PUNCH_JODAN_HEIGHT_ERROR_NORMALIZED"
     const val PUNCH_CHUDAN_HEIGHT_ERROR_NORMALIZED = "PUNCH_CHUDAN_HEIGHT_ERROR_NORMALIZED"
@@ -261,6 +269,12 @@ object TrainingMeasurements {
         MeasurementDefinition("PUNCH_TARGET_CLASSIFICATION_MARGIN_DEG", "Angular margin between closest and second-best target in degrees", "degree", "1",
             "strike", "straight_punch", setOf(ObservedView.LEFT_SIDE, ObservedView.RIGHT_SIDE),
             "Side-view setup accepted by StraightPunchTargetCalculator", setOf("SHOULDER", "ELBOW", "WRIST", "HIP"), "canonical_terminal_frame"),
+        MeasurementDefinition(PUNCH_CURRENT_FRAME_ANGULAR_TARGET, "Selected current-frame angular target", "categorical", "1",
+            "strike", "straight_punch", setOf(ObservedView.LEFT_SIDE, ObservedView.RIGHT_SIDE),
+            "Completed exact-frame impact with reliable facing and composite-fist reach", setOf("STRIKING_SHOULDER", "ELBOW", "COMPOSITE_HAND"), "stable_representative_frame"),
+        MeasurementDefinition(PUNCH_CURRENT_FRAME_ANGULAR_ERROR_DEG, "Signed current-frame optimal-to-actual ray error; positive high and negative low", "degree", "1",
+            "strike", "straight_punch", setOf(ObservedView.LEFT_SIDE, ObservedView.RIGHT_SIDE),
+            "Completed exact-frame impact with reliable facing and composite-fist reach", setOf("STRIKING_SHOULDER", "ELBOW", "COMPOSITE_HAND"), "stable_representative_frame"),
         MeasurementDefinition(PUNCH_HORIZONTAL_CLOSEST_TARGET, "Closest exact-frame horizontal target-height guide", "categorical", "1",
             "strike", "straight_punch", setOf(ObservedView.LEFT_SIDE, ObservedView.RIGHT_SIDE),
             "Completed impact representative in canonical upright unmirrored image", setOf("COMPOSITE_HAND"), "stable_representative_frame"),

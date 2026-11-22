@@ -76,6 +76,10 @@ Exact bounded-context names, module boundaries, aggregates, persistence ownershi
 - **OBSERVED:** `ImageBodyScaleCalibration` binds endpoints, frame index/time, recording/track/canonical geometry, validity interval, confirmation and method version. The provider rejects identity/interval mismatches and returns aspect-correct source-frame-height units. App calibration/revocation events are append-only; analysis retains its calibration snapshot and source ID.
 - **OBSERVED:** New recording analyses use explicit capture-plan identifiers, never display-label inference. Missing plans retain generic limb evidence and abstain from activity/weapon/target interpretation. Historical results remain stored. Manual calibration currently requires Android 9+ and unchanged conditions across the entire recording.
 
+### Straight-punch side-method supersession — 2026-11-21
+
+**DECIDED (explicit user specification via Project Architect):** full-window hip-relative paired-arm world-velocity scoring is now the requested straight-punch side method. Earlier episode-opening-primary and conservative paired-inference restrictions are superseded where conflicting, while their dated diagnostic observations remain historical evidence. See the [decision and authoritative requirement](DECISIONS.md#2026-11-21--paired-arm-world-velocity-straight-punch-side-method). This does not imply implementation acceptance, direct visibility of a missing anatomical landmark, expected-alternation inference or impact/view suitability approval.
+
 ### Impact camera-view approval
 
 **Status: DECIDED precondition; supported mapping UNKNOWN — 2026-10-04 architectural review**

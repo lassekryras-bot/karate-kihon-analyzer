@@ -2,6 +2,36 @@
 
 Status: IN PROGRESS
 
+## Current user focus: unavailable Key results — 2026-11-21
+
+After side and Active arm presentation fixes, Lasse selected the Key results section's unavailable outputs as the next issue. Senior is assigned to trace exact current labels through persisted result/reason to the analytical owner, then propose the smallest correction. Track coordination under [003](prioritized/003-end-to-end-punch-analysis-coordination.md); no duplicate feature task.
+
+Existing impact/view, neutral-reference and stable-evidence blockers must be distinguished from unimplemented speed/path/hikite placeholders. Correct supported output paths where semantics are established; obtain PA decisions for unresolved policy/reference changes. Do not fabricate values, bypass gates or silently broaden scope into missing analyzer features.
+
+Acceptance for the bounded follow-up: each displayed unavailable field has a verified reason/owner; implemented, eligible results display from the selected persisted analysis and remain correct after reopen; legitimate unavailable cases remain explicit. Record exact device/build/run evidence and unresolved separately owned work. Investigation/implementation is pending; selecting Key results is not approval of impact/view suitability or threshold/calibration relaxation.
+
+### PA approved presentation approach A — 2026-11-21
+
+Architect approved Senior's truthful-presentation proposal; implementation pending. Hide the three unimplemented Max speed, Max path deviation and Hikite max speed placeholders, as permitted by this specification's unavailable-measurement behavior. Their analytical contracts/providers remain unimplemented future work, not completed or cancelled features.
+
+Retain Target height with a plain-language explanation derived from the selected persisted abstention reason. Preserve valid and legacy output; do not infer failure reasons from unrelated runs or replace missing evidence with invented values. Verify selected-analysis consistency, known/unrecognized reason handling, preserved available/legacy values and the hidden placeholder cases.
+
+This approval is presentation-only: no view/impact/reference gate change and no reanalysis. It may complete this UI cleanup, not the broader end-to-end analytical blockers or new analyzer implementation.
+
+### Key results implementation checkpoint — 2026-11-21
+
+Senior reports current run `fec07ba7-3914-4c9e-9e9b-ceefac6b1690` has ten motion v3 results marked PARTIAL, impact NOT_EVALUATED / `UNSUPPORTED_ANALYSIS_PROFILE`, and `straight_punch_target` v2 ABSTAINED for the same reason with no measurement rows. Target height is owned by `StraightPunchMovementAdapter` downstream of `MovementMotionAnalysis`/`ImpactAnalyzer`; the explicit activity/view gate is the current blocker. This is a current-run observation, not a claim about all historical unavailable cases.
+
+The approved presentation implementation spans three scoped files. Senior reports focused/full app tests pass (487 total, three optional skips) and `assembleDebug` succeeds. BA has not rerun those checks. The phone disconnected before this final build could be installed, so final device UI verification remains pending. No reanalysis was requested or needed. Commit/artifact delivery identity has not been supplied in this checkpoint; retain IN PROGRESS for this follow-up. Future speed/path/hikite contracts/providers and underlying analytical gates remain unchanged.
+
+**PA implementation approval — 2026-11-21:** Architect reviewed the exact diff and APPROVED the three-file cleanup: remove the unimplemented metric slots, explain Target height using the selected persisted unsupported-profile reason, and use a neutral fallback for unknown/missing reasons. PA independently verified XML totals of 487 tests, zero failures/errors and three skips; build success remains Senior-reported. Scoped commit/push requested; delivery identity and final phone installation/UI acceptance remain pending reconnect. Broader metric/view/reference blockers are not closed.
+
+**Code delivered — 2026-11-21:** Senior reports the approved cleanup pushed to main at `d738bdddf6b1276135991bc46f5ef6d9bb2d2d04`; BA verified the commit locally. Target height explains the selected persisted activity/view blocker; the three unimplemented metrics are omitted while future analytical scope remains open. App suite/build verification is recorded above. No reanalysis performed for this change. Final phone install/screen verification remains pending reconnect, so this presentation follow-up is not yet device-accepted; broader task remains IN PROGRESS.
+
+**Presentation follow-up DONE — 2026-11-21:** Senior verified `d738bdd` installed in place on Samsung SM-A556B with data preserved. Local and installed APK SHA-256 match: `b0efe191a994e7a3755a73395e69c6849ff813e43ab902d45403579d98a514a5`. Through Performance > Recordings > 15 Sep 2026 20:19 > Movement 1, header remains Straight punch · LEFT. Key Results shows only Target height, Unavailable, and “Target analysis is not yet supported for this activity and camera view.” Max speed, Max path deviation and Hikite max speed are absent.
+
+Senior verified current run remains `fec07ba7-3914-4c9e-9e9b-ceefac6b1690`, run count 21, latest `createdAtMs` unchanged at `1795267895630` versus pre-install evidence: no reanalysis/new run. Temporary phone/local database copies were removed. BA records Senior's device evidence rather than independent phone operation. This closes the bounded presentation cleanup only; future analyzer providers, impact/view/reference policy and broader Movement Detail acceptance remain open.
+
 ## Delivery checkpoint — 2026-11-07
 
 OBSERVED: `394ca7d` adds retained limb-angle plot presentation, explicit evidence gaps and logical bounds, alongside supporting side-episode diagnostics. Source owners are `app/.../movement/MovementMotionInspection.kt`, `MovementGraphView.kt`, `MovementPresentationModels.kt` and `MovementDetailActivity.kt`; regression cases exist in `MovementMotionInspectionTest.kt`. Therefore the historical blanket statements below that Graph ingestion is deferred or Graph always unavailable no longer describe all current behavior. Missing evidence must still remain unavailable; these plots do not establish speed/deviation metrics or technique findings.

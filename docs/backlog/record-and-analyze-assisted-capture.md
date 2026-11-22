@@ -2,6 +2,14 @@
 
 Status: IN PROGRESS
 
+## Proposed neutral-evidence follow-up — 2026-11-21
+
+Under [003](prioritized/003-end-to-end-punch-analysis-coordination.md#future-neutral-evidence-proposal--2026-11-21), Senior proposes a live neutral-hold stage after video starts, reusing existing `PunchHeightAnalyzer` setup/initialization rules. Persist the accepted recording-relative interval and rule/quality/camera provenance as an append-only session event; downstream reference geometry must be recomputed from the exact canonical Heavy track, not copied from preview coordinates. Neutral evidence does not grant impact/view suitability.
+
+Reported current gaps: assisted capture is preview-only with no pose frames, neutral stage or typed event. Four-slice plan is with PA; implementation is not yet approved. No production source/phone data changes are part of the diagnostic close-out. This existing capture task owns any later approved capture-flow change; geometry and target analysis keep their existing owners.
+
+PA subsequently approved design exploration only: no implementation or mandatory hold. Before choosing a live path, compare reuse of existing live validation with simpler recorded-video validation of an explicit neutral interval. Specify actual neutral posture separately from stability, timestamp/geometry/lifecycle/event identity, feasibility and hold/skip/failure UX. Diagnostic preservation approval does not approve this capture change.
+
 The three [bundled steps](../record-and-analyze-bundled-plan.md) are now implemented
 locally: capture lifecycle, durable queue/resource gates and Performance recordings.
 See [current validation](../validation/record-and-analyze-bundled.md). Physical

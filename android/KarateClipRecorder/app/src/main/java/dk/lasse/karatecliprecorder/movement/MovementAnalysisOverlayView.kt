@@ -20,6 +20,8 @@ import dk.lasse.karatecliprecorder.R
 import dk.lasse.karatecliprecorder.training.BodySide
 import kotlin.math.abs
 
+internal data class OverlayLabelLayout(val x: Float, val baselineY: Float, val bounds: RectF)
+
 /**
  * Overlay view that renders analyzer-provided geometry:
  * target lines, active arm segments, and impact markers.
@@ -38,6 +40,34 @@ class MovementAnalysisOverlayView(
     internal fun raysForDisplay(): List<OverlayRay> {
         val overlay = overlayDefinition ?: return emptyList()
         return if (overlay.exactFrameOnly || showAllRays) overlay.rays else overlay.rays.filter { it.isClosest }
+    }
+
+    internal fun boundedLabelLayout(
+        label: String,
+        anchor: PointF,
+        verticalOffsetPx: Float,
+        imageBounds: RectF,
+    ): OverlayLabelLayout {
+        val textWidth = textPaint.measureText(label)
+        val metrics = textPaint.fontMetrics
+        val x = (anchor.x + 4f * density).coerceIn(
+            imageBounds.left,
+            (imageBounds.right - textWidth).coerceAtLeast(imageBounds.left),
+        )
+        val minimumBaseline = imageBounds.top - metrics.ascent
+        val maximumBaseline = (imageBounds.bottom - metrics.descent).coerceAtLeast(minimumBaseline)
+        val baseline = (anchor.y + verticalOffsetPx).coerceIn(minimumBaseline, maximumBaseline)
+        return OverlayLabelLayout(
+            x,
+            baseline,
+            RectF(x, baseline + metrics.ascent, x + textWidth, baseline + metrics.descent),
+        )
+    }
+
+    internal fun angularErrorLabel(signedErrorDeg: Double): String = when {
+        abs(signedErrorDeg) < 0.05 -> "0.0°"
+        signedErrorDeg > 0.0 -> "+${"%.1f".format(signedErrorDeg)}° high"
+        else -> "${"%.1f".format(signedErrorDeg)}° low"
     }
 
     private val density = resources.displayMetrics.density
@@ -186,6 +216,58 @@ class MovementAnalysisOverlayView(
             // Striking fist
             paint.color = accentColor
             canvas.drawCircle(wr.x, wr.y, 7f * density, paint)
+        }
+
+        overlay.actualRay?.let { segment ->
+            val start = toPx(segment.start)
+            val end = toPx(segment.end)
+            paint.style = Paint.Style.STROKE
+            paint.pathEffect = null
+            paint.strokeWidth = 3f * density
+            paint.color = primaryColor
+            canvas.drawLine(start.x, start.y, end.x, end.y, paint)
+            textPaint.color = primaryColor
+            val label = boundedLabelLayout("Actual", end, -5f * density, rect)
+            canvas.drawText("Actual", label.x, label.baselineY, textPaint)
+        }
+
+        overlay.optimalRay?.let { segment ->
+            val start = toPx(segment.start)
+            val end = toPx(segment.end)
+            paint.style = Paint.Style.STROKE
+            paint.strokeWidth = 2.5f * density
+            paint.color = accentColor
+            paint.pathEffect = DashPathEffect(floatArrayOf(10f * density, 5f * density), 0f)
+            canvas.drawLine(start.x, start.y, end.x, end.y, paint)
+            paint.pathEffect = null
+            textPaint.color = accentColor
+            val label = boundedLabelLayout("Optimal", end, 15f * density, rect)
+            canvas.drawText("Optimal", label.x, label.baselineY, textPaint)
+        }
+
+        overlay.angleArc?.let { arc ->
+            val origin = toPx(arc.origin)
+            val radius = 28f * density
+            val startAngle = when (arc.facing) {
+                dk.lasse.karateanalyzer.core.ImageFacingDirection.IMAGE_LEFT -> 180f + arc.optimalAngleDeg.toFloat()
+                dk.lasse.karateanalyzer.core.ImageFacingDirection.IMAGE_RIGHT -> -arc.optimalAngleDeg.toFloat()
+                dk.lasse.karateanalyzer.core.ImageFacingDirection.UNKNOWN -> 0f
+            }
+            val sweep = when (arc.facing) {
+                dk.lasse.karateanalyzer.core.ImageFacingDirection.IMAGE_LEFT -> arc.signedErrorDeg.toFloat()
+                dk.lasse.karateanalyzer.core.ImageFacingDirection.IMAGE_RIGHT -> -arc.signedErrorDeg.toFloat()
+                dk.lasse.karateanalyzer.core.ImageFacingDirection.UNKNOWN -> 0f
+            }
+            paint.style = Paint.Style.STROKE
+            paint.strokeWidth = 2f * density
+            paint.color = accentColor
+            paint.pathEffect = null
+            canvas.drawArc(origin.x - radius, origin.y - radius, origin.x + radius, origin.y + radius,
+                startAngle, sweep, false, paint)
+            val arcLabel = angularErrorLabel(arc.signedErrorDeg)
+            textPaint.color = accentColor
+            val label = boundedLabelLayout(arcLabel, origin, -10f * density, rect)
+            canvas.drawText(arcLabel, label.x, label.baselineY, textPaint)
         }
 
         overlay.fist?.let { retainedFist ->

@@ -1,5 +1,7 @@
 package dk.lasse.karateanalyzer.capture.qom
 
+import dk.lasse.karateanalyzer.capture.LateralSide
+
 enum class QomEvidencePolicy(val policyVersion: String) {
     LEGACY_FINITE_WEIGHTED_V1("qom-evidence-finite-weighted-v1"),
     OBSERVED_WORLD_V2("qom-evidence-observed-world-v2"),
@@ -24,10 +26,23 @@ data class QomDetectorConfig(
     val preRollMs: Long = 150L,
     val postRollMs: Long = 200L,
     val minimumValidBlocks: Int = 1,
+    val sideViewRepairSide: LateralSide? = null,
 ) {
     init {
-        require((evidencePolicy == QomEvidencePolicy.OBSERVED_WORLD_V2) == (detectorVersion == SUPPORTED_WORLD_V2)) {
-            "Reserved detector version $SUPPORTED_WORLD_V2 must be paired only with OBSERVED_WORLD_V2"
+        val observedWorldVersions = setOf(
+            SUPPORTED_WORLD_V2,
+            SIDE_VIEW_ALTERNATING_PUNCH_V1,
+            SIDE_VIEW_ALTERNATING_PUNCH_V2,
+        )
+        require((evidencePolicy == QomEvidencePolicy.OBSERVED_WORLD_V2) == (detectorVersion in observedWorldVersions)) {
+            "Observed-world detector versions must be paired only with OBSERVED_WORLD_V2"
+        }
+        val sideViewVersions = setOf(SIDE_VIEW_ALTERNATING_PUNCH_V1, SIDE_VIEW_ALTERNATING_PUNCH_V2)
+        require((detectorVersion in sideViewVersions) == (sideViewRepairSide != null)) {
+            "Side-view alternating-punch version requires an explicit repair side"
+        }
+        require(detectorVersion !in sideViewVersions || sideViewRepairSide == LateralSide.LEFT) {
+            "The demonstrated side-view repair is limited to the left arm"
         }
         require(positionMedianSamples >= 1) { "positionMedianSamples must be >= 1" }
         require(positionMeanSamples >= 1) { "positionMeanSamples must be >= 1" }
@@ -44,10 +59,24 @@ data class QomDetectorConfig(
 
     companion object {
         const val SUPPORTED_WORLD_V2 = "activity_qom_supported_world_v2"
+        const val SIDE_VIEW_ALTERNATING_PUNCH_V1 = "side_view_alternating_punch_offline_v1"
+        const val SIDE_VIEW_ALTERNATING_PUNCH_V2 = "side_view_alternating_punch_offline_v2"
 
         fun supportedWorldV2(): QomDetectorConfig = QomDetectorConfig(
             detectorVersion = SUPPORTED_WORLD_V2,
             evidencePolicy = QomEvidencePolicy.OBSERVED_WORLD_V2,
+        )
+
+        fun sideViewAlternatingPunchV1(): QomDetectorConfig = QomDetectorConfig(
+            detectorVersion = SIDE_VIEW_ALTERNATING_PUNCH_V1,
+            evidencePolicy = QomEvidencePolicy.OBSERVED_WORLD_V2,
+            sideViewRepairSide = LateralSide.LEFT,
+        )
+
+        fun sideViewAlternatingPunchV2(): QomDetectorConfig = QomDetectorConfig(
+            detectorVersion = SIDE_VIEW_ALTERNATING_PUNCH_V2,
+            evidencePolicy = QomEvidencePolicy.OBSERVED_WORLD_V2,
+            sideViewRepairSide = LateralSide.LEFT,
         )
     }
 }

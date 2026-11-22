@@ -8,6 +8,10 @@ Status: **IN PROGRESS** — Stages A, B, and C completed and verified via automa
 
 Placement: Pure Kotlin within the existing karate-analyzer-core module. No new module or dependency-injection framework is required.
 
+## Retained-video reference follow-up — 2026-11-08
+
+Within [003 coordination](prioritized/003-end-to-end-punch-analysis-coordination.md#pa-retained-video-reference-direction--2026-11-08), PA approved the direction of versioned retained-video reference eligibility decoupled from unused-arm visibility. Senior first proposes minimal reuse and diagnostic M1/M9 reference replay. Shared geometry retains bilateral torso anchors, actual earlier stable neutral evidence and reference provenance; visible-side/head semantics and selected-arm per-metric eligibility must be independently established. Live setup remains unchanged. This does not close Stages D/E, authorize a new subsystem, replace neutral evidence with calibration or an impact-frame reference, or activate production output. Target behavior remains owned by the [target corrective pass](movement-detail-target-height-heavy-reprocessing-corrective-pass.md).
+
 This is revision 2 of the specification, superseding the [v1 draft](landmark-geometry-core-v1-spec.md). It describes the first implementation of this broader capability. The document revision does not automatically change persisted schemas, analyzer versions, measurement IDs, or the versions of existing geometry components.
 
 ## Revision 2 decisions and component ownership

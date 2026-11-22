@@ -18,11 +18,14 @@ Record proposed versus approved approach, prototype implementation, automated ve
 
 ## Current focus and next actions
 
+Lasse selected [end-to-end straight-punch analysis](prioritized/003-end-to-end-punch-analysis-coordination.md) on 2026-11-08, relayed by PA: side correctness → explicit activity/view eligibility → terminal/per-metric output → persisted/reopened phone results. The numbered pointer coordinates existing owners. Senior's first deliverable is exact recovered evidence, a per-movement blocker matrix and the smallest corrective proposal; the earlier missing-source blocker is resolved by the paired phone evidence.
+
 | Work | Current state | Next action / dependency |
 | --- | --- | --- |
-| [Straight-punch side correctness](four-limb-motion-characterizer-requirement-v1.md#current-follow-up--2026-11-07) | IN PROGRESS — open P1 correctness defect | Establish discriminative body-relative evidence; retain abstention and historical provenance. Separate from optimization. |
-| [Impact/view suitability](impact-analyzer-requirement-v1.md#delivery-checkpoint--2026-11-07) | IN PROGRESS — shared implementation exists; production output gated | Validated activity/view mapping and reliable selected-side evidence are prerequisites. |
+| [Straight-punch side correctness](four-limb-motion-characterizer-requirement-v1.md#current-user-specification--2026-11-21) | Scoped correction complete and verified on Samsung/sample at `5ee140b`; persisted views show 10/10 expected sides per Senior | 003 continues with independent impact/view/reference and metric blockers. One recording does not establish general accuracy. |
+| [Impact/view suitability](impact-analyzer-requirement-v1.md#delivery-checkpoint--2026-11-07) | IN PROGRESS — production gated; diagnostic supported-LEFT replay approved | Use explicitly hypothetical view input to expose blockers and propose suitability. No runtime view approval or forced measurements. |
 | [Movement inspection acceptance](movement-detail-page-v1.md#delivery-checkpoint--2026-11-07) | IN PROGRESS — retained plots implemented | Phone readability/dark mode and outstanding playback/accessibility acceptance. |
+| [Key results presentation](movement-detail-page-v1.md#current-user-focus-unavailable-key-results--2026-11-21) | Scoped cleanup DONE — `d738bdd` verified on Samsung; reason explained and unimplemented rows hidden | Underlying impact/view/reference and future metric analyzers remain open; no reanalysis performed. |
 | [Segmentation validation](segmenter-integration-v1-requirements.md#delivery-checkpoint--2026-11-07) | IN PROGRESS — explicit-punch v2 implemented; one recording accepted | Broader corpus and remaining integration acceptance; do not force detected counts. |
 
 ## Other implementation and acceptance work

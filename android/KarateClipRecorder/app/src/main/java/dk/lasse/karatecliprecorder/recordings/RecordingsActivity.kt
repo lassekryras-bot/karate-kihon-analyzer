@@ -136,7 +136,19 @@ class RecordingsActivity : AppCompatActivity() {
                 }
                 val rec = repo.recording(id)
                 val tracks = rec?.let { repo.tracks(it.recordingId) } ?: emptyList()
-                SegmentData(items, currentRun, repo.canReanalyze(id), repo.canReprocessLandmarks(id), tracks)
+                val events = repo.events(id)
+                val activity = MotionActivityPlans.evidenceFromEvents(events)
+                val selectedSegmentation = SegmentationProfileSelectionStore.current(events)
+                SegmentData(
+                    items,
+                    currentRun,
+                    repo.canReanalyze(id),
+                    repo.canReprocessLandmarks(id),
+                    tracks,
+                    activity?.context?.planId == MotionActivityPlans.ALTERNATING_PUNCH &&
+                        selectedSegmentation?.profileId !=
+                        SegmentationProfileSelectionStore.EXPERIMENTAL_SIDE_VIEW_ALTERNATING_PUNCH_V2,
+                )
             })
         }) { result ->
             loading = false
@@ -668,6 +680,29 @@ class RecordingsActivity : AppCompatActivity() {
                 }
                 if (segmentData?.canReanalyze == true) {
                     if (dk.lasse.karatecliprecorder.BuildConfig.DEBUG) {
+                        if (segmentData?.canSelectExperimentalSideViewSegmentation == true) {
+                            utils.addView(button("Use experimental side-view punch segmentation") {
+                                AlertDialog.Builder(this@RecordingsActivity)
+                                    .setTitle("Use experimental side-view segmentation?")
+                                    .setMessage(
+                                        "Reuse this recording's landmark stream with the experimental side-view alternating-punch segmenter. " +
+                                            "This selection affects segmentation only; it does not approve camera view or unlock impact analysis. " +
+                                            "The previous successful result remains available unless the new run completes successfully.",
+                                    )
+                                    .setNegativeButton("Cancel", null)
+                                    .setPositiveButton("Select and reanalyze") { _, _ ->
+                                        toast("Experimental segmentation started…")
+                                        training.selectExperimentalSideViewSegmentationAndReanalyze(
+                                            row.session.sessionId,
+                                        ) { result ->
+                                            result.onSuccess { toast("Experimental segmentation complete") }
+                                                .onFailure { err -> toast("Experimental segmentation failed: ${err.message}") }
+                                            load()
+                                        }
+                                    }
+                                    .show()
+                            }.apply { (layoutParams as? ViewGroup.MarginLayoutParams)?.topMargin = dp(6) })
+                        }
                         utils.addView(button("Confirm side view for this recording and reanalyze") {
                             AlertDialog.Builder(this@RecordingsActivity)
                                 .setTitle("Confirm diagnostic side view?")
@@ -774,8 +809,16 @@ class RecordingsActivity : AppCompatActivity() {
             return@apply
         }
 
-        val closestTargets = items.mapNotNull { it.measurements.firstOrNull { m -> m.measurementKey == TrainingMeasurements.PUNCH_CLOSEST_TARGET }?.categoricalValue }
-        val targetErrors = items.mapNotNull { it.measurements.firstOrNull { m -> m.measurementKey == TrainingMeasurements.PUNCH_TARGET_ANGLE_ERROR_DEG }?.numericValue?.let { v -> kotlin.math.abs(v) } }
+        val closestTargets = items.mapNotNull { item ->
+            item.measurements.firstOrNull { it.measurementKey == TrainingMeasurements.PUNCH_CURRENT_FRAME_ANGULAR_TARGET }?.categoricalValue
+                ?: item.measurements.firstOrNull { it.measurementKey == TrainingMeasurements.PUNCH_HORIZONTAL_CLOSEST_TARGET }?.categoricalValue
+                ?: item.measurements.firstOrNull { it.measurementKey == TrainingMeasurements.PUNCH_CLOSEST_TARGET }?.categoricalValue
+        }
+        val targetErrors = items.mapNotNull { item ->
+            (item.measurements.firstOrNull { it.measurementKey == TrainingMeasurements.PUNCH_CURRENT_FRAME_ANGULAR_ERROR_DEG }?.numericValue
+                ?: item.measurements.firstOrNull { it.measurementKey == TrainingMeasurements.PUNCH_TARGET_ANGLE_ERROR_DEG }?.numericValue)
+                ?.let { kotlin.math.abs(it) }
+        }
 
         if (closestTargets.isNotEmpty()) {
             val jodanCount = closestTargets.count { it == "JODAN" }
@@ -972,8 +1015,8 @@ class RecordingsActivity : AppCompatActivity() {
                 typeface = Typeface.create("sans-serif", Typeface.BOLD)
                 setTextColor(ContextCompat.getColor(this@RecordingsActivity, R.color.app_text_primary))
             })
-            val startSec = movement.playbackStartUs / 1_000_000.0
-            val endSec = movement.playbackEndUs / 1_000_000.0
+            val startSec = movement.startUs / 1_000_000.0
+            val endSec = movement.endUs / 1_000_000.0
             val durationSec = (movement.endUs - movement.startUs) / 1_000_000.0
             addView(TextView(this@RecordingsActivity).apply {
                 text = "Time: ${"%.1f".format(startSec)} – ${"%.1f".format(endSec)} s (duration ${"%.2f".format(durationSec)} s)"
@@ -981,13 +1024,25 @@ class RecordingsActivity : AppCompatActivity() {
                 setTextColor(ContextCompat.getColor(this@RecordingsActivity, R.color.app_text_secondary))
                 setPadding(0, dp(2), 0, dp(4))
             })
+            if (movement.playbackStartUs != movement.startUs || movement.playbackEndUs != movement.endUs) {
+                addView(TextView(this@RecordingsActivity).apply {
+                    text = "Playback: ${"%.1f".format(movement.playbackStartUs / 1_000_000.0)} – " +
+                        "${"%.1f".format(movement.playbackEndUs / 1_000_000.0)} s"
+                    textSize = 11f
+                    setTextColor(ContextCompat.getColor(this@RecordingsActivity, R.color.app_text_secondary))
+                    setPadding(0, 0, 0, dp(4))
+                })
+            }
             val chipContainer = LinearLayout(this@RecordingsActivity).apply {
                 orientation = LinearLayout.HORIZONTAL
                 addView(chip("Segment ready"))
             }
 
-            val closest = item.measurements.firstOrNull { it.measurementKey == TrainingMeasurements.PUNCH_CLOSEST_TARGET }?.categoricalValue
-            val error = item.measurements.firstOrNull { it.measurementKey == TrainingMeasurements.PUNCH_TARGET_ANGLE_ERROR_DEG }?.numericValue
+            val closest = item.measurements.firstOrNull { it.measurementKey == TrainingMeasurements.PUNCH_CURRENT_FRAME_ANGULAR_TARGET }?.categoricalValue
+                ?: item.measurements.firstOrNull { it.measurementKey == TrainingMeasurements.PUNCH_HORIZONTAL_CLOSEST_TARGET }?.categoricalValue
+                ?: item.measurements.firstOrNull { it.measurementKey == TrainingMeasurements.PUNCH_CLOSEST_TARGET }?.categoricalValue
+            val error = item.measurements.firstOrNull { it.measurementKey == TrainingMeasurements.PUNCH_CURRENT_FRAME_ANGULAR_ERROR_DEG }?.numericValue
+                ?: item.measurements.firstOrNull { it.measurementKey == TrainingMeasurements.PUNCH_TARGET_ANGLE_ERROR_DEG }?.numericValue
             if (closest != null) {
                 val targetName = when (closest) {
                     "JODAN" -> "Jōdan"
@@ -1020,18 +1075,22 @@ class RecordingsActivity : AppCompatActivity() {
                     }
                     setPadding(dp(8), dp(6), dp(8), dp(6))
                 }
-                val jodanErr = item.measurements.firstOrNull { it.measurementKey == TrainingMeasurements.PUNCH_JODAN_TARGET_ANGLE_ERROR_DEG }?.numericValue
-                val chudanErr = item.measurements.firstOrNull { it.measurementKey == TrainingMeasurements.PUNCH_CHUDAN_TARGET_ANGLE_ERROR_DEG }?.numericValue
-                val gedanErr = item.measurements.firstOrNull { it.measurementKey == TrainingMeasurements.PUNCH_GEDAN_TARGET_ANGLE_ERROR_DEG }?.numericValue
+                val angular = StraightPunchCurrentFrameAngularGeometryCodec.decode(item.analysis?.geometryJson)
+                fun currentError(target: dk.lasse.karateanalyzer.core.PunchHeightTargetType, legacyKey: String) =
+                    angular?.targets?.firstOrNull { it.targetType == target }?.signedErrorDeg
+                        ?: item.measurements.firstOrNull { it.measurementKey == legacyKey }?.numericValue
+                val jodanErr = currentError(dk.lasse.karateanalyzer.core.PunchHeightTargetType.JODAN, TrainingMeasurements.PUNCH_JODAN_TARGET_ANGLE_ERROR_DEG)
+                val chudanErr = currentError(dk.lasse.karateanalyzer.core.PunchHeightTargetType.CHUDAN, TrainingMeasurements.PUNCH_CHUDAN_TARGET_ANGLE_ERROR_DEG)
+                val gedanErr = currentError(dk.lasse.karateanalyzer.core.PunchHeightTargetType.GEDAN, TrainingMeasurements.PUNCH_GEDAN_TARGET_ANGLE_ERROR_DEG)
                 val margin = item.measurements.firstOrNull { it.measurementKey == TrainingMeasurements.PUNCH_TARGET_CLASSIFICATION_MARGIN_DEG }?.numericValue
                 val side = item.side.name
-                val frameUs = movement.analysisFrameUs
+                val frameUs = item.measurements.firstNotNullOfOrNull { it.occurrenceUs } ?: movement.analysisFrameUs
                 val frameIdx = item.measurements.firstOrNull()?.frameIndex
 
                 debugLayout.addView(label("DEBUG INFO:", 11f).apply { setTypeface(typeface, Typeface.BOLD); setPadding(0, 0, 0, dp(2)) })
                 debugLayout.addView(label("Frame: ${frameUs?.let { "%.3f s".format(it / 1_000_000.0) } ?: "n/a"}${frameIdx?.let { " (#$it)" } ?: ""}", 11f).apply { setPadding(0, 0, 0, dp(1)) })
                 debugLayout.addView(label("Active arm: $side", 11f).apply { setPadding(0, 0, 0, dp(1)) })
-                debugLayout.addView(label("Reach provenance: anatomical_segment_sum_v1", 11f).apply { setPadding(0, 0, 0, dp(1)) })
+                debugLayout.addView(label("Reach provenance: ${angular?.reach?.estimatorVersion ?: "anatomical_segment_sum_v1"}", 11f).apply { setPadding(0, 0, 0, dp(1)) })
                 debugLayout.addView(label("Target errors: J=${jodanErr?.let { "%.1f°".format(it) } ?: "n/a"} C=${chudanErr?.let { "%.1f°".format(it) } ?: "n/a"} G=${gedanErr?.let { "%.1f°".format(it) } ?: "n/a"}", 11f).apply { setPadding(0, 0, 0, dp(1)) })
                 debugLayout.addView(label("Closest: ${closest ?: "none"} (margin: ${margin?.let { "%.1f°".format(it) } ?: "n/a"})", 11f).apply { setPadding(0, 0, 0, dp(1)) })
                 item.analysis?.let {
@@ -1143,6 +1202,7 @@ private data class SegmentData(
     val canReanalyze: Boolean,
     val canReprocessLandmarks: Boolean = false,
     val tracks: List<LandmarkTrack> = emptyList(),
+    val canSelectExperimentalSideViewSegmentation: Boolean = false,
 )
 private data class BrowserLoad(val summaries: List<RecordingSummary>, val segments: SegmentData?)
 
